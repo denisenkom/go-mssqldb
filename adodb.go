@@ -83,6 +83,7 @@ type AdodbStmt struct {
 	c *AdodbConn
 	s *ole.IDispatch
 	ps *ole.IDispatch
+	b []string
 }
 
 func (c *AdodbConn) Prepare(query string) (driver.Stmt, error) {
@@ -114,7 +115,12 @@ func (c *AdodbConn) Prepare(query string) (driver.Stmt, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &AdodbStmt{c, s, val.ToIDispatch()}, nil
+	return &AdodbStmt{c, s, val.ToIDispatch(), nil}, nil
+}
+
+func (s *AdodbStmt) Bind(bind []string) error {
+	s.b = bind
+	return nil
 }
 
 func (s *AdodbStmt) Close() error {
@@ -123,6 +129,13 @@ func (s *AdodbStmt) Close() error {
 }
 
 func (s *AdodbStmt) NumInput() int {
+	if s.b != nil {
+		return len(s.b)
+	}
+	_, err := oleutil.CallMethod(s.ps, "Refresh")
+	if err != nil {
+		return -1
+	}
 	val, err := oleutil.GetProperty(s.ps, "Count")
 	if err != nil {
 		return -1
@@ -132,19 +145,42 @@ func (s *AdodbStmt) NumInput() int {
 }
 
 func (s *AdodbStmt) bind(args []interface{}) error {
-	for i, v := range args {
-		var varval ole.VARIANT
-		varval.VT = ole.VT_I4
-		varval.Val = int64(i)
-		val, err := oleutil.CallMethod(s.ps, "Item", &varval)
-		if err != nil {
-			return err
+	if s.b != nil {
+		for i, v := range args {
+			var b string = "?"
+			if len(s.b) < i {
+				b = s.b[i]
+			}
+			unknown, err := oleutil.CallMethod(s.s, "CreateParameter", b, 12, 1)
+			if err != nil {
+				return err
+			}
+			param := unknown.ToIDispatch()
+			defer param.Release()
+			_, err = oleutil.PutProperty(param, "Value", v)
+			if err != nil {
+				return err
+			}
+			_, err = oleutil.CallMethod(s.ps, "Append", param)
+			if err != nil {
+				return err
+			}
 		}
-		item := val.ToIDispatch()
-		defer item.Release()
-		_, err = oleutil.PutProperty(item, "Value", v)
-		if err != nil {
-			return err
+	} else {
+		for i, v := range args {
+			var varval ole.VARIANT
+			varval.VT = ole.VT_I4
+			varval.Val = int64(i)
+			val, err := oleutil.CallMethod(s.ps, "Item", &varval)
+			if err != nil {
+				return err
+			}
+			item := val.ToIDispatch()
+			defer item.Release()
+			_, err = oleutil.PutProperty(item, "Value", v)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
