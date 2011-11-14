@@ -8,12 +8,12 @@ import (
 )
 
 func main() {
-	if _, err := os.Stat("./foo.mdb"); err != nil {
-		fmt.Println("put here empty database named 'foo.mdb'.")
+	if _, err := os.Stat("./example.mdb"); err != nil {
+		fmt.Println("put here empty database named 'example.mdb'.")
 		return
 	}
 
-	db, err := sql.Open("adodb", "Provider=Microsoft.Jet.OLEDB.4.0;Data Source=./foo.mdb;")
+	db, err := sql.Open("adodb", "Provider=Microsoft.Jet.OLEDB.4.0;Data Source=./example.mdb;")
 	if err != nil {
 		fmt.Println(err)
 		return
