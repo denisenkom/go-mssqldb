@@ -1,11 +1,13 @@
 package adodb
 
 import (
+	"math/big"
 	"errors"
 	"exp/sql"
 	"exp/sql/driver"
 	"github.com/mattn/go-ole"
 	"github.com/mattn/go-ole/oleutil"
+	"time"
 )
 
 func init() {
@@ -315,27 +317,31 @@ func (rc *AdodbRows) Next(dest []interface{}) error {
 		case 8: // ADBSTR
 			dest[i] = val.ToString()
 		case 9: // ADIDISPATCH
-			// TODO
+			dest[i] = val.ToIDispatch()
 		case 10: // ADERROR
 			// TODO
 		case 11: // ADBOOLEAN
-			// TODO
+			if val.Val != 0 {
+				dest[i] = true
+			} else {
+				dest[i] = false
+			}
 		case 12: // ADVARIANT
-			// TODO
+			dest[i] = val
 		case 13: // ADIUNKNOWN
-			// TODO
+			dest[i] = val.ToIUnknown()
 		case 14: // ADDECIMAL
 			// TODO
 		case 16: // ADTINYINT
-			// TODO
+			dest[i] = int8(val.Val)
 		case 17: // ADUNSIGNEDTINYINT
-			// TODO
+			dest[i] = uint8(val.Val)
 		case 18: // ADUNSIGNEDSMALLINT
-			// TODO
+			dest[i] = uint16(val.Val)
 		case 19: // ADUNSIGNEDINT
-			// TODO
+			dest[i] = uint32(val.Val)
 		case 20: // ADBIGINT
-			// TODO
+			dest[i] = big.NewInt(val.Val)
 		case 21: // ADUNSIGNEDBIGINT
 			// TODO
 		case 72: // ADGUID
@@ -343,19 +349,19 @@ func (rc *AdodbRows) Next(dest []interface{}) error {
 		case 128: // ADBINARY
 			// TODO
 		case 129: // ADCHAR
-			dest[i] = val.ToString()
+			dest[i] = uint8(val.Val)
 		case 130: // ADWCHAR
-			dest[i] = val.ToString()
+			dest[i] = uint16(val.Val)
 		case 131: // ADNUMERIC
-			dest[i] = val.ToString()
+			dest[i] = val.Val
 		case 132: // ADUSERDEFINED
-			dest[i] = val.ToString()
+			dest[i] = uintptr(val.Val)
 		case 133: // ADDBDATE
-			dest[i] = val.ToString()
+			dest[i] = time. NanosecondsToUTC(val.Val)
 		case 134: // ADDBTIME
-			dest[i] = val.ToString()
+			dest[i] = time. NanosecondsToUTC(val.Val)
 		case 135: // ADDBTIMESTAMP
-			dest[i] = val.ToString()
+			dest[i] = time. NanosecondsToUTC(val.Val)
 		case 136: // ADCHAPTER
 			dest[i] = val.ToString()
 		case 200: // ADVARCHAR
