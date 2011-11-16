@@ -3,4 +3,4 @@ include $(GOROOT)/src/Make.cmd
 
 % : %.go
 	$(GC) $<
-	$(LD) $@.$(O)
+	$(LD) -o $@.exe $@.$(O)
