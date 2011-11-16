@@ -1,6 +1,7 @@
 package adodb
 
 import (
+	"fmt"
 	"math/big"
 	"errors"
 	"exp/sql"
@@ -8,6 +9,7 @@ import (
 	"github.com/mattn/go-ole"
 	"github.com/mattn/go-ole/oleutil"
 	"time"
+	"unsafe"
 )
 
 func init() {
@@ -265,6 +267,7 @@ func (rc *AdodbRows) Columns() []string {
 func (rc *AdodbRows) Next(dest []interface{}) error {
 	_, err := oleutil.CallMethod(rc.rc, "MoveNext")
 	if err != nil {
+		fmt.Println(err)
 		return err
 	}
 	unknown, err := oleutil.GetProperty(rc.rc, "EOF")
@@ -347,7 +350,8 @@ func (rc *AdodbRows) Next(dest []interface{}) error {
 		case 72: // ADGUID
 			// TODO
 		case 128: // ADBINARY
-			// TODO
+			sa := *(**ole.SAFEARRAY)(unsafe.Pointer(&val.Val))
+			dest[i] = (*[1 << 30]byte)(unsafe.Pointer(uintptr(sa.PvData)))[0:sa.CbElements]
 		case 129: // ADCHAR
 			dest[i] = uint8(val.Val)
 		case 130: // ADWCHAR
