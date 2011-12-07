@@ -1,13 +1,13 @@
 package adodb
 
 import (
-	"fmt"
-	"math/big"
 	"errors"
 	"exp/sql"
 	"exp/sql/driver"
+	"fmt"
 	"github.com/mattn/go-ole"
 	"github.com/mattn/go-ole/oleutil"
+	"math/big"
 	"time"
 	"unsafe"
 )
@@ -84,10 +84,10 @@ func (c *AdodbConn) Close() error {
 }
 
 type AdodbStmt struct {
-	c *AdodbConn
-	s *ole.IDispatch
+	c  *AdodbConn
+	s  *ole.IDispatch
 	ps *ole.IDispatch
-	b []string
+	b  []string
 }
 
 func (c *AdodbConn) Prepare(query string) (driver.Stmt, error) {
@@ -231,13 +231,13 @@ func (rc *AdodbRows) Columns() []string {
 	if rc.nc != len(rc.cols) {
 		unknown, err := oleutil.GetProperty(rc.rc, "Fields")
 		if err != nil {
-			return []string {}
+			return []string{}
 		}
 		fields := unknown.ToIDispatch()
 		defer fields.Release()
 		val, err := oleutil.GetProperty(fields, "Count")
 		if err != nil {
-			return []string {}
+			return []string{}
 		}
 		rc.nc = int(val.Val)
 		rc.cols = make([]string, rc.nc)
@@ -247,15 +247,15 @@ func (rc *AdodbRows) Columns() []string {
 			varval.Val = int64(i)
 			val, err := oleutil.CallMethod(fields, "Item", &varval)
 			if err != nil {
-				return []string {}
+				return []string{}
 			}
 			item := val.ToIDispatch()
 			if err != nil {
-				return []string {}
+				return []string{}
 			}
 			name, err := oleutil.GetProperty(item, "Name")
 			if err != nil {
-				return []string {}
+				return []string{}
 			}
 			rc.cols[i] = name.ToString()
 			item.Release()
@@ -361,11 +361,11 @@ func (rc *AdodbRows) Next(dest []interface{}) error {
 		case 132: // ADUSERDEFINED
 			dest[i] = uintptr(val.Val)
 		case 133: // ADDBDATE
-			dest[i] = time. NanosecondsToUTC(val.Val)
+			dest[i] = time.Unix(0, val.Val).UTC()
 		case 134: // ADDBTIME
-			dest[i] = time. NanosecondsToUTC(val.Val)
+			dest[i] = time.Unix(0, val.Val).UTC()
 		case 135: // ADDBTIMESTAMP
-			dest[i] = time. NanosecondsToUTC(val.Val)
+			dest[i] = time.Unix(0, val.Val).UTC()
 		case 136: // ADCHAPTER
 			dest[i] = val.ToString()
 		case 200: // ADVARCHAR
