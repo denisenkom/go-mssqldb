@@ -148,7 +148,7 @@ func (s *AdodbStmt) NumInput() int {
 	return c
 }
 
-func (s *AdodbStmt) bind(args []interface{}) error {
+func (s *AdodbStmt) bind(args []driver.Value) error {
 	if s.b != nil {
 		for i, v := range args {
 			var b string = "?"
@@ -190,7 +190,7 @@ func (s *AdodbStmt) bind(args []interface{}) error {
 	return nil
 }
 
-func (s *AdodbStmt) Query(args []interface{}) (driver.Rows, error) {
+func (s *AdodbStmt) Query(args []driver.Value) (driver.Rows, error) {
 	if err := s.bind(args); err != nil {
 		return nil, err
 	}
@@ -201,7 +201,7 @@ func (s *AdodbStmt) Query(args []interface{}) (driver.Rows, error) {
 	return &AdodbRows{s, rc.ToIDispatch(), -1, nil}, nil
 }
 
-func (s *AdodbStmt) Exec(args []interface{}) (driver.Result, error) {
+func (s *AdodbStmt) Exec(args []driver.Value) (driver.Result, error) {
 	if err := s.bind(args); err != nil {
 		return nil, err
 	}
@@ -209,7 +209,7 @@ func (s *AdodbStmt) Exec(args []interface{}) (driver.Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	return driver.DDLSuccess, nil
+	return driver.ResultNoRows, nil
 }
 
 type AdodbRows struct {
@@ -264,7 +264,7 @@ func (rc *AdodbRows) Columns() []string {
 	return rc.cols
 }
 
-func (rc *AdodbRows) Next(dest []interface{}) error {
+func (rc *AdodbRows) Next(dest []driver.Value) error {
 	_, err := oleutil.CallMethod(rc.rc, "MoveNext")
 	if err != nil {
 		fmt.Println(err)
