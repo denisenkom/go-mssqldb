@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"exp/sql"
+	"database/sql"
 	_ "github.com/mattn/go-adodb"
 	"os"
 )
