@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/mattn/go-ole"
 	"github.com/mattn/go-ole/oleutil"
+	"io"
 	"math/big"
 	"time"
 	"unsafe"
@@ -265,17 +266,17 @@ func (rc *AdodbRows) Columns() []string {
 }
 
 func (rc *AdodbRows) Next(dest []driver.Value) error {
-	unknown, err := oleutil.GetProperty(rc.rc, "EOF")
-	if err != nil {
-		return err
-	}
-	if unknown.Val != 0 {
-		return errors.New("EOF")
-	}
-	_, err = oleutil.CallMethod(rc.rc, "MoveNext")
+	_, err := oleutil.CallMethod(rc.rc, "MoveNext")
 	if err != nil {
 		fmt.Println(err)
 		return err
+	}
+	unknown, err := oleutil.GetProperty(rc.rc, "EOF")
+	if err != nil {
+		return io.EOF
+	}
+	if unknown.Val != 0 {
+		return errors.New("EOF")
 	}
 	unknown, err = oleutil.GetProperty(rc.rc, "Fields")
 	if err != nil {
