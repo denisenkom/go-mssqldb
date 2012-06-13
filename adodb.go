@@ -265,17 +265,17 @@ func (rc *AdodbRows) Columns() []string {
 }
 
 func (rc *AdodbRows) Next(dest []driver.Value) error {
-	_, err := oleutil.CallMethod(rc.rc, "MoveNext")
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
 	unknown, err := oleutil.GetProperty(rc.rc, "EOF")
 	if err != nil {
 		return err
 	}
 	if unknown.Val != 0 {
 		return errors.New("EOF")
+	}
+	_, err = oleutil.CallMethod(rc.rc, "MoveNext")
+	if err != nil {
+		fmt.Println(err)
+		return err
 	}
 	unknown, err = oleutil.GetProperty(rc.rc, "Fields")
 	if err != nil {
