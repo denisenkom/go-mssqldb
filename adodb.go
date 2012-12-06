@@ -4,7 +4,6 @@ import (
 	"errors"
 	"database/sql"
 	"database/sql/driver"
-	"fmt"
 	"github.com/mattn/go-ole"
 	"github.com/mattn/go-ole/oleutil"
 	"io"
@@ -266,11 +265,6 @@ func (rc *AdodbRows) Columns() []string {
 }
 
 func (rc *AdodbRows) Next(dest []driver.Value) error {
-	_, err := oleutil.CallMethod(rc.rc, "MoveNext")
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
 	unknown, err := oleutil.GetProperty(rc.rc, "EOF")
 	if err != nil {
 		return io.EOF
@@ -382,6 +376,10 @@ func (rc *AdodbRows) Next(dest []driver.Value) error {
 		case 205: // ADLONGVARBINARY
 			// TODO
 		}
+	}
+	_, err = oleutil.CallMethod(rc.rc, "MoveNext")
+	if err != nil {
+		return err
 	}
 	return nil
 }
