@@ -55,6 +55,6 @@ func main() {
 	for rows.Next() {
 		var f1, f2, f3 string
 		rows.Scan(&f1, &f2, &f3)
-		println(f1, f2, f3)
+		fmt.Println(f1, f2, f3)
 	}
 }
