@@ -329,7 +329,7 @@ func (rc *AdodbRows) Next(dest []driver.Value) error {
 		case 13: // ADIUNKNOWN
 			dest[i] = val.ToIUnknown()
 		case 14: // ADDECIMAL
-			// TODO
+			dest[i] = float64(val.Val)
 		case 16: // ADTINYINT
 			dest[i] = int8(val.Val)
 		case 17: // ADUNSIGNEDTINYINT
