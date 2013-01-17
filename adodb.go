@@ -309,7 +309,7 @@ func (rc *AdodbRows) Next(dest []driver.Value) error {
 		case 5: // ADDOUBLE
 			dest[i] = val.Val
 		case 6: // ADCURRENCY
-			// TODO
+			dest[i] = float64(val.Val)
 		case 7: // ADDATE
 			// TODO
 		case 8: // ADBSTR
