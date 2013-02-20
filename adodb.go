@@ -1,7 +1,6 @@
 package adodb
 
 import (
-	"errors"
 	"database/sql"
 	"database/sql/driver"
 	"github.com/mattn/go-ole"
