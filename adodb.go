@@ -270,7 +270,7 @@ func (rc *AdodbRows) Next(dest []driver.Value) error {
 		return io.EOF
 	}
 	if unknown.Val != 0 {
-		return errors.New("EOF")
+		return io.EOF
 	}
 	unknown, err = oleutil.GetProperty(rc.rc, "Fields")
 	if err != nil {
