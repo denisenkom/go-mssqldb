@@ -1,7 +1,6 @@
 package adodb
 
 import (
-	"errors"
 	"database/sql"
 	"database/sql/driver"
 	"github.com/mattn/go-ole"
@@ -348,9 +347,9 @@ func (rc *AdodbRows) Next(dest []driver.Value) error {
 			sa := *(**ole.SAFEARRAY)(unsafe.Pointer(&val.Val))
 			dest[i] = (*[1 << 30]byte)(unsafe.Pointer(uintptr(sa.PvData)))[0:sa.CbElements]
 		case 129: // ADCHAR
-			dest[i] = uint8(val.Val)
+			dest[i] = val.ToString()//uint8(val.Val)
 		case 130: // ADWCHAR
-			dest[i] = uint16(val.Val)
+			dest[i] = val.ToString()//uint16(val.Val)
 		case 131: // ADNUMERIC
 			dest[i] = val.Val
 		case 132: // ADUSERDEFINED
