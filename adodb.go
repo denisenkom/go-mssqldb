@@ -6,6 +6,7 @@ import (
 	"github.com/mattn/go-ole"
 	"github.com/mattn/go-ole/oleutil"
 	"io"
+	"math"
 	"math/big"
 	"time"
 	"unsafe"
@@ -17,7 +18,6 @@ func init() {
 }
 
 type AdodbDriver struct {
-
 }
 
 type AdodbConn struct {
@@ -298,15 +298,15 @@ func (rc *AdodbRows) Next(dest []driver.Value) error {
 		field.Release()
 		switch typ.Val {
 		case 0: // ADEMPTY
-			// TODO
+			dest[i] = nil
 		case 2: // ADSMALLINT
-			dest[i] = int16(val.Val)
+			dest[i] = int64(int16(val.Val))
 		case 3: // ADINTEGER
-			dest[i] = int32(val.Val)
+			dest[i] = int64(int32(val.Val))
 		case 4: // ADSINGLE
-			dest[i] = float32(val.Val)
+			dest[i] = float64(math.Float32frombits(uint32(val.Val)))
 		case 5: // ADDOUBLE
-			dest[i] = val.Val
+			dest[i] = math.Float64frombits(uint64(val.Val))
 		case 6: // ADCURRENCY
 			dest[i] = float64(val.Val)
 		case 7: // ADDATE
@@ -342,15 +342,16 @@ func (rc *AdodbRows) Next(dest []driver.Value) error {
 		case 21: // ADUNSIGNEDBIGINT
 			// TODO
 		case 72: // ADGUID
-			// TODO
+			dest[i] = val.ToString()
 		case 128: // ADBINARY
 			sa := *(**ole.SAFEARRAY)(unsafe.Pointer(&val.Val))
 			dest[i] = (*[1 << 30]byte)(unsafe.Pointer(uintptr(sa.PvData)))[0:sa.CbElements]
 		case 129: // ADCHAR
-			dest[i] = val.ToString()//uint8(val.Val)
+			dest[i] = val.ToString() //uint8(val.Val)
 		case 130: // ADWCHAR
-			dest[i] = val.ToString()//uint16(val.Val)
+			dest[i] = val.ToString() //uint16(val.Val)
 		case 131: // ADNUMERIC
+			// TODO: handle numbers that aren't positive integers.
 			dest[i] = val.Val
 		case 132: // ADUSERDEFINED
 			dest[i] = uintptr(val.Val)
@@ -373,7 +374,8 @@ func (rc *AdodbRows) Next(dest []driver.Value) error {
 		case 204: // ADVARBINARY
 			// TODO
 		case 205: // ADLONGVARBINARY
-			// TODO
+			sa := (*ole.SAFEARRAY)(unsafe.Pointer(uintptr(val.Val)))
+			dest[i] = (*[1 << 30]byte)(unsafe.Pointer(uintptr(sa.PvData)))[0:sa.RgsaBound.CElements]
 		}
 	}
 	_, err = oleutil.CallMethod(rc.rc, "MoveNext")
