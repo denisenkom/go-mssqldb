@@ -310,7 +310,10 @@ func (rc *AdodbRows) Next(dest []driver.Value) error {
 		case 6: // ADCURRENCY
 			dest[i] = float64(val.Val)
 		case 7: // ADDATE
-			// TODO
+			// see http://blogs.msdn.com/b/ericlippert/archive/2003/09/16/eric-s-complete-guide-to-vt-date.aspx
+			d, t := math.Modf(math.Float64frombits(uint64(val.Val)))
+			t = math.Abs(t)
+			dest[i] = time.Date(1899, 12, 30 + int(d), 0, 0, int(t * 86400), 0, time.Local)
 		case 8: // ADBSTR
 			dest[i] = val.ToString()
 		case 9: // ADIDISPATCH
@@ -344,8 +347,8 @@ func (rc *AdodbRows) Next(dest []driver.Value) error {
 		case 72: // ADGUID
 			dest[i] = val.ToString()
 		case 128: // ADBINARY
-			sa := *(**ole.SAFEARRAY)(unsafe.Pointer(&val.Val))
-			dest[i] = (*[1 << 30]byte)(unsafe.Pointer(uintptr(sa.PvData)))[0:sa.CbElements]
+			sa := (*ole.SAFEARRAY)(unsafe.Pointer(uintptr(val.Val)))
+			dest[i] = (*[1 << 30]byte)(unsafe.Pointer(uintptr(sa.PvData)))[0:sa.RgsaBound.CElements]
 		case 129: // ADCHAR
 			dest[i] = val.ToString() //uint8(val.Val)
 		case 130: // ADWCHAR
