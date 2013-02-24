@@ -313,7 +313,7 @@ func (rc *AdodbRows) Next(dest []driver.Value) error {
 			// see http://blogs.msdn.com/b/ericlippert/archive/2003/09/16/eric-s-complete-guide-to-vt-date.aspx
 			d, t := math.Modf(math.Float64frombits(uint64(val.Val)))
 			t = math.Abs(t)
-			dest[i] = time.Date(1899, 12, 30 + int(d), 0, 0, int(t * 86400), 0, time.Local)
+			dest[i] = time.Date(1899, 12, 30+int(d), 0, 0, int(t*86400), 0, time.Local)
 		case 8: // ADBSTR
 			dest[i] = val.ToString()
 		case 9: // ADIDISPATCH
