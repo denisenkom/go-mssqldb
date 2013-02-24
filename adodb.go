@@ -308,7 +308,7 @@ func (rc *AdodbRows) Next(dest []driver.Value) error {
 		case 5: // ADDOUBLE
 			dest[i] = math.Float64frombits(uint64(val.Val))
 		case 6: // ADCURRENCY
-			dest[i] = float64(val.Val)
+			dest[i] = float64(val.Val) / 10000
 		case 7: // ADDATE
 			// see http://blogs.msdn.com/b/ericlippert/archive/2003/09/16/eric-s-complete-guide-to-vt-date.aspx
 			d, t := math.Modf(math.Float64frombits(uint64(val.Val)))
@@ -321,11 +321,7 @@ func (rc *AdodbRows) Next(dest []driver.Value) error {
 		case 10: // ADERROR
 			// TODO
 		case 11: // ADBOOLEAN
-			if val.Val != 0 {
-				dest[i] = true
-			} else {
-				dest[i] = false
-			}
+			dest[i] = val.Val != 0
 		case 12: // ADVARIANT
 			dest[i] = val
 		case 13: // ADIUNKNOWN
