@@ -345,7 +345,7 @@ func (rc *AdodbRows) Next(dest []driver.Value) error {
 			dest[i] = val.ToString()
 		case 128: // ADBINARY
 			sa := (*ole.SAFEARRAY)(unsafe.Pointer(uintptr(val.Val)))
-			dest[i] = (*[1 << 30]byte)(unsafe.Pointer(uintptr(sa.PvData)))[0:sa.RgsaBound.CElements]
+			dest[i] = (*[1 << 30]byte)(unsafe.Pointer(uintptr(sa.Data)))[0:sa.Bounds.Elements]
 		case 129: // ADCHAR
 			dest[i] = val.ToString() //uint8(val.Val)
 		case 130: // ADWCHAR
@@ -375,7 +375,7 @@ func (rc *AdodbRows) Next(dest []driver.Value) error {
 			// TODO
 		case 205: // ADLONGVARBINARY
 			sa := (*ole.SAFEARRAY)(unsafe.Pointer(uintptr(val.Val)))
-			dest[i] = (*[1 << 30]byte)(unsafe.Pointer(uintptr(sa.PvData)))[0:sa.RgsaBound.CElements]
+			dest[i] = (*[1 << 30]byte)(unsafe.Pointer(uintptr(sa.Data)))[0:sa.Bounds.Elements]
 		}
 	}
 	_, err = oleutil.CallMethod(rc.rc, "MoveNext")
