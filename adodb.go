@@ -295,6 +295,7 @@ func (rc *AdodbRows) Next(dest []driver.Value) error {
 		if err != nil {
 			return err
 		}
+		sc, err := oleutil.GetProperty(field, "NumericScale")
 		field.Release()
 		switch typ.Val {
 		case 0: // ADEMPTY
@@ -350,8 +351,8 @@ func (rc *AdodbRows) Next(dest []driver.Value) error {
 		case 130: // ADWCHAR
 			dest[i] = val.ToString() //uint16(val.Val)
 		case 131: // ADNUMERIC
-			// TODO: handle numbers that aren't positive integers.
-			dest[i] = val.Val
+			sub := math.Pow(10, float64(sc.Val))
+			dest[i] = float64(float64(val.Val) / sub)
 		case 132: // ADUSERDEFINED
 			dest[i] = uintptr(val.Val)
 		case 133: // ADDBDATE
