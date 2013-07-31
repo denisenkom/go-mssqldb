@@ -79,6 +79,7 @@ func (c *AdodbConn) Close() error {
 		return err
 	}
 	c.db = nil
+	ole.CoUninitialize()
 	return nil
 }
 
