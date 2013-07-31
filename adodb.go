@@ -13,7 +13,6 @@ import (
 )
 
 func init() {
-	ole.CoInitialize(0)
 	sql.Register("adodb", &AdodbDriver{})
 }
 
@@ -58,6 +57,7 @@ func (c *AdodbConn) Begin() (driver.Tx, error) {
 }
 
 func (d *AdodbDriver) Open(dsn string) (driver.Conn, error) {
+	ole.CoInitialize(0)
 	unknown, err := oleutil.CreateObject("ADODB.Connection")
 	if err != nil {
 		return nil, err
