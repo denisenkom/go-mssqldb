@@ -357,11 +357,16 @@ func (rc *AdodbRows) Next(dest []driver.Value) error {
 		case 132: // ADUSERDEFINED
 			dest[i] = uintptr(val.Val)
 		case 133: // ADDBDATE
-			dest[i] = time.Unix(0, val.Val).UTC()
+			// see http://blogs.msdn.com/b/ericlippert/archive/2003/09/16/eric-s-complete-guide-to-vt-date.aspx
+			d := math.Float64frombits(uint64(val.Val))
+			dest[i] = time.Date(1899, 12, 30+int(d), 0, 0, 0, 0, time.Local)
 		case 134: // ADDBTIME
-			dest[i] = time.Unix(0, val.Val).UTC()
+			t := math.Float64frombits(uint64(val.Val))
+			dest[i] = time.Date(0, 1, 1, 0, 0, int(t*86400), 0, time.Local)
 		case 135: // ADDBTIMESTAMP
-			dest[i] = time.Unix(0, val.Val).UTC()
+			d, t := math.Modf(math.Float64frombits(uint64(val.Val)))
+			t = math.Abs(t)
+			dest[i] = time.Date(1899, 12, 30+int(d), 0, 0, int(t*86400), 0, time.Local)
 		case 136: // ADCHAPTER
 			dest[i] = val.ToString()
 		case 200: // ADVARCHAR
