@@ -3,8 +3,6 @@ package adodb
 import (
 	"database/sql"
 	"database/sql/driver"
-	"github.com/mattn/go-ole"
-	"github.com/mattn/go-ole/oleutil"
 	"io"
 	"math"
 	"math/big"
@@ -13,21 +11,20 @@ import (
 )
 
 func init() {
-	sql.Register("adodb", &AdodbDriver{})
+    sql.Register("mssql", &MssqlDriver{})
 }
 
-type AdodbDriver struct {
+type MssqlDriver struct {
 }
 
-type AdodbConn struct {
-	db *ole.IDispatch
+type MssqlConn struct {
 }
 
-type AdodbTx struct {
-	c *AdodbConn
+type MssqlTx struct {
+	c *MssqlConn
 }
 
-func (tx *AdodbTx) Commit() error {
+func (tx *MssqlTx) Commit() error {
 	_, err := oleutil.CallMethod(tx.c.db, "CommitTrans")
 	if err != nil {
 		return err
@@ -35,7 +32,7 @@ func (tx *AdodbTx) Commit() error {
 	return nil
 }
 
-func (tx *AdodbTx) Rollback() error {
+func (tx *MssqlTx) Rollback() error {
 	_, err := oleutil.CallMethod(tx.c.db, "Rollback")
 	if err != nil {
 		return err
@@ -43,12 +40,12 @@ func (tx *AdodbTx) Rollback() error {
 	return nil
 }
 
-func (c *AdodbConn) exec(cmd string) error {
+func (c *MssqlConn) exec(cmd string) error {
 	_, err := oleutil.CallMethod(c.db, "Execute", cmd)
 	return err
 }
 
-func (c *AdodbConn) Begin() (driver.Tx, error) {
+func (c *MssqlConn) Begin() (driver.Tx, error) {
 	_, err := oleutil.CallMethod(c.db, "BeginTrans")
 	if err != nil {
 		return nil, err
@@ -56,7 +53,7 @@ func (c *AdodbConn) Begin() (driver.Tx, error) {
 	return &AdodbTx{c}, nil
 }
 
-func (d *AdodbDriver) Open(dsn string) (driver.Conn, error) {
+func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
 	ole.CoInitialize(0)
 	unknown, err := oleutil.CreateObject("ADODB.Connection")
 	if err != nil {
@@ -70,10 +67,10 @@ func (d *AdodbDriver) Open(dsn string) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &AdodbConn{db}, nil
+	return &MssqlConn{db}, nil
 }
 
-func (c *AdodbConn) Close() error {
+func (c *MssqlConn) Close() error {
 	_, err := oleutil.CallMethod(c.db, "Close")
 	if err != nil {
 		return err
@@ -83,14 +80,14 @@ func (c *AdodbConn) Close() error {
 	return nil
 }
 
-type AdodbStmt struct {
-	c  *AdodbConn
+type MssqlStmt struct {
+	c  *MssqlConn
 	s  *ole.IDispatch
 	ps *ole.IDispatch
 	b  []string
 }
 
-func (c *AdodbConn) Prepare(query string) (driver.Stmt, error) {
+func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
 	unknown, err := oleutil.CreateObject("ADODB.Command")
 	if err != nil {
 		return nil, err
@@ -122,17 +119,17 @@ func (c *AdodbConn) Prepare(query string) (driver.Stmt, error) {
 	return &AdodbStmt{c, s, val.ToIDispatch(), nil}, nil
 }
 
-func (s *AdodbStmt) Bind(bind []string) error {
+func (s *MssqlStmt) Bind(bind []string) error {
 	s.b = bind
 	return nil
 }
 
-func (s *AdodbStmt) Close() error {
+func (s *MssqlStmt) Close() error {
 	s.s.Release()
 	return nil
 }
 
-func (s *AdodbStmt) NumInput() int {
+func (s *MssqlStmt) NumInput() int {
 	if s.b != nil {
 		return len(s.b)
 	}
@@ -148,7 +145,7 @@ func (s *AdodbStmt) NumInput() int {
 	return c
 }
 
-func (s *AdodbStmt) bind(args []driver.Value) error {
+func (s *MssqlStmt) bind(args []driver.Value) error {
 	if s.b != nil {
 		for i, v := range args {
 			var b string = "?"
@@ -190,7 +187,7 @@ func (s *AdodbStmt) bind(args []driver.Value) error {
 	return nil
 }
 
-func (s *AdodbStmt) Query(args []driver.Value) (driver.Rows, error) {
+func (s *MssqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 	if err := s.bind(args); err != nil {
 		return nil, err
 	}
@@ -201,7 +198,7 @@ func (s *AdodbStmt) Query(args []driver.Value) (driver.Rows, error) {
 	return &AdodbRows{s, rc.ToIDispatch(), -1, nil}, nil
 }
 
-func (s *AdodbStmt) Exec(args []driver.Value) (driver.Result, error) {
+func (s *MssqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	if err := s.bind(args); err != nil {
 		return nil, err
 	}
@@ -212,14 +209,14 @@ func (s *AdodbStmt) Exec(args []driver.Value) (driver.Result, error) {
 	return driver.ResultNoRows, nil
 }
 
-type AdodbRows struct {
+type MssqlRows struct {
 	s    *AdodbStmt
 	rc   *ole.IDispatch
 	nc   int
 	cols []string
 }
 
-func (rc *AdodbRows) Close() error {
+func (rc *MssqlRows) Close() error {
 	_, err := oleutil.CallMethod(rc.rc, "Close")
 	if err != nil {
 		return err
@@ -227,7 +224,7 @@ func (rc *AdodbRows) Close() error {
 	return nil
 }
 
-func (rc *AdodbRows) Columns() []string {
+func (rc *MssqlRows) Columns() []string {
 	if rc.nc != len(rc.cols) {
 		unknown, err := oleutil.GetProperty(rc.rc, "Fields")
 		if err != nil {
@@ -264,7 +261,7 @@ func (rc *AdodbRows) Columns() []string {
 	return rc.cols
 }
 
-func (rc *AdodbRows) Next(dest []driver.Value) error {
+func (rc *MssqlRows) Next(dest []driver.Value) error {
 	unknown, err := oleutil.GetProperty(rc.rc, "EOF")
 	if err != nil {
 		return io.EOF
