@@ -6,6 +6,7 @@ import (
     "os"
     iconv "github.com/djimenez/iconv-go"
     "strings"
+    "strconv"
 )
 
 var ascii2utf8 *iconv.Converter
@@ -65,14 +66,24 @@ func get_instances(address string) (map[string]map[string]string, error) {
 func main() {
     var err error
     ascii2utf8, err = iconv.NewConverter("ascii", "utf8")
-    addr := "192.168.1.34"
-    instances, err := get_instances(addr)
-    if err != nil {
-        fmt.Println("Error: ", err.Error())
-        os.Exit(1)
+    addr := os.Getenv("HOST")
+    instance := os.Getenv("INSTANCE")
+    var port int64
+    port = 1433
+    if instance != "" {
+        instances, err := get_instances(addr)
+        if err != nil {
+            fmt.Println("Error: ", err.Error())
+            os.Exit(1)
+        }
+        fmt.Println("instances", instances)
+        port, err = strconv.ParseInt(instances[instance]["tcp"], 0, 16)
+        if err != nil {
+            fmt.Println("Error: ", err.Error())
+            os.Exit(1)
+        }
     }
-    fmt.Println("instances", instances)
-    conn, err := net.Dial("tcp", addr + ":" + instances["SQLEXPRESS"]["tcp"])
+    conn, err := net.Dial("tcp", addr + ":" + strconv.FormatInt(port, 10))
     if err != nil {
         fmt.Println("Error: ", err.Error())
         os.Exit(1)
