@@ -140,10 +140,15 @@ func main() {
     const MARS = 4
     const TRACEID = 5
     const TERMINATOR = 0xff
+
+    instance_buf := make([]byte, len(instance))
+    iconv.Convert([]byte(instance), instance_buf, "utf8", "ascii")
+    instance_buf = append(instance_buf, 0)  // zero terminate instance name
+
     outbuf.SetPacketType(TDS71_PRELOGIN)
     write_field(VERSION, 6)
     write_field(ENCRYPTION, 1)
-    write_field(INSTOPT, uint16(len(instance)))
+    write_field(INSTOPT, uint16(len(instance_buf)))
     write_field(THREADID, 4)
     write_field(MARS, 1)
     w.WriteByte(TERMINATOR)
@@ -152,13 +157,23 @@ func main() {
     binary.Write(w, binary.BigEndian, &version)
     binary.Write(w, binary.BigEndian, &build)
     w.WriteByte(2)  // encryption not supported
-    instance_buf := make([]byte, len(instance))
-    iconv.Convert([]byte(instance), instance_buf, "utf8", "ascii")
     w.Write(instance_buf)
+    w.WriteByte(0)  // zero terminate instance name
+    var thread_id uint32 = 0
+    binary.Write(w, binary.BigEndian, &thread_id)
     w.WriteByte(0)  // MARS disabled
+    w.Flush()
 
     outbuf.buf[1] = 1  // packet is complete
     binary.BigEndian.PutUint16(outbuf.buf[2:], outbuf.pos)
 
     conn.Write(outbuf.buf)
+
+    inbuf := [1024]byte{}
+    read, err := conn.Read(inbuf[:100])
+    if err != nil {
+        fmt.Println("Error: ", err.Error())
+        os.Exit(1)
+    }
+    fmt.Println(inbuf[:read])
 }
