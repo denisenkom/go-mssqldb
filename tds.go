@@ -169,11 +169,51 @@ func main() {
 
     conn.Write(outbuf.buf)
 
-    inbuf := [1024]byte{}
-    read, err := conn.Read(inbuf[:100])
+    type Header struct {
+        PacketType uint8
+        Status uint8
+        Size uint16
+        Spid uint16
+        PacketNo uint8
+        Pad uint8
+    }
+    r := bufio.NewReader(conn)
+    header := Header{}
+    err = binary.Read(r, binary.BigEndian, &header)
     if err != nil {
         fmt.Println("Error: ", err.Error())
         os.Exit(1)
     }
-    fmt.Println(inbuf[:read])
+    if header.PacketType != 4 {
+        fmt.Println("Invalid respones, expected packet type 4, PRELOGIN RESPONSE")
+        os.Exit(1)
+    }
+    if header.Status != 1 {
+        fmt.Println("Invalid respones, final packet")
+        os.Exit(1)
+    }
+    struct_buf := make([]byte, header.Size - 8)
+    read, err := r.Read(struct_buf)
+    if err != nil {
+        fmt.Println("Error: ", err.Error())
+        os.Exit(1)
+    }
+    if read != len(struct_buf) {
+        fmt.Println("Error invalid packet size")
+        os.Exit(1)
+    }
+    fmt.Println(struct_buf)
+    offset := 0
+    for true {
+        rec_type := struct_buf[offset]
+        if rec_type == TERMINATOR {
+            break
+        }
+
+        rec_offset := binary.BigEndian.Uint16(struct_buf[offset + 1:])
+        rec_len := binary.BigEndian.Uint16(struct_buf[offset + 3:])
+        value := struct_buf[rec_offset:rec_offset + rec_len]
+        fmt.Println("rec", rec_type, value)
+        offset += 5
+    }
 }
