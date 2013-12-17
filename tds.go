@@ -1,6 +1,8 @@
 package main
 
 import (
+    "errors"
+    "io"
     "fmt"
     "net"
     "os"
@@ -89,6 +91,102 @@ func (w * OutBuffer) SetPacketType(b byte) {
     w.buf[0] = b
 }
 
+const TDS71_PRELOGIN = 18
+const VERSION = 0
+const ENCRYPTION = 1
+const INSTOPT = 2
+const THREADID = 3
+const MARS = 4
+const TRACEID = 5
+const TERMINATOR = 0xff
+
+
+func WritePrelogin(outbuf * OutBuffer, instance string) {
+    w := bufio.NewWriter(outbuf)
+
+    instance_buf := make([]byte, len(instance))
+    iconv.Convert([]byte(instance), instance_buf, "utf8", "ascii")
+    instance_buf = append(instance_buf, 0)  // zero terminate instance name
+
+    fields := map[uint8][]byte{
+        VERSION: {0, 0, 0, 0, 0, 0},
+        ENCRYPTION: {2},  // encryption not supported
+        INSTOPT: instance_buf,
+        THREADID: {0, 0, 0, 0},
+        MARS: {0},  // MARS disabled
+        }
+
+    outbuf.SetPacketType(TDS71_PRELOGIN)
+    offset := uint16(5 * len(fields) + 1)
+    // writing header
+    for k, v := range fields {
+        w.WriteByte(k)
+        size := uint16(len(v))
+        binary.Write(w, binary.BigEndian, &offset)
+        binary.Write(w, binary.BigEndian, &size)
+        offset += size
+    }
+    w.WriteByte(TERMINATOR)
+    // writing values
+    for _, v := range fields {
+        w.Write(v)
+    }
+    w.Flush()
+
+    outbuf.buf[1] = 1  // packet is complete
+    binary.BigEndian.PutUint16(outbuf.buf[2:], outbuf.pos)
+
+}
+
+
+func ReadPrelogin(r io.Reader) (map[uint8][]byte, error) {
+    type Header struct {
+        PacketType uint8
+        Status uint8
+        Size uint16
+        Spid uint16
+        PacketNo uint8
+        Pad uint8
+    }
+    header := Header{}
+    var err error
+    err = binary.Read(r, binary.BigEndian, &header)
+    if err != nil {
+        return nil, err
+    }
+    if header.PacketType != 4 {
+        return nil, errors.New("Invalid respones, expected packet type 4, PRELOGIN RESPONSE")
+    }
+    if header.Status != 1 {
+        return nil, errors.New("Invalid respones, final packet")
+    }
+    struct_buf := make([]byte, header.Size - 8)
+    read, err := r.Read(struct_buf)
+    if err != nil {
+        return nil, err
+    }
+    if read != len(struct_buf) {
+        return nil, errors.New("Error invalid packet size")
+    }
+    fmt.Println(struct_buf)
+    offset := 0
+    results := map[uint8][]byte{}
+    for true {
+        rec_type := struct_buf[offset]
+        if rec_type == TERMINATOR {
+            break
+        }
+
+        rec_offset := binary.BigEndian.Uint16(struct_buf[offset + 1:])
+        rec_len := binary.BigEndian.Uint16(struct_buf[offset + 3:])
+        value := struct_buf[rec_offset:rec_offset + rec_len]
+        results[rec_type] = value
+        offset += 5
+    }
+    return results, nil
+}
+
+
 func main() {
     var err error
     ascii2utf8, err = iconv.NewConverter("ascii", "utf8")
@@ -117,103 +215,23 @@ func main() {
     fmt.Println(conn)
 
     outbuf := NewOutBuffer(1024)
-    w := bufio.NewWriter(outbuf)
     //buf := make([]byte, 1024)
     //data := buf[8:]
     //buf[0] = // type
     //status := 1
     //buf[1] = status
     //binary.BigEndian.PutUint16(buf[1:], status)
-    const START_POS = 26
-    var pos uint16 = START_POS
-    write_field := func (tag byte, size uint16) {
-        w.WriteByte(tag)
-        binary.Write(w, binary.BigEndian, &pos)
-        binary.Write(w, binary.BigEndian, &size)
-        pos += size
-    }
-    const TDS71_PRELOGIN = 18
-    const VERSION = 0
-    const ENCRYPTION = 1
-    const INSTOPT = 2
-    const THREADID = 3
-    const MARS = 4
-    const TRACEID = 5
-    const TERMINATOR = 0xff
 
-    instance_buf := make([]byte, len(instance))
-    iconv.Convert([]byte(instance), instance_buf, "utf8", "ascii")
-    instance_buf = append(instance_buf, 0)  // zero terminate instance name
-
-    outbuf.SetPacketType(TDS71_PRELOGIN)
-    write_field(VERSION, 6)
-    write_field(ENCRYPTION, 1)
-    write_field(INSTOPT, uint16(len(instance_buf)))
-    write_field(THREADID, 4)
-    write_field(MARS, 1)
-    w.WriteByte(TERMINATOR)
-    var version uint32 = 0
-    var build uint16 = 0
-    binary.Write(w, binary.BigEndian, &version)
-    binary.Write(w, binary.BigEndian, &build)
-    w.WriteByte(2)  // encryption not supported
-    w.Write(instance_buf)
-    w.WriteByte(0)  // zero terminate instance name
-    var thread_id uint32 = 0
-    binary.Write(w, binary.BigEndian, &thread_id)
-    w.WriteByte(0)  // MARS disabled
-    w.Flush()
-
-    outbuf.buf[1] = 1  // packet is complete
-    binary.BigEndian.PutUint16(outbuf.buf[2:], outbuf.pos)
-
+    WritePrelogin(outbuf, instance)
     conn.Write(outbuf.buf)
 
-    type Header struct {
-        PacketType uint8
-        Status uint8
-        Size uint16
-        Spid uint16
-        PacketNo uint8
-        Pad uint8
-    }
     r := bufio.NewReader(conn)
-    header := Header{}
-    err = binary.Read(r, binary.BigEndian, &header)
+    prelogin, err := ReadPrelogin(r)
     if err != nil {
         fmt.Println("Error: ", err.Error())
         os.Exit(1)
     }
-    if header.PacketType != 4 {
-        fmt.Println("Invalid respones, expected packet type 4, PRELOGIN RESPONSE")
-        os.Exit(1)
-    }
-    if header.Status != 1 {
-        fmt.Println("Invalid respones, final packet")
-        os.Exit(1)
-    }
-    struct_buf := make([]byte, header.Size - 8)
-    read, err := r.Read(struct_buf)
-    if err != nil {
-        fmt.Println("Error: ", err.Error())
-        os.Exit(1)
-    }
-    if read != len(struct_buf) {
-        fmt.Println("Error invalid packet size")
-        os.Exit(1)
-    }
-    fmt.Println(struct_buf)
-    offset := 0
-    for true {
-        rec_type := struct_buf[offset]
-        if rec_type == TERMINATOR {
-            break
-        }
-
-        rec_offset := binary.BigEndian.Uint16(struct_buf[offset + 1:])
-        rec_len := binary.BigEndian.Uint16(struct_buf[offset + 3:])
-        value := struct_buf[rec_offset:rec_offset + rec_len]
-        fmt.Println("rec", rec_type, value)
-        offset += 5
+    for k, v := range prelogin {
+        fmt.Println("rec", k, v)
     }
 }
