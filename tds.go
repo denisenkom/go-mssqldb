@@ -101,7 +101,9 @@ const TRACEID = 5
 const TERMINATOR = 0xff
 
 
-func WritePrelogin(outbuf * OutBuffer, instance string) {
+func WritePrelogin(outbuf * OutBuffer, instance string) error {
+    var err error
+
     w := bufio.NewWriter(outbuf)
 
     instance_buf := make([]byte, len(instance))
@@ -120,22 +122,40 @@ func WritePrelogin(outbuf * OutBuffer, instance string) {
     offset := uint16(5 * len(fields) + 1)
     // writing header
     for k, v := range fields {
-        w.WriteByte(k)
+        err = w.WriteByte(k)
+        if err != nil {
+            return err
+        }
         size := uint16(len(v))
-        binary.Write(w, binary.BigEndian, &offset)
-        binary.Write(w, binary.BigEndian, &size)
+        err = binary.Write(w, binary.BigEndian, &offset)
+        if err != nil {
+            return err
+        }
+        err = binary.Write(w, binary.BigEndian, &size)
+        if err != nil {
+            return err
+        }
         offset += size
     }
-    w.WriteByte(TERMINATOR)
+    err = w.WriteByte(TERMINATOR)
+    if err != nil {
+        return err
+    }
     // writing values
     for _, v := range fields {
-        w.Write(v)
+        written, err := w.Write(v)
+        if err != nil {
+            return err
+        }
+        if written != len(v) {
+            return errors.New("Write method didn't write the whole value")
+        }
     }
-    w.Flush()
+    err = w.Flush()
 
     outbuf.buf[1] = 1  // packet is complete
     binary.BigEndian.PutUint16(outbuf.buf[2:], outbuf.pos)
-
+    return nil
 }
 
 
@@ -222,8 +242,20 @@ func main() {
     //buf[1] = status
     //binary.BigEndian.PutUint16(buf[1:], status)
 
-    WritePrelogin(outbuf, instance)
-    conn.Write(outbuf.buf)
+    err = WritePrelogin(outbuf, instance)
+    if err != nil {
+        fmt.Println("Error: ", err.Error())
+        os.Exit(1)
+    }
+    written, err := conn.Write(outbuf.buf)
+    if err != nil {
+        fmt.Println("Error: ", err.Error())
+        os.Exit(1)
+    }
+    if written != len(outbuf.buf) {
+        fmt.Println("Error Write method didn't write the whole value")
+        os.Exit(1)
+    }
 
     r := bufio.NewReader(conn)
     prelogin, err := ReadPrelogin(r)
