@@ -9,8 +9,8 @@ import (
     iconv "github.com/djimenez/iconv-go"
     "strings"
     "strconv"
-    "bufio"
     "encoding/binary"
+    "io/ioutil"
 )
 
 var ascii2utf8 *iconv.Converter
@@ -69,43 +69,85 @@ func get_instances(address string) (map[string]map[string]string, error) {
     return _parse_instances(resp[:read]), nil
 }
 
-type OutBuffer struct {
+type TdsBuffer struct {
     buf []byte
     pos uint16
-    transport io.Writer
+    transport io.ReadWriter
+    size uint16
+    final bool
+    packet_type uint8
 }
 
-func NewOutBuffer(bufsize int, transport io.Writer) *OutBuffer {
+func NewTdsBuffer(bufsize int, transport io.ReadWriter) *TdsBuffer {
     buf := make([]byte, bufsize)
-    w := new(OutBuffer)
+    w := new(TdsBuffer)
     w.buf = buf
     w.pos = 8
     w.transport = transport
+    w.size = 0
     return w
 }
 
-func (w * OutBuffer) Write(p []byte) (nn int, err error) {
+func (w * TdsBuffer) Write(p []byte) (nn int, err error) {
     copied := copy(w.buf[w.pos:], p)
     w.pos += uint16(copied)
     return copied, nil
 }
 
-func (w * OutBuffer) WriteByte(b byte) error {
+func (w * TdsBuffer) WriteByte(b byte) error {
     w.buf[w.pos] = b
     w.pos += 1
     return nil
 }
 
-func (w * OutBuffer) BeginPacket(packet_type byte) {
+func (w * TdsBuffer) BeginPacket(packet_type byte) {
     w.buf[0] = packet_type
     w.buf[1] = 0  // packet is incomplete
     w.pos = 8
 }
 
-func (w * OutBuffer) FinishPacket() error {
+func (w * TdsBuffer) FinishPacket() error {
     w.buf[1] = 1  // packet is complete
     binary.BigEndian.PutUint16(w.buf[2:], w.pos)
     return WriteAll(w.transport, w.buf[:w.pos])
+}
+
+func (r * TdsBuffer) read_next_packet() error {
+    header := Header{}
+    var err error
+    err = binary.Read(r.transport, binary.BigEndian, &header)
+    offset := uint16(binary.Size(header))
+    _, err = io.ReadFull(r.transport, r.buf[offset:header.Size])
+    if err != nil {
+        return err
+    }
+    r.pos = offset
+    r.size = header.Size
+    r.final = header.Status != 0
+    r.packet_type = header.PacketType
+    return nil
+}
+
+func (r * TdsBuffer) BeginRead() (packet_type uint8, err error) {
+    err = r.read_next_packet()
+    return r.packet_type, err
+}
+
+func (r * TdsBuffer) Read(buf []byte) (n int, err error) {
+    fmt.Println("called read", len(buf), r.pos, r.size)
+    if r.pos == r.size {
+        if r.final {
+            return 0, io.EOF
+        }
+        err = r.read_next_packet()
+        if err != nil {
+            return 0, err
+        }
+    }
+    copied := copy(buf, r.buf[r.pos:r.size])
+    fmt.Println("copied", copied)
+    r.pos += uint16(copied)
+    return copied, nil
 }
 
 const TDS_QUERY = 1
@@ -141,7 +183,7 @@ func WriteAll(w io.Writer, buf []byte) error {
 }
 
 
-func WritePrelogin(w * OutBuffer, instance string) error {
+func WritePrelogin(w * TdsBuffer, instance string) error {
     var err error
 
     instance_buf := make([]byte, len(instance))
@@ -193,34 +235,28 @@ func WritePrelogin(w * OutBuffer, instance string) error {
 }
 
 
-func ReadPrelogin(r io.Reader) (map[uint8][]byte, error) {
-    type Header struct {
-        PacketType uint8
-        Status uint8
-        Size uint16
-        Spid uint16
-        PacketNo uint8
-        Pad uint8
-    }
-    header := Header{}
+type Header struct {
+    PacketType uint8
+    Status uint8
+    Size uint16
+    Spid uint16
+    PacketNo uint8
+    Pad uint8
+}
+
+
+func ReadPrelogin(r * TdsBuffer) (map[uint8][]byte, error) {
     var err error
-    err = binary.Read(r, binary.BigEndian, &header)
+    packet_type, err := r.BeginRead()
     if err != nil {
         return nil, err
     }
-    if header.PacketType != 4 {
+    struct_buf, err := ioutil.ReadAll(r)
+    if err != nil {
+        return nil, err
+    }
+    if packet_type != 4 {
         return nil, errors.New("Invalid respones, expected packet type 4, PRELOGIN RESPONSE")
-    }
-    if header.Status != 1 {
-        return nil, errors.New("Invalid respones, final packet")
-    }
-    struct_buf := make([]byte, header.Size - 8)
-    read, err := r.Read(struct_buf)
-    if err != nil {
-        return nil, err
-    }
-    if read != len(struct_buf) {
-        return nil, errors.New("Error invalid packet size")
     }
     fmt.Println(struct_buf)
     offset := 0
@@ -319,7 +355,7 @@ func str2ucs2(s string) []byte {
 }
 
 
-func SendLogin(w * OutBuffer, login Login) error {
+func SendLogin(w * TdsBuffer, login Login) error {
     w.BeginPacket(TDS7_LOGIN)
     hostname := str2ucs2(login.HostName)
     username := str2ucs2(login.UserName)
@@ -462,7 +498,7 @@ func main() {
     }
     fmt.Println(conn)
 
-    outbuf := NewOutBuffer(1024, conn)
+    outbuf := NewTdsBuffer(1024, conn)
     //buf := make([]byte, 1024)
     //data := buf[8:]
     //buf[0] = // type
@@ -476,8 +512,7 @@ func main() {
         os.Exit(1)
     }
 
-    r := bufio.NewReader(conn)
-    prelogin, err := ReadPrelogin(r)
+    prelogin, err := ReadPrelogin(outbuf)
     if err != nil {
         fmt.Println("Error: ", err.Error())
         os.Exit(1)
