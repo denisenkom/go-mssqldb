@@ -14,6 +14,7 @@ import (
 )
 
 var ascii2utf8 *iconv.Converter
+var utf82ucs2 *iconv.Converter
 
 
 func _parse_instances(msg []byte) (map[string]map[string]string) {
@@ -92,11 +93,22 @@ func (w * OutBuffer) SetPacketType(b byte) {
 }
 
 func (w * OutBuffer) BeginPacket(packet_type byte) {
-    w.buf[0] = b
+    w.buf[0] = packet_type
     w.pos = 8
 }
 
+const TDS_QUERY = 1
+const TDS_LOGIN = 2
+const TDS_RPC = 3
+const TDS_REPLY = 4
+const TDS_CANCEL = 6
+const TDS_BULK = 7
+const TDS7_TRANS = 14
+const TDS_NORMAL = 15
+const TDS7_LOGIN = 16
+const TDS7_AUTH = 17
 const TDS71_PRELOGIN = 18
+
 const VERSION = 0
 const ENCRYPTION = 1
 const INSTOPT = 2
@@ -104,6 +116,18 @@ const THREADID = 3
 const MARS = 4
 const TRACEID = 5
 const TERMINATOR = 0xff
+
+
+func WriteAll(w io.Writer, buf []byte) error {
+    for len(buf) > 0 {
+        written, err := w.Write(buf)
+        if err != nil {
+            return err
+        }
+        buf = buf[written:]
+    }
+    return nil
+}
 
 
 func WritePrelogin(outbuf * OutBuffer, instance string) error {
@@ -212,18 +236,203 @@ func ReadPrelogin(r io.Reader) (map[uint8][]byte, error) {
 }
 
 
-func SendLogin(w * OutBuffer) {
-    w.BeginPacket(TDS7_LOGIN)
-    type Header struct {
-        Length uint32
-        
+type Login struct {
+    TDSVersion uint32
+    PacketSize uint32
+    ClientProgVer uint32
+    ClientPID uint32
+    ConnectionID uint32
+    OptionFlags1 uint8
+    OptionFlags2 uint8
+    TypeFlags uint8
+    OptionFlags3 uint8
+    ClientTimeZone int32
+    ClientLCID uint32
+    HostName string
+    UserName string
+    Password string
+    AppName string
+    ServerName string
+    CtlIntName string
+    Language string
+    Database string
+    ClientID [6]byte
+    SSPI []byte
+    AtchDBFile string
+    ChangePassword string
+}
+
+
+type LoginHeader struct {
+    Length uint32
+    TDSVersion uint32
+    PacketSize uint32
+    ClientProgVer uint32
+    ClientPID uint32
+    ConnectionID uint32
+    OptionFlags1 uint8
+    OptionFlags2 uint8
+    TypeFlags uint8
+    OptionFlags3 uint8
+    ClientTimeZone int32
+    ClientLCID uint32
+    HostNameOffset uint16
+    HostNameLength uint16
+    UserNameOffset uint16
+    UserNameLength uint16
+    PasswordOffset uint16
+    PasswordLength uint16
+    AppNameOffset uint16
+    AppNameLength uint16
+    ServerNameOffset uint16
+    ServerNameLength uint16
+    ExtensionOffset uint16
+    ExtensionLenght uint16
+    CtlIntNameOffset uint16
+    CtlIntNameLength uint16
+    LanguageOffset uint16
+    LanguageLength uint16
+    DatabaseOffset uint16
+    DatabaseLength uint16
+    ClientID [6]byte
+    SSPIOffset uint16
+    SSPILength uint16
+    AtchDBFileOffset uint16
+    AtchDBFileLength uint16
+    ChangePasswordOffset uint16
+    ChangePasswordLength uint16
+    SSPILongLength uint32
+}
+
+
+func str2ucs2(s string) []byte {
+    res, err := utf82ucs2.ConvertString(s)
+    if err != nil {
+        panic("ConvertString failed unexpectedly: " + err.Error())
     }
+    return []byte(res)
+}
+
+
+func SendLogin(w * OutBuffer, login Login) error {
+    w.BeginPacket(TDS7_LOGIN)
+    hostname := str2ucs2(login.HostName)
+    username := str2ucs2(login.UserName)
+    password := str2ucs2(login.Password)
+    appname := str2ucs2(login.AppName)
+    servername := str2ucs2(login.ServerName)
+    ctlintname := str2ucs2(login.CtlIntName)
+    language := str2ucs2(login.Language)
+    database := str2ucs2(login.Database)
+    atchdbfile := str2ucs2(login.AtchDBFile)
+    changepassword := str2ucs2(login.ChangePassword)
+    hdr := LoginHeader{
+        TDSVersion: login.TDSVersion,
+        PacketSize: login.PacketSize,
+        ClientProgVer: login.ClientProgVer,
+        ClientPID: login.ClientPID,
+        ConnectionID: login.ConnectionID,
+        OptionFlags1: login.OptionFlags1,
+        OptionFlags2: login.OptionFlags2,
+        TypeFlags: login.TypeFlags,
+        OptionFlags3: login.OptionFlags3,
+        ClientTimeZone: login.ClientTimeZone,
+        ClientLCID: login.ClientLCID,
+        HostNameLength: uint16(len(hostname)),
+        UserNameLength: uint16(len(username)),
+        PasswordLength: uint16(len(password)),
+        AppNameLength: uint16(len(appname)),
+        ServerNameLength: uint16(len(servername)),
+        CtlIntNameLength: uint16(len(ctlintname)),
+        LanguageLength: uint16(len(language)),
+        DatabaseLength: uint16(len(database)),
+        ClientID: login.ClientID,
+        AtchDBFileLength: uint16(len(atchdbfile)),
+        ChangePasswordLength: uint16(len(changepassword)),
+    }
+    offset := uint16(binary.Size(hdr))
+    hdr.HostNameOffset = offset
+    offset += hdr.HostNameLength
+    hdr.UserNameOffset = offset
+    offset += hdr.UserNameLength
+    hdr.PasswordOffset = offset
+    offset += hdr.PasswordLength
+    hdr.AppNameOffset = offset
+    offset += hdr.AppNameLength
+    hdr.ServerNameOffset = offset
+    offset += hdr.ServerNameLength
+    hdr.CtlIntNameOffset = offset
+    offset += hdr.CtlIntNameLength
+    hdr.LanguageOffset = offset
+    offset += hdr.LanguageLength
+    hdr.DatabaseOffset = offset
+    offset += hdr.DatabaseLength
+    hdr.AtchDBFileOffset = offset
+    offset += hdr.AtchDBFileLength
+    hdr.ChangePasswordOffset = offset
+    offset += hdr.ChangePasswordLength
+    hdr.Length = uint32(offset)
+    var err error
+    err = binary.Write(w, binary.BigEndian, &hdr)
+    if err != nil {
+        return err
+    }
+    err = WriteAll(w, hostname)
+    if err != nil {
+        return err
+    }
+    err = WriteAll(w, username)
+    if err != nil {
+        return err
+    }
+    err = WriteAll(w, password)
+    if err != nil {
+        return err
+    }
+    err = WriteAll(w, appname)
+    if err != nil {
+        return err
+    }
+    err = WriteAll(w, servername)
+    if err != nil {
+        return err
+    }
+    err = WriteAll(w, ctlintname)
+    if err != nil {
+        return err
+    }
+    err = WriteAll(w, language)
+    if err != nil {
+        return err
+    }
+    err = WriteAll(w, database)
+    if err != nil {
+        return err
+    }
+    err = WriteAll(w, atchdbfile)
+    if err != nil {
+        return err
+    }
+    err = WriteAll(w, changepassword)
+    if err != nil {
+        return err
+    }
+    return nil
 }
 
 
 func main() {
     var err error
     ascii2utf8, err = iconv.NewConverter("ascii", "utf8")
+    if err != nil {
+        fmt.Println("Error: ", err.Error())
+        os.Exit(1)
+    }
+    utf82ucs2, err = iconv.NewConverter("utf8", "ucs2")
+    if err != nil {
+        fmt.Println("Error: ", err.Error())
+        os.Exit(1)
+    }
     addr := os.Getenv("HOST")
     instance := os.Getenv("INSTANCE")
     var port uint64
@@ -281,5 +490,10 @@ func main() {
         fmt.Println("rec", k, v)
     }
 
-    SendLogin()
+    login := Login{}
+    err = SendLogin(outbuf, login)
+    if err != nil {
+        fmt.Println("Error: ", err.Error())
+        os.Exit(1)
+    }
 }
