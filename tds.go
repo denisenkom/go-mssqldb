@@ -1,4 +1,4 @@
-package main
+package mssql
 
 import (
     "errors"
@@ -11,6 +11,7 @@ import (
     "strconv"
     "encoding/binary"
     "io/ioutil"
+    "unicode/utf8"
 )
 
 var ascii2utf8 *iconv.Converter
@@ -116,6 +117,9 @@ func (r * TdsBuffer) read_next_packet() error {
     header := Header{}
     var err error
     err = binary.Read(r.transport, binary.BigEndian, &header)
+    if err != nil {
+        return err
+    }
     offset := uint16(binary.Size(header))
     _, err = io.ReadFull(r.transport, r.buf[offset:header.Size])
     if err != nil {
@@ -150,6 +154,15 @@ func (r * TdsBuffer) Read(buf []byte) (n int, err error) {
     return copied, nil
 }
 
+const TDS70 = 0x70000000
+const TDS71 = 0x71000000
+const TDS71rev1 = 0x71000001
+const TDS72 = 0x72090002
+const TDS73A = 0x730A0003
+const TDS73 = TDS73A
+const TDS73B = 0x730B0003
+const TDS74 = 0x74000004
+
 const TDS_QUERY = 1
 const TDS_LOGIN = 2
 const TDS_RPC = 3
@@ -161,6 +174,7 @@ const TDS_NORMAL = 15
 const TDS7_LOGIN = 16
 const TDS7_AUTH = 17
 const TDS71_PRELOGIN = 18
+const TDS_LOGINACK = 0xad
 
 const VERSION = 0
 const ENCRYPTION = 1
@@ -379,42 +393,45 @@ func SendLogin(w * TdsBuffer, login Login) error {
         OptionFlags3: login.OptionFlags3,
         ClientTimeZone: login.ClientTimeZone,
         ClientLCID: login.ClientLCID,
-        HostNameLength: uint16(len(hostname)),
-        UserNameLength: uint16(len(username)),
-        PasswordLength: uint16(len(password)),
-        AppNameLength: uint16(len(appname)),
-        ServerNameLength: uint16(len(servername)),
-        CtlIntNameLength: uint16(len(ctlintname)),
-        LanguageLength: uint16(len(language)),
-        DatabaseLength: uint16(len(database)),
+        HostNameLength: uint16(utf8.RuneCountInString(login.HostName)),
+        UserNameLength: uint16(utf8.RuneCountInString(login.UserName)),
+        PasswordLength: uint16(utf8.RuneCountInString(login.Password)),
+        AppNameLength: uint16(utf8.RuneCountInString(login.AppName)),
+        ServerNameLength: uint16(utf8.RuneCountInString(login.ServerName)),
+        CtlIntNameLength: uint16(utf8.RuneCountInString(login.CtlIntName)),
+        LanguageLength: uint16(utf8.RuneCountInString(login.Language)),
+        DatabaseLength: uint16(utf8.RuneCountInString(login.Database)),
         ClientID: login.ClientID,
-        AtchDBFileLength: uint16(len(atchdbfile)),
-        ChangePasswordLength: uint16(len(changepassword)),
+        SSPILength: uint16(len(login.SSPI)),
+        AtchDBFileLength: uint16(utf8.RuneCountInString(login.AtchDBFile)),
+        ChangePasswordLength: uint16(utf8.RuneCountInString(login.ChangePassword)),
     }
     offset := uint16(binary.Size(hdr))
     hdr.HostNameOffset = offset
-    offset += hdr.HostNameLength
+    offset += uint16(len(hostname))
     hdr.UserNameOffset = offset
-    offset += hdr.UserNameLength
+    offset += uint16(len(username))
     hdr.PasswordOffset = offset
-    offset += hdr.PasswordLength
+    offset += uint16(len(password))
     hdr.AppNameOffset = offset
-    offset += hdr.AppNameLength
+    offset += uint16(len(appname))
     hdr.ServerNameOffset = offset
-    offset += hdr.ServerNameLength
+    offset += uint16(len(servername))
     hdr.CtlIntNameOffset = offset
-    offset += hdr.CtlIntNameLength
+    offset += uint16(len(ctlintname))
     hdr.LanguageOffset = offset
-    offset += hdr.LanguageLength
+    offset += uint16(len(language))
     hdr.DatabaseOffset = offset
-    offset += hdr.DatabaseLength
+    offset += uint16(len(database))
+    hdr.SSPIOffset = offset
+    offset += uint16(len(login.SSPI))
     hdr.AtchDBFileOffset = offset
-    offset += hdr.AtchDBFileLength
+    offset += uint16(len(atchdbfile))
     hdr.ChangePasswordOffset = offset
-    offset += hdr.ChangePasswordLength
+    offset += uint16(len(changepassword))
     hdr.Length = uint32(offset)
     var err error
-    err = binary.Write(w, binary.BigEndian, &hdr)
+    err = binary.Write(w, binary.LittleEndian, &hdr)
     if err != nil {
         return err
     }
@@ -458,22 +475,25 @@ func SendLogin(w * TdsBuffer, login Login) error {
     if err != nil {
         return err
     }
-    return nil
+    return w.FinishPacket()
 }
 
 
-func main() {
+func init() {
     var err error
     ascii2utf8, err = iconv.NewConverter("ascii", "utf8")
     if err != nil {
-        fmt.Println("Error: ", err.Error())
-        os.Exit(1)
+        panic("Can't create ascii to utf8 convertor: " + err.Error())
     }
     utf82ucs2, err = iconv.NewConverter("utf8", "ucs2")
     if err != nil {
-        fmt.Println("Error: ", err.Error())
-        os.Exit(1)
+        panic("Can't create utf8 to ucs2 convertor: " + err.Error())
     }
+}
+
+
+func Connect() {
+    var err error
     addr := os.Getenv("HOST")
     instance := os.Getenv("INSTANCE")
     var port uint64
@@ -521,10 +541,28 @@ func main() {
         fmt.Println("rec", k, v)
     }
 
-    login := Login{}
+    login := Login{
+        TDSVersion: TDS73,
+        PacketSize: uint32(len(outbuf.buf)),
+        UserName: "sa",
+        Password: "sa",
+    }
     err = SendLogin(outbuf, login)
     if err != nil {
         fmt.Println("Error: ", err.Error())
         os.Exit(1)
+    }
+
+    // processing login response
+    for true {
+        packet_type, err := outbuf.BeginRead()
+        if err != nil {
+            fmt.Println("Error: ", err.Error())
+            os.Exit(1)
+        }
+        if packet_type != TDS_LOGINACK {
+            fmt.Println("Error: invalid response packet type, expected LOGINACK")
+            os.Exit(1)
+        }
     }
 }
