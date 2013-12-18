@@ -1,4 +1,4 @@
-package tds
+package mssql
 
 import (
         "bytes"
@@ -22,7 +22,7 @@ func (b *readBuf) int16() (n int) {
 func (b *readBuf) string() string {
         i := bytes.IndexByte(*b, 0)
         if i < 0 {
-                errorf("invalid message format; expected string terminator")
+                //errorf("invalid message format; expected string terminator")
         }
         s := (*b)[:i]
         *b = (*b)[i+1:]
