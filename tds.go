@@ -91,6 +91,11 @@ func (w * OutBuffer) SetPacketType(b byte) {
     w.buf[0] = b
 }
 
+func (w * OutBuffer) BeginPacket(packet_type byte) {
+    w.buf[0] = b
+    w.pos = 8
+}
+
 const TDS71_PRELOGIN = 18
 const VERSION = 0
 const ENCRYPTION = 1
@@ -207,6 +212,15 @@ func ReadPrelogin(r io.Reader) (map[uint8][]byte, error) {
 }
 
 
+func SendLogin(w * OutBuffer) {
+    w.BeginPacket(TDS7_LOGIN)
+    type Header struct {
+        Length uint32
+        
+    }
+}
+
+
 func main() {
     var err error
     ascii2utf8, err = iconv.NewConverter("ascii", "utf8")
@@ -266,4 +280,6 @@ func main() {
     for k, v := range prelogin {
         fmt.Println("rec", k, v)
     }
+
+    SendLogin()
 }
