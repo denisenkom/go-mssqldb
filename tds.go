@@ -72,13 +72,15 @@ func get_instances(address string) (map[string]map[string]string, error) {
 type OutBuffer struct {
     buf []byte
     pos uint16
+    transport io.Writer
 }
 
-func NewOutBuffer(bufsize int) *OutBuffer {
+func NewOutBuffer(bufsize int, transport io.Writer) *OutBuffer {
     buf := make([]byte, bufsize)
     w := new(OutBuffer)
     w.buf = buf
     w.pos = 8
+    w.transport = transport
     return w
 }
 
@@ -88,13 +90,22 @@ func (w * OutBuffer) Write(p []byte) (nn int, err error) {
     return copied, nil
 }
 
-func (w * OutBuffer) SetPacketType(b byte) {
-    w.buf[0] = b
+func (w * OutBuffer) WriteByte(b byte) error {
+    w.buf[w.pos] = b
+    w.pos += 1
+    return nil
 }
 
 func (w * OutBuffer) BeginPacket(packet_type byte) {
     w.buf[0] = packet_type
+    w.buf[1] = 0  // packet is incomplete
     w.pos = 8
+}
+
+func (w * OutBuffer) FinishPacket() error {
+    w.buf[1] = 1  // packet is complete
+    binary.BigEndian.PutUint16(w.buf[2:], w.pos)
+    return WriteAll(w.transport, w.buf[:w.pos])
 }
 
 const TDS_QUERY = 1
@@ -130,10 +141,8 @@ func WriteAll(w io.Writer, buf []byte) error {
 }
 
 
-func WritePrelogin(outbuf * OutBuffer, instance string) error {
+func WritePrelogin(w * OutBuffer, instance string) error {
     var err error
-
-    w := bufio.NewWriter(outbuf)
 
     instance_buf := make([]byte, len(instance))
     iconv.Convert([]byte(instance), instance_buf, "utf8", "ascii")
@@ -147,7 +156,7 @@ func WritePrelogin(outbuf * OutBuffer, instance string) error {
         MARS: {0},  // MARS disabled
         }
 
-    outbuf.SetPacketType(TDS71_PRELOGIN)
+    w.BeginPacket(TDS71_PRELOGIN)
     offset := uint16(5 * len(fields) + 1)
     // writing header
     for k, v := range fields {
@@ -180,11 +189,7 @@ func WritePrelogin(outbuf * OutBuffer, instance string) error {
             return errors.New("Write method didn't write the whole value")
         }
     }
-    err = w.Flush()
-
-    outbuf.buf[1] = 1  // packet is complete
-    binary.BigEndian.PutUint16(outbuf.buf[2:], outbuf.pos)
-    return nil
+    return w.FinishPacket()
 }
 
 
@@ -457,7 +462,7 @@ func main() {
     }
     fmt.Println(conn)
 
-    outbuf := NewOutBuffer(1024)
+    outbuf := NewOutBuffer(1024, conn)
     //buf := make([]byte, 1024)
     //data := buf[8:]
     //buf[0] = // type
@@ -468,15 +473,6 @@ func main() {
     err = WritePrelogin(outbuf, instance)
     if err != nil {
         fmt.Println("Error: ", err.Error())
-        os.Exit(1)
-    }
-    written, err := conn.Write(outbuf.buf)
-    if err != nil {
-        fmt.Println("Error: ", err.Error())
-        os.Exit(1)
-    }
-    if written != len(outbuf.buf) {
-        fmt.Println("Error Write method didn't write the whole value")
         os.Exit(1)
     }
 
