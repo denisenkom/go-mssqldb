@@ -85,9 +85,19 @@ func open(t *testing.T) *sql.DB {
 
 func TestConnect(t *testing.T) {
     conn, err := sql.Open("go-mssql", makeConnStr())
-    defer conn.Close()
     if err != nil {
         t.Error("Open connection failed:", err.Error())
+    }
+    defer conn.Close()
+
+    conn, err = sql.Open("go-mssql", "Server=badhost")
+    if err != nil {
+        t.Error("Open connection failed:", err.Error())
+    }
+    defer conn.Close()
+    err = conn.Ping()
+    if err == nil {
+        t.Error("Ping should fail")
     }
 }
 

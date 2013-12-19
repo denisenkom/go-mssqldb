@@ -92,7 +92,8 @@ const TDS7_LOGIN = 16
 const TDS7_AUTH = 17
 const TDS71_PRELOGIN = 18
 
-const TDS_LOGINACK_TOKEN = 0xad
+const TDS_ERROR_TOKEN = 170  // 0xAA
+const TDS_LOGINACK_TOKEN = 173  // 0xad
 const TDS_ENVCHANGE_TOKEN = 227  // 0xE3
 const TDS_DONE_TOKEN = 253  // 0xFD
 
@@ -437,6 +438,73 @@ func processDone72(token uint8, r io.Reader) (err error) {
 }
 
 
+func readUcs2(r io.Reader, numchars int) (res string, err error) {
+    buf := make([]byte, numchars * 2)
+    _, err = io.ReadFull(r, buf)
+    if err != nil {
+        return "", err
+    }
+    _, err = ucs22utf8.ConvertString(string(buf))
+    if err != nil {
+        return "", err
+    }
+    return string(buf), err
+}
+
+
+func readUsVarchar(r io.Reader) (res string, err error) {
+    var numchars uint16
+    err = binary.Read(r, binary.LittleEndian, &numchars)
+    if err != nil {
+        return "", err
+    }
+    return readUcs2(r, int(numchars))
+}
+
+
+func readBVarchar(r io.Reader) (res string, err error) {
+    var numchars uint8
+    err = binary.Read(r, binary.LittleEndian, &numchars)
+    if err != nil {
+        return "", err
+    }
+    return readUcs2(r, int(numchars))
+}
+
+
+func processError72(token uint8, r io.Reader) (err error) {
+    hdr := struct {
+        Length uint16
+        Number int32
+        State uint8
+        Class uint8
+    }{}
+    err = binary.Read(r, binary.LittleEndian, &hdr)
+    if err != nil {
+        return err
+    }
+    msgtext, err := readUsVarchar(r)
+    if err != nil {
+        return err
+    }
+    servername, err := readBVarchar(r)
+    if err != nil {
+        return err
+    }
+    procname, err := readBVarchar(r)
+    if err != nil {
+        return err
+    }
+    var lineno int32
+    err = binary.Read(r, binary.LittleEndian, &lineno)
+    if err != nil {
+        return err
+    }
+    fmt.Println(hdr.Number, hdr.State, hdr.Class, msgtext, servername, procname, lineno)
+    return nil
+}
+
+
 func init() {
     var err error
     ascii2utf8, err = iconv.NewConverter("ascii", "utf8")
@@ -538,6 +606,7 @@ func Connect(params map[string]string) (buf *TdsBuffer, err error) {
     tokenMap := map[uint8]tokenFunc{
         TDS_ENVCHANGE_TOKEN: processEnvChg,
         TDS_DONE_TOKEN: processDone72,
+        TDS_ERROR_TOKEN: processError72,
     }
     for true {
         token, err := outbuf.ReadByte()
