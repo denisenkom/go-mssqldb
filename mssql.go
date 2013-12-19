@@ -46,13 +46,14 @@ type MssqlTx struct {
 //	return err
 //}
 //
-//func (c *MssqlConn) Begin() (driver.Tx, error) {
+func (c *MssqlConn) Begin() (driver.Tx, error) {
 //	_, err := oleutil.CallMethod(c.db, "BeginTrans")
 //	if err != nil {
 //		return nil, err
 //	}
 //	return &AdodbTx{c}, nil
-//}
+    return nil, nil
+}
 
 func parseConnectionString(dsn string) (res map[string]string) {
     res = map[string]string{}
@@ -78,20 +79,22 @@ func parseConnectionString(dsn string) (res map[string]string) {
 func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
     params := parseConnectionString(dsn)
     _, err := Connect(params)
-    return nil, err
-    //return &MssqlConn{}, nil
+    if err != nil {
+        return nil, err
+    }
+    return &MssqlConn{}, nil
 }
 
-//func (c *MssqlConn) Close() error {
+func (c *MssqlConn) Close() error {
 //	_, err := oleutil.CallMethod(c.db, "Close")
 //	if err != nil {
 //		return err
 //	}
 //	c.db = nil
 //	ole.CoUninitialize()
-//	return nil
-//}
-//
+    return nil
+}
+
 //type MssqlStmt struct {
 //	c  *MssqlConn
 //	s  *ole.IDispatch
@@ -99,7 +102,8 @@ func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
 //	b  []string
 //}
 //
-//func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
+func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
+    return nil, nil
 //	unknown, err := oleutil.CreateObject("ADODB.Command")
 //	if err != nil {
 //		return nil, err
@@ -129,8 +133,8 @@ func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
 //		return nil, err
 //	}
 //	return &AdodbStmt{c, s, val.ToIDispatch(), nil}, nil
-//}
-//
+}
+
 //func (s *MssqlStmt) Bind(bind []string) error {
 //	s.b = bind
 //	return nil
