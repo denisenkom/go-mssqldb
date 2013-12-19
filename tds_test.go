@@ -74,6 +74,15 @@ func makeConnStr() string {
 }
 
 
+func open(t *testing.T) *sql.DB {
+    conn, err := sql.Open("go-mssql", makeConnStr())
+    if err != nil {
+        t.Error("Open connection failed:", err.Error())
+    }
+    return conn
+}
+
+
 func TestConnect(t *testing.T) {
     conn, err := sql.Open("go-mssql", makeConnStr())
     defer conn.Close()
@@ -84,14 +93,36 @@ func TestConnect(t *testing.T) {
 
 
 func TestQuery(t *testing.T) {
-    conn, err := sql.Open("go-mssql", makeConnStr())
+    conn := open(t)
     defer conn.Close()
-    if err != nil {
-        t.Error("Open connection failed:", err.Error())
-    }
+
     stmt, err := conn.Prepare("select 1")
     if err != nil {
         t.Error("Prepare failed:", err.Error())
     }
     defer stmt.Close()
+
+    rows, err := stmt.Query()
+    if err != nil {
+        t.Error("Query failed:", err.Error())
+    }
+    defer rows.Close()
+
+    for rows.Next() {
+        var val int
+        err := rows.Scan(&val)
+        if err != nil {
+            t.Error("Scan failed:", err.Error())
+        }
+        if val != 1 {
+            t.Error("query should return 1")
+        }
+    }
+}
+
+
+func TestPing(t *testing.T) {
+    conn := open(t)
+    defer conn.Close()
+    conn.Ping()
 }

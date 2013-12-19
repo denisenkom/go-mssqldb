@@ -1,9 +1,9 @@
 package mssql
 
 import (
-	"database/sql"
-	"database/sql/driver"
-//	"io"
+    "database/sql"
+    "database/sql/driver"
+    "io"
 //	"math"
 //	"math/big"
 //	"time"
@@ -204,8 +204,7 @@ func (s *MssqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 //	if err != nil {
 //		return nil, err
 //	}
-//	return &AdodbRows{s, rc.ToIDispatch(), -1, nil}, nil
-    return nil, nil
+    return &MssqlRows{}, nil
 }
 
 func (s *MssqlStmt) Exec(args []driver.Value) (driver.Result, error) {
@@ -219,22 +218,22 @@ func (s *MssqlStmt) Exec(args []driver.Value) (driver.Result, error) {
     return driver.ResultNoRows, nil
 }
 
-//type MssqlRows struct {
+type MssqlRows struct {
 //	s    *AdodbStmt
 //	rc   *ole.IDispatch
 //	nc   int
 //	cols []string
-//}
-//
-//func (rc *MssqlRows) Close() error {
+}
+
+func (rc *MssqlRows) Close() error {
 //	_, err := oleutil.CallMethod(rc.rc, "Close")
 //	if err != nil {
 //		return err
 //	}
-//	return nil
-//}
-//
-//func (rc *MssqlRows) Columns() []string {
+    return nil
+}
+
+func (rc *MssqlRows) Columns() []string {
 //	if rc.nc != len(rc.cols) {
 //		unknown, err := oleutil.GetProperty(rc.rc, "Fields")
 //		if err != nil {
@@ -269,9 +268,10 @@ func (s *MssqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 //		}
 //	}
 //	return rc.cols
-//}
-//
-//func (rc *MssqlRows) Next(dest []driver.Value) error {
+    return []string{}
+}
+
+func (rc *MssqlRows) Next(dest []driver.Value) error {
 //	unknown, err := oleutil.GetProperty(rc.rc, "EOF")
 //	if err != nil {
 //		return io.EOF
@@ -396,4 +396,5 @@ func (s *MssqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 //		return err
 //	}
 //	return nil
-//}
+    return io.EOF
+}
