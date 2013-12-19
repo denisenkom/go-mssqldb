@@ -1,7 +1,7 @@
 package mssql
 
 import (
-//	"database/sql"
+	"database/sql"
 	"database/sql/driver"
 //	"io"
 //	"math"
@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-    //sql.Register("mssql", &MssqlDriver{})
+    sql.Register("go-mssql", &MssqlDriver{})
 }
 
 type MssqlDriver struct {

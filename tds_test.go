@@ -1,6 +1,7 @@
 package mssql
 
 import (
+    "database/sql"
     "os"
     "testing"
     "bytes"
@@ -74,8 +75,7 @@ func makeConnStr() string {
 
 
 func TestConnect(t *testing.T) {
-    drvr := MssqlDriver{}
-    conn, err := drvr.Open(makeConnStr())
+    conn, err := sql.Open("go-mssql", makeConnStr())
     defer conn.Close()
     if err != nil {
         t.Error("Open connection failed:", err.Error())
@@ -84,8 +84,7 @@ func TestConnect(t *testing.T) {
 
 
 func TestQuery(t *testing.T) {
-    drvr := MssqlDriver{}
-    conn, err := drvr.Open(makeConnStr())
+    conn, err := sql.Open("go-mssql", makeConnStr())
     defer conn.Close()
     if err != nil {
         t.Error("Open connection failed:", err.Error())
