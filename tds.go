@@ -369,11 +369,20 @@ func str2ucs2(s string) []byte {
 }
 
 
+func manglePassword(password string) []byte {
+    var ucs2password []byte = str2ucs2(password)
+    for i, ch := range ucs2password {
+        ucs2password[i] = ((ch << 4) & 0xff | (ch >> 4)) ^ 0xA5
+    }
+    return ucs2password
+}
+
+
 func SendLogin(w * TdsBuffer, login Login) error {
     w.BeginPacket(TDS7_LOGIN)
     hostname := str2ucs2(login.HostName)
     username := str2ucs2(login.UserName)
-    password := str2ucs2(login.Password)
+    password := manglePassword(login.Password)
     appname := str2ucs2(login.AppName)
     servername := str2ucs2(login.ServerName)
     ctlintname := str2ucs2(login.CtlIntName)
@@ -560,8 +569,9 @@ func Connect() {
             fmt.Println("Error: ", err.Error())
             os.Exit(1)
         }
-        if packet_type != TDS_LOGINACK {
-            fmt.Println("Error: invalid response packet type, expected LOGINACK")
+        if packet_type != TDS_REPLY {
+            conn.Close()
+            fmt.Println("Error: invalid response packet type, expected REPLY, actual: ", packet_type)
             os.Exit(1)
         }
     }

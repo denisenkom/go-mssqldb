@@ -53,3 +53,8 @@ func TestSendLogin(t *testing.T) {
         fmt.Print(hex.Dump(out))
     }
 }
+
+
+func TestConnect(t *testing.T) {
+    Connect()
+}
