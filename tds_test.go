@@ -66,13 +66,33 @@ func TestSendLogin(t *testing.T) {
 }
 
 
-func TestConnect(t *testing.T) {
+func makeConnStr() string {
     addr := os.Getenv("HOST")
     instance := os.Getenv("INSTANCE")
+    return "Server=" + addr + "\\" + instance + ";User Id=sa;Password=sa"
+}
+
+
+func TestConnect(t *testing.T) {
     drvr := MssqlDriver{}
-    conn, err := drvr.Open("Server=" + addr + "\\" + instance + ";User Id=sa;Password=sa")
+    conn, err := drvr.Open(makeConnStr())
+    defer conn.Close()
     if err != nil {
         t.Error("Open connection failed:", err.Error())
     }
-    conn.Close()
+}
+
+
+func TestQuery(t *testing.T) {
+    drvr := MssqlDriver{}
+    conn, err := drvr.Open(makeConnStr())
+    defer conn.Close()
+    if err != nil {
+        t.Error("Open connection failed:", err.Error())
+    }
+    stmt, err := conn.Prepare("select 1")
+    if err != nil {
+        t.Error("Prepare failed:", err.Error())
+    }
+    defer stmt.Close()
 }

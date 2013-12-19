@@ -90,15 +90,12 @@ func (c *MssqlConn) Close() error {
     return c.buf.transport.Close()
 }
 
-//type MssqlStmt struct {
-//	c  *MssqlConn
-//	s  *ole.IDispatch
-//	ps *ole.IDispatch
-//	b  []string
-//}
-//
+type MssqlStmt struct {
+    c  *MssqlConn
+    query string
+}
+
 func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
-    return nil, nil
 //	unknown, err := oleutil.CreateObject("ADODB.Command")
 //	if err != nil {
 //		return nil, err
@@ -127,20 +124,20 @@ func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
 //	if err != nil {
 //		return nil, err
 //	}
-//	return &AdodbStmt{c, s, val.ToIDispatch(), nil}, nil
+	return &MssqlStmt{c, query}, nil
 }
 
 //func (s *MssqlStmt) Bind(bind []string) error {
 //	s.b = bind
 //	return nil
 //}
-//
-//func (s *MssqlStmt) Close() error {
+
+func (s *MssqlStmt) Close() error {
 //	s.s.Release()
-//	return nil
-//}
-//
-//func (s *MssqlStmt) NumInput() int {
+    return nil
+}
+
+func (s *MssqlStmt) NumInput() int {
 //	if s.b != nil {
 //		return len(s.b)
 //	}
@@ -154,8 +151,9 @@ func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
 //	}
 //	c := int(val.Val)
 //	return c
-//}
-//
+    return 0
+}
+
 //func (s *MssqlStmt) bind(args []driver.Value) error {
 //	if s.b != nil {
 //		for i, v := range args {
@@ -197,8 +195,8 @@ func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
 //	}
 //	return nil
 //}
-//
-//func (s *MssqlStmt) Query(args []driver.Value) (driver.Rows, error) {
+
+func (s *MssqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 //	if err := s.bind(args); err != nil {
 //		return nil, err
 //	}
@@ -207,9 +205,10 @@ func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
 //		return nil, err
 //	}
 //	return &AdodbRows{s, rc.ToIDispatch(), -1, nil}, nil
-//}
-//
-//func (s *MssqlStmt) Exec(args []driver.Value) (driver.Result, error) {
+    return nil, nil
+}
+
+func (s *MssqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 //	if err := s.bind(args); err != nil {
 //		return nil, err
 //	}
@@ -217,9 +216,9 @@ func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
 //	if err != nil {
 //		return nil, err
 //	}
-//	return driver.ResultNoRows, nil
-//}
-//
+    return driver.ResultNoRows, nil
+}
+
 //type MssqlRows struct {
 //	s    *AdodbStmt
 //	rc   *ole.IDispatch
