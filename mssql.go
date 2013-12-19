@@ -2,12 +2,13 @@ package mssql
 
 import (
 //	"database/sql"
-//	"database/sql/driver"
+	"database/sql/driver"
 //	"io"
 //	"math"
 //	"math/big"
 //	"time"
 //	"unsafe"
+    "strings"
 )
 
 func init() {
@@ -52,24 +53,35 @@ type MssqlTx struct {
 //	}
 //	return &AdodbTx{c}, nil
 //}
-//
-//func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
-//	ole.CoInitialize(0)
-//	unknown, err := oleutil.CreateObject("ADODB.Connection")
-//	if err != nil {
-//		return nil, err
-//	}
-//	db, err := unknown.QueryInterface(ole.IID_IDispatch)
-//	if err != nil {
-//		return nil, err
-//	}
-//	_, err = oleutil.CallMethod(db, "Open", dsn)
-//	if err != nil {
-//		return nil, err
-//	}
-//	return &MssqlConn{db}, nil
-//}
-//
+
+func parseConnectionString(dsn string) (res map[string]string) {
+    res = map[string]string{}
+    parts := strings.Split(dsn, ";")
+    for _, part := range parts {
+        if len(part) == 0 {
+            continue
+        }
+        lst := strings.SplitN(part, "=", 2)
+        name := strings.ToLower(lst[0])
+        if len(name) == 0 {
+            continue
+        }
+        var value string = ""
+        if len(lst) > 1 {
+            value = lst[1]
+        }
+        res[name] = value
+    }
+    return res
+}
+
+func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
+    params := parseConnectionString(dsn)
+    Connect(params)
+    return nil, nil
+    //return &MssqlConn{}, nil
+}
+
 //func (c *MssqlConn) Close() error {
 //	_, err := oleutil.CallMethod(c.db, "Close")
 //	if err != nil {

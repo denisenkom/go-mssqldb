@@ -1,6 +1,7 @@
 package mssql
 
 import (
+    "os"
     "testing"
     "bytes"
     "fmt"
@@ -56,5 +57,8 @@ func TestSendLogin(t *testing.T) {
 
 
 func TestConnect(t *testing.T) {
-    Connect()
+    addr := os.Getenv("HOST")
+    instance := os.Getenv("INSTANCE")
+    drvr := MssqlDriver{}
+    drvr.Open("Server=" + addr + "\\" + instance + ";User Id=sa;Password=sa")
 }

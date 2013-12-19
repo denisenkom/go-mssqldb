@@ -16,6 +16,7 @@ import (
 
 var ascii2utf8 *iconv.Converter
 var utf82ucs2 *iconv.Converter
+var ucs22utf8 *iconv.Converter
 
 
 func _parse_instances(msg []byte) (map[string]map[string]string) {
@@ -137,6 +138,21 @@ func (r * TdsBuffer) BeginRead() (packet_type uint8, err error) {
     return r.packet_type, err
 }
 
+func (r * TdsBuffer) ReadByte() (res byte, err error) {
+    if r.pos == r.size {
+        if r.final {
+            return 0, io.EOF
+        }
+        err = r.read_next_packet()
+        if err != nil {
+            return 0, err
+        }
+    }
+    res = r.buf[r.pos]
+    r.pos++
+    return res, nil
+}
+
 func (r * TdsBuffer) Read(buf []byte) (n int, err error) {
     fmt.Println("called read", len(buf), r.pos, r.size)
     if r.pos == r.size {
@@ -174,7 +190,10 @@ const TDS_NORMAL = 15
 const TDS7_LOGIN = 16
 const TDS7_AUTH = 17
 const TDS71_PRELOGIN = 18
-const TDS_LOGINACK = 0xad
+
+const TDS_LOGINACK_TOKEN = 0xad
+const TDS_ENVCHANGE_TOKEN = 227  // 0xE3
+const TDS_DONE_TOKEN = 253  // 0xFD
 
 const VERSION = 0
 const ENCRYPTION = 1
@@ -369,6 +388,15 @@ func str2ucs2(s string) []byte {
 }
 
 
+func ucs22str(s []byte) string {
+    res, err := ucs22utf8.ConvertString(string(s))
+    if err != nil {
+        panic("ConvertString failed unexpectedly: " + err.Error())
+    }
+    return res
+}
+
+
 func manglePassword(password string) []byte {
     var ucs2password []byte = str2ucs2(password)
     for i, ch := range ucs2password {
@@ -488,6 +516,38 @@ func SendLogin(w * TdsBuffer, login Login) error {
 }
 
 
+func processEnvChg(token uint8, r io.Reader) (err error) {
+    var size uint16
+    err = binary.Read(r, binary.LittleEndian, &size)
+    if err != nil {
+        return err
+    }
+    buf := make([]byte, size)
+    _, err = io.ReadFull(r, buf)
+    if err != nil {
+        return err
+    }
+    typ := buf[0]
+    fmt.Println("processEnvChg type:", typ)
+    return nil
+}
+
+
+func processDone72(token uint8, r io.Reader) (err error) {
+    data := struct {
+        Status uint16
+        CurCmd uint16
+        RowCount uint64
+    }{}
+    err = binary.Read(r, binary.LittleEndian, &data)
+    if err != nil {
+        return err
+    }
+    fmt.Println("processDone72", data.Status, data.CurCmd, data.RowCount)
+    return nil
+}
+
+
 func init() {
     var err error
     ascii2utf8, err = iconv.NewConverter("ascii", "utf8")
@@ -498,17 +558,28 @@ func init() {
     if err != nil {
         panic("Can't create utf8 to ucs2 convertor: " + err.Error())
     }
+    ucs22utf8, err = iconv.NewConverter("ucs2", "utf8")
+    if err != nil {
+        panic("Can't create ucs2 to utf8 convertor: " + err.Error())
+    }
 }
 
 
-func Connect() {
+func Connect(params map[string]string) {
     var err error
-    addr := os.Getenv("HOST")
-    instance := os.Getenv("INSTANCE")
     var port uint64
+    server := params["server"]
+    parts := strings.SplitN(server, "\\", 2)
+    host := parts[0]
+    var instance string
+    if len(parts) > 1 {
+        instance = parts[1]
+    }
+    user := params["user id"]
+    password := params["password"]
     port = 1433
     if instance != "" {
-        instances, err := get_instances(addr)
+        instances, err := get_instances(host)
         if err != nil {
             fmt.Println("Error: ", err.Error())
             os.Exit(1)
@@ -520,7 +591,7 @@ func Connect() {
             os.Exit(1)
         }
     }
-    conn, err := net.Dial("tcp", addr + ":" + strconv.FormatUint(port, 10))
+    conn, err := net.Dial("tcp", host + ":" + strconv.FormatUint(port, 10))
     if err != nil {
         fmt.Println("Error: ", err.Error())
         os.Exit(1)
@@ -553,8 +624,8 @@ func Connect() {
     login := Login{
         TDSVersion: TDS73,
         PacketSize: uint32(len(outbuf.buf)),
-        UserName: "sa",
-        Password: "sa",
+        UserName: user,
+        Password: password,
     }
     err = SendLogin(outbuf, login)
     if err != nil {
@@ -563,16 +634,59 @@ func Connect() {
     }
 
     // processing login response
+    packet_type, err := outbuf.BeginRead()
+    if err != nil {
+        fmt.Println("Error: ", err.Error())
+        os.Exit(1)
+    }
+    if packet_type != TDS_REPLY {
+        conn.Close()
+        fmt.Println("Error: invalid response packet type, expected REPLY, actual: ", packet_type)
+        os.Exit(1)
+    }
+    type tokenFunc func(uint8, io.Reader) error
+    tokenMap := map[uint8]tokenFunc{
+        TDS_ENVCHANGE_TOKEN: processEnvChg,
+        TDS_DONE_TOKEN: processDone72,
+    }
     for true {
-        packet_type, err := outbuf.BeginRead()
+        token, err := outbuf.ReadByte()
         if err != nil {
             fmt.Println("Error: ", err.Error())
             os.Exit(1)
         }
-        if packet_type != TDS_REPLY {
-            conn.Close()
-            fmt.Println("Error: invalid response packet type, expected REPLY, actual: ", packet_type)
-            os.Exit(1)
+        if token == TDS_LOGINACK_TOKEN {
+            var size uint16
+            err = binary.Read(outbuf, binary.LittleEndian, &size)
+            if err != nil {
+                fmt.Println("Error: ", err.Error())
+                os.Exit(1)
+            }
+            buf := make([]byte, size)
+            _, err := io.ReadFull(outbuf, buf)
+            if err != nil {
+                fmt.Println("Error: ", err.Error())
+                os.Exit(1)
+            }
+            iface := buf[0]
+            tdsver := binary.BigEndian.Uint32(buf[1:])
+            prognamelen := buf[1+4]
+            progname := ucs22str(buf[1+4+1:1+4+1+prognamelen])
+            progver := buf[size-4:]
+            fmt.Println("login ack", iface, tdsver, progver, progname)
+        } else {
+            if tokenMap[token] == nil {
+                fmt.Println("Unknown token type:", token)
+                os.Exit(1)
+            }
+            err = tokenMap[token](token, outbuf)
+            if err != nil {
+                fmt.Println("Failed processing token", err.Error())
+                os.Exit(1)
+            }
+            if token == TDS_DONE_TOKEN {
+                break
+            }
         }
     }
 }
