@@ -42,10 +42,11 @@ func (w * TdsBuffer) BeginPacket(packet_type byte) {
     w.pos = 8
 }
 
-func (w * TdsBuffer) FinishPacket() error {
+func (w * TdsBuffer) FinishPacket() (err error) {
     w.buf[1] = 1  // packet is complete
     binary.BigEndian.PutUint16(w.buf[2:], w.pos)
-    return WriteAll(w.transport, w.buf[:w.pos])
+    _, err = w.transport.Write(w.buf[:w.pos])
+    return err
 }
 
 func (r * TdsBuffer) read_next_packet() error {

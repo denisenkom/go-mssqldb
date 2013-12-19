@@ -105,18 +105,6 @@ const TRACEID = 5
 const TERMINATOR = 0xff
 
 
-func WriteAll(w io.Writer, buf []byte) error {
-    for len(buf) > 0 {
-        written, err := w.Write(buf)
-        if err != nil {
-            return err
-        }
-        buf = buf[written:]
-    }
-    return nil
-}
-
-
 func WritePrelogin(w * TdsBuffer, instance string) error {
     var err error
 
@@ -373,43 +361,43 @@ func SendLogin(w * TdsBuffer, login Login) error {
     if err != nil {
         return err
     }
-    err = WriteAll(w, hostname)
+    _, err = w.Write(hostname)
     if err != nil {
         return err
     }
-    err = WriteAll(w, username)
+    _, err = w.Write(username)
     if err != nil {
         return err
     }
-    err = WriteAll(w, password)
+    _, err = w.Write(password)
     if err != nil {
         return err
     }
-    err = WriteAll(w, appname)
+    _, err = w.Write(appname)
     if err != nil {
         return err
     }
-    err = WriteAll(w, servername)
+    _, err = w.Write(servername)
     if err != nil {
         return err
     }
-    err = WriteAll(w, ctlintname)
+    _, err = w.Write(ctlintname)
     if err != nil {
         return err
     }
-    err = WriteAll(w, language)
+    _, err = w.Write(language)
     if err != nil {
         return err
     }
-    err = WriteAll(w, database)
+    _, err = w.Write(database)
     if err != nil {
         return err
     }
-    err = WriteAll(w, atchdbfile)
+    _, err = w.Write(atchdbfile)
     if err != nil {
         return err
     }
-    err = WriteAll(w, changepassword)
+    _, err = w.Write(changepassword)
     if err != nil {
         return err
     }
