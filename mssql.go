@@ -19,6 +19,7 @@ type MssqlDriver struct {
 }
 
 type MssqlConn struct {
+    buf *TdsBuffer
 }
 
 type MssqlTx struct {
@@ -78,21 +79,15 @@ func parseConnectionString(dsn string) (res map[string]string) {
 
 func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
     params := parseConnectionString(dsn)
-    _, err := Connect(params)
+    buf, err := Connect(params)
     if err != nil {
         return nil, err
     }
-    return &MssqlConn{}, nil
+    return &MssqlConn{buf}, nil
 }
 
 func (c *MssqlConn) Close() error {
-//	_, err := oleutil.CallMethod(c.db, "Close")
-//	if err != nil {
-//		return err
-//	}
-//	c.db = nil
-//	ole.CoUninitialize()
-    return nil
+    return c.buf.transport.Close()
 }
 
 //type MssqlStmt struct {

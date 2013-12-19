@@ -8,8 +8,18 @@ import (
     "encoding/hex"
 )
 
+type MockTransport struct {
+    bytes.Buffer
+}
+
+
+func (t *MockTransport) Close() error {
+    return nil
+}
+
+
 func TestSendLogin(t *testing.T) {
-    buf := NewTdsBuffer(1024, new(bytes.Buffer))
+    buf := NewTdsBuffer(1024, new(MockTransport))
     login := Login{
         TDSVersion: TDS73,
         PacketSize: 0x1000,
@@ -60,5 +70,9 @@ func TestConnect(t *testing.T) {
     addr := os.Getenv("HOST")
     instance := os.Getenv("INSTANCE")
     drvr := MssqlDriver{}
-    drvr.Open("Server=" + addr + "\\" + instance + ";User Id=sa;Password=sa")
+    conn, err := drvr.Open("Server=" + addr + "\\" + instance + ";User Id=sa;Password=sa")
+    if err != nil {
+        t.Error("Open connection failed:", err.Error())
+    }
+    conn.Close()
 }

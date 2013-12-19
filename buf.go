@@ -8,13 +8,13 @@ import (
 type TdsBuffer struct {
     buf []byte
     pos uint16
-    transport io.ReadWriter
+    transport io.ReadWriteCloser
     size uint16
     final bool
     packet_type uint8
 }
 
-func NewTdsBuffer(bufsize int, transport io.ReadWriter) *TdsBuffer {
+func NewTdsBuffer(bufsize int, transport io.ReadWriteCloser) *TdsBuffer {
     buf := make([]byte, bufsize)
     w := new(TdsBuffer)
     w.buf = buf
