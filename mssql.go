@@ -77,8 +77,8 @@ func parseConnectionString(dsn string) (res map[string]string) {
 
 func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
     params := parseConnectionString(dsn)
-    Connect(params)
-    return nil, nil
+    _, err := Connect(params)
+    return nil, err
     //return &MssqlConn{}, nil
 }
 

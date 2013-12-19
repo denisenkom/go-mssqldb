@@ -454,8 +454,7 @@ func init() {
 }
 
 
-func Connect(params map[string]string) {
-    var err error
+func Connect(params map[string]string) (buf *TdsBuffer, err error) {
     var port uint64
     server := params["server"]
     parts := strings.SplitN(server, "\\", 2)
@@ -470,22 +469,24 @@ func Connect(params map[string]string) {
     if instance != "" {
         instances, err := get_instances(host)
         if err != nil {
-            fmt.Println("Error: ", err.Error())
-            os.Exit(1)
+            f := "Unable to get instances from Sql Server Browser on host %v: %v"
+            err = fmt.Errorf(f, host, err.Error())
+            return nil, err
         }
         fmt.Println("instances", instances)
-        port, err = strconv.ParseUint(instances[instance]["tcp"], 0, 16)
+        strport := instances[instance]["tcp"]
+        port, err = strconv.ParseUint(strport, 0, 16)
         if err != nil {
-            fmt.Println("Error: ", err.Error())
-            os.Exit(1)
+            f := "Invalid tcp port returned from Sql Server Browser '%v': %v"
+            return nil, fmt.Errorf(f, strport, err.Error())
         }
     }
-    conn, err := net.Dial("tcp", host + ":" + strconv.FormatUint(port, 10))
+    addr := host + ":" + strconv.FormatUint(port, 10)
+    conn, err := net.Dial("tcp", addr)
     if err != nil {
-        fmt.Println("Error: ", err.Error())
-        os.Exit(1)
+        f := "Unable to open tcp connection with host '%v': %v"
+        return nil, fmt.Errorf(f, addr, err.Error())
     }
-    fmt.Println(conn)
 
     outbuf := NewTdsBuffer(1024, conn)
     //buf := make([]byte, 1024)
@@ -578,4 +579,5 @@ func Connect(params map[string]string) {
             }
         }
     }
+    return outbuf, nil
 }
