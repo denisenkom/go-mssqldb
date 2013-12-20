@@ -94,6 +94,7 @@ const (
     tokenColMetadata = 129  // 0x81
     TDS_ERROR_TOKEN = 170  // 0xAA
     TDS_LOGINACK_TOKEN = 173  // 0xad
+    tokenRow = 209  // 0xd1
     TDS_ENVCHANGE_TOKEN = 227  // 0xE3
     TDS_DONE_TOKEN = 253  // 0xFD
     )
@@ -154,6 +155,8 @@ type TdsSession struct {
     database string
 
     columns []columnStruct
+
+    lastRow []interface{}
 }
 
 
@@ -594,6 +597,19 @@ func parseColMetadata72(r io.Reader, typemap map[uint8]typeParser) (columns []co
 }
 
 
+// http://msdn.microsoft.com/en-us/library/dd357254.aspx
+func parseRow(r io.Reader, columns []columnStruct) (row []interface{}, err error) {
+    row = make([]interface{}, len(columns))
+    for i, column := range columns {
+        row[i], err = column.TypeInfo.readData(r)
+        if err != nil {
+            return nil, err
+        }
+    }
+    return row, nil
+}
+
+
 func readUcs2(r io.Reader, numchars int) (res string, err error) {
     buf := make([]byte, numchars * 2)
     _, err = io.ReadFull(r, buf)
@@ -745,7 +761,7 @@ func sendSqlBatch72(buf *TdsBuffer,
 }
 
 
-func processResponse(sess TdsSession) (err error) {
+func processResponse(sess *TdsSession) (err error) {
     packet_type, err := sess.buf.BeginRead()
     if err != nil {
         return err
@@ -779,11 +795,16 @@ func processResponse(sess TdsSession) (err error) {
             if columns != nil {
                 sess.columns = columns
             }
+        case token == tokenRow:
+            sess.lastRow, err = parseRow(sess.buf, sess.columns)
+            if err != nil {
+                return err
+            }
         default:
             if sess.tokenMap[token] == nil {
                 return fmt.Errorf("Unknown token type: %d", token)
             }
-            err = sess.tokenMap[token](&sess, token, sess.buf)
+            err = sess.tokenMap[token](sess, token, sess.buf)
             if err != nil {
                 return fmt.Errorf("Failed processing token %d: %s",
                                 token, err.Error())

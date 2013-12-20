@@ -2,6 +2,7 @@ package mssql
 
 import (
     "io"
+    "encoding/binary"
 )
 
 
@@ -23,7 +24,9 @@ const (
 )
 
 
-type typeInfoIface interface {}
+type typeInfoIface interface {
+    readData(r io.Reader) (value interface{}, err error)
+}
 
 type typeParser func(typeid uint8, r io.Reader) (typeInfoIface, error)
 
@@ -31,6 +34,12 @@ type typeParser func(typeid uint8, r io.Reader) (typeInfoIface, error)
 type typeInfoInt4 struct {}
 
 var typeInfoInt4Instance = typeInfoInt4{}
+
+func (t typeInfoInt4)readData(r io.Reader) (value interface{}, err error) {
+    var ivalue int32
+    err = binary.Read(r, binary.LittleEndian, &ivalue)
+    return ivalue, err
+}
 
 func typeInt4Parser(typeid uint8, r io.Reader) (res typeInfoIface, err error) {
     return typeInfoInt4Instance, nil

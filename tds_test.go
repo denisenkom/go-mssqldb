@@ -90,12 +90,17 @@ func TestSendSqlBatch(t *testing.T) {
         t.Error("Sending sql batch failed", err.Error())
     }
 
-    fmt.Println("processing repsponse")
-    err = processResponse(*conn)
+    err = processResponse(conn)
     if err != nil {
         t.Error("Processing reponse failed", err.Error())
     }
-    fmt.Println("done")
+
+    switch value := conn.lastRow[0].(type) {
+    case int32:
+        if value != 1 {
+            t.Error("Invalid value returned, should be 1", value)
+        }
+    }
 }
 
 
