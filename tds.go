@@ -90,10 +90,13 @@ const TDS7_LOGIN = 16
 const TDS7_AUTH = 17
 const TDS71_PRELOGIN = 18
 
-const TDS_ERROR_TOKEN = 170  // 0xAA
-const TDS_LOGINACK_TOKEN = 173  // 0xad
-const TDS_ENVCHANGE_TOKEN = 227  // 0xE3
-const TDS_DONE_TOKEN = 253  // 0xFD
+const (
+    tokenColMetadata = 129  // 0x81
+    TDS_ERROR_TOKEN = 170  // 0xAA
+    TDS_LOGINACK_TOKEN = 173  // 0xad
+    TDS_ENVCHANGE_TOKEN = 227  // 0xE3
+    TDS_DONE_TOKEN = 253  // 0xFD
+    )
 
 const VERSION = 0
 const ENCRYPTION = 1
@@ -149,6 +152,8 @@ type TdsSession struct {
     tokenMap map[uint8]tokenFunc
 
     database string
+
+    columns []columnStruct
 }
 
 
@@ -163,6 +168,7 @@ type columnStruct struct {
     UserType uint32
     Flags uint16
     ColName string
+    TypeId uint8
     TypeInfo typeInfoIface
 }
 
@@ -544,6 +550,7 @@ func processDone72(sess *TdsSession, token uint8, r io.Reader) (err error) {
 }
 
 
+// http://msdn.microsoft.com/en-us/library/dd357363.aspx
 func parseColMetadata72(r io.Reader, typemap map[uint8]typeParser) (columns []columnStruct, err error) {
     var count uint16
     err = binary.Read(r, binary.LittleEndian, &count)
@@ -555,7 +562,8 @@ func parseColMetadata72(r io.Reader, typemap map[uint8]typeParser) (columns []co
         return nil, nil
     }
     columns = make([]columnStruct, count)
-    for _, column := range columns {
+    for i := range columns {
+        column := &columns[i]
         err = binary.Read(r, binary.LittleEndian, &column.UserType)
         if err != nil {
             return nil, err
@@ -566,15 +574,18 @@ func parseColMetadata72(r io.Reader, typemap map[uint8]typeParser) (columns []co
         }
 
         // parsing TYPE_INFO structure
-        var typeid uint8
-        err = binary.Read(r, binary.LittleEndian, &typeid)
+        err = binary.Read(r, binary.LittleEndian, &column.TypeId)
         if err != nil {
             return nil, err
         }
-        if typemap[typeid] == nil {
-            return nil, streamErrorf("Unknown type id: %d", typeid)
+        if typemap[column.TypeId] == nil {
+            return nil, streamErrorf("Unknown type id: %d", column.TypeId)
         }
-        column.TypeInfo, err = typemap[typeid](typeid, r)
+        column.TypeInfo, err = typemap[column.TypeId](column.TypeId, r)
+        if err != nil {
+            return nil, err
+        }
+        column.ColName, err = readBVarchar(r)
         if err != nil {
             return nil, err
         }
@@ -757,6 +768,17 @@ func processResponse(sess TdsSession) (err error) {
                 return sess.messages[0]
             }
             return nil
+        case token == tokenColMetadata:
+            typemap := map[uint8]typeParser{
+                typeInt4: typeInt4Parser,
+                }
+            columns, err := parseColMetadata72(sess.buf, typemap)
+            if err != nil {
+                return err
+            }
+            if columns != nil {
+                sess.columns = columns
+            }
         default:
             if sess.tokenMap[token] == nil {
                 return fmt.Errorf("Unknown token type: %d", token)
