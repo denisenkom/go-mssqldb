@@ -172,7 +172,11 @@ func (s *MssqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 //	if err := s.bind(args); err != nil {
 //		return nil, err
 //	}
-    if err := sendSqlBatch72(conn.buf, s.query); err != nil {
+    headers := []headerStruct{
+        {hdrtype: dataStmHdrTransDescr,
+         data: transDescrHdr{0, 1}.pack()},
+    }
+    if err := sendSqlBatch72(s.c.sess.buf, s.query, headers); err != nil {
         return nil, err
     }
     return &MssqlRows{}, nil
