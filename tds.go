@@ -106,6 +106,11 @@ const TRACEID = 5
 const TERMINATOR = 0xff
 
 
+type TdsSession struct {
+    buf * TdsBuffer
+}
+
+
 func WritePrelogin(w * TdsBuffer, instance string) error {
     var err error
 
@@ -522,7 +527,7 @@ func init() {
 }
 
 
-func Connect(params map[string]string) (buf *TdsBuffer, err error) {
+func Connect(params map[string]string) (res *TdsSession, err error) {
     var port uint64
     server := params["server"]
     parts := strings.SplitN(server, "\\", 2)
@@ -557,6 +562,7 @@ func Connect(params map[string]string) (buf *TdsBuffer, err error) {
     }
 
     outbuf := NewTdsBuffer(1024, conn)
+    sess := TdsSession{outbuf}
     //buf := make([]byte, 1024)
     //data := buf[8:]
     //buf[0] = // type
@@ -608,6 +614,7 @@ func Connect(params map[string]string) (buf *TdsBuffer, err error) {
         TDS_DONE_TOKEN: processDone72,
         TDS_ERROR_TOKEN: processError72,
     }
+    success := false
     for true {
         token, err := outbuf.ReadByte()
         if err != nil {
@@ -615,6 +622,7 @@ func Connect(params map[string]string) (buf *TdsBuffer, err error) {
             os.Exit(1)
         }
         if token == TDS_LOGINACK_TOKEN {
+            success = true
             var size uint16
             err = binary.Read(outbuf, binary.LittleEndian, &size)
             if err != nil {
@@ -630,7 +638,7 @@ func Connect(params map[string]string) (buf *TdsBuffer, err error) {
             iface := buf[0]
             tdsver := binary.BigEndian.Uint32(buf[1:])
             prognamelen := buf[1+4]
-            progname := ucs22str(buf[1+4+1:1+4+1+prognamelen])
+            progname := ucs22str(buf[1+4+1:1+4+1 + prognamelen * 2])
             progver := buf[size-4:]
             fmt.Println("login ack", iface, tdsver, progver, progname)
         } else {
@@ -648,5 +656,8 @@ func Connect(params map[string]string) (buf *TdsBuffer, err error) {
             }
         }
     }
-    return outbuf, nil
+    if !success {
+        fmt.Println("login failed")
+    }
+    return &sess, nil
 }

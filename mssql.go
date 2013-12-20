@@ -19,7 +19,7 @@ type MssqlDriver struct {
 }
 
 type MssqlConn struct {
-    buf *TdsBuffer
+    sess *TdsSession
 }
 
 type MssqlTx struct {
@@ -87,7 +87,7 @@ func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
 }
 
 func (c *MssqlConn) Close() error {
-    return c.buf.transport.Close()
+    return c.sess.buf.transport.Close()
 }
 
 type MssqlStmt struct {

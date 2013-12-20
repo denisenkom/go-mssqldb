@@ -89,15 +89,25 @@ func TestConnect(t *testing.T) {
         t.Error("Open connection failed:", err.Error())
     }
     defer conn.Close()
+}
 
-    conn, err = sql.Open("go-mssql", "Server=badhost")
-    if err != nil {
-        t.Error("Open connection failed:", err.Error())
+
+func TestBadConnect(t *testing.T) {
+    badDsns := []string{
+        "Server=badhost",
+        fmt.Sprintf("Server=%s;User ID=baduser;Password=badpwd",
+                    os.Getenv("HOST")),
     }
-    defer conn.Close()
-    err = conn.Ping()
-    if err == nil {
-        t.Error("Ping should fail")
+    for _, badDsn := range badDsns {
+        conn, err := sql.Open("go-mssql", "Server=badhost")
+        if err != nil {
+            t.Error("Open connection failed:", err.Error())
+        }
+        defer conn.Close()
+        err = conn.Ping()
+        if err == nil {
+            t.Error("Ping should fail for connection: ", badDsn)
+        }
     }
 }
 
