@@ -147,6 +147,8 @@ type TdsSession struct {
     messages []Error
 
     tokenMap map[uint8]tokenFunc
+
+    database string
 }
 
 
@@ -469,19 +471,58 @@ func SendLogin(w * TdsBuffer, login Login) error {
 }
 
 
+const (
+    envTypDatabase = 1
+    envTypLanguage = 2
+    envTypCharset = 3
+    envTypPacketSize = 4
+)
+
+
+// ENVCHANGE stream
+// http://msdn.microsoft.com/en-us/library/dd303449.aspx
 func processEnvChg(sess *TdsSession, token uint8, r io.Reader) (err error) {
     var size uint16
     err = binary.Read(r, binary.LittleEndian, &size)
     if err != nil {
         return err
     }
-    buf := make([]byte, size)
-    _, err = io.ReadFull(r, buf)
-    if err != nil {
-        return err
+    r = &io.LimitedReader{r, int64(size)}
+    for true {
+        var envtype uint8
+        err = binary.Read(r, binary.LittleEndian, &envtype)
+        if err == io.EOF {
+            return nil
+        }
+        if err != nil {
+            return err
+        }
+        fmt.Println("envtype", envtype)
+        switch {
+        case envtype == envTypDatabase:
+            _, err = readBVarchar(r)
+            if err != nil {
+                return err
+            }
+            sess.database, err = readBVarchar(r)
+            if err != nil {
+                return err
+            }
+        case envtype == envTypPacketSize:
+            _, err := readBVarchar(r)
+            if err != nil {
+                return err
+            }
+            packetsize, err := readBVarchar(r)
+            if err != nil {
+                return err
+            }
+            fmt.Println("packetsize", packetsize)
+        default:
+            return streamErrorf("unknown env type: %d", envtype)
+        }
+
     }
-    typ := buf[0]
-    fmt.Println("processEnvChg type:", typ)
     return nil
 }
 
@@ -643,7 +684,7 @@ type transDescrHdr struct {
 func (hdr transDescrHdr)pack() (res []byte) {
     res = make([]byte, 8 + 4)
     binary.LittleEndian.PutUint64(res, hdr.transDescr)
-    binary.LittleEndian.PutUint32(res, hdr.outstandingReqCnt)
+    binary.LittleEndian.PutUint32(res[8:], hdr.outstandingReqCnt)
     return res
 }
 
