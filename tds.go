@@ -590,12 +590,9 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
         return nil, err
     }
 
-    prelogin, err := ReadPrelogin(outbuf)
+    _, err = ReadPrelogin(outbuf)
     if err != nil {
         return nil, err
-    }
-    for k, v := range prelogin {
-        fmt.Println("rec", k, v)
     }
 
     login := Login{
