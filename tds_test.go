@@ -73,8 +73,8 @@ func TestSendSqlBatch(t *testing.T) {
 
     conn, err := Connect(map[string]string {
         "server": fmt.Sprintf("%s\\%s", addr, instance),
-        "user id": "sa",
-        "password": "sa",
+        "user id": os.Getenv("SQLUSER"),
+        "password": os.Getenv("SQLPASSWORD"),
         })
     if err != nil {
         t.Error("Open connection failed:", err.Error())
@@ -102,7 +102,11 @@ func TestSendSqlBatch(t *testing.T) {
 func makeConnStr() string {
     addr := os.Getenv("HOST")
     instance := os.Getenv("INSTANCE")
-    return "Server=" + addr + "\\" + instance + ";User Id=sa;Password=sa"
+    user := os.Getenv("SQLUSER")
+    password := os.Getenv("SQLPASSWORD")
+    return fmt.Sprintf(
+        "Server=%s\\%s;User Id=%s;Password=%s",
+        addr, instance, user, password)
 }
 
 
