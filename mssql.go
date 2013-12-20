@@ -172,10 +172,9 @@ func (s *MssqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 //	if err := s.bind(args); err != nil {
 //		return nil, err
 //	}
-//	rc, err := oleutil.CallMethod(s.s, "Execute")
-//	if err != nil {
-//		return nil, err
-//	}
+    if err := sendSqlBatch72(conn.buf, s.query); err != nil {
+        return nil, err
+    }
     return &MssqlRows{}, nil
 }
 
