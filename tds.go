@@ -108,6 +108,7 @@ const TERMINATOR = 0xff
 
 type TdsSession struct {
     buf * TdsBuffer
+    messages []Error
 }
 
 
@@ -411,7 +412,7 @@ func SendLogin(w * TdsBuffer, login Login) error {
 }
 
 
-func processEnvChg(token uint8, r io.Reader) (err error) {
+func processEnvChg(sess TdsSession, token uint8, r io.Reader) (err error) {
     var size uint16
     err = binary.Read(r, binary.LittleEndian, &size)
     if err != nil {
@@ -428,7 +429,7 @@ func processEnvChg(token uint8, r io.Reader) (err error) {
 }
 
 
-func processDone72(token uint8, r io.Reader) (err error) {
+func processDone72(sess TdsSession, token uint8, r io.Reader) (err error) {
     data := struct {
         Status uint16
         CurCmd uint16
@@ -477,7 +478,7 @@ func readBVarchar(r io.Reader) (res string, err error) {
 }
 
 
-func processError72(token uint8, r io.Reader) (err error) {
+func processError72(sess TdsSession, token uint8, r io.Reader) (err error) {
     hdr := struct {
         Length uint16
         Number int32
@@ -506,6 +507,16 @@ func processError72(token uint8, r io.Reader) (err error) {
         return err
     }
     fmt.Println(hdr.Number, hdr.State, hdr.Class, msgtext, servername, procname, lineno)
+    newerror := Error{
+        Number: hdr.Number,
+        State: hdr.State,
+        Class: hdr.Class,
+        Message: msgtext,
+        ServerName: servername,
+        ProcName: procname,
+        LineNo: lineno,
+    }
+    sess.messages = append(sess.messages, newerror)
     return nil
 }
 
@@ -562,7 +573,7 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
     }
 
     outbuf := NewTdsBuffer(1024, conn)
-    sess := TdsSession{outbuf}
+    sess := TdsSession{outbuf, make([]Error, 0, 20)}
     //buf := make([]byte, 1024)
     //data := buf[8:]
     //buf[0] = // type
@@ -608,7 +619,7 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
         fmt.Println("Error: invalid response packet type, expected REPLY, actual: ", packet_type)
         os.Exit(1)
     }
-    type tokenFunc func(uint8, io.Reader) error
+    type tokenFunc func(TdsSession, uint8, io.Reader) error
     tokenMap := map[uint8]tokenFunc{
         TDS_ENVCHANGE_TOKEN: processEnvChg,
         TDS_DONE_TOKEN: processDone72,
@@ -646,7 +657,7 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
                 fmt.Println("Unknown token type:", token)
                 os.Exit(1)
             }
-            err = tokenMap[token](token, outbuf)
+            err = tokenMap[token](sess, token, outbuf)
             if err != nil {
                 fmt.Println("Failed processing token", err.Error())
                 os.Exit(1)
@@ -658,6 +669,11 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
     }
     if !success {
         fmt.Println("login failed")
+        if len(sess.messages) > 0 {
+            return nil, sess.messages[0]
+        } else {
+            return nil, fmt.Errorf("Login failed")
+        }
     }
     return &sess, nil
 }

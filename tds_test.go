@@ -95,11 +95,12 @@ func TestConnect(t *testing.T) {
 func TestBadConnect(t *testing.T) {
     badDsns := []string{
         "Server=badhost",
-        fmt.Sprintf("Server=%s;User ID=baduser;Password=badpwd",
-                    os.Getenv("HOST")),
+        fmt.Sprintf("Server=%s\\%s;User ID=baduser;Password=badpwd",
+                    os.Getenv("HOST"), os.Getenv("INSTANCE")),
     }
     for _, badDsn := range badDsns {
-        conn, err := sql.Open("go-mssql", "Server=badhost")
+        fmt.Println("testing", badDsn)
+        conn, err := sql.Open("go-mssql", badDsn)
         if err != nil {
             t.Error("Open connection failed:", err.Error())
         }
