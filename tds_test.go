@@ -81,7 +81,11 @@ func TestSendSqlBatch(t *testing.T) {
     }
     defer conn.buf.transport.Close()
 
-    err = sendSqlBatch(conn.buf, "select 1")
+    headers := []headerStruct{
+        {hdrtype: dataStmHdrTransDescr,
+         data: transDescrHdr{0, 1}.pack()},
+    }
+    err = sendSqlBatch72(conn.buf, "select 1", headers)
     if err != nil {
         t.Error("Sending sql batch failed", err.Error())
     }

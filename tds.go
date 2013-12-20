@@ -103,7 +103,38 @@ const MARS = 4
 const TRACEID = 5
 const TERMINATOR = 0xff
 
-type tokenFunc func(TdsSession, uint8, io.Reader) error
+// done flags
+const (
+    doneFinal = 0
+    doneMore = 1
+    doneError = 2
+    doneInxact = 4
+    doneCount = 0x10
+    doneAttn = 0x20
+    doneSrvError = 0x100
+)
+
+var doneFlags2str = map[uint16]string{
+    doneFinal: "final",
+    doneMore: "more",
+    doneError: "error",
+    doneInxact: "inxact",
+    doneCount: "count",
+    doneAttn: "attn",
+    doneSrvError: "srverror",
+}
+
+func doneFlags2Str(flags uint16) string {
+    strs := make([]string, 0, len(doneFlags2str))
+    for flag, tag := range doneFlags2str {
+        if flags & flag != 0 {
+            strs = append(strs, tag)
+        }
+    }
+    return strings.Join(strs, "|")
+}
+
+type tokenFunc func(*TdsSession, uint8, io.Reader) error
 
 type TdsSession struct {
     buf * TdsBuffer
@@ -116,6 +147,26 @@ type TdsSession struct {
     messages []Error
 
     tokenMap map[uint8]tokenFunc
+}
+
+
+type doneStruct struct {
+    Status uint16
+    CurCmd uint16
+    RowCount uint64
+}
+
+
+type columnStruct struct {
+    UserType uint32
+    Flags uint16
+    ColName string
+    TypeInfo typeInfoIface
+}
+
+
+func streamErrorf(format string, v ...interface{}) error {
+    return errors.New("Invalid TDS stream: " + fmt.Sprintf(format, v...))
 }
 
 
@@ -418,7 +469,7 @@ func SendLogin(w * TdsBuffer, login Login) error {
 }
 
 
-func processEnvChg(sess TdsSession, token uint8, r io.Reader) (err error) {
+func processEnvChg(sess *TdsSession, token uint8, r io.Reader) (err error) {
     var size uint16
     err = binary.Read(r, binary.LittleEndian, &size)
     if err != nil {
@@ -435,18 +486,59 @@ func processEnvChg(sess TdsSession, token uint8, r io.Reader) (err error) {
 }
 
 
-func processDone72(sess TdsSession, token uint8, r io.Reader) (err error) {
-    data := struct {
-        Status uint16
-        CurCmd uint16
-        RowCount uint64
-    }{}
-    err = binary.Read(r, binary.LittleEndian, &data)
+func parseDone(r io.Reader) (res doneStruct, err error) {
+    err = binary.Read(r, binary.LittleEndian, &res)
+    return res, err
+}
+
+
+func processDone72(sess *TdsSession, token uint8, r io.Reader) (err error) {
+    data, err := parseDone(r)
     if err != nil {
         return err
     }
-    fmt.Println("processDone72", data.Status, data.CurCmd, data.RowCount)
+    fmt.Println("processDone72", doneFlags2Str(data.Status),
+                data.CurCmd, data.RowCount)
     return nil
+}
+
+
+func parseColMetadata72(r io.Reader, typemap map[uint8]typeParser) (columns []columnStruct, err error) {
+    var count uint16
+    err = binary.Read(r, binary.LittleEndian, &count)
+    if err != nil {
+        return nil, err
+    }
+    if count == 0xffff {
+        // no metadata is sent
+        return nil, nil
+    }
+    columns = make([]columnStruct, count)
+    for _, column := range columns {
+        err = binary.Read(r, binary.LittleEndian, &column.UserType)
+        if err != nil {
+            return nil, err
+        }
+        err = binary.Read(r, binary.LittleEndian, &column.Flags)
+        if err != nil {
+            return nil, err
+        }
+
+        // parsing TYPE_INFO structure
+        var typeid uint8
+        err = binary.Read(r, binary.LittleEndian, &typeid)
+        if err != nil {
+            return nil, err
+        }
+        if typemap[typeid] == nil {
+            return nil, streamErrorf("Unknown type id: %d", typeid)
+        }
+        column.TypeInfo, err = typemap[typeid](typeid, r)
+        if err != nil {
+            return nil, err
+        }
+    }
+    return columns, nil
 }
 
 
@@ -484,7 +576,7 @@ func readBVarchar(r io.Reader) (res string, err error) {
 }
 
 
-func processError72(sess TdsSession, token uint8, r io.Reader) (err error) {
+func processError72(sess *TdsSession, token uint8, r io.Reader) (err error) {
     hdr := struct {
         Length uint16
         Number int32
@@ -526,8 +618,73 @@ func processError72(sess TdsSession, token uint8, r io.Reader) (err error) {
 }
 
 
-func sendSqlBatch(buf *TdsBuffer, sqltext string) (err error) {
+// Packet Data Stream Headers
+// http://msdn.microsoft.com/en-us/library/dd304953.aspx
+type headerStruct struct {
+    hdrtype uint16
+    data []byte
+}
+
+
+const (
+    dataStmHdrQueryNotif = 1  // query notifications
+    dataStmHdrTransDescr = 2  // MARS transaction descriptor (required)
+    dataStmHdrTraceActivity = 3
+)
+
+
+// MARS Transaction Descriptor Header
+// http://msdn.microsoft.com/en-us/library/dd340515.aspx
+type transDescrHdr struct {
+    transDescr uint64  // transaction descriptor returned from ENVCHANGE
+    outstandingReqCnt uint32  // outstanding request count
+}
+
+func (hdr transDescrHdr)pack() (res []byte) {
+    res = make([]byte, 8 + 4)
+    binary.LittleEndian.PutUint64(res, hdr.transDescr)
+    binary.LittleEndian.PutUint32(res, hdr.outstandingReqCnt)
+    return res
+}
+
+
+func writeAllHeaders(w io.Writer, headers []headerStruct) (err error) {
+    // calculatint total length
+    var totallen uint32 = 4
+    for _, hdr := range headers {
+        totallen += 4 + 2 + 2 + uint32(len(hdr.data))
+    }
+    // writing
+    err = binary.Write(w, binary.LittleEndian, totallen)
+    if err != nil {
+        return err
+    }
+    for _, hdr := range headers {
+        var headerlen uint32 = 4 + 2 + uint32(len(hdr.data))
+        err = binary.Write(w, binary.LittleEndian, headerlen)
+        if err != nil {
+            return err
+        }
+        err = binary.Write(w, binary.LittleEndian, hdr.hdrtype)
+        if err != nil {
+            return err
+        }
+        _, err = w.Write(hdr.data)
+        if err != nil {
+            return err
+        }
+    }
+    return nil
+}
+
+
+func sendSqlBatch72(buf *TdsBuffer,
+                  sqltext string,
+                  headers []headerStruct) (err error) {
     buf.BeginPacket(TDS_QUERY)
+
+    writeAllHeaders(buf, headers)
+
     _, err = buf.Write(str2ucs2(sqltext))
     if err != nil {
         return err
@@ -549,16 +706,25 @@ func processResponse(sess TdsSession) (err error) {
         if err != nil {
             return err
         }
-        if sess.tokenMap[token] == nil {
-            return fmt.Errorf("Unknown token type: %d", token)
-        }
-        err = sess.tokenMap[token](sess, token, sess.buf)
-        if err != nil {
-            return fmt.Errorf("Failed processing token %d: %s",
-                              token, err.Error())
-        }
-        if token == TDS_DONE_TOKEN {
-            break
+        switch {
+        case token == TDS_DONE_TOKEN:
+            done, err := parseDone(sess.buf)
+            if err != nil {
+                return err
+            }
+            if done.Status & doneError != 0 {
+                return sess.messages[0]
+            }
+            return nil
+        default:
+            if sess.tokenMap[token] == nil {
+                return fmt.Errorf("Unknown token type: %d", token)
+            }
+            err = sess.tokenMap[token](&sess, token, sess.buf)
+            if err != nil {
+                return fmt.Errorf("Failed processing token %d: %s",
+                                token, err.Error())
+            }
         }
     }
     return nil
@@ -689,7 +855,7 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
             if sess.tokenMap[token] == nil {
                 return nil, fmt.Errorf("Unknown token type: %d", token)
             }
-            err = sess.tokenMap[token](sess, token, outbuf)
+            err = sess.tokenMap[token](&sess, token, outbuf)
             if err != nil {
                 return nil, fmt.Errorf("Failed processing token %d: %s",
                                        token, err.Error())
