@@ -96,34 +96,6 @@ type MssqlStmt struct {
 }
 
 func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
-//	unknown, err := oleutil.CreateObject("ADODB.Command")
-//	if err != nil {
-//		return nil, err
-//	}
-//	s, err := unknown.QueryInterface(ole.IID_IDispatch)
-//	if err != nil {
-//		return nil, err
-//	}
-//	_, err = oleutil.PutProperty(s, "ActiveConnection", c.db)
-//	if err != nil {
-//		return nil, err
-//	}
-//	_, err = oleutil.PutProperty(s, "CommandText", query)
-//	if err != nil {
-//		return nil, err
-//	}
-//	_, err = oleutil.PutProperty(s, "CommandType", 1)
-//	if err != nil {
-//		return nil, err
-//	}
-//	_, err = oleutil.PutProperty(s, "Prepared", true)
-//	if err != nil {
-//		return nil, err
-//	}
-//	val, err := oleutil.GetProperty(s, "Parameters")
-//	if err != nil {
-//		return nil, err
-//	}
 	return &MssqlStmt{c, query}, nil
 }
 

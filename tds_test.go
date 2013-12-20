@@ -67,6 +67,34 @@ func TestSendLogin(t *testing.T) {
 }
 
 
+func TestSendSqlBatch(t *testing.T) {
+    addr := os.Getenv("HOST")
+    instance := os.Getenv("INSTANCE")
+
+    conn, err := Connect(map[string]string {
+        "server": fmt.Sprintf("%s\\%s", addr, instance),
+        "user id": "sa",
+        "password": "sa",
+        })
+    if err != nil {
+        t.Error("Open connection failed:", err.Error())
+    }
+    defer conn.buf.transport.Close()
+
+    err = sendSqlBatch(conn.buf, "select 1")
+    if err != nil {
+        t.Error("Sending sql batch failed", err.Error())
+    }
+
+    fmt.Println("processing repsponse")
+    err = processResponse(*conn)
+    if err != nil {
+        t.Error("Processing reponse failed", err.Error())
+    }
+    fmt.Println("done")
+}
+
+
 func makeConnStr() string {
     addr := os.Getenv("HOST")
     instance := os.Getenv("INSTANCE")
@@ -94,7 +122,7 @@ func TestConnect(t *testing.T) {
 
 func TestBadConnect(t *testing.T) {
     badDsns := []string{
-        "Server=badhost",
+        //"Server=badhost",
         fmt.Sprintf("Server=%s\\%s;User ID=baduser;Password=badpwd",
                     os.Getenv("HOST"), os.Getenv("INSTANCE")),
     }

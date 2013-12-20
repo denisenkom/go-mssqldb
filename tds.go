@@ -103,6 +103,7 @@ const MARS = 4
 const TRACEID = 5
 const TERMINATOR = 0xff
 
+type tokenFunc func(TdsSession, uint8, io.Reader) error
 
 type TdsSession struct {
     buf * TdsBuffer
@@ -113,6 +114,8 @@ type TdsSession struct {
     ProgVer uint32
 
     messages []Error
+
+    tokenMap map[uint8]tokenFunc
 }
 
 
@@ -523,6 +526,45 @@ func processError72(sess TdsSession, token uint8, r io.Reader) (err error) {
 }
 
 
+func sendSqlBatch(buf *TdsBuffer, sqltext string) (err error) {
+    buf.BeginPacket(TDS_QUERY)
+    _, err = buf.Write(str2ucs2(sqltext))
+    if err != nil {
+        return err
+    }
+    return buf.FinishPacket()
+}
+
+
+func processResponse(sess TdsSession) (err error) {
+    packet_type, err := sess.buf.BeginRead()
+    if err != nil {
+        return err
+    }
+    if packet_type != TDS_REPLY {
+        return fmt.Errorf("Error: invalid response packet type, expected REPLY, actual: %d", packet_type)
+    }
+    for true {
+        token, err := sess.buf.ReadByte()
+        if err != nil {
+            return err
+        }
+        if sess.tokenMap[token] == nil {
+            return fmt.Errorf("Unknown token type: %d", token)
+        }
+        err = sess.tokenMap[token](sess, token, sess.buf)
+        if err != nil {
+            return fmt.Errorf("Failed processing token %d: %s",
+                              token, err.Error())
+        }
+        if token == TDS_DONE_TOKEN {
+            break
+        }
+    }
+    return nil
+}
+
+
 func init() {
     var err error
     ascii2utf8, err = iconv.NewConverter("ascii", "utf8")
@@ -615,8 +657,7 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
         conn.Close()
         return nil, fmt.Errorf("Error: invalid response packet type, expected REPLY, actual: %d", packet_type)
     }
-    type tokenFunc func(TdsSession, uint8, io.Reader) error
-    tokenMap := map[uint8]tokenFunc{
+    sess.tokenMap = map[uint8]tokenFunc{
         TDS_ENVCHANGE_TOKEN: processEnvChg,
         TDS_DONE_TOKEN: processDone72,
         TDS_ERROR_TOKEN: processError72,
@@ -645,10 +686,10 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
             sess.ProgName = ucs22str(buf[1+4+1:1+4+1 + prognamelen * 2])
             sess.ProgVer = binary.BigEndian.Uint32(buf[size - 4:])
         } else {
-            if tokenMap[token] == nil {
+            if sess.tokenMap[token] == nil {
                 return nil, fmt.Errorf("Unknown token type: %d", token)
             }
-            err = tokenMap[token](sess, token, outbuf)
+            err = sess.tokenMap[token](sess, token, outbuf)
             if err != nil {
                 return nil, fmt.Errorf("Failed processing token %d: %s",
                                        token, err.Error())
