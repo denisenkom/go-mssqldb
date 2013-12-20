@@ -99,7 +99,6 @@ func TestBadConnect(t *testing.T) {
                     os.Getenv("HOST"), os.Getenv("INSTANCE")),
     }
     for _, badDsn := range badDsns {
-        fmt.Println("testing", badDsn)
         conn, err := sql.Open("go-mssql", badDsn)
         if err != nil {
             t.Error("Open connection failed:", err.Error())

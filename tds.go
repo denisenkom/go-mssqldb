@@ -5,7 +5,6 @@ import (
     "io"
     "fmt"
     "net"
-    "os"
     iconv "github.com/djimenez/iconv-go"
     "strings"
     "strconv"
@@ -25,7 +24,6 @@ func _parse_instances(msg []byte) (map[string]map[string]string) {
         var out = make([]byte, len(msg[3:]))
         var _, written, err = ascii2utf8.Convert(msg[3:], out)
         if err != nil {
-            fmt.Println("Error: ", err.Error())
             return results
         }
         out_s := string(out[:written])
@@ -108,6 +106,12 @@ const TERMINATOR = 0xff
 
 type TdsSession struct {
     buf * TdsBuffer
+
+    TDSVersion uint32
+    Interface byte
+    ProgName string
+    ProgVer uint32
+
     messages []Error
 }
 
@@ -187,7 +191,6 @@ func ReadPrelogin(r * TdsBuffer) (map[uint8][]byte, error) {
     if packet_type != 4 {
         return nil, errors.New("Invalid respones, expected packet type 4, PRELOGIN RESPONSE")
     }
-    fmt.Println(struct_buf)
     offset := 0
     results := map[uint8][]byte{}
     for true {
@@ -506,7 +509,6 @@ func processError72(sess TdsSession, token uint8, r io.Reader) (err error) {
     if err != nil {
         return err
     }
-    fmt.Println(hdr.Number, hdr.State, hdr.Class, msgtext, servername, procname, lineno)
     newerror := Error{
         Number: hdr.Number,
         State: hdr.State,
@@ -557,7 +559,6 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
             err = fmt.Errorf(f, host, err.Error())
             return nil, err
         }
-        fmt.Println("instances", instances)
         strport := instances[instance]["tcp"]
         port, err = strconv.ParseUint(strport, 0, 16)
         if err != nil {
@@ -573,7 +574,10 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
     }
 
     outbuf := NewTdsBuffer(1024, conn)
-    sess := TdsSession{outbuf, make([]Error, 0, 20)}
+    sess := TdsSession{
+        buf: outbuf,
+        messages: make([]Error, 0, 20),
+    }
     //buf := make([]byte, 1024)
     //data := buf[8:]
     //buf[0] = // type
@@ -583,14 +587,12 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
 
     err = WritePrelogin(outbuf, instance)
     if err != nil {
-        fmt.Println("Error: ", err.Error())
-        os.Exit(1)
+        return nil, err
     }
 
     prelogin, err := ReadPrelogin(outbuf)
     if err != nil {
-        fmt.Println("Error: ", err.Error())
-        os.Exit(1)
+        return nil, err
     }
     for k, v := range prelogin {
         fmt.Println("rec", k, v)
@@ -604,20 +606,17 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
     }
     err = SendLogin(outbuf, login)
     if err != nil {
-        fmt.Println("Error: ", err.Error())
-        os.Exit(1)
+        return nil, err
     }
 
     // processing login response
     packet_type, err := outbuf.BeginRead()
     if err != nil {
-        fmt.Println("Error: ", err.Error())
-        os.Exit(1)
+        return nil, err
     }
     if packet_type != TDS_REPLY {
         conn.Close()
-        fmt.Println("Error: invalid response packet type, expected REPLY, actual: ", packet_type)
-        os.Exit(1)
+        return nil, fmt.Errorf("Error: invalid response packet type, expected REPLY, actual: %d", packet_type)
     }
     type tokenFunc func(TdsSession, uint8, io.Reader) error
     tokenMap := map[uint8]tokenFunc{
@@ -629,38 +628,33 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
     for true {
         token, err := outbuf.ReadByte()
         if err != nil {
-            fmt.Println("Error: ", err.Error())
-            os.Exit(1)
+            return nil, err
         }
         if token == TDS_LOGINACK_TOKEN {
             success = true
             var size uint16
             err = binary.Read(outbuf, binary.LittleEndian, &size)
             if err != nil {
-                fmt.Println("Error: ", err.Error())
-                os.Exit(1)
+                return nil, err
             }
             buf := make([]byte, size)
             _, err := io.ReadFull(outbuf, buf)
             if err != nil {
-                fmt.Println("Error: ", err.Error())
-                os.Exit(1)
+                return nil, err
             }
-            iface := buf[0]
-            tdsver := binary.BigEndian.Uint32(buf[1:])
+            sess.Interface = buf[0]
+            sess.TDSVersion = binary.BigEndian.Uint32(buf[1:])
             prognamelen := buf[1+4]
-            progname := ucs22str(buf[1+4+1:1+4+1 + prognamelen * 2])
-            progver := buf[size-4:]
-            fmt.Println("login ack", iface, tdsver, progver, progname)
+            sess.ProgName = ucs22str(buf[1+4+1:1+4+1 + prognamelen * 2])
+            sess.ProgVer = binary.BigEndian.Uint32(buf[size - 4:])
         } else {
             if tokenMap[token] == nil {
-                fmt.Println("Unknown token type:", token)
-                os.Exit(1)
+                return nil, fmt.Errorf("Unknown token type: %d", token)
             }
             err = tokenMap[token](sess, token, outbuf)
             if err != nil {
-                fmt.Println("Failed processing token", err.Error())
-                os.Exit(1)
+                return nil, fmt.Errorf("Failed processing token %d: %s",
+                                       token, err.Error())
             }
             if token == TDS_DONE_TOKEN {
                 break
@@ -668,7 +662,6 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
         }
     }
     if !success {
-        fmt.Println("login failed")
         if len(sess.messages) > 0 {
             return nil, sess.messages[0]
         } else {
