@@ -693,7 +693,7 @@ func writeAllHeaders(w io.Writer, headers []headerStruct) (err error) {
     // calculatint total length
     var totallen uint32 = 4
     for _, hdr := range headers {
-        totallen += 4 + 2 + 2 + uint32(len(hdr.data))
+        totallen += 4 + 2 + uint32(len(hdr.data))
     }
     // writing
     err = binary.Write(w, binary.LittleEndian, totallen)
