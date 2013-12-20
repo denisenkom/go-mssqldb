@@ -179,7 +179,7 @@ func (s *MssqlStmt) Query(args []driver.Value) (driver.Rows, error) {
     if err := sendSqlBatch72(s.c.sess.buf, s.query, headers); err != nil {
         return nil, err
     }
-    return &MssqlRows{}, nil
+    return &MssqlRows{sess: s.c.sess}, nil
 }
 
 func (s *MssqlStmt) Exec(args []driver.Value) (driver.Result, error) {
@@ -194,10 +194,11 @@ func (s *MssqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 }
 
 type MssqlRows struct {
+    sess *TdsSession
 //	s    *AdodbStmt
 //	rc   *ole.IDispatch
-//	nc   int
-//	cols []string
+    nc   int
+    cols []string
 }
 
 func (rc *MssqlRows) Close() error {

@@ -761,13 +761,22 @@ func sendSqlBatch72(buf *TdsBuffer,
 }
 
 
-func processResponse(sess *TdsSession) (err error) {
+func beginProcessResponse(sess *TdsSession) (err error) {
     packet_type, err := sess.buf.BeginRead()
     if err != nil {
         return err
     }
     if packet_type != TDS_REPLY {
         return fmt.Errorf("Error: invalid response packet type, expected REPLY, actual: %d", packet_type)
+    }
+    return nil
+}
+
+
+func processResponse(sess *TdsSession) (err error) {
+    err = beginProcessResponse(sess)
+    if err != nil {
+        return err
     }
     for true {
         token, err := sess.buf.ReadByte()
