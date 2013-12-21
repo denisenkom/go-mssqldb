@@ -161,13 +161,23 @@ func typeFltNParser(typeid uint8, r io.Reader) (typeInfoIface, error) {
 }
 
 
+// http://msdn.microsoft.com/en-us/library/ee780893.aspx
 type Decimal struct {
-    digits []byte
-    neg bool
+    integer [4]uint32
+    positive bool
+    prec uint8
+    scale uint8
 }
 
-func (d Decimal)String() string {
-    return "0.5"
+func (d Decimal)ToFloat64() float64 {
+    var val float64 = float64(d.integer[0])
+    if !d.positive {
+        val = -val
+    }
+    for i := 0; i < int(d.scale); i++ {
+        val /= 10
+    }
+    return val
 }
 
 func StrToDecimal(s string) (Decimal, error) {
@@ -193,21 +203,26 @@ func (t typeInfoDecimalN)readData(r io.Reader) (value interface{}, err error) {
     if size == 0 {
         return nil, nil
     }
-    var positive uint8
-    err = binary.Read(r, binary.LittleEndian, &positive); if err != nil {
+    var sign uint8
+    err = binary.Read(r, binary.LittleEndian, &sign); if err != nil {
         return
     }
-    buf := make([]byte, size - 1)
-    _, err = io.ReadFull(r, buf); if err != nil {
+    size--
+    dec := Decimal{
+        positive: sign != 0,
+        prec: t.Prec,
+        scale: t.Scale,
+    }
+    value = dec
+    err = binary.Read(r, binary.LittleEndian, dec.integer[:size/4]); if err != nil {
         return
     }
-    value = Decimal{digits: buf, neg: positive == 0}
     return
 }
 
 func typeDecimalNParser(typeid uint8, r io.Reader) (res typeInfoIface, err error) {
     ti := typeInfoDecimalN{}
-    res = ti
+    res = &ti
     err = binary.Read(r, binary.LittleEndian, &ti)
     return
 }
