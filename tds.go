@@ -143,10 +143,7 @@ type tokenFunc func(*TdsSession, uint8, io.Reader) error
 type TdsSession struct {
     buf * TdsBuffer
 
-    TDSVersion uint32
-    Interface byte
-    ProgName string
-    ProgVer uint32
+    loginAck loginAckStruct
 
     messages []Error
 
@@ -555,6 +552,33 @@ func processDone72(sess *TdsSession, token uint8, r io.Reader) (err error) {
 }
 
 
+type loginAckStruct struct {
+    Interface uint8
+    TDSVersion uint32
+    ProgName string
+    ProgVer uint32
+}
+
+func parseLoginAck(r io.Reader) (res loginAckStruct, err error) {
+    var size uint16
+    err = binary.Read(r, binary.LittleEndian, &size)
+    if err != nil {
+        return
+    }
+    buf := make([]byte, size)
+    _, err = io.ReadFull(r, buf)
+    if err != nil {
+        return
+    }
+    res.Interface = buf[0]
+    res.TDSVersion = binary.BigEndian.Uint32(buf[1:])
+    prognamelen := buf[1+4]
+    res.ProgName = ucs22str(buf[1+4+1:1+4+1 + prognamelen * 2])
+    res.ProgVer = binary.BigEndian.Uint32(buf[size - 4:])
+    return
+}
+
+
 // http://msdn.microsoft.com/en-us/library/dd357363.aspx
 func parseColMetadata72(r io.Reader, typemap map[uint8]typeParser) (columns []columnStruct, err error) {
     var count uint16
@@ -794,6 +818,13 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
             return err
         }
         switch {
+        case token == TDS_LOGINACK_TOKEN:
+            loginAck, err := parseLoginAck(sess.buf)
+            if err != nil {
+                ch <- err
+                return err
+            }
+            ch <- loginAck
         case token == TDS_DONE_TOKEN:
             done, err := parseDone(sess.buf)
             if err != nil {
@@ -926,54 +957,22 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
     }
 
     // processing login response
-    packet_type, err := outbuf.BeginRead()
-    if err != nil {
-        return nil, err
-    }
-    if packet_type != TDS_REPLY {
-        conn.Close()
-        return nil, fmt.Errorf("Error: invalid response packet type, expected REPLY, actual: %d", packet_type)
-    }
+    tokchan := make(chan tokenStruct, 5)
+    go processResponse(&sess, tokchan)
     sess.tokenMap = map[uint8]tokenFunc{
         TDS_ENVCHANGE_TOKEN: processEnvChg,
         TDS_DONE_TOKEN: processDone72,
         TDS_ERROR_TOKEN: processError72,
     }
     success := false
-    for true {
-        token, err := outbuf.ReadByte()
-        if err != nil {
-            return nil, err
-        }
-        if token == TDS_LOGINACK_TOKEN {
+    loop:
+    for tok := range tokchan {
+        switch token := tok.(type) {
+        case loginAckStruct:
             success = true
-            var size uint16
-            err = binary.Read(outbuf, binary.LittleEndian, &size)
-            if err != nil {
-                return nil, err
-            }
-            buf := make([]byte, size)
-            _, err := io.ReadFull(outbuf, buf)
-            if err != nil {
-                return nil, err
-            }
-            sess.Interface = buf[0]
-            sess.TDSVersion = binary.BigEndian.Uint32(buf[1:])
-            prognamelen := buf[1+4]
-            sess.ProgName = ucs22str(buf[1+4+1:1+4+1 + prognamelen * 2])
-            sess.ProgVer = binary.BigEndian.Uint32(buf[size - 4:])
-        } else {
-            if sess.tokenMap[token] == nil {
-                return nil, fmt.Errorf("Unknown token type: %d", token)
-            }
-            err = sess.tokenMap[token](&sess, token, outbuf)
-            if err != nil {
-                return nil, fmt.Errorf("Failed processing token %d: %s",
-                                       token, err.Error())
-            }
-            if token == TDS_DONE_TOKEN {
-                break
-            }
+            sess.loginAck = token
+        case doneStruct:
+            break loop
         }
     }
     if !success {
