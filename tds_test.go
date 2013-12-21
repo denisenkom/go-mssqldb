@@ -177,6 +177,7 @@ func TestQuery(t *testing.T) {
         t.Error("returned incorrect columns (expected ['a']):", columns)
     }
 
+    numrows := 0
     for rows.Next() {
         var val int
         err := rows.Scan(&val)
@@ -186,6 +187,10 @@ func TestQuery(t *testing.T) {
         if val != 1 {
             t.Error("query should return 1")
         }
+        numrows++
+    }
+    if numrows != 1 {
+        t.Error("query should return 1 row, returned", numrows)
     }
 }
 

@@ -824,6 +824,45 @@ func processResponseGetHeader(sess *TdsSession) (err error) {
 }
 
 
+func getRow(sess *TdsSession) (err error) {
+    for true {
+        token, err := sess.buf.ReadByte()
+        if err != nil {
+            return err
+        }
+        switch {
+        case token == TDS_DONE_TOKEN:
+            done, err := parseDone(sess.buf)
+            if err != nil {
+                return err
+            }
+            if done.Status & doneError != 0 {
+                return sess.messages[0]
+            }
+            return io.EOF
+        case token == tokenColMetadata:
+            return streamErrorf("unexpected COLMETADATA token")
+        case token == tokenRow:
+            sess.lastRow, err = parseRow(sess.buf, sess.columns)
+            if err != nil {
+                return err
+            }
+            return nil
+        default:
+            if sess.tokenMap[token] == nil {
+                return fmt.Errorf("Unknown token type: %d", token)
+            }
+            err = sess.tokenMap[token](sess, token, sess.buf)
+            if err != nil {
+                return fmt.Errorf("Failed processing token %d: %s",
+                                token, err.Error())
+            }
+        }
+    }
+    return nil
+}
+
+
 func processResponse(sess *TdsSession) (err error) {
     err = beginProcessResponse(sess)
     if err != nil {
