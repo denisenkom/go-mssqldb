@@ -584,6 +584,7 @@ func parseColMetadata72(r io.Reader, typemap map[uint8]typeParser) (columns []co
             return nil, err
         }
         if typemap[column.TypeId] == nil {
+            fmt.Println("unknown type id", column.TypeId)
             return nil, streamErrorf("Unknown type id: %d", column.TypeId)
         }
         column.TypeInfo, err = typemap[column.TypeId](column.TypeId, r)
@@ -806,6 +807,7 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
         case token == tokenColMetadata:
             typemap := map[uint8]typeParser{
                 typeInt4: typeInt4Parser,
+                typeFltN: typeFltNParser,
                 typeBigVarChar: typeBigVarCharParser,
                 }
             columns, err = parseColMetadata72(sess.buf, typemap)

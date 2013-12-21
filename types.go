@@ -117,3 +117,45 @@ func typeBigVarCharParser(typeid uint8, r io.Reader) (typeInfoIface, error) {
     }
     return &res, nil
 }
+
+
+type typeInfoFltN struct {
+    size uint8
+}
+
+func (t typeInfoFltN)readData(r io.Reader) (value interface{}, err error) {
+    var size uint8
+    err = binary.Read(r, binary.LittleEndian, &size)
+    if err != nil {
+        return nil, err
+    }
+    var flt4 float32
+    var flt8 float64
+    switch t.size {
+    case 0:
+        return nil, nil
+    case 4:
+        err = binary.Read(r, binary.LittleEndian, &flt4)
+        if err != nil {
+            return nil, err
+        }
+        return flt4, nil
+    case 8:
+        err = binary.Read(r, binary.LittleEndian, &flt8)
+        if err != nil {
+            return nil, err
+        }
+        return flt8, nil
+    default:
+        return nil, streamErrorf("Invalid FLTNTYPE size: %d", size)
+    }
+}
+
+func typeFltNParser(typeid uint8, r io.Reader) (typeInfoIface, error) {
+    res := typeInfoFltN{}
+    err := binary.Read(r, binary.LittleEndian, &res.size)
+    if err != nil {
+        return nil, err
+    }
+    return res, nil
+}
