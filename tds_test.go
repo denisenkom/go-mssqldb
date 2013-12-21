@@ -207,6 +207,50 @@ func TestQuery(t *testing.T) {
 }
 
 
+func TestMultipleQueriesSequentialy(t *testing.T) {
+    check := func(rows *sql.Rows) {
+        numrows := 0
+        for rows.Next() {
+            var val int
+            err := rows.Scan(&val)
+            if err != nil {
+                t.Error("Scan failed:", err.Error())
+            }
+            if val != 1 {
+                t.Error("query should return 1")
+            }
+            numrows++
+        }
+        if numrows != 1 {
+            t.Error("query should return 1 row, returned", numrows)
+        }
+    }
+
+    conn := open(t)
+    defer conn.Close()
+
+    stmt, err := conn.Prepare("select 1 as a")
+    if err != nil {
+        t.Error("Prepare failed:", err.Error())
+    }
+    defer stmt.Close()
+
+    rows, err := stmt.Query()
+    if err != nil {
+        t.Error("Query failed:", err.Error())
+    }
+    defer rows.Close()
+    check(rows)
+
+    rows, err = stmt.Query()
+    if err != nil {
+        t.Error("Query failed:", err.Error())
+    }
+    defer rows.Close()
+    check(rows)
+}
+
+
 func TestPing(t *testing.T) {
     conn := open(t)
     defer conn.Close()
