@@ -541,17 +541,6 @@ func parseDone(r io.Reader) (res doneStruct, err error) {
 }
 
 
-func processDone72(sess *TdsSession, token uint8, r io.Reader) (err error) {
-    data, err := parseDone(r)
-    if err != nil {
-        return err
-    }
-    fmt.Println("processDone72", doneFlags2Str(data.Status),
-                data.CurCmd, data.RowCount)
-    return nil
-}
-
-
 type loginAckStruct struct {
     Interface uint8
     TDSVersion uint32
@@ -970,7 +959,6 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
     go processResponse(&sess, tokchan)
     sess.tokenMap = map[uint8]tokenFunc{
         TDS_ENVCHANGE_TOKEN: processEnvChg,
-        TDS_DONE_TOKEN: processDone72,
         TDS_ERROR_TOKEN: processError72,
     }
     success := false
