@@ -789,7 +789,7 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
     for true {
         token, err := sess.buf.ReadByte()
         if err != nil {
-            fmt.Println(err)
+            ch <- err
             return err
         }
         switch {
@@ -806,6 +806,7 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
         case token == tokenColMetadata:
             typemap := map[uint8]typeParser{
                 typeInt4: typeInt4Parser,
+                typeBigVarChar: typeBigVarCharParser,
                 }
             columns, err = parseColMetadata72(sess.buf, typemap)
             if err != nil {
