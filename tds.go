@@ -776,32 +776,30 @@ func beginProcessResponse(sess *TdsSession) (err error) {
 }
 
 
-type tokenStruct struct {
-    token uint8
-    data interface{}
-}
+type tokenStruct interface{}
 
 
 func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
     err = beginProcessResponse(sess)
     if err != nil {
-        ch <- tokenStruct{TDS_ERROR_TOKEN, err}
-        ch <- tokenStruct{TDS_DONE_TOKEN, doneStruct{Status: doneError}}
+        ch <- err
         return err
     }
     var columns []columnStruct
     for true {
         token, err := sess.buf.ReadByte()
         if err != nil {
+            fmt.Println(err)
             return err
         }
         switch {
         case token == TDS_DONE_TOKEN:
             done, err := parseDone(sess.buf)
             if err != nil {
+                ch <- err
                 return err
             }
-            ch <- tokenStruct{token, done}
+            ch <- done
             if done.Status & doneMore == 0 {
                 return nil
             }
@@ -811,23 +809,29 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
                 }
             columns, err = parseColMetadata72(sess.buf, typemap)
             if err != nil {
+                ch <- err
                 return err
             }
-            ch <- tokenStruct{token, columns}
+            ch <- columns
         case token == tokenRow:
             row, err := parseRow(sess.buf, columns)
             if err != nil {
+                ch <- err
                 return err
             }
-            ch <- tokenStruct{token, row}
+            ch <- row
         default:
             if sess.tokenMap[token] == nil {
-                return fmt.Errorf("Unknown token type: %d", token)
+                err = fmt.Errorf("Unknown token type: %d", token)
+                ch <- err
+                return err
             }
             err = sess.tokenMap[token](sess, token, sess.buf)
             if err != nil {
-                return fmt.Errorf("Failed processing token %d: %s",
-                                token, err.Error())
+                err = fmt.Errorf("Failed processing token %d: %s",
+                                 token, err.Error())
+                ch <- err
+                return err
             }
         }
     }

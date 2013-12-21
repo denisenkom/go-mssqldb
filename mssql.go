@@ -210,24 +210,28 @@ func (rc *MssqlRows) Close() error {
     return nil
 }
 
-func (rc *MssqlRows) processMeta() {
+func (rc *MssqlRows) processMeta() error {
     if rc.tokchan == nil {
-        return
+        return nil
     }
     for tok := range rc.tokchan {
-        switch token := tok.data.(type) {
+        switch token := tok.(type) {
         case doneStruct:
             rc.tokchan = nil
-            return
+            return nil
         case []columnStruct:
             rc.gotcolumns = true
             rc.cols = make([]string, len(token))
             for i, col := range token {
                 rc.cols[i] = col.ColName
             }
-            return
+            return nil
+        case error:
+            rc.tokchan = nil
+            return token
         }
     }
+    return nil
 }
 
 func (rc *MssqlRows) Columns() (res []string) {
@@ -239,13 +243,16 @@ func (rc *MssqlRows) Columns() (res []string) {
 
 func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
     if !rc.gotcolumns {
-        rc.processMeta()
+        err = rc.processMeta()
+        if err != nil {
+            return err
+        }
     }
     if rc.tokchan == nil {
         return io.EOF
     }
     for tok := range rc.tokchan {
-        switch tokdata := tok.data.(type) {
+        switch tokdata := tok.(type) {
         case doneStruct:
             rc.tokchan = nil
             return io.EOF
@@ -256,6 +263,9 @@ func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
                 dest[i] = tokdata[i]
             }
             return nil
+        case error:
+            rc.tokchan = nil
+            return tokdata
         }
     }
     return nil

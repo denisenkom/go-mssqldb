@@ -95,7 +95,7 @@ func TestSendSqlBatch(t *testing.T) {
 
     loop:
     for tok := range ch {
-        switch token := tok.data.(type) {
+        switch token := tok.(type) {
         case doneStruct:
             break loop
         case []columnStruct:
