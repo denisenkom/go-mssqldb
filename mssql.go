@@ -206,10 +206,7 @@ type MssqlRows struct {
 }
 
 func (rc *MssqlRows) Close() error {
-//	_, err := oleutil.CallMethod(rc.rc, "Close")
-//	if err != nil {
-//		return err
-//	}
+    rc.tokchan = nil
     return nil
 }
 
