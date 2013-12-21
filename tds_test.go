@@ -90,9 +90,21 @@ func TestSendSqlBatch(t *testing.T) {
         t.Error("Sending sql batch failed", err.Error())
     }
 
-    err = processResponse(conn)
-    if err != nil {
-        t.Error("Processing reponse failed", err.Error())
+    ch := make(chan tokenStruct, 5)
+    go processResponse(conn, ch)
+
+    loop:
+    for tok := range ch {
+        switch token := tok.data.(type) {
+        case doneStruct:
+            break loop
+        case []columnStruct:
+            conn.columns = token
+        case []interface{}:
+            conn.lastRow = token
+        default:
+            fmt.Println("unknown token", tok)
+        }
     }
 
     switch value := conn.lastRow[0].(type) {

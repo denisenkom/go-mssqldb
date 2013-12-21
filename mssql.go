@@ -1,6 +1,7 @@
 package mssql
 
 import (
+    "io"
     "database/sql"
     "database/sql/driver"
 //	"math"
@@ -178,7 +179,9 @@ func (s *MssqlStmt) Query(args []driver.Value) (driver.Rows, error) {
     if err := sendSqlBatch72(s.c.sess.buf, s.query, headers); err != nil {
         return nil, err
     }
-    return &MssqlRows{sess: s.c.sess}, nil
+    tokchan := make(chan tokenStruct, 5)
+    go processResponse(s.c.sess, tokchan)
+    return &MssqlRows{sess: s.c.sess, tokchan: tokchan}, nil
 }
 
 func (s *MssqlStmt) Exec(args []driver.Value) (driver.Result, error) {
@@ -198,6 +201,8 @@ type MssqlRows struct {
 //	rc   *ole.IDispatch
     nc   int
     cols []string
+    gotcolumns bool
+    tokchan chan tokenStruct
 }
 
 func (rc *MssqlRows) Close() error {
@@ -208,27 +213,53 @@ func (rc *MssqlRows) Close() error {
     return nil
 }
 
-func (rc *MssqlRows) Columns() (res []string) {
-    if !rc.sess.gotColumns {
-        err := processResponseGetHeader(rc.sess)
-        if err != nil {
-            return []string{}
+func (rc *MssqlRows) processMeta() {
+    if rc.tokchan == nil {
+        return
+    }
+    for tok := range rc.tokchan {
+        switch token := tok.data.(type) {
+        case doneStruct:
+            rc.tokchan = nil
+            return
+        case []columnStruct:
+            rc.gotcolumns = true
+            rc.cols = make([]string, len(token))
+            for i, col := range token {
+                rc.cols[i] = col.ColName
+            }
+            return
         }
     }
-    res = make([]string, len(rc.sess.columns))
-    for i := range rc.sess.columns {
-        res[i] = rc.sess.columns[i].ColName
+}
+
+func (rc *MssqlRows) Columns() (res []string) {
+    if !rc.gotcolumns {
+        rc.processMeta()
     }
-    return res
+    return rc.cols
 }
 
 func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
-    err = getRow(rc.sess)
-    if err != nil {
-        return err
+    if !rc.gotcolumns {
+        rc.processMeta()
     }
-    for i := range dest {
-        dest[i] = rc.sess.lastRow[i]
+    if rc.tokchan == nil {
+        return io.EOF
+    }
+    for tok := range rc.tokchan {
+        switch tokdata := tok.data.(type) {
+        case doneStruct:
+            rc.tokchan = nil
+            return io.EOF
+        case []columnStruct:
+            return streamErrorf("Unexpected token COLMETADATA")
+        case []interface{}:
+            for i := range dest {
+                dest[i] = tokdata[i]
+            }
+            return nil
+        }
     }
     return nil
 }
