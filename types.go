@@ -159,3 +159,55 @@ func typeFltNParser(typeid uint8, r io.Reader) (typeInfoIface, error) {
     }
     return res, nil
 }
+
+
+type Decimal struct {
+    digits []byte
+    neg bool
+}
+
+func (d Decimal)String() string {
+    return "0.5"
+}
+
+func StrToDecimal(s string) (Decimal, error) {
+    return Decimal{}, nil
+}
+
+func Float32ToDecimal(f float32) Decimal {
+    return Decimal{}
+}
+
+
+type typeInfoDecimalN struct {
+    Size uint8
+    Prec uint8
+    Scale uint8
+}
+
+func (t typeInfoDecimalN)readData(r io.Reader) (value interface{}, err error) {
+    var size uint8
+    err = binary.Read(r, binary.LittleEndian, &size); if err != nil {
+        return
+    }
+    if size == 0 {
+        return nil, nil
+    }
+    var positive uint8
+    err = binary.Read(r, binary.LittleEndian, &positive); if err != nil {
+        return
+    }
+    buf := make([]byte, size - 1)
+    _, err = io.ReadFull(r, buf); if err != nil {
+        return
+    }
+    value = Decimal{digits: buf, neg: positive == 0}
+    return
+}
+
+func typeDecimalNParser(typeid uint8, r io.Reader) (res typeInfoIface, err error) {
+    ti := typeInfoDecimalN{}
+    res = ti
+    err = binary.Read(r, binary.LittleEndian, &ti)
+    return
+}

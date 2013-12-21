@@ -834,6 +834,7 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
                 typeInt4: typeInt4Parser,
                 typeFltN: typeFltNParser,
                 typeBigVarChar: typeBigVarCharParser,
+                typeDecimalN: typeDecimalNParser,
                 }
             columns, err = parseColMetadata72(sess.buf, typemap)
             if err != nil {

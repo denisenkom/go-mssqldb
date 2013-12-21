@@ -18,6 +18,7 @@ func TestSelect(t *testing.T) {
         {"'abc'", string("abc")},
         {"cast(0.5 as float)", float64(0.5)},
         {"cast(0.5 as real)", float32(0.5)},
+        //{"cast(0.5 as decimal)", Float32ToDecimal(0.5)},
     }
 
     for _, test := range values {
