@@ -154,6 +154,8 @@ type TdsSession struct {
 
     database string
 
+    gotColumns bool
+    responseStarted bool
     columns []columnStruct
 
     lastRow []interface{}
@@ -769,6 +771,55 @@ func beginProcessResponse(sess *TdsSession) (err error) {
     if packet_type != TDS_REPLY {
         return fmt.Errorf("Error: invalid response packet type, expected REPLY, actual: %d", packet_type)
     }
+    sess.responseStarted = true
+    return nil
+}
+
+
+func processResponseGetHeader(sess *TdsSession) (err error) {
+    err = beginProcessResponse(sess)
+    if err != nil {
+        return err
+    }
+    for true {
+        token, err := sess.buf.ReadByte()
+        if err != nil {
+            return err
+        }
+        switch {
+        case token == TDS_DONE_TOKEN:
+            done, err := parseDone(sess.buf)
+            if err != nil {
+                return err
+            }
+            if done.Status & doneError != 0 {
+                return sess.messages[0]
+            }
+            return nil
+        case token == tokenColMetadata:
+            typemap := map[uint8]typeParser{
+                typeInt4: typeInt4Parser,
+                }
+            columns, err := parseColMetadata72(sess.buf, typemap)
+            if err != nil {
+                return err
+            }
+            sess.gotColumns = true
+            if columns != nil {
+                sess.columns = columns
+            }
+            return nil
+        default:
+            if sess.tokenMap[token] == nil {
+                return fmt.Errorf("Unknown token type: %d", token)
+            }
+            err = sess.tokenMap[token](sess, token, sess.buf)
+            if err != nil {
+                return fmt.Errorf("Failed processing token %d: %s",
+                                token, err.Error())
+            }
+        }
+    }
     return nil
 }
 
@@ -801,6 +852,7 @@ func processResponse(sess *TdsSession) (err error) {
             if err != nil {
                 return err
             }
+            sess.gotColumns = true
             if columns != nil {
                 sess.columns = columns
             }

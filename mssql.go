@@ -209,42 +209,18 @@ func (rc *MssqlRows) Close() error {
     return nil
 }
 
-func (rc *MssqlRows) Columns() []string {
-//	if rc.nc != len(rc.cols) {
-//		unknown, err := oleutil.GetProperty(rc.rc, "Fields")
-//		if err != nil {
-//			return []string{}
-//		}
-//		fields := unknown.ToIDispatch()
-//		defer fields.Release()
-//		val, err := oleutil.GetProperty(fields, "Count")
-//		if err != nil {
-//			return []string{}
-//		}
-//		rc.nc = int(val.Val)
-//		rc.cols = make([]string, rc.nc)
-//		for i := 0; i < rc.nc; i++ {
-//			var varval ole.VARIANT
-//			varval.VT = ole.VT_I4
-//			varval.Val = int64(i)
-//			val, err := oleutil.CallMethod(fields, "Item", &varval)
-//			if err != nil {
-//				return []string{}
-//			}
-//			item := val.ToIDispatch()
-//			if err != nil {
-//				return []string{}
-//			}
-//			name, err := oleutil.GetProperty(item, "Name")
-//			if err != nil {
-//				return []string{}
-//			}
-//			rc.cols[i] = name.ToString()
-//			item.Release()
-//		}
-//	}
-//	return rc.cols
-    return []string{}
+func (rc *MssqlRows) Columns() (res []string) {
+    if !rc.sess.gotColumns {
+        err := processResponseGetHeader(rc.sess)
+        if err != nil {
+            return []string{}
+        }
+    }
+    res = make([]string, len(rc.sess.columns))
+    for i := range rc.sess.columns {
+        res[i] = rc.sess.columns[i].ColName
+    }
+    return res
 }
 
 func (rc *MssqlRows) Next(dest []driver.Value) error {

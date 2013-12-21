@@ -157,7 +157,7 @@ func TestQuery(t *testing.T) {
     conn := open(t)
     defer conn.Close()
 
-    stmt, err := conn.Prepare("select 1")
+    stmt, err := conn.Prepare("select 1 as a")
     if err != nil {
         t.Error("Prepare failed:", err.Error())
     }
@@ -168,6 +168,14 @@ func TestQuery(t *testing.T) {
         t.Error("Query failed:", err.Error())
     }
     defer rows.Close()
+
+    columns, err := rows.Columns()
+    if err != nil {
+        t.Error("getting columns failed", err.Error())
+    }
+    if len(columns) != 1 && columns[0] != "a" {
+        t.Error("returned incorrect columns (expected ['a']):", columns)
+    }
 
     for rows.Next() {
         var val int
