@@ -808,6 +808,7 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
     err = beginProcessResponse(sess)
     if err != nil {
         ch <- err
+        close(ch)
         return err
     }
     var columns []columnStruct
@@ -815,6 +816,7 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
         token, err := sess.buf.ReadByte()
         if err != nil {
             ch <- err
+            close(ch)
             return err
         }
         switch {
@@ -822,6 +824,7 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
             loginAck, err := parseLoginAck(sess.buf)
             if err != nil {
                 ch <- err
+                close(ch)
                 return err
             }
             ch <- loginAck
@@ -829,10 +832,12 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
             done, err := parseDone(sess.buf)
             if err != nil {
                 ch <- err
+                close(ch)
                 return err
             }
             ch <- done
             if done.Status & doneMore == 0 {
+                close(ch)
                 return nil
             }
         case token == tokenColMetadata:
@@ -844,6 +849,7 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
             columns, err = parseColMetadata72(sess.buf, typemap)
             if err != nil {
                 ch <- err
+                close(ch)
                 return err
             }
             ch <- columns
@@ -851,6 +857,7 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
             row, err := parseRow(sess.buf, columns)
             if err != nil {
                 ch <- err
+                close(ch)
                 return err
             }
             ch <- row
@@ -858,6 +865,7 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
             if sess.tokenMap[token] == nil {
                 err = fmt.Errorf("Unknown token type: %d", token)
                 ch <- err
+                close(ch)
                 return err
             }
             err = sess.tokenMap[token](sess, token, sess.buf)
@@ -865,6 +873,7 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
                 err = fmt.Errorf("Failed processing token %d: %s",
                                  token, err.Error())
                 ch <- err
+                close(ch)
                 return err
             }
         }
@@ -965,14 +974,11 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
         TDS_ERROR_TOKEN: processError72,
     }
     success := false
-    loop:
     for tok := range tokchan {
         switch token := tok.(type) {
         case loginAckStruct:
             success = true
             sess.loginAck = token
-        case doneStruct:
-            break loop
         }
     }
     if !success {
