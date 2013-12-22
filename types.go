@@ -119,6 +119,42 @@ func typeBigVarCharParser(typeid uint8, r io.Reader) (typeInfoIface, error) {
 }
 
 
+type typeInfoNVarChar struct {
+    size uint16
+    collation collation
+}
+
+func (t typeInfoNVarChar)readData(r io.Reader) (value interface{}, err error) {
+    var size uint16
+    err = binary.Read(r, binary.LittleEndian, &size)
+    if err != nil {
+        return nil, err
+    }
+    if size == 0xffff {
+        return nil, nil
+    }
+    buf := make([]byte, size)
+    _, err = io.ReadFull(r, buf)
+    if err != nil {
+        return nil, err
+    }
+    return ucs22utf8.ConvertString(string(buf))
+}
+
+func typeNVarCharParser(typeid uint8, r io.Reader) (typeInfoIface, error) {
+    res := typeInfoNVarChar{}
+    err := binary.Read(r, binary.LittleEndian, &res.size)
+    if err != nil {
+        return nil, err
+    }
+    res.collation, err = readCollation(r)
+    if err != nil {
+        return nil, err
+    }
+    return &res, nil
+}
+
+
 type typeInfoFltN struct {
     size uint8
 }
