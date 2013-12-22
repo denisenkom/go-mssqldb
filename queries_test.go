@@ -27,6 +27,7 @@ func TestSelect(t *testing.T) {
         {"cast(1 as decimal)", Decimal{[...]uint32{1, 0, 0, 0}, true, 18, 0}},
         {"cast(0.5 as decimal(18,1))", Decimal{[...]uint32{5, 0, 0, 0}, true, 18, 1}},
         {"cast(-0.5 as decimal(18,1))", Decimal{[...]uint32{5, 0, 0, 0}, false, 18, 1}},
+        {"cast(-0.5 as numeric(18,1))", Decimal{[...]uint32{5, 0, 0, 0}, false, 18, 1}},
         {"N'abc'", string("abc")},
         {"NULL", nil},
         {"cast('2000-01-01' as datetime)", time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
