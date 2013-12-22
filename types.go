@@ -83,6 +83,58 @@ func typeInt4Parser(typeid uint8, r io.Reader) (res typeInfoIface, err error) {
 }
 
 
+type typeInfoIntN struct {
+    size uint8
+}
+
+func (t typeInfoIntN)readData(r io.Reader) (value interface{}, err error) {
+    var size uint8
+    err = binary.Read(r, binary.LittleEndian, &size)
+    if err != nil {
+        return nil, err
+    }
+    var int1 int8
+    var int2 int16
+    var int4 int32
+    var int8 int64
+    switch size {
+    case 0:
+        return nil, nil
+    case 1:
+        err = binary.Read(r, binary.LittleEndian, &int1); if err != nil {
+            return nil, err
+        }
+        return int1, nil
+    case 2:
+        err = binary.Read(r, binary.LittleEndian, &int2); if err != nil {
+            return nil, err
+        }
+        return int2, nil
+    case 4:
+        err = binary.Read(r, binary.LittleEndian, &int4); if err != nil {
+            return nil, err
+        }
+        return int4, nil
+    case 8:
+        err = binary.Read(r, binary.LittleEndian, &int8); if err != nil {
+            return nil, err
+        }
+        return int8, nil
+    default:
+        return nil, streamErrorf("Invalid INTNTYPE size: %d", size)
+    }
+}
+
+func typeIntNParser(typeid uint8, r io.Reader) (typeInfoIface, error) {
+    res := typeInfoIntN{}
+    err := binary.Read(r, binary.LittleEndian, &res.size)
+    if err != nil {
+        return nil, err
+    }
+    return res, nil
+}
+
+
 type typeInfoBigVarChar struct {
     size uint16
     collation collation
@@ -167,7 +219,7 @@ func (t typeInfoFltN)readData(r io.Reader) (value interface{}, err error) {
     }
     var flt4 float32
     var flt8 float64
-    switch t.size {
+    switch size {
     case 0:
         return nil, nil
     case 4:

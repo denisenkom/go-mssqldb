@@ -22,6 +22,7 @@ func TestSelect(t *testing.T) {
         {"cast(0.5 as decimal(18,1))", Decimal{[...]uint32{5, 0, 0, 0}, true, 18, 1}},
         {"cast(-0.5 as decimal(18,1))", Decimal{[...]uint32{5, 0, 0, 0}, false, 18, 1}},
         {"N'abc'", string("abc")},
+        {"NULL", nil},
     }
 
     for _, test := range values {

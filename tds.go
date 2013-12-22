@@ -832,6 +832,7 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
         case token == tokenColMetadata:
             typemap := map[uint8]typeParser{
                 typeInt4: typeInt4Parser,
+                typeIntN: typeIntNParser,
                 typeFltN: typeFltNParser,
                 typeBigVarChar: typeBigVarCharParser,
                 typeNVarChar: typeNVarCharParser,
