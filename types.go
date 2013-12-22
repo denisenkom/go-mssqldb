@@ -68,6 +68,42 @@ type typeInfoIface interface {
 type typeParser func(typeid uint8, r io.Reader) (typeInfoIface, error)
 
 
+type typeInfoBitN struct {}
+
+func (t typeInfoBitN)readData(r io.Reader) (value interface{}, err error) {
+    var size uint8
+    err = binary.Read(r, binary.LittleEndian, &size)
+    if err != nil {
+        return nil, err
+    }
+    switch size {
+    case 0:
+        return nil, nil
+    case 1:
+        var ivalue uint8
+        err = binary.Read(r, binary.LittleEndian, &ivalue)
+        if err != nil {
+            return nil, err
+        }
+        return ivalue != 0, nil
+    default:
+        return nil, streamErrorf("Invalid BITNTYPE size: %d", size)
+    }
+}
+
+func typeBitNParser(typeid uint8, r io.Reader) (res typeInfoIface, err error) {
+    var size uint8
+    err = binary.Read(r, binary.LittleEndian, &size)
+    if err != nil {
+        return nil, err
+    }
+    if size != 1 {
+        return nil, streamErrorf("Invalid BITNTYPE size: %d", size)
+    }
+    return typeInfoBitN{}, nil
+}
+
+
 type typeInfoInt4 struct {}
 
 var typeInfoInt4Instance = typeInfoInt4{}

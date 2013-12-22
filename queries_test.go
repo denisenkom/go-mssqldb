@@ -18,6 +18,8 @@ func TestSelect(t *testing.T) {
         {"cast(1 as tinyint)", int8(1)},
         {"cast(1 as smallint)", int16(1)},
         {"cast(1 as bigint)", int64(1)},
+        {"cast(1 as bit)", true},
+        {"cast(0 as bit)", false},
         {"'abc'", string("abc")},
         {"cast(0.5 as float)", float64(0.5)},
         {"cast(0.5 as real)", float32(0.5)},
