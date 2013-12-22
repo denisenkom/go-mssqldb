@@ -3,6 +3,8 @@ package mssql
 import (
     "io"
     "encoding/binary"
+    "math"
+    "time"
 )
 
 
@@ -320,5 +322,47 @@ func typeDecimalNParser(typeid uint8, r io.Reader) (res typeInfoIface, err error
     ti := typeInfoDecimalN{}
     res = &ti
     err = binary.Read(r, binary.LittleEndian, &ti)
+    return
+}
+
+
+type typeInfoDateTimeN struct {
+    Size uint8
+}
+
+// http://msdn.microsoft.com/en-us/library/ee780895.aspx
+type dateTime struct {
+    Days int32  // days since January 1, 1900
+    Time uint32  // three-hundredths of a second (300 counts per second) elapsed since 12 AM that day
+}
+
+func (t typeInfoDateTimeN)readData(r io.Reader) (value interface{}, err error) {
+    var size uint8
+    err = binary.Read(r, binary.LittleEndian, &size)
+    if err != nil {
+        return nil, err
+    }
+    var dt dateTime
+    err = binary.Read(r, binary.LittleEndian, &dt)
+    if err != nil {
+        return nil, err
+    }
+    ns := int(math.Trunc(float64(dt.Time % 300 * 10000000) / 3.0))
+    secs := int(dt.Time / 300)
+    value = time.Date(1900, 1, 1 + int(dt.Days), 0, 0, secs, ns, time.UTC)
+    return
+}
+
+func typeDateTimeNParser(typeid uint8, r io.Reader) (res typeInfoIface, err error) {
+    var size uint8
+    err = binary.Read(r, binary.LittleEndian, &size)
+    if err != nil {
+        return
+    }
+    if size != 8 {
+        err = streamErrorf("Invalid DATETIMNTYPE size: %d", size)
+        return
+    }
+    res = typeInfoDateTimeN{size}
     return
 }
