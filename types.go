@@ -326,11 +326,11 @@ func typeDecimalNParser(typeid uint8, r io.Reader) (res typeInfoIface, err error
 }
 
 
+// http://msdn.microsoft.com/en-us/library/ee780895.aspx
 type typeInfoDateTimeN struct {
     Size uint8
 }
 
-// http://msdn.microsoft.com/en-us/library/ee780895.aspx
 type smallDateTime struct {
     Days uint16  // days since January 1, 1900
     Mins uint16  // munutes since 12AM
@@ -378,4 +378,35 @@ func typeDateTimeNParser(typeid uint8, r io.Reader) (res typeInfoIface, err erro
     }
     res = typeInfoDateTimeN{size}
     return
+}
+
+
+// http://msdn.microsoft.com/en-us/library/ee780895.aspx
+type typeInfoDateN struct {
+}
+
+func (t typeInfoDateN)readData(r io.Reader) (value interface{}, err error) {
+    var size uint8
+    err = binary.Read(r, binary.LittleEndian, &size); if err != nil {
+        return
+    }
+    switch size {
+    case 0:
+        return nil, nil
+    case 3:
+        var buf [3]byte
+        _, err = io.ReadFull(r, buf[:]); if err != nil {
+            return
+        }
+        days := int(buf[0]) + int(buf[1]) * 256 + int(buf[2]) * 256 * 256
+        value = time.Date(1, 1, 1 + days, 0, 0, 0, 0, time.UTC)
+        return
+    default:
+        err = streamErrorf("Invalid DATENTYPE size: %d", size)
+        return
+    }
+}
+
+func typeDateNParser(typeid uint8, r io.Reader) (res typeInfoIface, err error) {
+    return typeInfoDateN{}, nil
 }

@@ -36,6 +36,9 @@ func TestSelect(t *testing.T) {
         {"cast(NULL as datetime)", nil},
         {"cast('2000-01-01T12:13:00' as smalldatetime)",
          time.Date(2000, 1, 1, 12, 13, 0, 0, time.UTC)},
+        {"cast('2000-01-01' as date)",
+         time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
+        {"cast(NULL as date)", nil},
     }
 
     for _, test := range values {
