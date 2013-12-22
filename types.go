@@ -331,6 +331,10 @@ type typeInfoDateTimeN struct {
 }
 
 // http://msdn.microsoft.com/en-us/library/ee780895.aspx
+type smallDateTime struct {
+    Days uint16  // days since January 1, 1900
+    Mins uint16  // munutes since 12AM
+}
 type dateTime struct {
     Days int32  // days since January 1, 1900
     Time uint32  // three-hundredths of a second (300 counts per second) elapsed since 12 AM that day
@@ -338,29 +342,38 @@ type dateTime struct {
 
 func (t typeInfoDateTimeN)readData(r io.Reader) (value interface{}, err error) {
     var size uint8
-    err = binary.Read(r, binary.LittleEndian, &size)
-    if err != nil {
-        return nil, err
+    err = binary.Read(r, binary.LittleEndian, &size); if err != nil {
+        return
     }
-    var dt dateTime
-    err = binary.Read(r, binary.LittleEndian, &dt)
-    if err != nil {
-        return nil, err
+    switch size {
+    case 0:
+        return nil, nil
+    case 4:
+        var dt smallDateTime
+        err = binary.Read(r, binary.LittleEndian, &dt); if err != nil {
+            return
+        }
+        value = time.Date(1900, 1, 1 + int(dt.Days), 0, int(dt.Mins), 0, 0, time.UTC)
+        return
+    case 8:
+        var dt dateTime
+        err = binary.Read(r, binary.LittleEndian, &dt); if err != nil {
+            return
+        }
+        ns := int(math.Trunc(float64(dt.Time % 300 * 10000000) / 3.0))
+        secs := int(dt.Time / 300)
+        value = time.Date(1900, 1, 1 + int(dt.Days), 0, 0, secs, ns, time.UTC)
+        return
+    default:
+        err = streamErrorf("Invalid DATETIMNTYPE size: %d", size)
+        return
     }
-    ns := int(math.Trunc(float64(dt.Time % 300 * 10000000) / 3.0))
-    secs := int(dt.Time / 300)
-    value = time.Date(1900, 1, 1 + int(dt.Days), 0, 0, secs, ns, time.UTC)
-    return
 }
 
 func typeDateTimeNParser(typeid uint8, r io.Reader) (res typeInfoIface, err error) {
     var size uint8
     err = binary.Read(r, binary.LittleEndian, &size)
     if err != nil {
-        return
-    }
-    if size != 8 {
-        err = streamErrorf("Invalid DATETIMNTYPE size: %d", size)
         return
     }
     res = typeInfoDateTimeN{size}
