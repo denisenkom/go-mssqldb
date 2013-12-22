@@ -185,10 +185,10 @@ func (t typeInfoDecimalN)readData(r io.Reader) (value interface{}, err error) {
         prec: t.Prec,
         scale: t.Scale,
     }
-    value = dec
     err = binary.Read(r, binary.LittleEndian, dec.integer[:size/4]); if err != nil {
         return
     }
+    value = dec
     return
 }
 
