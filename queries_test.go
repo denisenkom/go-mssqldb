@@ -48,6 +48,8 @@ func TestSelect(t *testing.T) {
          time.Date(1, 1, 1, 11, 56, 45, 123000000, time.UTC) },
         {"cast('2010-11-15T11:56:45.123' as datetime2(3))",
          time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.UTC) },
+        //{"cast('2010-11-15T11:56:45.123+10:00' as datetimeoffset(3))",
+        // time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.FixedZone("", 10*60*60)) },
     }
 
     for _, test := range values {

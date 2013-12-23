@@ -281,8 +281,15 @@ func decodeDateTime2(scale uint8, buf []byte) time.Time {
     return time.Date(1, 1, 1 + days, 0, 0, sec, ns, time.UTC)
 }
 
-func decodeDateTimeOffset(buf []byte) int {
-    panic("Not implemented")
+func decodeDateTimeOffset(scale uint8, buf []byte) time.Time {
+    timesize := len(buf) - 3 - 2
+    sec, ns := decodeTimeInt(scale, buf[:timesize])
+    buf = buf[timesize:]
+    days := decodeDateInt(buf[:3])
+    buf = buf[3:]
+    offset := int(int16(binary.LittleEndian.Uint16(buf))) // in mins
+    return time.Date(1, 1, 1 + days, 0, 0, sec, ns,
+                     time.FixedZone("", offset * 60))
 }
 
 func decodeChar(column columnStruct, buf []byte) string {
