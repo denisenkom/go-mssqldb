@@ -43,9 +43,11 @@ func TestSelect(t *testing.T) {
          [...]byte{0x6F, 0x96, 0x19, 0xFF, 0x8B, 0x86, 0xD0, 0x11, 0xB4, 0x2D, 0x00, 0xC0, 0x4F, 0xC9, 0x64, 0xFF}},
         {"cast(NULL as uniqueidentifier)", nil},
         {"cast('00:00:45.123' as time(3))",
-         time.Date(0, 1, 1, 00, 00, 45, 123000000, time.UTC) },
+         time.Date(1, 1, 1, 00, 00, 45, 123000000, time.UTC) },
         {"cast('11:56:45.123' as time(3))",
-         time.Date(0, 1, 1, 11, 56, 45, 123000000, time.UTC) },
+         time.Date(1, 1, 1, 11, 56, 45, 123000000, time.UTC) },
+        {"cast('2010-11-15T11:56:45.123' as datetime2(3))",
+         time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.UTC) },
     }
 
     for _, test := range values {

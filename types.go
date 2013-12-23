@@ -246,28 +246,39 @@ func decodeDecimal(column columnStruct, buf []byte) Decimal {
 }
 
 // http://msdn.microsoft.com/en-us/library/ee780895.aspx
-func decodeDate(buf []byte) time.Time {
-    days := int(buf[0]) + int(buf[1]) * 256 + int(buf[2]) * 256 * 256
-    return time.Date(1, 1, 1 + days, 0, 0, 0, 0, time.UTC)
+func decodeDateInt(buf []byte) (days int) {
+    return int(buf[0]) + int(buf[1]) * 256 + int(buf[2]) * 256 * 256
 }
 
-func decodeTime(column columnStruct, buf []byte) time.Time {
+func decodeDate(buf []byte) time.Time {
+    return time.Date(1, 1, 1 + decodeDateInt(buf), 0, 0, 0, 0, time.UTC)
+}
+
+func decodeTimeInt(scale uint8, buf []byte) (sec int, ns int) {
     var acc uint64 = 0
     for i := len(buf) - 1; i >= 0; i-- {
         acc <<= 8
         acc |= uint64(buf[i])
     }
-    for i := 0; i < 7 - int(column.Scale); i++ {
+    for i := 0; i < 7 - int(scale); i++ {
         acc *= 10
     }
-    ns := acc * 100
-    sec := ns / 1000000000
-    ns = ns % 1000000000
-    return time.Date(0, 1, 1, 0, 0, int(sec), int(ns), time.UTC)
+    nsbig := acc * 100
+    sec = int(nsbig / 1000000000)
+    ns = int(nsbig % 1000000000)
+    return
 }
 
-func decodeDateTime2(buf []byte) int {
-    panic("Not implemented")
+func decodeTime(column columnStruct, buf []byte) time.Time {
+    sec, ns := decodeTimeInt(column.Scale, buf)
+    return time.Date(1, 1, 1, 0, 0, sec, ns, time.UTC)
+}
+
+func decodeDateTime2(scale uint8, buf []byte) time.Time {
+    timesize := len(buf) - 3
+    sec, ns := decodeTimeInt(scale, buf[:timesize])
+    days := decodeDateInt(buf[timesize:])
+    return time.Date(1, 1, 1 + days, 0, 0, sec, ns, time.UTC)
 }
 
 func decodeDateTimeOffset(buf []byte) int {

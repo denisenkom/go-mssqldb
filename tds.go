@@ -734,7 +734,7 @@ func parseRow(r io.Reader, columns []columnStruct) (row []interface{}, err error
         case typeTimeN:
             row[i] = decodeTime(column, buf)
         case typeDateTime2N:
-            row[i] = decodeDateTime2(buf)
+            row[i] = decodeDateTime2(column.Scale, buf)
         case typeDateTimeOffsetN:
             row[i] = decodeDateTimeOffset(buf)
         case typeChar, typeVarChar, typeBigVarChar, typeBigChar:
