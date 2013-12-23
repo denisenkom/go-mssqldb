@@ -109,7 +109,7 @@ func readShortLenType(column *columnStruct, r io.Reader) (res []byte, err error)
     err = binary.Read(r, binary.LittleEndian, &size); if err != nil {
         return
     }
-    if size == 0 {
+    if size == 0xffff {
         return nil, nil
     }
     _, err = io.ReadFull(r, column.Buffer[:size]); if err != nil {
