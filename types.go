@@ -219,7 +219,25 @@ func readVarLen(column *columnStruct, r io.Reader) (err error) {
                 return
             }
         case typeXml:
-            panic("XMLTYPE not implemented")
+            var schemapresent uint8
+            err = binary.Read(r, binary.LittleEndian, &schemapresent); if err != nil {
+                return
+            }
+            if schemapresent != 0 {
+                // just ignore this for now
+                // dbname
+                _, err = readBVarchar(r); if err != nil {
+                    return
+                }
+                // owning schema
+                _, err = readBVarchar(r); if err != nil {
+                    return
+                }
+                // xml schema collection
+                _, err = readUsVarchar(r); if err != nil {
+                    return
+                }
+            }
         }
         if column.Size == 0xffff {
             column.Reader = readPLPType

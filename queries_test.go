@@ -55,6 +55,7 @@ func TestSelect(t *testing.T) {
         {"cast(0x1234 as varbinary(2))", []byte{0x12, 0x34}},
         {"cast(N'abc' as nvarchar(max))", "abc"},
         {"cast(null as nvarchar(max))", nil},
+        //{"cast('<root></root>' as xml)", nil},
     }
 
     for _, test := range values {
