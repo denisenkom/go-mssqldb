@@ -224,8 +224,9 @@ func decodeMoney4(buf []byte) int {
     panic("Not implemented")
 }
 
-func decodeGuid(buf []byte) int {
-    panic("Not implemented")
+func decodeGuid(buf []byte) (res [16]byte) {
+    copy(res[:], buf)
+    return
 }
 
 func decodeDecimal(column columnStruct, buf []byte) Decimal {
