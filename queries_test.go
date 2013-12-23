@@ -3,6 +3,7 @@ package mssql
 import (
     "testing"
     "time"
+    "bytes"
 )
 
 func TestSelect(t *testing.T) {
@@ -50,6 +51,7 @@ func TestSelect(t *testing.T) {
          time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.UTC) },
         //{"cast('2010-11-15T11:56:45.123+10:00' as datetimeoffset(3))",
         // time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.FixedZone("", 10*60*60)) },
+        {"cast(0x1234 as varbinary(2))", []byte{0x12, 0x34}},
     }
 
     for _, test := range values {
@@ -67,7 +69,19 @@ func TestSelect(t *testing.T) {
             t.Error("Scan failed:", test.sql, err.Error())
             return
         }
-        if retval != test.val {
+        var same bool
+        switch decodedval := retval.(type) {
+        case []byte:
+            switch decodedvaltest := test.val.(type) {
+            case []byte:
+                same = bytes.Equal(decodedval, decodedvaltest)
+            default:
+                same = false
+            }
+        default:
+            same = retval == test.val
+        }
+        if !same {
             t.Error("Values don't match", test.sql, retval, test.val)
             return
         }
