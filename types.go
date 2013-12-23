@@ -5,6 +5,7 @@ import (
     "encoding/binary"
     "math"
     "time"
+    "bytes"
 )
 
 
@@ -121,6 +122,39 @@ func readLongLenType(column *columnStruct, r io.Reader) (res []byte, err error) 
     panic("Not implemented")
 }
 
+// partially length prefixed stream
+// http://msdn.microsoft.com/en-us/library/dd340469.aspx
+func readPLPType(column *columnStruct, r io.Reader) (res []byte, err error) {
+    var size uint64
+    err = binary.Read(r, binary.LittleEndian, &size); if err != nil {
+        return
+    }
+    var buf *bytes.Buffer
+    switch size {
+    case 0xffffffffffffffff:
+        // null
+        return nil, nil
+    case 0xfffffffffffffffe:
+        // size unknown
+        buf = bytes.NewBuffer(make([]byte, 0, 1000))
+    default:
+        buf = bytes.NewBuffer(make([]byte, 0, size))
+    }
+    for true {
+        var chunksize uint32
+        err = binary.Read(r, binary.LittleEndian, &chunksize); if err != nil {
+            return
+        }
+        if chunksize == 0 {
+            break
+        }
+        _, err = io.CopyN(buf, r, int64(chunksize)); if err != nil {
+            return
+        }
+    }
+    return buf.Bytes(), nil
+}
+
 func readVarLen(column *columnStruct, r io.Reader) (err error) {
     switch column.TypeId {
     case typeDateN:
@@ -188,7 +222,7 @@ func readVarLen(column *columnStruct, r io.Reader) (err error) {
             panic("XMLTYPE not implemented")
         }
         if column.Size == 0xffff {
-            panic("PARTLENTYPE not yet supported")
+            column.Reader = readPLPType
         } else {
             column.Buffer = make([]byte, column.Size)
             column.Reader = readShortLenType
