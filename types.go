@@ -251,8 +251,19 @@ func decodeDate(buf []byte) time.Time {
     return time.Date(1, 1, 1 + days, 0, 0, 0, 0, time.UTC)
 }
 
-func decodeTime(buf []byte) int {
-    panic("Not implemented")
+func decodeTime(column columnStruct, buf []byte) time.Time {
+    var acc uint64 = 0
+    for i := len(buf) - 1; i >= 0; i-- {
+        acc <<= 8
+        acc |= uint64(buf[i])
+    }
+    for i := 0; i < 7 - int(column.Scale); i++ {
+        acc *= 10
+    }
+    ns := acc * 100
+    sec := ns / 1000000000
+    ns = ns % 1000000000
+    return time.Date(0, 1, 1, 0, 0, int(sec), int(ns), time.UTC)
 }
 
 func decodeDateTime2(buf []byte) int {
