@@ -95,3 +95,13 @@ func TestSelect(t *testing.T) {
         }
     }
 }
+
+
+func TestTrans(t *testing.T) {
+    conn := open(t)
+    defer conn.Close()
+
+    _, err := conn.Begin(); if err != nil {
+        t.Error("Begin failed", err.Error())
+    }
+}

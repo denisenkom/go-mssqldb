@@ -26,34 +26,51 @@ type MssqlTx struct {
 	c *MssqlConn
 }
 
-//func (tx *MssqlTx) Commit() error {
+func (tx *MssqlTx) Commit() error {
+    panic("not implemented")
 //	_, err := oleutil.CallMethod(tx.c.db, "CommitTrans")
 //	if err != nil {
 //		return err
 //	}
-//	return nil
-//}
-//
-//func (tx *MssqlTx) Rollback() error {
+    return nil
+}
+
+func (tx *MssqlTx) Rollback() error {
+    panic("not implemented")
 //	_, err := oleutil.CallMethod(tx.c.db, "Rollback")
 //	if err != nil {
 //		return err
 //	}
-//	return nil
-//}
-//
+    return nil
+}
+
 //func (c *MssqlConn) exec(cmd string) error {
 //	_, err := oleutil.CallMethod(c.db, "Execute", cmd)
 //	return err
 //}
 //
 func (c *MssqlConn) Begin() (driver.Tx, error) {
-//	_, err := oleutil.CallMethod(c.db, "BeginTrans")
-//	if err != nil {
-//		return nil, err
-//	}
-//	return &AdodbTx{c}, nil
-    return nil, nil
+    headers := []headerStruct{
+        {hdrtype: dataStmHdrTransDescr,
+         data: transDescrHdr{0, 1}.pack()},
+    }
+    if err := sendBeginXact(c.sess.buf, 0, "", headers); err != nil {
+        return nil, err
+    }
+    tokchan := make(chan tokenStruct, 5)
+    go processResponse(c.sess, tokchan)
+    for tok := range tokchan {
+        switch token := tok.(type) {
+        case doneStruct:
+            if token.Status & doneError != 0 {
+                return nil, c.sess.messages[0]
+            }
+            break
+        case error:
+            return nil, token
+        }
+    }
+    return &MssqlTx{c}, nil
 }
 
 func parseConnectionString(dsn string) (res map[string]string) {

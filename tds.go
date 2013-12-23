@@ -791,6 +791,19 @@ func readBVarchar(r io.Reader) (res string, err error) {
 }
 
 
+func writeBVarchar(w io.Writer, str string) (err error) {
+    if len(str) > 255 {
+        panic("Invalid size for B_VARBYTE string")
+    }
+    buf := []byte{uint8(len(str))}
+    _, err = w.Write(buf); if err != nil {
+        return
+    }
+    _, err = w.Write(str2ucs2(str))
+    return
+}
+
+
 func processError72(sess *TdsSession, token uint8, r io.Reader) (err error) {
     hdr := struct {
         Length uint16
@@ -905,6 +918,33 @@ func sendSqlBatch72(buf *TdsBuffer,
         return err
     }
     return buf.FinishPacket()
+}
+
+
+const (
+    tmGetDtcAddr = 0
+    tmPropagateXact = 1
+    tmBeginXact = 5
+    tmPromoteXact = 6
+    tmCommitXact = 7
+    tmRollbackXact = 8
+    tmSaveXact = 9
+)
+
+
+func sendBeginXact(buf *TdsBuffer, isolation uint8,
+                   name string, headers []headerStruct) (err error) {
+    buf.BeginPacket(TDS7_TRANS)
+    writeAllHeaders(buf, headers)
+    var rqtype uint16 = tmBeginXact
+    err = binary.Write(buf, binary.LittleEndian, &rqtype); if err != nil {
+        return
+    }
+    err = binary.Write(buf, binary.LittleEndian, &isolation); if err != nil {
+        return
+    }
+    err = writeBVarchar(buf, name)
+    return
 }
 
 
