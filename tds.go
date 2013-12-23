@@ -11,6 +11,7 @@ import (
     "encoding/binary"
     "io/ioutil"
     "unicode/utf8"
+    "math"
 )
 
 var ascii2utf8 *iconv.Converter
@@ -171,7 +172,12 @@ type columnStruct struct {
     Flags uint16
     ColName string
     TypeId uint8
-    TypeInfo typeInfoIface
+    Size int
+    Buffer []byte  // preallocated buffer for values
+    Scale uint8
+    Prec uint8
+    Collation collation
+    Reader func(column *columnStruct, r io.Reader) (res []byte, err error)
 }
 
 
@@ -569,7 +575,7 @@ func parseLoginAck(r io.Reader) (res loginAckStruct, err error) {
 
 
 // http://msdn.microsoft.com/en-us/library/dd357363.aspx
-func parseColMetadata72(r io.Reader, typemap map[uint8]typeParser) (columns []columnStruct, err error) {
+func parseColMetadata72(r io.Reader) (columns []columnStruct, err error) {
     var count uint16
     err = binary.Read(r, binary.LittleEndian, &count)
     if err != nil {
@@ -596,13 +602,28 @@ func parseColMetadata72(r io.Reader, typemap map[uint8]typeParser) (columns []co
         if err != nil {
             return nil, err
         }
-        if typemap[column.TypeId] == nil {
-            fmt.Println("unknown type id", column.TypeId)
-            return nil, streamErrorf("Unknown type id: %d", column.TypeId)
-        }
-        column.TypeInfo, err = typemap[column.TypeId](column.TypeId, r)
-        if err != nil {
-            return nil, err
+        switch column.TypeId {
+        case typeNull, typeInt1, typeBit, typeInt2, typeInt4, typeDateTim4,
+             typeFlt4, typeMoney, typeDateTime, typeFlt8, typeMoney4, typeInt8:
+            // those are fixed length types
+            switch column.TypeId {
+            case typeNull:
+                column.Size = 0
+            case typeInt1, typeBit:
+                column.Size = 1
+            case typeInt2:
+                column.Size = 2
+            case typeInt4, typeDateTim4, typeFlt4, typeMoney4:
+                column.Size = 4
+            case typeMoney, typeDateTime, typeFlt8, typeInt8:
+                column.Size = 8
+            }
+            column.Buffer = make([]byte, column.Size)
+            column.Reader = readFixedType
+        default:  // all others are VARLENTYPE
+            err = readVarLen(column, r); if err != nil {
+                return nil, err
+            }
         }
         column.ColName, err = readBVarchar(r)
         if err != nil {
@@ -617,9 +638,119 @@ func parseColMetadata72(r io.Reader, typemap map[uint8]typeParser) (columns []co
 func parseRow(r io.Reader, columns []columnStruct) (row []interface{}, err error) {
     row = make([]interface{}, len(columns))
     for i, column := range columns {
-        row[i], err = column.TypeInfo.readData(r)
-        if err != nil {
-            return nil, err
+        var buf []byte
+        buf, err = column.Reader(&column, r); if err != nil {
+            return
+        }
+        if buf == nil {
+            row[i] = nil
+            continue
+        }
+        switch column.TypeId {
+        case typeNull:
+            row[i] = nil
+        case typeInt1:
+            row[i] = buf[0]
+        case typeBit:
+            row[i] = buf[0] != 0
+        case typeInt2:
+            row[i] = int16(binary.LittleEndian.Uint16(buf))
+        case typeInt4:
+            row[i] = int32(binary.LittleEndian.Uint32(buf))
+        case typeDateTim4:
+            row[i] = decodeDateTim4(buf)
+        case typeFlt4:
+            row[i] = math.Float32frombits(binary.LittleEndian.Uint32(buf))
+        case typeMoney:
+            row[i] = decodeMoney(buf)
+        case typeDateTime:
+            row[i] = decodeDateTime(buf)
+        case typeFlt8:
+            row[i] = math.Float64frombits(binary.LittleEndian.Uint64(buf))
+        case typeMoney4:
+            row[i] = decodeMoney4(buf)
+        case typeInt8:
+            row[i] = int64(binary.LittleEndian.Uint64(buf))
+        case typeGuid:
+            row[i] = decodeGuid(buf)
+        case typeIntN:
+            switch len(buf) {
+            case 1:
+                row[i] = uint8(buf[0])
+            case 2:
+                row[i] = int16(binary.LittleEndian.Uint16(buf))
+            case 4:
+                row[i] = int32(binary.LittleEndian.Uint32(buf))
+            case 8:
+                row[i] = int64(binary.LittleEndian.Uint64(buf))
+            default:
+                err = streamErrorf("Invalid size for INTNTYPE")
+                return
+            }
+        case typeDecimal, typeNumeric, typeDecimalN, typeNumericN:
+            row[i] = decodeDecimal(column, buf)
+        case typeBitN:
+            if len(buf) != 1 {
+                err = streamErrorf("Invalid size for BITNTYPE")
+                return
+            }
+            row[i] = buf[0] != 0
+        case typeFltN:
+            switch len(buf) {
+            case 4:
+                row[i] = math.Float32frombits(binary.LittleEndian.Uint32(buf))
+            case 8:
+                row[i] = math.Float64frombits(binary.LittleEndian.Uint64(buf))
+            default:
+                err = streamErrorf("Invalid size for FLTNTYPE")
+                return
+            }
+        case typeMoneyN:
+            switch len(buf) {
+            case 4:
+                row[i] = decodeMoney4(buf)
+            case 8:
+                row[i] = decodeMoney(buf)
+            default:
+                err = streamErrorf("Invalid size for MONEYNTYPE")
+                return
+            }
+        case typeDateTimeN:
+            switch len(buf) {
+            case 4:
+                row[i] = decodeDateTim4(buf)
+            case 8:
+                row[i] = decodeDateTime(buf)
+            default:
+                err = streamErrorf("Invalid size for DATETIMENTYPE")
+                return
+            }
+        case typeDateN:
+            if len(buf) != 3 {
+                err = streamErrorf("Invalid size for DATENTYPE")
+                return
+            }
+            row[i] = decodeDate(buf)
+        case typeTimeN:
+            row[i] = decodeTime(buf)
+        case typeDateTime2N:
+            row[i] = decodeDateTime2(buf)
+        case typeDateTimeOffsetN:
+            row[i] = decodeDateTimeOffset(buf)
+        case typeChar, typeVarChar, typeBigVarChar, typeBigChar:
+            row[i] = decodeChar(column, buf)
+        case typeBinary, typeBigVarBin, typeBigBinary:
+            row[i] = buf
+        case typeNVarChar, typeNChar:
+            row[i], err = decodeNChar(column, buf); if err != nil {
+                return
+            }
+        case typeXml:
+            row[i] = decodeXml(column, buf)
+        case typeUdt:
+            row[i] = decodeUdt(column, buf)
+        default:
+            panic("Invalid typeid")
         }
     }
     return row, nil
@@ -830,19 +961,7 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
                 return nil
             }
         case token == tokenColMetadata:
-            typemap := map[uint8]typeParser{
-                typeInt4: typeInt4Parser,
-                typeBitN: typeBitNParser,
-                typeIntN: typeIntNParser,
-                typeFltN: typeFltNParser,
-                typeBigVarChar: typeBigVarCharParser,
-                typeNVarChar: typeNVarCharParser,
-                typeDecimalN: typeDecimalNParser,
-                typeNumericN: typeDecimalNParser,
-                typeDateTimeN: typeDateTimeNParser,
-                typeDateN: typeDateNParser,
-                }
-            columns, err = parseColMetadata72(sess.buf, typemap)
+            columns, err = parseColMetadata72(sess.buf)
             if err != nil {
                 ch <- err
                 close(ch)

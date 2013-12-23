@@ -16,7 +16,7 @@ func TestSelect(t *testing.T) {
 
     values := []testStruct{
         {"1", int32(1)},
-        {"cast(1 as tinyint)", int8(1)},
+        {"cast(1 as tinyint)", uint8(1)},
         {"cast(1 as smallint)", int16(1)},
         {"cast(1 as bigint)", int64(1)},
         {"cast(1 as bit)", true},
@@ -44,7 +44,7 @@ func TestSelect(t *testing.T) {
     for _, test := range values {
         stmt, err := conn.Prepare("select " + test.sql)
         if err != nil {
-            t.Error("Prepare failed:", err.Error())
+            t.Error("Prepare failed:", test.sql, err.Error())
             return
         }
         defer stmt.Close()
@@ -53,11 +53,11 @@ func TestSelect(t *testing.T) {
         var retval interface{}
         err = row.Scan(&retval)
         if err != nil {
-            t.Error("Scan failed:", err.Error())
+            t.Error("Scan failed:", test.sql, err.Error())
             return
         }
         if retval != test.val {
-            t.Error("Values don't match", retval, test.val)
+            t.Error("Values don't match", test.sql, retval, test.val)
             return
         }
     }
