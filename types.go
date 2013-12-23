@@ -119,7 +119,33 @@ func readShortLenType(column *columnStruct, r io.Reader) (res []byte, err error)
 }
 
 func readLongLenType(column *columnStruct, r io.Reader) (res []byte, err error) {
-    panic("Not implemented")
+    var textptrsize uint8
+    err = binary.Read(r, binary.LittleEndian, &textptrsize); if err != nil {
+        return
+    }
+    if textptrsize == 0 {
+        return nil, nil
+    }
+    textptr := make([]byte, textptrsize)
+    _, err = io.ReadFull(r, textptr); if err != nil {
+        return
+    }
+    var timestamp uint64
+    err = binary.Read(r, binary.LittleEndian, &timestamp); if err != nil {
+        return
+    }
+    var size int32
+    err = binary.Read(r, binary.LittleEndian, &size); if err != nil {
+        return
+    }
+    if size == -1 {
+        return nil, nil
+    }
+    buf := make([]byte, size)
+    _, err = io.ReadFull(r, buf); if err != nil {
+        return
+    }
+    return buf, nil
 }
 
 // partially length prefixed stream
@@ -258,6 +284,16 @@ func readVarLen(column *columnStruct, r io.Reader) (err error) {
             }
         case typeXml:
             panic("XMLTYPE not implemented")
+        }
+        // ignore tablenames
+        var numparts uint8
+        err = binary.Read(r, binary.LittleEndian, &numparts); if err != nil {
+            return
+        }
+        for i := 0; i < int(numparts); i++ {
+            _, err = readUsVarchar(r); if err != nil {
+                return
+            }
         }
         column.Size = int(longsize)
         column.Reader = readLongLenType
