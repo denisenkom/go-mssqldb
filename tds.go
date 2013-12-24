@@ -1024,6 +1024,10 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
         instance = parts[1]
     }
     user := params["user id"]
+    if len(user) == 0 {
+        err = fmt.Errorf("Login failed, User Id is required")
+        return
+    }
     password := params["password"]
     port = 1433
     if instance != "" {
@@ -1093,6 +1097,8 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
         case loginAckStruct:
             success = true
             sess.loginAck = token
+        case error:
+            return nil, token
         }
     }
     if !success {
