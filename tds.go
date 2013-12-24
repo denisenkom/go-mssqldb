@@ -12,6 +12,7 @@ import (
     "io/ioutil"
     "unicode/utf8"
     "math"
+    "time"
 )
 
 var ascii2utf8 *iconv.Converter
@@ -54,7 +55,7 @@ func _parse_instances(msg []byte) (map[string]map[string]string) {
 }
 
 func get_instances(address string) (map[string]map[string]string, error) {
-    conn, err := net.Dial("udp", address + ":1434")
+    conn, err := net.DialTimeout("udp", address + ":1434", 5 * time.Second)
     if err != nil {
         return nil, err
     }
@@ -1045,7 +1046,7 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
         }
     }
     addr := host + ":" + strconv.FormatUint(port, 10)
-    conn, err := net.Dial("tcp", addr)
+    conn, err := net.DialTimeout("tcp", addr, 5 * time.Second)
     if err != nil {
         f := "Unable to open tcp connection with host '%v': %v"
         return nil, fmt.Errorf(f, addr, err.Error())
