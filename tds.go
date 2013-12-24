@@ -158,6 +158,7 @@ type TdsSession struct {
     columns []columnStruct
 
     lastRow []interface{}
+    tranid []byte
 }
 
 
@@ -491,6 +492,7 @@ const (
     envTypLanguage = 2
     envTypCharset = 3
     envTypPacketSize = 4
+    envTypBeginTran = 8
 )
 
 
@@ -533,6 +535,15 @@ func processEnvChg(sess *TdsSession, token uint8, r io.Reader) (err error) {
                 return err
             }
             fmt.Println("packetsize", packetsize)
+        case envtype == envTypBeginTran:
+            _, err := readBVarByte(r)
+            if err != nil {
+                return err
+            }
+            sess.tranid, err = readBVarByte(r)
+            if err != nil {
+                return err
+            }
         default:
             return streamErrorf("unknown env type: %d", envtype)
         }
@@ -792,6 +803,17 @@ func readBVarchar(r io.Reader) (res string, err error) {
 }
 
 
+func readBVarByte(r io.Reader) (res []byte, err error) {
+    var length uint8
+    err = binary.Read(r, binary.LittleEndian, &length); if err != nil {
+        return
+    }
+    res = make([]byte, length)
+    _, err = io.ReadFull(r, res)
+    return
+}
+
+
 func writeBVarchar(w io.Writer, str string) (err error) {
     if len(str) > 255 {
         panic("Invalid size for B_VARBYTE string")
@@ -944,8 +966,10 @@ func sendBeginXact(buf *TdsBuffer, isolation uint8,
     err = binary.Write(buf, binary.LittleEndian, &isolation); if err != nil {
         return
     }
-    err = writeBVarchar(buf, name)
-    return
+    err = writeBVarchar(buf, name); if err != nil {
+        return
+    }
+    return buf.FinishPacket()
 }
 
 

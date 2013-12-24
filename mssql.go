@@ -22,11 +22,7 @@ type MssqlConn struct {
     sess *TdsSession
 }
 
-type MssqlTx struct {
-	c *MssqlConn
-}
-
-func (tx *MssqlTx) Commit() error {
+func (tx *MssqlConn) Commit() error {
     panic("not implemented")
 //	_, err := oleutil.CallMethod(tx.c.db, "CommitTrans")
 //	if err != nil {
@@ -35,7 +31,7 @@ func (tx *MssqlTx) Commit() error {
     return nil
 }
 
-func (tx *MssqlTx) Rollback() error {
+func (tx *MssqlConn) Rollback() error {
     panic("not implemented")
 //	_, err := oleutil.CallMethod(tx.c.db, "Rollback")
 //	if err != nil {
@@ -70,7 +66,9 @@ func (c *MssqlConn) Begin() (driver.Tx, error) {
             return nil, token
         }
     }
-    return &MssqlTx{c}, nil
+    // successful BEGINXACT request will return sess.tranid
+    // for started transaction
+    return c, nil
 }
 
 func parseConnectionString(dsn string) (res map[string]string) {
