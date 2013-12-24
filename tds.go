@@ -1092,7 +1092,9 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
         return nil, fmt.Errorf(f, addr, err.Error())
     }
 
-    outbuf := NewTdsBuffer(1024, conn)
+    toconn := timeoutConn{conn, 30 * time.Second}
+
+    outbuf := NewTdsBuffer(1024, toconn)
     sess := TdsSession{
         buf: outbuf,
         messages: make([]Error, 0, 20),
