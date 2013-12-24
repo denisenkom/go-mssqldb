@@ -22,21 +22,53 @@ type MssqlConn struct {
     sess *TdsSession
 }
 
-func (tx *MssqlConn) Commit() error {
-    panic("not implemented")
-//	_, err := oleutil.CallMethod(tx.c.db, "CommitTrans")
-//	if err != nil {
-//		return err
-//	}
+func (c *MssqlConn) Commit() error {
+    headers := []headerStruct{
+        {hdrtype: dataStmHdrTransDescr,
+         data: transDescrHdr{c.sess.tranid, 1}.pack()},
+    }
+    if err := sendCommitXact(c.sess.buf, headers, "", 0, 0, ""); err != nil {
+        return err
+    }
+
+    tokchan := make(chan tokenStruct, 5)
+    go processResponse(c.sess, tokchan)
+    for tok := range tokchan {
+        switch token := tok.(type) {
+        case doneStruct:
+            if token.Status & doneError != 0 {
+                return c.sess.messages[0]
+            }
+            break
+        case error:
+            return token
+        }
+    }
     return nil
 }
 
-func (tx *MssqlConn) Rollback() error {
-    panic("not implemented")
-//	_, err := oleutil.CallMethod(tx.c.db, "Rollback")
-//	if err != nil {
-//		return err
-//	}
+func (c *MssqlConn) Rollback() error {
+    headers := []headerStruct{
+        {hdrtype: dataStmHdrTransDescr,
+         data: transDescrHdr{c.sess.tranid, 1}.pack()},
+    }
+    if err := sendRollbackXact(c.sess.buf, headers, "", 0, 0, ""); err != nil {
+        return err
+    }
+
+    tokchan := make(chan tokenStruct, 5)
+    go processResponse(c.sess, tokchan)
+    for tok := range tokchan {
+        switch token := tok.(type) {
+        case doneStruct:
+            if token.Status & doneError != 0 {
+                return c.sess.messages[0]
+            }
+            break
+        case error:
+            return token
+        }
+    }
     return nil
 }
 
@@ -50,7 +82,7 @@ func (c *MssqlConn) Begin() (driver.Tx, error) {
         {hdrtype: dataStmHdrTransDescr,
          data: transDescrHdr{0, 1}.pack()},
     }
-    if err := sendBeginXact(c.sess.buf, 0, "", headers); err != nil {
+    if err := sendBeginXact(c.sess.buf, headers, 0, ""); err != nil {
         return nil, err
     }
     tokchan := make(chan tokenStruct, 5)

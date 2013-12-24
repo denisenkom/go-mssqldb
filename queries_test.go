@@ -101,7 +101,21 @@ func TestTrans(t *testing.T) {
     conn := open(t)
     defer conn.Close()
 
-    _, err := conn.Begin(); if err != nil {
+    tx, err := conn.Begin(); if err != nil {
         t.Error("Begin failed", err.Error())
+        return
+    }
+    err = tx.Commit(); if err != nil {
+        t.Error("Commit failed", err.Error())
+        return
+    }
+
+    tx, err = conn.Begin(); if err != nil {
+        t.Error("Begin failed", err.Error())
+        return
+    }
+    err = tx.Rollback(); if err != nil {
+        t.Error("Rollback failed", err.Error())
+        return
     }
 }

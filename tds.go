@@ -158,7 +158,7 @@ type TdsSession struct {
     columns []columnStruct
 
     lastRow []interface{}
-    tranid []byte
+    tranid uint64
 }
 
 
@@ -493,6 +493,8 @@ const (
     envTypCharset = 3
     envTypPacketSize = 4
     envTypBeginTran = 8
+    envTypCommitTran = 9
+    envTypRollbackTran = 10
 )
 
 
@@ -515,8 +517,8 @@ func processEnvChg(sess *TdsSession, token uint8, r io.Reader) (err error) {
             return err
         }
         fmt.Println("envtype", envtype)
-        switch {
-        case envtype == envTypDatabase:
+        switch envtype {
+        case envTypDatabase:
             _, err = readBVarchar(r)
             if err != nil {
                 return err
@@ -525,7 +527,7 @@ func processEnvChg(sess *TdsSession, token uint8, r io.Reader) (err error) {
             if err != nil {
                 return err
             }
-        case envtype == envTypPacketSize:
+        case envTypPacketSize:
             _, err := readBVarchar(r)
             if err != nil {
                 return err
@@ -535,15 +537,29 @@ func processEnvChg(sess *TdsSession, token uint8, r io.Reader) (err error) {
                 return err
             }
             fmt.Println("packetsize", packetsize)
-        case envtype == envTypBeginTran:
-            _, err := readBVarByte(r)
+        case envTypBeginTran:
+            tranid, err := readBVarByte(r)
+            if len(tranid) != 8 {
+                return streamErrorf("invalid size of transaction identifier: %d", len(tranid))
+            }
+            sess.tranid = binary.LittleEndian.Uint64(tranid)
             if err != nil {
                 return err
             }
-            sess.tranid, err = readBVarByte(r)
+            _, err = readBVarByte(r)
             if err != nil {
                 return err
             }
+        case envTypCommitTran, envTypRollbackTran:
+            _, err = readBVarByte(r)
+            if err != nil {
+                return err
+            }
+            _, err = readBVarByte(r)
+            if err != nil {
+                return err
+            }
+            sess.tranid = 0
         default:
             return streamErrorf("unknown env type: %d", envtype)
         }
@@ -939,35 +955,6 @@ func sendSqlBatch72(buf *TdsBuffer,
     _, err = buf.Write(str2ucs2(sqltext))
     if err != nil {
         return err
-    }
-    return buf.FinishPacket()
-}
-
-
-const (
-    tmGetDtcAddr = 0
-    tmPropagateXact = 1
-    tmBeginXact = 5
-    tmPromoteXact = 6
-    tmCommitXact = 7
-    tmRollbackXact = 8
-    tmSaveXact = 9
-)
-
-
-func sendBeginXact(buf *TdsBuffer, isolation uint8,
-                   name string, headers []headerStruct) (err error) {
-    buf.BeginPacket(TDS7_TRANS)
-    writeAllHeaders(buf, headers)
-    var rqtype uint16 = tmBeginXact
-    err = binary.Write(buf, binary.LittleEndian, &rqtype); if err != nil {
-        return
-    }
-    err = binary.Write(buf, binary.LittleEndian, &isolation); if err != nil {
-        return
-    }
-    err = writeBVarchar(buf, name); if err != nil {
-        return
     }
     return buf.FinishPacket()
 }
