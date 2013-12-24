@@ -78,6 +78,7 @@ func TestSendSqlBatch(t *testing.T) {
         })
     if err != nil {
         t.Error("Open connection failed:", err.Error())
+        return
     }
     defer conn.buf.transport.Close()
 
@@ -88,6 +89,7 @@ func TestSendSqlBatch(t *testing.T) {
     err = sendSqlBatch72(conn.buf, "select 1", headers)
     if err != nil {
         t.Error("Sending sql batch failed", err.Error())
+        return
     }
 
     ch := make(chan tokenStruct, 5)
@@ -111,6 +113,7 @@ func TestSendSqlBatch(t *testing.T) {
     case int32:
         if value != 1 {
             t.Error("Invalid value returned, should be 1", value)
+            return
         }
     }
 }
@@ -131,6 +134,7 @@ func open(t *testing.T) *sql.DB {
     conn, err := sql.Open("go-mssql", makeConnStr())
     if err != nil {
         t.Error("Open connection failed:", err.Error())
+        return nil
     }
     return conn
 }
@@ -140,6 +144,7 @@ func TestConnect(t *testing.T) {
     conn, err := sql.Open("go-mssql", makeConnStr())
     if err != nil {
         t.Error("Open connection failed:", err.Error())
+        return
     }
     defer conn.Close()
 }
@@ -169,6 +174,7 @@ func simpleQuery(conn *sql.DB, t *testing.T) (stmt *sql.Stmt) {
     stmt, err := conn.Prepare("select 1 as a")
     if err != nil {
         t.Error("Prepare failed:", err.Error())
+        return nil
     }
     return stmt
 }
@@ -194,9 +200,15 @@ func checkSimpleQuery(rows *sql.Rows, t *testing.T) {
 
 func TestQuery(t *testing.T) {
     conn := open(t)
+    if conn == nil {
+        return
+    }
     defer conn.Close()
 
     stmt := simpleQuery(conn, t)
+    if stmt == nil {
+        return
+    }
     defer stmt.Close()
 
     rows, err := stmt.Query()
@@ -225,12 +237,14 @@ func TestMultipleQueriesSequentialy(t *testing.T) {
     stmt, err := conn.Prepare("select 1 as a")
     if err != nil {
         t.Error("Prepare failed:", err.Error())
+        return
     }
     defer stmt.Close()
 
     rows, err := stmt.Query()
     if err != nil {
         t.Error("Query failed:", err.Error())
+        return
     }
     defer rows.Close()
     checkSimpleQuery(rows, t)
@@ -238,6 +252,7 @@ func TestMultipleQueriesSequentialy(t *testing.T) {
     rows, err = stmt.Query()
     if err != nil {
         t.Error("Query failed:", err.Error())
+        return
     }
     defer rows.Close()
     checkSimpleQuery(rows, t)
@@ -251,18 +266,21 @@ func TestMultipleQueryClose(t *testing.T) {
     stmt, err := conn.Prepare("select 1 as a")
     if err != nil {
         t.Error("Prepare failed:", err.Error())
+        return
     }
     defer stmt.Close()
 
     rows, err := stmt.Query()
     if err != nil {
         t.Error("Query failed:", err.Error())
+        return
     }
     rows.Close()
 
     rows, err = stmt.Query()
     if err != nil {
         t.Error("Query failed:", err.Error())
+        return
     }
     defer rows.Close()
     checkSimpleQuery(rows, t)
