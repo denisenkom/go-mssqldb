@@ -130,6 +130,7 @@ func TestParams(t *testing.T) {
         float64(1.12313554),
         true,
         false,
+        nil,
     }
 
     conn := open(t)

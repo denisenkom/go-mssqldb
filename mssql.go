@@ -328,6 +328,13 @@ func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
 
 
 func makeParam(val driver.Value) (res Param, err error) {
+    if val == nil {
+        res.ti.TypeId = typeNChar
+        res.buffer = nil
+        res.ti.Size = 2
+        res.ti.Writer = writeShortLenType
+        return
+    }
     switch val := val.(type) {
     case int64:
         res.ti.TypeId = typeIntN

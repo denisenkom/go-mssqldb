@@ -257,6 +257,12 @@ func readShortLenType(ti *typeInfo, r io.Reader) (res []byte, err error) {
 }
 
 func writeShortLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
+    if buf == nil {
+        err = binary.Write(w, binary.LittleEndian, uint16(0xffff)); if err != nil {
+            return
+        }
+        return
+    }
     if ti.Size > 0xfffe {
         panic("Invalid size for USHORTLEN_TYPE")
     }
