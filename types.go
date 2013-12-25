@@ -579,7 +579,7 @@ func makeDecl(ti typeInfo) string {
         return fmt.Sprintf("binary(%d)", ti.Size)
     case typeNChar:
         return fmt.Sprintf("nchar(%d)", ti.Size / 2)
-    case typeBit:
+    case typeBit, typeBitN:
         return "bit"
     default:
         panic(fmt.Sprintf("not implemented makeDecl for type", ti.TypeId))

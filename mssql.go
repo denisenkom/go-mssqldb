@@ -358,12 +358,13 @@ func makeParam(val driver.Value) (res Param, err error) {
         res.ti.Size = len(res.buffer)
         res.ti.Writer = writeShortLenType
     case bool:
-        res.ti.TypeId = typeBit
+        res.ti.TypeId = typeBitN
+        res.ti.Size = 1
         res.buffer = make([]byte, 1)
         if val {
             res.buffer[0] = 1
         }
-        res.ti.Writer = writeFixedType
+        res.ti.Writer = writeByteLenType
     case time.Time:
         res.ti.TypeId = typeDateTimeOffsetN
         panic("time not implemented")
