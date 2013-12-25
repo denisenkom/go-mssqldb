@@ -122,18 +122,40 @@ func TestTrans(t *testing.T) {
 
 
 func TestParams(t *testing.T) {
+    values := []interface{}{
+        int64(5),
+        "hello",
+        []byte{1,2,3},
+        //float32(1.2),
+        float64(1.12313554),
+    }
+
     conn := open(t)
     defer conn.Close()
 
-    row := conn.QueryRow("select @p1", 5)
-    var retval interface{}
-    err := row.Scan(&retval)
-    if err != nil {
-        t.Error("Scan failed", err.Error())
-        return
-    }
-    if retval != int64(5) {
-        t.Error("Value don't match", retval)
-        return
+    for _, val := range values {
+        row := conn.QueryRow("select @p1", val)
+        var retval interface{}
+        err := row.Scan(&retval)
+        if err != nil {
+            t.Error("Scan failed", err.Error())
+            return
+        }
+        var same bool
+        switch decodedval := retval.(type) {
+        case []byte:
+            switch decodedvaltest := val.(type) {
+            case []byte:
+                same = bytes.Equal(decodedval, decodedvaltest)
+            default:
+                same = false
+            }
+        default:
+            same = retval == val
+        }
+        if !same {
+            t.Error("Value don't match", retval, val)
+            return
+        }
     }
 }

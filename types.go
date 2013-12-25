@@ -566,6 +566,15 @@ func makeDecl(ti typeInfo) string {
         }
     case typeFlt8:
         return "float"
+    case typeFltN:
+        switch ti.Size {
+        case 4:
+            return "real"
+        case 8:
+            return "float"
+        default:
+            panic("invalid size of FLNNTYPE")
+        }
     case typeBigBinary:
         return fmt.Sprintf("binary(%d)", ti.Size)
     case typeNChar:

@@ -336,15 +336,17 @@ func makeParam(val driver.Value) (res Param, err error) {
         binary.LittleEndian.PutUint64(res.buffer, uint64(val))
         res.ti.Writer = writeByteLenType
     case float32:
-        res.ti.TypeId = typeFlt4
+        res.ti.TypeId = typeFltN
+        res.ti.Size = 4
         res.buffer = make([]byte, 4)
         binary.LittleEndian.PutUint32(res.buffer, math.Float32bits(val))
-        res.ti.Writer = writeFixedType
+        res.ti.Writer = writeByteLenType
     case float64:
-        res.ti.TypeId = typeFlt8
+        res.ti.TypeId = typeFltN
+        res.ti.Size = 8
         res.buffer = make([]byte, 8)
         binary.LittleEndian.PutUint64(res.buffer, math.Float64bits(val))
-        res.ti.Writer = writeFixedType
+        res.ti.Writer = writeByteLenType
     case []byte:
         res.ti.TypeId = typeBigBinary
         res.ti.Size = len(val)
