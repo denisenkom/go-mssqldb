@@ -4,11 +4,13 @@ import (
     "io"
     "database/sql"
     "database/sql/driver"
-//	"math"
+    "encoding/binary"
+    "math"
 //	"math/big"
-//	"time"
+    "time"
 //	"unsafe"
     "strings"
+    "fmt"
 )
 
 func init() {
@@ -170,7 +172,7 @@ func (s *MssqlStmt) NumInput() int {
 //	}
 //	c := int(val.Val)
 //	return c
-    return 0
+    return -1
 }
 
 //func (s *MssqlStmt) bind(args []driver.Value) error {
@@ -215,20 +217,59 @@ func (s *MssqlStmt) NumInput() int {
 //	return nil
 //}
 
-func (s *MssqlStmt) Query(args []driver.Value) (driver.Rows, error) {
-//	if err := s.bind(args); err != nil {
-//		return nil, err
-//	}
+func (s *MssqlStmt) Query(args []driver.Value) (res driver.Rows, err error) {
     headers := []headerStruct{
         {hdrtype: dataStmHdrTransDescr,
          data: transDescrHdr{0, 1}.pack()},
     }
-    if err := sendSqlBatch72(s.c.sess.buf, s.query, headers); err != nil {
-        return nil, err
+    if len(args) == 0 {
+        if err = sendSqlBatch72(s.c.sess.buf, s.query, headers); err != nil {
+            return
+        }
+    } else {
+        params := make([]Param, len(args) + 2)
+        decls := make([]string, len(args))
+        params[0], err = makeParam(s.query); if err != nil {
+            return
+        }
+        for i, val := range args {
+            params[i + 2], err = makeParam(val); if err != nil {
+                return
+            }
+            name := fmt.Sprintf("@p%d", i + 1)
+            params[i + 2].Name = name
+            decls[i] = fmt.Sprintf("%s %s", name, makeDecl(params[i + 2].ti))
+        }
+        params[1], err = makeParam(strings.Join(decls, ",")); if err != nil {
+            return
+        }
+        if err = sendRpc(s.c.sess.buf, headers, Sp_ExecuteSql, 0, params); err != nil {
+            return
+        }
     }
     tokchan := make(chan tokenStruct, 5)
     go processResponse(s.c.sess, tokchan)
-    return &MssqlRows{sess: s.c.sess, tokchan: tokchan}, nil
+    // process metadata
+    var cols []string
+    loop:
+    for tok := range tokchan {
+        switch token := tok.(type) {
+        case doneStruct:
+            if token.Status & doneError != 0 {
+                return nil, s.c.sess.messages[0]
+            }
+            return nil, nil
+        case []columnStruct:
+            cols = make([]string, len(token))
+            for i, col := range token {
+                cols[i] = col.ColName
+            }
+            break loop
+        case error:
+            return nil, token
+        }
+    }
+    return &MssqlRows{sess: s.c.sess, tokchan: tokchan, cols: cols}, nil
 }
 
 func (s *MssqlStmt) Exec(args []driver.Value) (driver.Result, error) {
@@ -244,11 +285,8 @@ func (s *MssqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 
 type MssqlRows struct {
     sess *TdsSession
-//	s    *AdodbStmt
-//	rc   *ole.IDispatch
     nc   int
     cols []string
-    gotcolumns bool
     tokchan chan tokenStruct
 }
 
@@ -257,44 +295,11 @@ func (rc *MssqlRows) Close() error {
     return nil
 }
 
-func (rc *MssqlRows) processMeta() error {
-    if rc.tokchan == nil {
-        return nil
-    }
-    for tok := range rc.tokchan {
-        switch token := tok.(type) {
-        case doneStruct:
-            rc.tokchan = nil
-            return nil
-        case []columnStruct:
-            rc.gotcolumns = true
-            rc.cols = make([]string, len(token))
-            for i, col := range token {
-                rc.cols[i] = col.ColName
-            }
-            return nil
-        case error:
-            rc.tokchan = nil
-            return token
-        }
-    }
-    return nil
-}
-
 func (rc *MssqlRows) Columns() (res []string) {
-    if !rc.gotcolumns {
-        rc.processMeta()
-    }
     return rc.cols
 }
 
 func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
-    if !rc.gotcolumns {
-        err = rc.processMeta()
-        if err != nil {
-            return err
-        }
-    }
     if rc.tokchan == nil {
         return io.EOF
     }
@@ -302,6 +307,9 @@ func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
         switch tokdata := tok.(type) {
         case doneStruct:
             rc.tokchan = nil
+            if tokdata.Status & doneError != 0 {
+                return rc.sess.messages[0]
+            }
             return io.EOF
         case []columnStruct:
             return streamErrorf("Unexpected token COLMETADATA")
@@ -316,4 +324,50 @@ func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
         }
     }
     return nil
+}
+
+
+func makeParam(val driver.Value) (res Param, err error) {
+    switch val := val.(type) {
+    case int64:
+        res.ti.TypeId = typeIntN
+        res.buffer = make([]byte, 8)
+        res.ti.Size = 8
+        binary.LittleEndian.PutUint64(res.buffer, uint64(val))
+        res.ti.Writer = writeByteLenType
+    case float32:
+        res.ti.TypeId = typeFlt4
+        res.buffer = make([]byte, 4)
+        binary.LittleEndian.PutUint32(res.buffer, math.Float32bits(val))
+        res.ti.Writer = writeFixedType
+    case float64:
+        res.ti.TypeId = typeFlt8
+        res.buffer = make([]byte, 8)
+        binary.LittleEndian.PutUint64(res.buffer, math.Float64bits(val))
+        res.ti.Writer = writeFixedType
+    case []byte:
+        res.ti.TypeId = typeBigBinary
+        res.ti.Size = len(val)
+        res.buffer = val
+        res.ti.Writer = writeShortLenType
+    case string:
+        res.ti.TypeId = typeNChar
+        res.buffer = str2ucs2(val)
+        res.ti.Size = len(res.buffer)
+        res.ti.Writer = writeShortLenType
+    case bool:
+        res.ti.TypeId = typeBit
+        res.buffer = make([]byte, 1)
+        if val {
+            res.buffer[0] = 1
+        }
+        res.ti.Writer = writeFixedType
+    case time.Time:
+        res.ti.TypeId = typeDateTimeOffsetN
+        panic("time not implemented")
+    default:
+        err = fmt.Errorf("mssql: unknown type for %T", val)
+        return
+    }
+    return
 }

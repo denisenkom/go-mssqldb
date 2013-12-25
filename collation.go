@@ -32,3 +32,11 @@ func readCollation(r io.Reader) (res collation, err error) {
     err = binary.Read(r, binary.LittleEndian, &res.sortId)
     return res, err
 }
+
+func writeCollation(w io.Writer, col collation) (err error) {
+    if err = binary.Write(w, binary.LittleEndian, col.lcidAndFlags); err != nil {
+        return
+    }
+    err = binary.Write(w, binary.LittleEndian, col.sortId)
+    return
+}

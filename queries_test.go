@@ -119,3 +119,21 @@ func TestTrans(t *testing.T) {
         return
     }
 }
+
+
+func TestParams(t *testing.T) {
+    conn := open(t)
+    defer conn.Close()
+
+    row := conn.QueryRow("select @p1", 5)
+    var retval interface{}
+    err := row.Scan(&retval)
+    if err != nil {
+        t.Error("Scan failed", err.Error())
+        return
+    }
+    if retval != int64(5) {
+        t.Error("Value don't match", retval)
+        return
+    }
+}

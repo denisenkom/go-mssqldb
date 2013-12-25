@@ -6,6 +6,7 @@ import (
     "math"
     "time"
     "bytes"
+    "fmt"
 )
 
 
@@ -67,6 +68,127 @@ const (
 )
 
 
+// TYPE_INFO rule
+// http://msdn.microsoft.com/en-us/library/dd358284.aspx
+type typeInfo struct {
+    TypeId uint8
+    Size int
+    Scale uint8
+    Prec uint8
+    Buffer []byte
+    Collation collation
+    Reader func(ti *typeInfo, r io.Reader) (res []byte, err error)
+    Writer func(w io.Writer, ti typeInfo, buf []byte) (err error)
+}
+
+
+func readTypeInfo(r io.Reader) (res typeInfo, err error) {
+    err = binary.Read(r, binary.LittleEndian, &res.TypeId)
+    if err != nil {
+        return
+    }
+    switch res.TypeId {
+    case typeNull, typeInt1, typeBit, typeInt2, typeInt4, typeDateTim4,
+            typeFlt4, typeMoney, typeDateTime, typeFlt8, typeMoney4, typeInt8:
+        // those are fixed length types
+        switch res.TypeId {
+        case typeNull:
+            res.Size = 0
+        case typeInt1, typeBit:
+            res.Size = 1
+        case typeInt2:
+            res.Size = 2
+        case typeInt4, typeDateTim4, typeFlt4, typeMoney4:
+            res.Size = 4
+        case typeMoney, typeDateTime, typeFlt8, typeInt8:
+            res.Size = 8
+        }
+        res.Reader = readFixedType
+        res.Buffer = make([]byte, res.Size)
+    default:  // all others are VARLENTYPE
+        err = readVarLen(&res, r); if err != nil {
+            return
+        }
+    }
+    return
+}
+
+
+func writeTypeInfo(w io.Writer, ti typeInfo) (err error) {
+    err = binary.Write(w, binary.LittleEndian, ti.TypeId); if err != nil {
+        return
+    }
+    switch ti.TypeId {
+    case typeNull, typeInt1, typeBit, typeInt2, typeInt4, typeDateTim4,
+            typeFlt4, typeMoney, typeDateTime, typeFlt8, typeMoney4, typeInt8:
+        // those are fixed length types
+    default:  // all others are VARLENTYPE
+        err = writeVarLen(w, ti); if err != nil {
+            return
+        }
+    }
+    return
+}
+
+
+func writeVarLen(w io.Writer, ti typeInfo) (err error) {
+    switch ti.TypeId {
+    case typeDateN:
+        ;
+    case typeTimeN, typeDateTime2N, typeDateTimeOffsetN:
+        if err = binary.Write(w, binary.LittleEndian, ti.Scale); err != nil {
+            return
+        }
+    case typeGuid, typeIntN, typeDecimal, typeNumeric,
+            typeBitN, typeDecimalN, typeNumericN, typeFltN,
+            typeMoneyN, typeDateTimeN, typeChar,
+            typeVarChar, typeBinary, typeVarBinary:
+        // byle len types
+        if ti.Size > 0xff {
+            panic("Invalid size for BYLELEN_TYPE")
+        }
+        if err = binary.Write(w, binary.LittleEndian, uint8(ti.Size)); err != nil {
+            return
+        }
+        switch ti.TypeId {
+        case typeDecimal, typeNumeric, typeDecimalN, typeNumericN:
+            err = binary.Write(w, binary.LittleEndian, ti.Prec); if err != nil {
+                return
+            }
+            err = binary.Write(w, binary.LittleEndian, ti.Scale); if err != nil {
+                return
+            }
+        }
+    case typeBigVarBin, typeBigVarChar, typeBigBinary, typeBigChar,
+            typeNVarChar, typeNChar, typeXml, typeUdt:
+        // short len types
+        if ti.Size > 0xfffe {
+            panic("Invalid size for USHORTLEN_TYPE")
+        }
+        if err = binary.Write(w, binary.LittleEndian, uint16(ti.Size)); err != nil {
+            return
+        }
+        switch ti.TypeId {
+        case typeBigVarChar, typeBigChar, typeNVarChar, typeNChar:
+            if err = writeCollation(w, ti.Collation); err != nil {
+                return
+            }
+        case typeXml:
+            var schemapresent uint8 = 0
+            if err = binary.Write(w, binary.LittleEndian, schemapresent); err != nil {
+                return
+            }
+        }
+    case typeText, typeImage, typeNText, typeVariant:
+        // LONGLEN_TYPE
+        panic("LONGLEN_TYPE not implemented")
+    default:
+        panic("Invalid type")
+    }
+    return
+}
+
+
 // http://msdn.microsoft.com/en-us/library/ee780895.aspx
 func decodeDateTim4(buf []byte) time.Time {
     days := binary.LittleEndian.Uint16(buf)
@@ -85,12 +207,17 @@ func decodeDateTime(buf []byte) time.Time {
 }
 
 
-func readFixedType(column *columnStruct, r io.Reader) (res []byte, err error) {
-    _, err = io.ReadFull(r, column.Buffer)
-    return column.Buffer, nil
+func readFixedType(ti *typeInfo, r io.Reader) (res []byte, err error) {
+    _, err = io.ReadFull(r, ti.Buffer)
+    return ti.Buffer, nil
 }
 
-func readByteLenType(column *columnStruct, r io.Reader) (res []byte, err error) {
+func writeFixedType(w io.Writer, ti typeInfo, buf []byte) (err error) {
+    _, err = w.Write(buf)
+    return
+}
+
+func readByteLenType(ti *typeInfo, r io.Reader) (res []byte, err error) {
     var size uint8
     err = binary.Read(r, binary.LittleEndian, &size); if err != nil {
         return
@@ -98,13 +225,24 @@ func readByteLenType(column *columnStruct, r io.Reader) (res []byte, err error) 
     if size == 0 {
         return nil, nil
     }
-    _, err = io.ReadFull(r, column.Buffer[:size]); if err != nil {
+    _, err = io.ReadFull(r, ti.Buffer[:size]); if err != nil {
         return
     }
-    return column.Buffer[:size], nil
+    return ti.Buffer[:size], nil
 }
 
-func readShortLenType(column *columnStruct, r io.Reader) (res []byte, err error) {
+func writeByteLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
+    if ti.Size > 0xff {
+        panic("Invalid size for BYTELEN_TYPE")
+    }
+    err = binary.Write(w, binary.LittleEndian, uint8(ti.Size)); if err != nil {
+        return
+    }
+    _, err = w.Write(buf)
+    return
+}
+
+func readShortLenType(ti *typeInfo, r io.Reader) (res []byte, err error) {
     var size uint16
     err = binary.Read(r, binary.LittleEndian, &size); if err != nil {
         return
@@ -112,13 +250,24 @@ func readShortLenType(column *columnStruct, r io.Reader) (res []byte, err error)
     if size == 0xffff {
         return nil, nil
     }
-    _, err = io.ReadFull(r, column.Buffer[:size]); if err != nil {
+    _, err = io.ReadFull(r, ti.Buffer[:size]); if err != nil {
         return
     }
-    return column.Buffer[:size], nil
+    return ti.Buffer[:size], nil
 }
 
-func readLongLenType(column *columnStruct, r io.Reader) (res []byte, err error) {
+func writeShortLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
+    if ti.Size > 0xfffe {
+        panic("Invalid size for USHORTLEN_TYPE")
+    }
+    err = binary.Write(w, binary.LittleEndian, uint16(ti.Size)); if err != nil {
+        return
+    }
+    _, err = w.Write(buf)
+    return
+}
+
+func readLongLenType(ti *typeInfo, r io.Reader) (res []byte, err error) {
     var textptrsize uint8
     err = binary.Read(r, binary.LittleEndian, &textptrsize); if err != nil {
         return
@@ -150,7 +299,7 @@ func readLongLenType(column *columnStruct, r io.Reader) (res []byte, err error) 
 
 // partially length prefixed stream
 // http://msdn.microsoft.com/en-us/library/dd340469.aspx
-func readPLPType(column *columnStruct, r io.Reader) (res []byte, err error) {
+func readPLPType(ti *typeInfo, r io.Reader) (res []byte, err error) {
     var size uint64
     err = binary.Read(r, binary.LittleEndian, &size); if err != nil {
         return
@@ -181,35 +330,35 @@ func readPLPType(column *columnStruct, r io.Reader) (res []byte, err error) {
     return buf.Bytes(), nil
 }
 
-func readVarLen(column *columnStruct, r io.Reader) (err error) {
-    switch column.TypeId {
+func readVarLen(ti *typeInfo, r io.Reader) (err error) {
+    switch ti.TypeId {
     case typeDateN:
-        column.Size = 3
-        column.Reader = readByteLenType
-        column.Buffer = make([]byte, column.Size)
+        ti.Size = 3
+        ti.Reader = readByteLenType
+        ti.Buffer = make([]byte, ti.Size)
     case typeTimeN, typeDateTime2N, typeDateTimeOffsetN:
-        err = binary.Read(r, binary.LittleEndian, &column.Scale); if err != nil {
+        err = binary.Read(r, binary.LittleEndian, &ti.Scale); if err != nil {
             return
         }
-        switch column.Scale {
+        switch ti.Scale {
         case 1, 2:
-            column.Size = 3
+            ti.Size = 3
         case 3, 4:
-            column.Size = 4
+            ti.Size = 4
         case 5, 6, 7:
-            column.Size = 5
+            ti.Size = 5
         default:
             err = streamErrorf("Invalid scale for TIME/DATETIME2/DATETIMEOFFSET type")
             return
         }
-        switch column.TypeId {
+        switch ti.TypeId {
         case typeDateTime2N:
-            column.Size += 3
+            ti.Size += 3
         case typeDateTimeOffsetN:
-            column.Size += 5
+            ti.Size += 5
         }
-        column.Reader = readByteLenType
-        column.Buffer = make([]byte, column.Size)
+        ti.Reader = readByteLenType
+        ti.Buffer = make([]byte, ti.Size)
     case typeGuid, typeIntN, typeDecimal, typeNumeric,
             typeBitN, typeDecimalN, typeNumericN, typeFltN,
             typeMoneyN, typeDateTimeN, typeChar,
@@ -219,18 +368,18 @@ func readVarLen(column *columnStruct, r io.Reader) (err error) {
         err = binary.Read(r, binary.LittleEndian, &bytesize); if err != nil {
             return
         }
-        column.Size = int(bytesize)
-        column.Buffer = make([]byte, column.Size)
-        switch column.TypeId {
+        ti.Size = int(bytesize)
+        ti.Buffer = make([]byte, ti.Size)
+        switch ti.TypeId {
         case typeDecimal, typeNumeric, typeDecimalN, typeNumericN:
-            err = binary.Read(r, binary.LittleEndian, &column.Prec); if err != nil {
+            err = binary.Read(r, binary.LittleEndian, &ti.Prec); if err != nil {
                 return
             }
-            err = binary.Read(r, binary.LittleEndian, &column.Scale); if err != nil {
+            err = binary.Read(r, binary.LittleEndian, &ti.Scale); if err != nil {
                 return
             }
         }
-        column.Reader = readByteLenType
+        ti.Reader = readByteLenType
     case typeBigVarBin, typeBigVarChar, typeBigBinary, typeBigChar,
             typeNVarChar, typeNChar, typeXml, typeUdt:
         // short len types
@@ -238,10 +387,10 @@ func readVarLen(column *columnStruct, r io.Reader) (err error) {
         err = binary.Read(r, binary.LittleEndian, &ushortsize); if err != nil {
             return
         }
-        column.Size = int(ushortsize)
-        switch column.TypeId {
+        ti.Size = int(ushortsize)
+        switch ti.TypeId {
         case typeBigVarChar, typeBigChar, typeNVarChar, typeNChar:
-            column.Collation, err = readCollation(r); if err != nil {
+            ti.Collation, err = readCollation(r); if err != nil {
                 return
             }
         case typeXml:
@@ -265,11 +414,11 @@ func readVarLen(column *columnStruct, r io.Reader) (err error) {
                 }
             }
         }
-        if column.Size == 0xffff {
-            column.Reader = readPLPType
+        if ti.Size == 0xffff {
+            ti.Reader = readPLPType
         } else {
-            column.Buffer = make([]byte, column.Size)
-            column.Reader = readShortLenType
+            ti.Buffer = make([]byte, ti.Size)
+            ti.Reader = readShortLenType
         }
     case typeText, typeImage, typeNText, typeVariant:
         // LONGLEN_TYPE
@@ -277,9 +426,9 @@ func readVarLen(column *columnStruct, r io.Reader) (err error) {
         err = binary.Read(r, binary.LittleEndian, &longsize); if err != nil {
             return
         }
-        switch column.TypeId {
+        switch ti.TypeId {
         case typeText, typeNText:
-            column.Collation, err = readCollation(r); if err != nil {
+            ti.Collation, err = readCollation(r); if err != nil {
                 return
             }
         case typeXml:
@@ -295,10 +444,10 @@ func readVarLen(column *columnStruct, r io.Reader) (err error) {
                 return
             }
         }
-        column.Size = int(longsize)
-        column.Reader = readLongLenType
+        ti.Size = int(longsize)
+        ti.Reader = readLongLenType
     default:
-        return streamErrorf("Invalid type %d", column.TypeId)
+        return streamErrorf("Invalid type %d", ti.TypeId)
     }
     return
 }
@@ -317,13 +466,13 @@ func decodeGuid(buf []byte) (res [16]byte) {
     return
 }
 
-func decodeDecimal(column columnStruct, buf []byte) Decimal {
+func decodeDecimal(ti typeInfo, buf []byte) Decimal {
     var sign uint8
     sign = buf[0]
     dec := Decimal{
         positive: sign != 0,
-        prec: column.Prec,
-        scale: column.Scale,
+        prec: ti.Prec,
+        scale: ti.Scale,
     }
     buf = buf[1:]
     for i := 0; i < len(buf) / 4; i++ {
@@ -357,8 +506,8 @@ func decodeTimeInt(scale uint8, buf []byte) (sec int, ns int) {
     return
 }
 
-func decodeTime(column columnStruct, buf []byte) time.Time {
-    sec, ns := decodeTimeInt(column.Scale, buf)
+func decodeTime(ti typeInfo, buf []byte) time.Time {
+    sec, ns := decodeTimeInt(ti.Scale, buf)
     return time.Date(1, 1, 1, 0, 0, sec, ns, time.UTC)
 }
 
@@ -380,7 +529,7 @@ func decodeDateTimeOffset(scale uint8, buf []byte) time.Time {
                      time.FixedZone("", offset * 60))
 }
 
-func decodeChar(column columnStruct, buf []byte) string {
+func decodeChar(ti typeInfo, buf []byte) string {
     return string(buf)
 }
 
@@ -394,4 +543,36 @@ func decodeXml(column columnStruct, buf []byte) int {
 
 func decodeUdt(column columnStruct, buf []byte) int {
     panic("Not implemented")
+}
+
+func makeDecl(ti typeInfo) string {
+    switch ti.TypeId {
+    case typeInt8:
+        return "bigint"
+    case typeFlt4:
+        return "real"
+    case typeIntN:
+        switch ti.Size {
+        case 1:
+            return "tinyint"
+        case 2:
+            return "smallint"
+        case 4:
+            return "int"
+        case 8:
+            return "bigint"
+        default:
+            panic("invalid size of INTNTYPE")
+        }
+    case typeFlt8:
+        return "float"
+    case typeBigBinary:
+        return fmt.Sprintf("binary(%d)", ti.Size)
+    case typeNChar:
+        return fmt.Sprintf("nchar(%d)", ti.Size / 2)
+    case typeBit:
+        return "bit"
+    default:
+        panic(fmt.Sprintf("not implemented makeDecl for type", ti.TypeId))
+    }
 }

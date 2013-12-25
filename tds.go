@@ -173,13 +173,7 @@ type columnStruct struct {
     UserType uint32
     Flags uint16
     ColName string
-    TypeId uint8
-    Size int
-    Buffer []byte  // preallocated buffer for values
-    Scale uint8
-    Prec uint8
-    Collation collation
-    Reader func(column *columnStruct, r io.Reader) (res []byte, err error)
+    ti typeInfo
 }
 
 
@@ -626,32 +620,8 @@ func parseColMetadata72(r io.Reader) (columns []columnStruct, err error) {
         }
 
         // parsing TYPE_INFO structure
-        err = binary.Read(r, binary.LittleEndian, &column.TypeId)
-        if err != nil {
-            return nil, err
-        }
-        switch column.TypeId {
-        case typeNull, typeInt1, typeBit, typeInt2, typeInt4, typeDateTim4,
-             typeFlt4, typeMoney, typeDateTime, typeFlt8, typeMoney4, typeInt8:
-            // those are fixed length types
-            switch column.TypeId {
-            case typeNull:
-                column.Size = 0
-            case typeInt1, typeBit:
-                column.Size = 1
-            case typeInt2:
-                column.Size = 2
-            case typeInt4, typeDateTim4, typeFlt4, typeMoney4:
-                column.Size = 4
-            case typeMoney, typeDateTime, typeFlt8, typeInt8:
-                column.Size = 8
-            }
-            column.Buffer = make([]byte, column.Size)
-            column.Reader = readFixedType
-        default:  // all others are VARLENTYPE
-            err = readVarLen(column, r); if err != nil {
-                return nil, err
-            }
+        column.ti, err = readTypeInfo(r); if err != nil {
+            return
         }
         column.ColName, err = readBVarchar(r)
         if err != nil {
@@ -667,14 +637,14 @@ func parseRow(r io.Reader, columns []columnStruct) (row []interface{}, err error
     row = make([]interface{}, len(columns))
     for i, column := range columns {
         var buf []byte
-        buf, err = column.Reader(&column, r); if err != nil {
+        buf, err = column.ti.Reader(&column.ti, r); if err != nil {
             return
         }
         if buf == nil {
             row[i] = nil
             continue
         }
-        switch column.TypeId {
+        switch column.ti.TypeId {
         case typeNull:
             row[i] = nil
         case typeInt1:
@@ -716,7 +686,7 @@ func parseRow(r io.Reader, columns []columnStruct) (row []interface{}, err error
                 return
             }
         case typeDecimal, typeNumeric, typeDecimalN, typeNumericN:
-            row[i] = decodeDecimal(column, buf)
+            row[i] = decodeDecimal(column.ti, buf)
         case typeBitN:
             if len(buf) != 1 {
                 err = streamErrorf("Invalid size for BITNTYPE")
@@ -760,13 +730,13 @@ func parseRow(r io.Reader, columns []columnStruct) (row []interface{}, err error
             }
             row[i] = decodeDate(buf)
         case typeTimeN:
-            row[i] = decodeTime(column, buf)
+            row[i] = decodeTime(column.ti, buf)
         case typeDateTime2N:
-            row[i] = decodeDateTime2(column.Scale, buf)
+            row[i] = decodeDateTime2(column.ti.Scale, buf)
         case typeDateTimeOffsetN:
-            row[i] = decodeDateTimeOffset(column.Scale, buf)
+            row[i] = decodeDateTimeOffset(column.ti.Scale, buf)
         case typeChar, typeVarChar, typeBigVarChar, typeBigChar, typeText:
-            row[i] = decodeChar(column, buf)
+            row[i] = decodeChar(column.ti, buf)
         case typeBinary, typeBigVarBin, typeBigBinary, typeImage:
             row[i] = buf
         case typeNVarChar, typeNChar, typeNText:
@@ -809,6 +779,21 @@ func readUsVarchar(r io.Reader) (res string, err error) {
 }
 
 
+func writeUsVarChar(w io.Writer, s string) (err error) {
+    buf := str2ucs2(s)
+    var numchars int = len(buf) / 2
+    if numchars > 0xffff {
+        panic("invalid size for US_VARCHAR")
+    }
+    err = binary.Write(w, binary.LittleEndian, uint16(numchars))
+    if err != nil {
+        return
+    }
+    _, err = w.Write(buf)
+    return
+}
+
+
 func readBVarchar(r io.Reader) (res string, err error) {
     var numchars uint8
     err = binary.Read(r, binary.LittleEndian, &numchars)
@@ -816,6 +801,21 @@ func readBVarchar(r io.Reader) (res string, err error) {
         return "", err
     }
     return readUcs2(r, int(numchars))
+}
+
+
+func writeBVarChar(w io.Writer, s string) (err error) {
+    buf := str2ucs2(s)
+    var numchars int = len(buf) / 2
+    if numchars > 0xff {
+        panic("invalid size for B_VARCHAR")
+    }
+    err = binary.Write(w, binary.LittleEndian, uint8(numchars))
+    if err != nil {
+        return
+    }
+    _, err = w.Write(buf)
+    return
 }
 
 
