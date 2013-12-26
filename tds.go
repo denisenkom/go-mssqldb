@@ -660,8 +660,8 @@ func connect(params map[string]string) (res *tdsSession, err error) {
     tokchan := make(chan tokenStruct, 5)
     go processResponse(&sess, tokchan)
     sess.tokenMap = map[uint8]tokenFunc{
-        TDS_ENVCHANGE_TOKEN: processEnvChg,
-        TDS_ERROR_TOKEN: processError72,
+        tokenEnvChange: processEnvChg,
+        tokenError: processError72,
     }
     success := false
     for tok := range tokchan {

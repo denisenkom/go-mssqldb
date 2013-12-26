@@ -13,11 +13,11 @@ import (
 const (
     tokenReturnStatus = 121  // 0x79
     tokenColMetadata = 129  // 0x81
-    TDS_ERROR_TOKEN = 170  // 0xAA
-    TDS_LOGINACK_TOKEN = 173  // 0xad
+    tokenError = 170  // 0xAA
+    tokenLoginAck = 173  // 0xad
     tokenRow = 209  // 0xd1
-    TDS_ENVCHANGE_TOKEN = 227  // 0xE3
-    TDS_DONE_TOKEN = 253  // 0xFD
+    tokenEnvChange = 227  // 0xE3
+    tokenDone = 253  // 0xFD
     tokenDoneProc = 254
     tokenDoneInProc = 255
     )
@@ -448,7 +448,7 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
                 return err
             }
             ch <- returnStatus
-        case TDS_LOGINACK_TOKEN:
+        case tokenLoginAck:
             loginAck, err := parseLoginAck(sess.buf)
             if err != nil {
                 ch <- err
@@ -464,7 +464,7 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
                 return err
             }
             ch <- done
-        case TDS_DONE_TOKEN, tokenDoneProc:
+        case tokenDone, tokenDoneProc:
             done, err := parseDone(sess.buf)
             if err != nil {
                 ch <- err
