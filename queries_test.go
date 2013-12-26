@@ -5,6 +5,7 @@ import (
     "time"
     "bytes"
     "database/sql"
+    "net"
 )
 
 func TestSelect(t *testing.T) {
@@ -173,6 +174,21 @@ func TestExec(t *testing.T) {
     res, err := conn.Exec("create table ##abc (fld int)")
     if err != nil {
         t.Fatal("Exec failed", err.Error())
+    }
+    _ = res
+}
+
+
+func TestTimeout(t *testing.T) {
+    conn := open(t)
+    defer conn.Close()
+
+    res, err := conn.Exec("waitfor delay '00:31'")
+    if err == nil {
+        t.Fatal("Exec should fail with timeout")
+    }
+    if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
+        t.Fatal("Exec should fail with timeout, failed with", err)
     }
     _ = res
 }
