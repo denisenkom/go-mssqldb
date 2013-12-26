@@ -70,36 +70,42 @@ func getInstances(address string) (map[string]map[string]string, error) {
     return parseInstances(resp[:read]), nil
 }
 
-const TDS70 = 0x70000000
-const TDS71 = 0x71000000
-const TDS71rev1 = 0x71000001
-const TDS72 = 0x72090002
-const TDS73A = 0x730A0003
-const TDS73 = TDS73A
-const TDS73B = 0x730B0003
-const TDS74 = 0x74000004
-
-const TDS_QUERY = 1
-const TDS_LOGIN = 2
-const TDS_RPC = 3
-const TDS_REPLY = 4
-const TDS_CANCEL = 6
-const TDS_BULK = 7
-const TDS7_TRANS = 14
-const TDS_NORMAL = 15
-const TDS7_LOGIN = 16
-const TDS7_AUTH = 17
-const TDS71_PRELOGIN = 18
-
-
+// tds versions
 const (
-    VERSION = 0
-    ENCRYPTION = 1
-    INSTOPT = 2
-    THREADID = 3
-    MARS = 4
-    TRACEID = 5
-    TERMINATOR = 0xff
+    TDS70 = 0x70000000
+    TDS71 = 0x71000000
+    TDS71rev1 = 0x71000001
+    TDS72 = 0x72090002
+    TDS73A = 0x730A0003
+    TDS73 = TDS73A
+    TDS73B = 0x730B0003
+    TDS74 = 0x74000004
+    )
+
+// packet types
+const (
+    packSQLBatch = 1
+    packRPCRequest = 3
+    packReply = 4
+    packCancel = 6
+    packBulkLoadBCP = 7
+    packTransMgrReq = 14
+    packNormal = 15
+    packLogin7 = 16
+    packSSPIMessage = 17
+    packPrelogin = 18
+    )
+
+
+// prelogin fields
+const (
+    preloginVERSION = 0
+    preloginENCRYPTION = 1
+    preloginINSTOPT = 2
+    preloginTHREADID = 3
+    preloginMARS = 4
+    preloginTRACEID = 5
+    preloginTERMINATOR = 0xff
 )
 
 
@@ -144,14 +150,14 @@ func writePrelogin(w * tdsBuffer, instance string) error {
     instance_buf = append(instance_buf, 0)  // zero terminate instance name
 
     fields := map[uint8][]byte{
-        VERSION: {0, 0, 0, 0, 0, 0},
-        ENCRYPTION: {2},  // encryption not supported
-        INSTOPT: instance_buf,
-        THREADID: {0, 0, 0, 0},
-        MARS: {0},  // MARS disabled
+        preloginVERSION: {0, 0, 0, 0, 0, 0},
+        preloginENCRYPTION: {2},  // encryption not supported
+        preloginINSTOPT: instance_buf,
+        preloginTHREADID: {0, 0, 0, 0},
+        preloginMARS: {0},  // MARS disabled
         }
 
-    w.BeginPacket(TDS71_PRELOGIN)
+    w.BeginPacket(packPrelogin)
     offset := uint16(5 * len(fields) + 1)
     // writing header
     for k, v := range fields {
@@ -170,7 +176,7 @@ func writePrelogin(w * tdsBuffer, instance string) error {
         }
         offset += size
     }
-    err = w.WriteByte(TERMINATOR)
+    err = w.WriteByte(preloginTERMINATOR)
     if err != nil {
         return err
     }
@@ -205,7 +211,7 @@ func readPrelogin(r * tdsBuffer) (map[uint8][]byte, error) {
     results := map[uint8][]byte{}
     for true {
         rec_type := struct_buf[offset]
-        if rec_type == TERMINATOR {
+        if rec_type == preloginTERMINATOR {
             break
         }
 
@@ -312,7 +318,7 @@ func manglePassword(password string) []byte {
 
 
 func sendLogin(w * tdsBuffer, login login) error {
-    w.BeginPacket(TDS7_LOGIN)
+    w.BeginPacket(packLogin7)
     hostname := str2ucs2(login.HostName)
     username := str2ucs2(login.UserName)
     password := manglePassword(login.Password)
@@ -555,7 +561,7 @@ func writeAllHeaders(w io.Writer, headers []headerStruct) (err error) {
 func sendSqlBatch72(buf *tdsBuffer,
                   sqltext string,
                   headers []headerStruct) (err error) {
-    buf.BeginPacket(TDS_QUERY)
+    buf.BeginPacket(packSQLBatch)
 
     writeAllHeaders(buf, headers)
 

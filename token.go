@@ -420,7 +420,7 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
         close(ch)
         return err
     }
-    if packet_type != TDS_REPLY {
+    if packet_type != packReply {
         ch <- err
         close(ch)
         return fmt.Errorf("Error: invalid response packet type, expected REPLY, actual: %d", packet_type)

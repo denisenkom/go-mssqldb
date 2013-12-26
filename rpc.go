@@ -64,7 +64,7 @@ var (
 
 // http://msdn.microsoft.com/en-us/library/dd357576.aspx
 func sendRpc(buf *tdsBuffer, headers []headerStruct, proc ProcId, flags uint16, params []Param) (err error) {
-    buf.BeginPacket(TDS_RPC)
+    buf.BeginPacket(packRPCRequest)
     writeAllHeaders(buf, headers)
     if len(proc.name) == 0 {
         var idswitch uint16 = 0xffff

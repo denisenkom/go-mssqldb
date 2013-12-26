@@ -21,7 +21,7 @@ const (
 
 func sendBeginXact(buf *tdsBuffer, headers []headerStruct, isolation uint8,
                    name string) (err error) {
-    buf.BeginPacket(TDS7_TRANS)
+    buf.BeginPacket(packTransMgrReq)
     writeAllHeaders(buf, headers)
     var rqtype uint16 = tmBeginXact
     err = binary.Write(buf, binary.LittleEndian, &rqtype); if err != nil {
@@ -43,7 +43,7 @@ const (
 
 
 func sendCommitXact(buf *tdsBuffer, headers []headerStruct, name string, flags uint8, isolation uint8, newname string) error {
-    buf.BeginPacket(TDS7_TRANS)
+    buf.BeginPacket(packTransMgrReq)
     writeAllHeaders(buf, headers)
     var rqtype uint16 = tmCommitXact
     err := binary.Write(buf, binary.LittleEndian, &rqtype); if err != nil {
@@ -68,7 +68,7 @@ func sendCommitXact(buf *tdsBuffer, headers []headerStruct, name string, flags u
 
 
 func sendRollbackXact(buf *tdsBuffer, headers []headerStruct, name string, flags uint8, isolation uint8, newname string) error {
-    buf.BeginPacket(TDS7_TRANS)
+    buf.BeginPacket(packTransMgrReq)
     writeAllHeaders(buf, headers)
     var rqtype uint16 = tmRollbackXact
     err := binary.Write(buf, binary.LittleEndian, &rqtype); if err != nil {
