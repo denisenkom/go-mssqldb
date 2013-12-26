@@ -103,8 +103,8 @@ const (
 )
 
 
-type TdsSession struct {
-    buf * TdsBuffer
+type tdsSession struct {
+    buf * tdsBuffer
 
     loginAck loginAckStruct
 
@@ -136,7 +136,7 @@ func streamErrorf(format string, v ...interface{}) error {
 }
 
 
-func writePrelogin(w * TdsBuffer, instance string) error {
+func writePrelogin(w * tdsBuffer, instance string) error {
     var err error
 
     instance_buf := make([]byte, len(instance))
@@ -188,7 +188,7 @@ func writePrelogin(w * TdsBuffer, instance string) error {
 }
 
 
-func readPrelogin(r * TdsBuffer) (map[uint8][]byte, error) {
+func readPrelogin(r * tdsBuffer) (map[uint8][]byte, error) {
     var err error
     packet_type, err := r.BeginRead()
     if err != nil {
@@ -219,7 +219,7 @@ func readPrelogin(r * TdsBuffer) (map[uint8][]byte, error) {
 }
 
 
-type Login struct {
+type login struct {
     TDSVersion uint32
     PacketSize uint32
     ClientProgVer uint32
@@ -246,7 +246,7 @@ type Login struct {
 }
 
 
-type LoginHeader struct {
+type loginHeader struct {
     Length uint32
     TDSVersion uint32
     PacketSize uint32
@@ -311,7 +311,7 @@ func manglePassword(password string) []byte {
 }
 
 
-func sendLogin(w * TdsBuffer, login Login) error {
+func sendLogin(w * tdsBuffer, login login) error {
     w.BeginPacket(TDS7_LOGIN)
     hostname := str2ucs2(login.HostName)
     username := str2ucs2(login.UserName)
@@ -323,7 +323,7 @@ func sendLogin(w * TdsBuffer, login Login) error {
     database := str2ucs2(login.Database)
     atchdbfile := str2ucs2(login.AtchDBFile)
     changepassword := str2ucs2(login.ChangePassword)
-    hdr := LoginHeader{
+    hdr := loginHeader{
         TDSVersion: login.TDSVersion,
         PacketSize: login.PacketSize,
         ClientProgVer: login.ClientProgVer,
@@ -552,7 +552,7 @@ func writeAllHeaders(w io.Writer, headers []headerStruct) (err error) {
 }
 
 
-func sendSqlBatch72(buf *TdsBuffer,
+func sendSqlBatch72(buf *tdsBuffer,
                   sqltext string,
                   headers []headerStruct) (err error) {
     buf.BeginPacket(TDS_QUERY)
@@ -584,7 +584,7 @@ func init() {
 }
 
 
-func connect(params map[string]string) (res *TdsSession, err error) {
+func connect(params map[string]string) (res *tdsSession, err error) {
     var port uint64
     server := params["server"]
     parts := strings.SplitN(server, "\\", 2)
@@ -623,8 +623,8 @@ func connect(params map[string]string) (res *TdsSession, err error) {
 
     toconn := timeoutConn{conn, 30 * time.Second}
 
-    outbuf := NewTdsBuffer(4096, toconn)
-    sess := TdsSession{
+    outbuf := newTdsBuffer(4096, toconn)
+    sess := tdsSession{
         buf: outbuf,
         messages: make([]Error, 0, 20),
     }
@@ -639,7 +639,7 @@ func connect(params map[string]string) (res *TdsSession, err error) {
         return nil, err
     }
 
-    login := Login{
+    login := login{
         TDSVersion: TDS73,
         PacketSize: uint32(len(outbuf.buf)),
         UserName: user,

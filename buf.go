@@ -15,7 +15,7 @@ type header struct {
     Pad uint8
 }
 
-type TdsBuffer struct {
+type tdsBuffer struct {
     buf []byte
     pos uint16
     transport io.ReadWriteCloser
@@ -24,9 +24,9 @@ type TdsBuffer struct {
     packet_type uint8
 }
 
-func NewTdsBuffer(bufsize int, transport io.ReadWriteCloser) *TdsBuffer {
+func newTdsBuffer(bufsize int, transport io.ReadWriteCloser) *tdsBuffer {
     buf := make([]byte, bufsize)
-    w := new(TdsBuffer)
+    w := new(tdsBuffer)
     w.buf = buf
     w.pos = 8
     w.transport = transport
@@ -34,32 +34,32 @@ func NewTdsBuffer(bufsize int, transport io.ReadWriteCloser) *TdsBuffer {
     return w
 }
 
-func (w * TdsBuffer) Write(p []byte) (nn int, err error) {
+func (w * tdsBuffer) Write(p []byte) (nn int, err error) {
     copied := copy(w.buf[w.pos:], p)
     w.pos += uint16(copied)
     return copied, nil
 }
 
-func (w * TdsBuffer) WriteByte(b byte) error {
+func (w * tdsBuffer) WriteByte(b byte) error {
     w.buf[w.pos] = b
     w.pos += 1
     return nil
 }
 
-func (w * TdsBuffer) BeginPacket(packet_type byte) {
+func (w * tdsBuffer) BeginPacket(packet_type byte) {
     w.buf[0] = packet_type
     w.buf[1] = 0  // packet is incomplete
     w.pos = 8
 }
 
-func (w * TdsBuffer) FinishPacket() (err error) {
+func (w * tdsBuffer) FinishPacket() (err error) {
     w.buf[1] = 1  // packet is complete
     binary.BigEndian.PutUint16(w.buf[2:], w.pos)
     _, err = w.transport.Write(w.buf[:w.pos])
     return err
 }
 
-func (r * TdsBuffer) read_next_packet() error {
+func (r * tdsBuffer) read_next_packet() error {
     header := header{}
     var err error
     err = binary.Read(r.transport, binary.BigEndian, &header)
@@ -78,12 +78,12 @@ func (r * TdsBuffer) read_next_packet() error {
     return nil
 }
 
-func (r * TdsBuffer) BeginRead() (packet_type uint8, err error) {
+func (r * tdsBuffer) BeginRead() (packet_type uint8, err error) {
     err = r.read_next_packet()
     return r.packet_type, err
 }
 
-func (r * TdsBuffer) ReadByte() (res byte, err error) {
+func (r * tdsBuffer) ReadByte() (res byte, err error) {
     if r.pos == r.size {
         if r.final {
             return 0, io.EOF
@@ -98,7 +98,7 @@ func (r * TdsBuffer) ReadByte() (res byte, err error) {
     return res, nil
 }
 
-func (r * TdsBuffer) Read(buf []byte) (n int, err error) {
+func (r * tdsBuffer) Read(buf []byte) (n int, err error) {
     if r.pos == r.size {
         if r.final {
             return 0, io.EOF

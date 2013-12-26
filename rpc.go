@@ -63,7 +63,7 @@ var (
 
 
 // http://msdn.microsoft.com/en-us/library/dd357576.aspx
-func sendRpc(buf *TdsBuffer, headers []headerStruct, proc ProcId, flags uint16, params []Param) (err error) {
+func sendRpc(buf *tdsBuffer, headers []headerStruct, proc ProcId, flags uint16, params []Param) (err error) {
     buf.BeginPacket(TDS_RPC)
     writeAllHeaders(buf, headers)
     if len(proc.name) == 0 {

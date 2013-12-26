@@ -21,7 +21,7 @@ type MssqlDriver struct {
 }
 
 type MssqlConn struct {
-    sess *TdsSession
+    sess *tdsSession
 }
 
 func (c *MssqlConn) Commit() error {
@@ -300,7 +300,7 @@ func (s *MssqlStmt) Exec(args []driver.Value) (res driver.Result, err error) {
 }
 
 type MssqlRows struct {
-    sess *TdsSession
+    sess *tdsSession
     nc   int
     cols []string
     tokchan chan tokenStruct

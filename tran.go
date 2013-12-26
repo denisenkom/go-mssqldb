@@ -19,7 +19,7 @@ const (
 )
 
 
-func sendBeginXact(buf *TdsBuffer, headers []headerStruct, isolation uint8,
+func sendBeginXact(buf *tdsBuffer, headers []headerStruct, isolation uint8,
                    name string) (err error) {
     buf.BeginPacket(TDS7_TRANS)
     writeAllHeaders(buf, headers)
@@ -42,7 +42,7 @@ const (
 )
 
 
-func sendCommitXact(buf *TdsBuffer, headers []headerStruct, name string, flags uint8, isolation uint8, newname string) error {
+func sendCommitXact(buf *tdsBuffer, headers []headerStruct, name string, flags uint8, isolation uint8, newname string) error {
     buf.BeginPacket(TDS7_TRANS)
     writeAllHeaders(buf, headers)
     var rqtype uint16 = tmCommitXact
@@ -67,7 +67,7 @@ func sendCommitXact(buf *TdsBuffer, headers []headerStruct, name string, flags u
 }
 
 
-func sendRollbackXact(buf *TdsBuffer, headers []headerStruct, name string, flags uint8, isolation uint8, newname string) error {
+func sendRollbackXact(buf *tdsBuffer, headers []headerStruct, name string, flags uint8, isolation uint8, newname string) error {
     buf.BeginPacket(TDS7_TRANS)
     writeAllHeaders(buf, headers)
     var rqtype uint16 = tmRollbackXact

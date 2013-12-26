@@ -80,12 +80,12 @@ func doneFlags2Str(flags uint16) string {
     return strings.Join(strs, "|")
 }
 
-type tokenFunc func(*TdsSession, uint8, io.Reader) error
+type tokenFunc func(*tdsSession, uint8, io.Reader) error
 
 
 // ENVCHANGE stream
 // http://msdn.microsoft.com/en-us/library/dd303449.aspx
-func processEnvChg(sess *TdsSession, token uint8, r io.Reader) (err error) {
+func processEnvChg(sess *tdsSession, token uint8, r io.Reader) (err error) {
     var size uint16
     err = binary.Read(r, binary.LittleEndian, &size)
     if err != nil {
@@ -371,7 +371,7 @@ func parseRow(r io.Reader, columns []columnStruct) (row []interface{}, err error
 }
 
 
-func processError72(sess *TdsSession, token uint8, r io.Reader) (err error) {
+func processError72(sess *tdsSession, token uint8, r io.Reader) (err error) {
     hdr := struct {
         Length uint16
         Number int32
@@ -413,7 +413,7 @@ func processError72(sess *TdsSession, token uint8, r io.Reader) (err error) {
 }
 
 
-func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
+func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
     packet_type, err := sess.buf.BeginRead()
     if err != nil {
         ch <- err

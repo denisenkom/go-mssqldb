@@ -20,8 +20,8 @@ func (t *MockTransport) Close() error {
 
 
 func TestSendLogin(t *testing.T) {
-    buf := NewTdsBuffer(1024, new(MockTransport))
-    login := Login{
+    buf := newTdsBuffer(1024, new(MockTransport))
+    login := login{
         TDSVersion: TDS73,
         PacketSize: 0x1000,
         ClientProgVer: 0x01060100,
