@@ -118,8 +118,6 @@ type tdsSession struct {
 
     database string
 
-    gotColumns bool
-    responseStarted bool
     columns []columnStruct
 
     lastRow []interface{}

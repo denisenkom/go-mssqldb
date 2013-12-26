@@ -425,7 +425,6 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
         close(ch)
         return fmt.Errorf("Error: invalid response packet type, expected REPLY, actual: %d", packet_type)
     }
-    sess.responseStarted = true
     if err != nil {
         ch <- err
         close(ch)
