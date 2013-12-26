@@ -1,5 +1,8 @@
 package mssql
 
+import (
+    "fmt"
+)
 
 type Error struct {
     Number int32
@@ -14,4 +17,18 @@ type Error struct {
 
 func (e Error) Error() string {
     return "mssql: " + e.Message
+}
+
+
+type StreamError struct {
+    Message string
+}
+
+func (e StreamError) Error() string {
+    return e.Message
+}
+
+
+func streamErrorf(format string, v ...interface{}) StreamError {
+    return StreamError{"Invalid TDS stream: " + fmt.Sprintf(format, v...)}
 }

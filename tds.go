@@ -133,11 +133,6 @@ type columnStruct struct {
 }
 
 
-func streamErrorf(format string, v ...interface{}) error {
-    return errors.New("Invalid TDS stream: " + fmt.Sprintf(format, v...))
-}
-
-
 func writePrelogin(w * tdsBuffer, instance string) error {
     var err error
 
