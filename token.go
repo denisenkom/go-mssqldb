@@ -414,101 +414,81 @@ func processError72(sess *tdsSession) (err error) {
 
 
 func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
-    packet_type, err := sess.buf.BeginRead()
+    err = processResponseImpl(sess, ch)
     if err != nil {
         ch <- err
         close(ch)
+        return
+    }
+    close(ch)
+    return
+}
+
+
+func processResponseImpl(sess *tdsSession, ch chan tokenStruct) error {
+    packet_type, err := sess.buf.BeginRead()
+    if err != nil {
         return err
     }
     if packet_type != packReply {
-        ch <- err
-        close(ch)
         return fmt.Errorf("Error: invalid response packet type, expected REPLY, actual: %d", packet_type)
     }
-    if err != nil {
-        ch <- err
-        close(ch)
-        return err
-    }
     var columns []columnStruct
-    for true {
+    for {
         token, err := sess.buf.ReadByte()
         if err != nil {
-            ch <- err
-            close(ch)
             return err
         }
         switch token {
         case tokenReturnStatus:
             returnStatus, err := parseReturnStatus(sess.buf)
             if err != nil {
-                ch <- err
-                close(ch)
                 return err
             }
             ch <- returnStatus
         case tokenLoginAck:
             loginAck, err := parseLoginAck(sess.buf)
             if err != nil {
-                ch <- err
-                close(ch)
                 return err
             }
             ch <- loginAck
         case tokenDoneInProc:
             done, err := parseDoneInProc(sess.buf)
             if err != nil {
-                ch <- err
-                close(ch)
                 return err
             }
             ch <- done
         case tokenDone, tokenDoneProc:
             done, err := parseDone(sess.buf)
             if err != nil {
-                ch <- err
-                close(ch)
                 return err
             }
             ch <- done
             if done.Status & doneMore == 0 {
-                close(ch)
                 return nil
             }
         case tokenColMetadata:
             columns, err = parseColMetadata72(sess.buf)
             if err != nil {
-                ch <- err
-                close(ch)
                 return err
             }
             ch <- columns
         case tokenRow:
             row, err := parseRow(sess.buf, columns)
             if err != nil {
-                ch <- err
-                close(ch)
                 return err
             }
             ch <- row
         case tokenEnvChange:
-            err := processEnvChg(sess)
-            if err != nil {
-                ch <- err
-                close(ch)
+            if err := processEnvChg(sess); err != nil {
                 return err
             }
         case tokenError:
             if err := processError72(sess); err != nil {
-                ch <- err
-                close(ch)
                 return err
             }
         default:
-            err = streamErrorf("Unknown token type: %d", token)
-            ch <- err
-            close(ch)
-            return err
+            return streamErrorf("Unknown token type: %d", token)
         }
     }
     return nil
