@@ -220,7 +220,7 @@ func (s *MssqlStmt) NumInput() int {
 func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
     headers := []headerStruct{
         {hdrtype: dataStmHdrTransDescr,
-         data: transDescrHdr{0, 1}.pack()},
+         data: transDescrHdr{s.c.sess.tranid, 1}.pack()},
     }
     if len(args) == 0 {
         if err = sendSqlBatch72(s.c.sess.buf, s.query, headers); err != nil {

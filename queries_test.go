@@ -4,6 +4,7 @@ import (
     "testing"
     "time"
     "bytes"
+    "database/sql"
 )
 
 func TestSelect(t *testing.T) {
@@ -101,22 +102,23 @@ func TestTrans(t *testing.T) {
     conn := open(t)
     defer conn.Close()
 
-    tx, err := conn.Begin(); if err != nil {
-        t.Error("Begin failed", err.Error())
-        return
+    var tx *sql.Tx
+    var err error
+    if tx, err = conn.Begin(); err != nil {
+        t.Fatal("Begin failed", err.Error())
     }
-    err = tx.Commit(); if err != nil {
-        t.Error("Commit failed", err.Error())
-        return
+    if err = tx.Commit(); err != nil {
+        t.Fatal("Commit failed", err.Error())
     }
 
-    tx, err = conn.Begin(); if err != nil {
-        t.Error("Begin failed", err.Error())
-        return
+    if tx, err = conn.Begin(); err != nil {
+        t.Fatal("Begin failed", err.Error())
     }
-    err = tx.Rollback(); if err != nil {
-        t.Error("Rollback failed", err.Error())
-        return
+    if _, err = tx.Exec("create table ##abc (fld int)"); err != nil {
+        t.Fatal("Create table failed", err.Error())
+    }
+    if err = tx.Rollback(); err != nil {
+        t.Fatal("Rollback failed", err.Error())
     }
 }
 
