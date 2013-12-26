@@ -370,7 +370,7 @@ func parseRow(r io.Reader, columns []columnStruct) (row []interface{}, err error
 }
 
 
-func processError72(sess *tdsSession) (err error) {
+func parseError72(sess *tdsSession) (res Error, err error) {
     r := sess.buf
     hdr := struct {
         Length uint16
@@ -380,26 +380,26 @@ func processError72(sess *tdsSession) (err error) {
     }{}
     err = binary.Read(r, binary.LittleEndian, &hdr)
     if err != nil {
-        return err
+        return
     }
     msgtext, err := readUsVarChar(r)
     if err != nil {
-        return err
+        return
     }
     servername, err := readBVarChar(r)
     if err != nil {
-        return err
+        return
     }
     procname, err := readBVarChar(r)
     if err != nil {
-        return err
+        return
     }
     var lineno int32
     err = binary.Read(r, binary.LittleEndian, &lineno)
     if err != nil {
-        return err
+        return
     }
-    newerror := Error{
+    res = Error{
         Number: hdr.Number,
         State: hdr.State,
         Class: hdr.Class,
@@ -408,8 +408,7 @@ func processError72(sess *tdsSession) (err error) {
         ProcName: procname,
         LineNo: lineno,
     }
-    sess.messages = append(sess.messages, newerror)
-    return nil
+    return
 }
 
 
@@ -484,9 +483,11 @@ func processResponseImpl(sess *tdsSession, ch chan tokenStruct) error {
                 return err
             }
         case tokenError:
-            if err := processError72(sess); err != nil {
+            srverr, err := parseError72(sess)
+            if err != nil {
                 return err
             }
+            sess.messages = append(sess.messages, srverr)
         default:
             return streamErrorf("Unknown token type: %d", token)
         }

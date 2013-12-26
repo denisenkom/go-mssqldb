@@ -59,7 +59,7 @@ func (w * tdsBuffer) FinishPacket() (err error) {
     return err
 }
 
-func (r * tdsBuffer) read_next_packet() error {
+func (r * tdsBuffer) readNextPacket() error {
     header := header{}
     var err error
     err = binary.Read(r.transport, binary.BigEndian, &header)
@@ -79,7 +79,7 @@ func (r * tdsBuffer) read_next_packet() error {
 }
 
 func (r * tdsBuffer) BeginRead() (packet_type uint8, err error) {
-    err = r.read_next_packet()
+    err = r.readNextPacket()
     return r.packet_type, err
 }
 
@@ -88,7 +88,7 @@ func (r * tdsBuffer) ReadByte() (res byte, err error) {
         if r.final {
             return 0, io.EOF
         }
-        err = r.read_next_packet()
+        err = r.readNextPacket()
         if err != nil {
             return 0, err
         }
@@ -103,7 +103,7 @@ func (r * tdsBuffer) Read(buf []byte) (n int, err error) {
         if r.final {
             return 0, io.EOF
         }
-        err = r.read_next_packet()
+        err = r.readNextPacket()
         if err != nil {
             return 0, err
         }
