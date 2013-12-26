@@ -162,3 +162,15 @@ func TestParams(t *testing.T) {
         }
     }
 }
+
+
+func TestExec(t *testing.T) {
+    conn := open(t)
+    defer conn.Close()
+
+    res, err := conn.Exec("create table ##abc (fld int)")
+    if err != nil {
+        t.Fatal("Exec failed", err.Error())
+    }
+    _ = res
+}

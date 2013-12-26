@@ -93,12 +93,14 @@ const TDS7_AUTH = 17
 const TDS71_PRELOGIN = 18
 
 const (
+    tokenReturnStatus = 121  // 0x79
     tokenColMetadata = 129  // 0x81
     TDS_ERROR_TOKEN = 170  // 0xAA
     TDS_LOGINACK_TOKEN = 173  // 0xad
     tokenRow = 209  // 0xd1
     TDS_ENVCHANGE_TOKEN = 227  // 0xE3
     TDS_DONE_TOKEN = 253  // 0xFD
+    tokenDoneProc = 254
     )
 
 const VERSION = 0
@@ -563,6 +565,14 @@ func processEnvChg(sess *TdsSession, token uint8, r io.Reader) (err error) {
 }
 
 
+type returnStatus int32
+
+func parseReturnStatus(r io.Reader) (res returnStatus, err error) {
+    err = binary.Read(r, binary.LittleEndian, &res)
+    return res, err
+}
+
+
 func parseDone(r io.Reader) (res doneStruct, err error) {
     err = binary.Read(r, binary.LittleEndian, &res)
     return res, err
@@ -991,8 +1001,16 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
             close(ch)
             return err
         }
-        switch {
-        case token == TDS_LOGINACK_TOKEN:
+        switch token {
+        case tokenReturnStatus:
+            returnStatus, err := parseReturnStatus(sess.buf)
+            if err != nil {
+                ch <- err
+                close(ch)
+                return err
+            }
+            ch <- returnStatus
+        case TDS_LOGINACK_TOKEN:
             loginAck, err := parseLoginAck(sess.buf)
             if err != nil {
                 ch <- err
@@ -1000,7 +1018,7 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
                 return err
             }
             ch <- loginAck
-        case token == TDS_DONE_TOKEN:
+        case TDS_DONE_TOKEN, tokenDoneProc:
             done, err := parseDone(sess.buf)
             if err != nil {
                 ch <- err
@@ -1012,7 +1030,7 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
                 close(ch)
                 return nil
             }
-        case token == tokenColMetadata:
+        case tokenColMetadata:
             columns, err = parseColMetadata72(sess.buf)
             if err != nil {
                 ch <- err
@@ -1020,7 +1038,7 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
                 return err
             }
             ch <- columns
-        case token == tokenRow:
+        case tokenRow:
             row, err := parseRow(sess.buf, columns)
             if err != nil {
                 ch <- err

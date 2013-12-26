@@ -217,7 +217,7 @@ func (s *MssqlStmt) NumInput() int {
 //	return nil
 //}
 
-func (s *MssqlStmt) Query(args []driver.Value) (res driver.Rows, err error) {
+func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
     headers := []headerStruct{
         {hdrtype: dataStmHdrTransDescr,
          data: transDescrHdr{0, 1}.pack()},
@@ -247,6 +247,13 @@ func (s *MssqlStmt) Query(args []driver.Value) (res driver.Rows, err error) {
             return
         }
     }
+    return
+}
+
+func (s *MssqlStmt) Query(args []driver.Value) (res driver.Rows, err error) {
+    if err = s.sendQuery(args); err != nil {
+        return
+    }
     tokchan := make(chan tokenStruct, 5)
     go processResponse(s.c.sess, tokchan)
     // process metadata
@@ -272,14 +279,23 @@ func (s *MssqlStmt) Query(args []driver.Value) (res driver.Rows, err error) {
     return &MssqlRows{sess: s.c.sess, tokchan: tokchan, cols: cols}, nil
 }
 
-func (s *MssqlStmt) Exec(args []driver.Value) (driver.Result, error) {
-//	if err := s.bind(args); err != nil {
-//		return nil, err
-//	}
-//	_, err := oleutil.CallMethod(s.s, "Execute")
-//	if err != nil {
-//		return nil, err
-//	}
+func (s *MssqlStmt) Exec(args []driver.Value) (res driver.Result, err error) {
+    if err = s.sendQuery(args); err != nil {
+        return
+    }
+    tokchan := make(chan tokenStruct, 5)
+    go processResponse(s.c.sess, tokchan)
+    for token := range tokchan {
+        switch token := token.(type) {
+        case doneStruct:
+            if token.Status & doneError != 0 {
+                return nil, s.c.sess.messages[0]
+            }
+            return nil, nil
+        case error:
+            return nil, token
+        }
+    }
     return driver.ResultNoRows, nil
 }
 
