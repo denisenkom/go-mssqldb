@@ -80,12 +80,11 @@ func doneFlags2Str(flags uint16) string {
     return strings.Join(strs, "|")
 }
 
-type tokenFunc func(*tdsSession, uint8, io.Reader) error
-
 
 // ENVCHANGE stream
 // http://msdn.microsoft.com/en-us/library/dd303449.aspx
-func processEnvChg(sess *tdsSession, token uint8, r io.Reader) (err error) {
+func processEnvChg(sess *tdsSession) (err error) {
+    r := io.Reader(sess.buf)
     var size uint16
     err = binary.Read(r, binary.LittleEndian, &size)
     if err != nil {
@@ -371,7 +370,8 @@ func parseRow(r io.Reader, columns []columnStruct) (row []interface{}, err error
 }
 
 
-func processError72(sess *tdsSession, token uint8, r io.Reader) (err error) {
+func processError72(sess *tdsSession) (err error) {
+    r := sess.buf
     hdr := struct {
         Length uint16
         Number int32
@@ -492,21 +492,24 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
                 return err
             }
             ch <- row
-        default:
-            if sess.tokenMap[token] == nil {
-                err = fmt.Errorf("Unknown token type: %d", token)
-                ch <- err
-                close(ch)
-                return err
-            }
-            err = sess.tokenMap[token](sess, token, sess.buf)
+        case tokenEnvChange:
+            err := processEnvChg(sess)
             if err != nil {
-                err = fmt.Errorf("Failed processing token %d: %s",
-                                 token, err.Error())
                 ch <- err
                 close(ch)
                 return err
             }
+        case tokenError:
+            if err := processError72(sess); err != nil {
+                ch <- err
+                close(ch)
+                return err
+            }
+        default:
+            err = streamErrorf("Unknown token type: %d", token)
+            ch <- err
+            close(ch)
+            return err
         }
     }
     return nil

@@ -110,13 +110,11 @@ const (
 
 
 type tdsSession struct {
-    buf * tdsBuffer
+    buf *tdsBuffer
 
     loginAck loginAckStruct
 
     messages []Error
-
-    tokenMap map[uint8]tokenFunc
 
     database string
 
@@ -659,10 +657,6 @@ func connect(params map[string]string) (res *tdsSession, err error) {
     // processing login response
     tokchan := make(chan tokenStruct, 5)
     go processResponse(&sess, tokchan)
-    sess.tokenMap = map[uint8]tokenFunc{
-        tokenEnvChange: processEnvChg,
-        tokenError: processError72,
-    }
     success := false
     for tok := range tokchan {
         switch token := tok.(type) {
