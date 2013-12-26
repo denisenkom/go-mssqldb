@@ -516,7 +516,6 @@ func processEnvChg(sess *TdsSession, token uint8, r io.Reader) (err error) {
         if err != nil {
             return err
         }
-        fmt.Println("envtype", envtype)
         switch envtype {
         case envTypDatabase:
             _, err = readBVarchar(r)
@@ -528,15 +527,23 @@ func processEnvChg(sess *TdsSession, token uint8, r io.Reader) (err error) {
                 return err
             }
         case envTypPacketSize:
-            _, err := readBVarchar(r)
-            if err != nil {
-                return err
-            }
             packetsize, err := readBVarchar(r)
             if err != nil {
                 return err
             }
-            fmt.Println("packetsize", packetsize)
+            _, err = readBVarchar(r)
+            if err != nil {
+                return err
+            }
+            packetsizei, err := strconv.Atoi(packetsize)
+            if err != nil {
+                return streamErrorf("Invalid Packet size value returned from server (%s): %s", packetsize, err.Error())
+            }
+            if len(sess.buf.buf) != packetsizei {
+                newbuf := make([]byte, packetsizei)
+                copy(newbuf, sess.buf.buf)
+                sess.buf.buf = newbuf
+            }
         case envTypBeginTran:
             tranid, err := readBVarByte(r)
             if len(tranid) != 8 {
@@ -781,11 +788,7 @@ func readUcs2(r io.Reader, numchars int) (res string, err error) {
     if err != nil {
         return "", err
     }
-    _, err = ucs22utf8.ConvertString(string(buf))
-    if err != nil {
-        return "", err
-    }
-    return string(buf), err
+    return ucs22str(buf), nil
 }
 
 
@@ -1141,7 +1144,7 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
 
     toconn := timeoutConn{conn, 30 * time.Second}
 
-    outbuf := NewTdsBuffer(1024, toconn)
+    outbuf := NewTdsBuffer(4096, toconn)
     sess := TdsSession{
         buf: outbuf,
         messages: make([]Error, 0, 20),
