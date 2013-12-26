@@ -359,12 +359,8 @@ func str2ucs2(s string) []byte {
 }
 
 
-func ucs22str(s []byte) string {
-    res, err := ucs22utf8.ConvertString(string(s))
-    if err != nil {
-        panic("ConvertString failed unexpectedly: " + err.Error())
-    }
-    return res
+func ucs22str(s []byte) (string, error) {
+    return ucs22utf8.ConvertString(string(s))
 }
 
 
@@ -617,7 +613,9 @@ func parseLoginAck(r io.Reader) (res loginAckStruct, err error) {
     res.Interface = buf[0]
     res.TDSVersion = binary.BigEndian.Uint32(buf[1:])
     prognamelen := buf[1+4]
-    res.ProgName = ucs22str(buf[1+4+1:1+4+1 + prognamelen * 2])
+    if res.ProgName, err = ucs22str(buf[1+4+1:1+4+1 + prognamelen * 2]); err != nil {
+        return
+    }
     res.ProgVer = binary.BigEndian.Uint32(buf[size - 4:])
     return
 }
@@ -788,7 +786,7 @@ func readUcs2(r io.Reader, numchars int) (res string, err error) {
     if err != nil {
         return "", err
     }
-    return ucs22str(buf), nil
+    return ucs22str(buf)
 }
 
 
