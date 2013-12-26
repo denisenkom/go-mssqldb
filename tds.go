@@ -72,14 +72,14 @@ func getInstances(address string) (map[string]map[string]string, error) {
 
 // tds versions
 const (
-    TDS70 = 0x70000000
-    TDS71 = 0x71000000
-    TDS71rev1 = 0x71000001
-    TDS72 = 0x72090002
-    TDS73A = 0x730A0003
-    TDS73 = TDS73A
-    TDS73B = 0x730B0003
-    TDS74 = 0x74000004
+    verTDS70 = 0x70000000
+    verTDS71 = 0x71000000
+    verTDS71rev1 = 0x71000001
+    verTDS72 = 0x72090002
+    verTDS73A = 0x730A0003
+    verTDS73 = verTDS73A
+    verTDS73B = 0x730B0003
+    verTDS74 = 0x74000004
     )
 
 // packet types
@@ -646,7 +646,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
     }
 
     login := login{
-        TDSVersion: TDS73,
+        TDSVersion: verTDS73A,
         PacketSize: uint32(len(outbuf.buf)),
         UserName: user,
         Password: password,
