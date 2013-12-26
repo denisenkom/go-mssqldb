@@ -101,6 +101,7 @@ const (
     TDS_ENVCHANGE_TOKEN = 227  // 0xE3
     TDS_DONE_TOKEN = 253  // 0xFD
     tokenDoneProc = 254
+    tokenDoneInProc = 255
     )
 
 const VERSION = 0
@@ -169,6 +170,9 @@ type doneStruct struct {
     CurCmd uint16
     RowCount uint64
 }
+
+
+type doneInProcStruct doneStruct
 
 
 type columnStruct struct {
@@ -574,6 +578,12 @@ func parseReturnStatus(r io.Reader) (res returnStatus, err error) {
 
 
 func parseDone(r io.Reader) (res doneStruct, err error) {
+    err = binary.Read(r, binary.LittleEndian, &res)
+    return res, err
+}
+
+
+func parseDoneInProc(r io.Reader) (res doneInProcStruct, err error) {
     err = binary.Read(r, binary.LittleEndian, &res)
     return res, err
 }
@@ -1018,6 +1028,14 @@ func processResponse(sess *TdsSession, ch chan tokenStruct) (err error) {
                 return err
             }
             ch <- loginAck
+        case tokenDoneInProc:
+            done, err := parseDoneInProc(sess.buf)
+            if err != nil {
+                ch <- err
+                close(ch)
+                return err
+            }
+            ch <- done
         case TDS_DONE_TOKEN, tokenDoneProc:
             done, err := parseDone(sess.buf)
             if err != nil {
