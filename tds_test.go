@@ -41,9 +41,9 @@ func TestSendLogin(t *testing.T) {
         ClientLCID: 0x204,
         AtchDBFile: "filepath",
     }
-    err := SendLogin(buf, login)
+    err := sendLogin(buf, login)
     if err != nil {
-        t.Error("SendLogin should succeed")
+        t.Error("sendLogin should succeed")
     }
     ref := []byte{
         16, 1, 0, 222, 0, 0, 0, 0, 198+16, 0, 0, 0, 3, 0, 10, 115, 0, 16, 0, 0, 0, 1,
@@ -71,7 +71,7 @@ func TestSendSqlBatch(t *testing.T) {
     addr := os.Getenv("HOST")
     instance := os.Getenv("INSTANCE")
 
-    conn, err := Connect(map[string]string {
+    conn, err := connect(map[string]string {
         "server": fmt.Sprintf("%s\\%s", addr, instance),
         "user id": os.Getenv("SQLUSER"),
         "password": os.Getenv("SQLPASSWORD"),

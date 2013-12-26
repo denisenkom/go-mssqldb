@@ -407,15 +407,15 @@ func readVarLen(ti *typeInfo, r io.Reader) (err error) {
             if schemapresent != 0 {
                 // just ignore this for now
                 // dbname
-                _, err = readBVarchar(r); if err != nil {
+                _, err = readBVarChar(r); if err != nil {
                     return
                 }
                 // owning schema
-                _, err = readBVarchar(r); if err != nil {
+                _, err = readBVarChar(r); if err != nil {
                     return
                 }
                 // xml schema collection
-                _, err = readUsVarchar(r); if err != nil {
+                _, err = readUsVarChar(r); if err != nil {
                     return
                 }
             }
@@ -446,7 +446,7 @@ func readVarLen(ti *typeInfo, r io.Reader) (err error) {
             return
         }
         for i := 0; i < int(numparts); i++ {
-            _, err = readUsVarchar(r); if err != nil {
+            _, err = readUsVarChar(r); if err != nil {
                 return
             }
         }

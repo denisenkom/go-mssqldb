@@ -103,20 +103,20 @@ func processEnvChg(sess *TdsSession, token uint8, r io.Reader) (err error) {
         }
         switch envtype {
         case envTypDatabase:
-            _, err = readBVarchar(r)
+            _, err = readBVarChar(r)
             if err != nil {
                 return err
             }
-            sess.database, err = readBVarchar(r)
+            sess.database, err = readBVarChar(r)
             if err != nil {
                 return err
             }
         case envTypPacketSize:
-            packetsize, err := readBVarchar(r)
+            packetsize, err := readBVarChar(r)
             if err != nil {
                 return err
             }
-            _, err = readBVarchar(r)
+            _, err = readBVarChar(r)
             if err != nil {
                 return err
             }
@@ -239,7 +239,7 @@ func parseColMetadata72(r io.Reader) (columns []columnStruct, err error) {
         column.ti, err = readTypeInfo(r); if err != nil {
             return
         }
-        column.ColName, err = readBVarchar(r)
+        column.ColName, err = readBVarChar(r)
         if err != nil {
             return nil, err
         }
@@ -382,15 +382,15 @@ func processError72(sess *TdsSession, token uint8, r io.Reader) (err error) {
     if err != nil {
         return err
     }
-    msgtext, err := readUsVarchar(r)
+    msgtext, err := readUsVarChar(r)
     if err != nil {
         return err
     }
-    servername, err := readBVarchar(r)
+    servername, err := readBVarChar(r)
     if err != nil {
         return err
     }
-    procname, err := readBVarchar(r)
+    procname, err := readBVarChar(r)
     if err != nil {
         return err
     }

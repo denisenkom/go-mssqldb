@@ -19,7 +19,7 @@ var utf82ucs2 *iconv.Converter
 var ucs22utf8 *iconv.Converter
 
 
-func _parse_instances(msg []byte) (map[string]map[string]string) {
+func parseInstances(msg []byte) (map[string]map[string]string) {
     results := map[string]map[string]string{}
     if len(msg) > 3 && msg[0] == 5 {
         var out = make([]byte, len(msg[3:]))
@@ -53,7 +53,7 @@ func _parse_instances(msg []byte) (map[string]map[string]string) {
     return results
 }
 
-func get_instances(address string) (map[string]map[string]string, error) {
+func getInstances(address string) (map[string]map[string]string, error) {
     conn, err := net.DialTimeout("udp", address + ":1434", 5 * time.Second)
     if err != nil {
         return nil, err
@@ -67,7 +67,7 @@ func get_instances(address string) (map[string]map[string]string, error) {
     if err != nil {
         return nil, err
     }
-    return _parse_instances(resp[:read]), nil
+    return parseInstances(resp[:read]), nil
 }
 
 const TDS70 = 0x70000000
@@ -136,7 +136,7 @@ func streamErrorf(format string, v ...interface{}) error {
 }
 
 
-func WritePrelogin(w * TdsBuffer, instance string) error {
+func writePrelogin(w * TdsBuffer, instance string) error {
     var err error
 
     instance_buf := make([]byte, len(instance))
@@ -188,17 +188,7 @@ func WritePrelogin(w * TdsBuffer, instance string) error {
 }
 
 
-type Header struct {
-    PacketType uint8
-    Status uint8
-    Size uint16
-    Spid uint16
-    PacketNo uint8
-    Pad uint8
-}
-
-
-func ReadPrelogin(r * TdsBuffer) (map[uint8][]byte, error) {
+func readPrelogin(r * TdsBuffer) (map[uint8][]byte, error) {
     var err error
     packet_type, err := r.BeginRead()
     if err != nil {
@@ -321,7 +311,7 @@ func manglePassword(password string) []byte {
 }
 
 
-func SendLogin(w * TdsBuffer, login Login) error {
+func sendLogin(w * TdsBuffer, login Login) error {
     w.BeginPacket(TDS7_LOGIN)
     hostname := str2ucs2(login.HostName)
     username := str2ucs2(login.UserName)
@@ -441,7 +431,7 @@ func readUcs2(r io.Reader, numchars int) (res string, err error) {
 }
 
 
-func readUsVarchar(r io.Reader) (res string, err error) {
+func readUsVarChar(r io.Reader) (res string, err error) {
     var numchars uint16
     err = binary.Read(r, binary.LittleEndian, &numchars)
     if err != nil {
@@ -466,7 +456,7 @@ func writeUsVarChar(w io.Writer, s string) (err error) {
 }
 
 
-func readBVarchar(r io.Reader) (res string, err error) {
+func readBVarChar(r io.Reader) (res string, err error) {
     var numchars uint8
     err = binary.Read(r, binary.LittleEndian, &numchars)
     if err != nil {
@@ -498,19 +488,6 @@ func readBVarByte(r io.Reader) (res []byte, err error) {
     }
     res = make([]byte, length)
     _, err = io.ReadFull(r, res)
-    return
-}
-
-
-func writeBVarchar(w io.Writer, str string) (err error) {
-    if len(str) > 255 {
-        panic("Invalid size for B_VARBYTE string")
-    }
-    buf := []byte{uint8(len(str))}
-    _, err = w.Write(buf); if err != nil {
-        return
-    }
-    _, err = w.Write(str2ucs2(str))
     return
 }
 
@@ -607,7 +584,7 @@ func init() {
 }
 
 
-func Connect(params map[string]string) (res *TdsSession, err error) {
+func connect(params map[string]string) (res *TdsSession, err error) {
     var port uint64
     server := params["server"]
     parts := strings.SplitN(server, "\\", 2)
@@ -624,7 +601,7 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
     password := params["password"]
     port = 1433
     if instance != "" {
-        instances, err := get_instances(host)
+        instances, err := getInstances(host)
         if err != nil {
             f := "Unable to get instances from Sql Server Browser on host %v: %v"
             err = fmt.Errorf(f, host, err.Error())
@@ -651,19 +628,13 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
         buf: outbuf,
         messages: make([]Error, 0, 20),
     }
-    //buf := make([]byte, 1024)
-    //data := buf[8:]
-    //buf[0] = // type
-    //status := 1
-    //buf[1] = status
-    //binary.BigEndian.PutUint16(buf[1:], status)
 
-    err = WritePrelogin(outbuf, instance)
+    err = writePrelogin(outbuf, instance)
     if err != nil {
         return nil, err
     }
 
-    _, err = ReadPrelogin(outbuf)
+    _, err = readPrelogin(outbuf)
     if err != nil {
         return nil, err
     }
@@ -674,7 +645,7 @@ func Connect(params map[string]string) (res *TdsSession, err error) {
         UserName: user,
         Password: password,
     }
-    err = SendLogin(outbuf, login)
+    err = sendLogin(outbuf, login)
     if err != nil {
         return nil, err
     }

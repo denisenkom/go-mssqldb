@@ -30,7 +30,7 @@ func sendBeginXact(buf *TdsBuffer, headers []headerStruct, isolation uint8,
     err = binary.Write(buf, binary.LittleEndian, &isolation); if err != nil {
         return
     }
-    err = writeBVarchar(buf, name); if err != nil {
+    err = writeBVarChar(buf, name); if err != nil {
         return
     }
     return buf.FinishPacket()
@@ -49,7 +49,7 @@ func sendCommitXact(buf *TdsBuffer, headers []headerStruct, name string, flags u
     err := binary.Write(buf, binary.LittleEndian, &rqtype); if err != nil {
         return err
     }
-    err = writeBVarchar(buf, name); if err != nil {
+    err = writeBVarChar(buf, name); if err != nil {
         return err
     }
     err = binary.Write(buf, binary.LittleEndian, &flags); if err != nil {
@@ -59,7 +59,7 @@ func sendCommitXact(buf *TdsBuffer, headers []headerStruct, name string, flags u
         err = binary.Write(buf, binary.LittleEndian, &isolation); if err != nil {
             return err
         }
-        err = writeBVarchar(buf, name); if err != nil {
+        err = writeBVarChar(buf, name); if err != nil {
             return err
         }
     }
@@ -74,7 +74,7 @@ func sendRollbackXact(buf *TdsBuffer, headers []headerStruct, name string, flags
     err := binary.Write(buf, binary.LittleEndian, &rqtype); if err != nil {
         return err
     }
-    err = writeBVarchar(buf, name); if err != nil {
+    err = writeBVarChar(buf, name); if err != nil {
         return err
     }
     err = binary.Write(buf, binary.LittleEndian, &flags); if err != nil {
@@ -84,7 +84,7 @@ func sendRollbackXact(buf *TdsBuffer, headers []headerStruct, name string, flags
         err = binary.Write(buf, binary.LittleEndian, &isolation); if err != nil {
             return err
         }
-        err = writeBVarchar(buf, name); if err != nil {
+        err = writeBVarChar(buf, name); if err != nil {
             return err
         }
     }

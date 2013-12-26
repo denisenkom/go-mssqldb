@@ -5,6 +5,16 @@ import (
     "encoding/binary"
 )
 
+
+type header struct {
+    PacketType uint8
+    Status uint8
+    Size uint16
+    Spid uint16
+    PacketNo uint8
+    Pad uint8
+}
+
 type TdsBuffer struct {
     buf []byte
     pos uint16
@@ -50,7 +60,7 @@ func (w * TdsBuffer) FinishPacket() (err error) {
 }
 
 func (r * TdsBuffer) read_next_packet() error {
-    header := Header{}
+    header := header{}
     var err error
     err = binary.Read(r.transport, binary.BigEndian, &header)
     if err != nil {
