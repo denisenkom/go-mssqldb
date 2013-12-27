@@ -12,6 +12,11 @@ type Error struct {
     ServerName string
     ProcName string
     LineNo int32
+    timeout bool
+}
+
+func (e Error) Timeout() bool {
+    return e.timeout
 }
 
 

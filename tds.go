@@ -187,9 +187,10 @@ func writePrelogin(w * tdsBuffer, instance string) error {
 
 func readPrelogin(r * tdsBuffer) (map[uint8][]byte, error) {
     var err error
-    packet_type, err := r.BeginRead()
-    if err != nil {
-        return nil, err
+    packet_type, timeout := r.BeginRead()
+    if timeout {
+        err = Error{Message: "PRELOGIN response timeout", timeout: true)
+        return
     }
     struct_buf, err := ioutil.ReadAll(r)
     if err != nil {

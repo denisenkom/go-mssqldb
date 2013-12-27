@@ -6,7 +6,6 @@ import (
     "strings"
     "strconv"
     "math"
-    "fmt"
 )
 
 // token ids
@@ -413,31 +412,39 @@ func parseError72(sess *tdsSession) (res Error, err error) {
 
 
 func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
+    defer func() {
+        if err := recover(); err != nil {
+            ch <- err
+        }
+        close(ch)
+    }()
     err = processResponseImpl(sess, ch)
     if err != nil {
         ch <- err
-        close(ch)
         return
     }
-    close(ch)
     return
 }
 
 
 func processResponseImpl(sess *tdsSession, ch chan tokenStruct) error {
-    packet_type, err := sess.buf.BeginRead()
-    if err != nil {
-        return err
+    var packet_type uint8
+    for {
+        var timeout bool
+        packet_type, timeout = sess.buf.BeginRead()
+        if timeout {
+            ch <- Error{timeout: true}
+        } else {
+            break
+        }
     }
     if packet_type != packReply {
-        return fmt.Errorf("Error: invalid response packet type, expected REPLY, actual: %d", packet_type)
+        return streamErrorf("invalid response packet type, expected REPLY, actual: %d", packet_type)
     }
     var columns []columnStruct
     for {
-        token, err := sess.buf.ReadByte()
-        if err != nil {
-            return err
-        }
+        token := sess.buf.byte()
+        var err error
         switch token {
         case tokenReturnStatus:
             returnStatus, err := parseReturnStatus(sess.buf)

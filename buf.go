@@ -3,6 +3,7 @@ package mssql
 import (
     "io"
     "encoding/binary"
+    "net"
 )
 
 
@@ -78,9 +79,16 @@ func (r * tdsBuffer) readNextPacket() error {
     return nil
 }
 
-func (r * tdsBuffer) BeginRead() (packet_type uint8, err error) {
-    err = r.readNextPacket()
-    return r.packet_type, err
+func (r * tdsBuffer) BeginRead() (packet_type uint8, timeout bool) {
+    err := r.readNextPacket()
+    if err != nil {
+        if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+            return packet_type, true
+        } else {
+            panic(err)
+        }
+    }
+    return r.packet_type, false
 }
 
 func (r * tdsBuffer) ReadByte() (res byte, err error) {
@@ -96,6 +104,14 @@ func (r * tdsBuffer) ReadByte() (res byte, err error) {
     res = r.buf[r.pos]
     r.pos++
     return res, nil
+}
+
+func (r *tdsBuffer) byte() byte {
+    b, err := r.ReadByte()
+    if err != nil {
+        panic(err)
+    }
+    return b
 }
 
 func (r * tdsBuffer) Read(buf []byte) (n int, err error) {
