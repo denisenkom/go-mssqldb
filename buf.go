@@ -109,9 +109,58 @@ func (r * tdsBuffer) ReadByte() (res byte, err error) {
 func (r *tdsBuffer) byte() byte {
     b, err := r.ReadByte()
     if err != nil {
-        panic(err)
+        badStreamPanic(err)
     }
     return b
+}
+
+func (r *tdsBuffer) ReadFull(buf []byte) {
+    _, err := io.ReadFull(r, buf[:])
+    if err != nil {
+        badStreamPanic(err)
+    }
+}
+
+func (r *tdsBuffer) uint64() uint64 {
+    var buf [8]byte
+    r.ReadFull(buf[:])
+    return binary.LittleEndian.Uint64(buf[:])
+}
+
+func (r *tdsBuffer) int32() int32 {
+    return int32(r.uint32())
+}
+
+func (r *tdsBuffer) uint32() uint32 {
+    var buf [4]byte
+    r.ReadFull(buf[:])
+    return binary.LittleEndian.Uint32(buf[:])
+}
+
+func (r *tdsBuffer) uint16() uint16 {
+    var buf [2]byte
+    r.ReadFull(buf[:])
+    return binary.LittleEndian.Uint16(buf[:])
+}
+
+func (r *tdsBuffer) BVarChar() string {
+    l := int(r.byte())
+    return r.readUcs2(l)
+}
+
+func (r *tdsBuffer) UsVarChar() string {
+    l := int(r.uint16())
+    return r.readUcs2(l)
+}
+
+func (r *tdsBuffer) readUcs2(numchars int) string {
+    b := make([]byte, numchars * 2)
+    r.ReadFull(b)
+    res, err := ucs22str(b)
+    if err != nil {
+        badStreamPanic(err)
+    }
+    return res
 }
 
 func (r * tdsBuffer) Read(buf []byte) (n int, err error) {

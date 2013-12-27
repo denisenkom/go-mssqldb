@@ -82,11 +82,8 @@ type typeInfo struct {
 }
 
 
-func readTypeInfo(r io.Reader) (res typeInfo, err error) {
-    err = binary.Read(r, binary.LittleEndian, &res.TypeId)
-    if err != nil {
-        return
-    }
+func readTypeInfo(r *tdsBuffer) (res typeInfo) {
+    res.TypeId = r.byte()
     switch res.TypeId {
     case typeNull, typeInt1, typeBit, typeInt2, typeInt4, typeDateTim4,
             typeFlt4, typeMoney, typeDateTime, typeFlt8, typeMoney4, typeInt8:
@@ -106,9 +103,7 @@ func readTypeInfo(r io.Reader) (res typeInfo, err error) {
         res.Reader = readFixedType
         res.Buffer = make([]byte, res.Size)
     default:  // all others are VARLENTYPE
-        err = readVarLen(&res, r); if err != nil {
-            return
-        }
+        readVarLen(&res, r)
     }
     return
 }
@@ -336,16 +331,14 @@ func readPLPType(ti *typeInfo, r io.Reader) (res []byte, err error) {
     return buf.Bytes(), nil
 }
 
-func readVarLen(ti *typeInfo, r io.Reader) (err error) {
+func readVarLen(ti *typeInfo, r *tdsBuffer) {
     switch ti.TypeId {
     case typeDateN:
         ti.Size = 3
         ti.Reader = readByteLenType
         ti.Buffer = make([]byte, ti.Size)
     case typeTimeN, typeDateTime2N, typeDateTimeOffsetN:
-        err = binary.Read(r, binary.LittleEndian, &ti.Scale); if err != nil {
-            return
-        }
+        ti.Scale = r.byte()
         switch ti.Scale {
         case 1, 2:
             ti.Size = 3
@@ -354,8 +347,7 @@ func readVarLen(ti *typeInfo, r io.Reader) (err error) {
         case 5, 6, 7:
             ti.Size = 5
         default:
-            err = streamErrorf("Invalid scale for TIME/DATETIME2/DATETIMEOFFSET type")
-            return
+            badStreamPanicf("Invalid scale for TIME/DATETIME2/DATETIMEOFFSET type")
         }
         switch ti.TypeId {
         case typeDateTime2N:
@@ -370,54 +362,31 @@ func readVarLen(ti *typeInfo, r io.Reader) (err error) {
             typeMoneyN, typeDateTimeN, typeChar,
             typeVarChar, typeBinary, typeVarBinary:
         // byle len types
-        var bytesize uint8
-        err = binary.Read(r, binary.LittleEndian, &bytesize); if err != nil {
-            return
-        }
-        ti.Size = int(bytesize)
+        ti.Size = int(r.byte())
         ti.Buffer = make([]byte, ti.Size)
         switch ti.TypeId {
         case typeDecimal, typeNumeric, typeDecimalN, typeNumericN:
-            err = binary.Read(r, binary.LittleEndian, &ti.Prec); if err != nil {
-                return
-            }
-            err = binary.Read(r, binary.LittleEndian, &ti.Scale); if err != nil {
-                return
-            }
+            ti.Prec = r.byte()
+            ti.Scale = r.byte()
         }
         ti.Reader = readByteLenType
     case typeBigVarBin, typeBigVarChar, typeBigBinary, typeBigChar,
             typeNVarChar, typeNChar, typeXml, typeUdt:
         // short len types
-        var ushortsize uint16
-        err = binary.Read(r, binary.LittleEndian, &ushortsize); if err != nil {
-            return
-        }
-        ti.Size = int(ushortsize)
+        ti.Size = int(r.uint16())
         switch ti.TypeId {
         case typeBigVarChar, typeBigChar, typeNVarChar, typeNChar:
-            ti.Collation, err = readCollation(r); if err != nil {
-                return
-            }
+            ti.Collation = readCollation(r)
         case typeXml:
-            var schemapresent uint8
-            err = binary.Read(r, binary.LittleEndian, &schemapresent); if err != nil {
-                return
-            }
+            schemapresent := r.byte()
             if schemapresent != 0 {
                 // just ignore this for now
                 // dbname
-                _, err = readBVarChar(r); if err != nil {
-                    return
-                }
+                r.BVarChar()
                 // owning schema
-                _, err = readBVarChar(r); if err != nil {
-                    return
-                }
+                r.BVarChar()
                 // xml schema collection
-                _, err = readUsVarChar(r); if err != nil {
-                    return
-                }
+                r.UsVarChar()
             }
         }
         if ti.Size == 0xffff {
@@ -428,32 +397,21 @@ func readVarLen(ti *typeInfo, r io.Reader) (err error) {
         }
     case typeText, typeImage, typeNText, typeVariant:
         // LONGLEN_TYPE
-        var longsize int32
-        err = binary.Read(r, binary.LittleEndian, &longsize); if err != nil {
-            return
-        }
+        ti.Size = int(r.int32())
         switch ti.TypeId {
         case typeText, typeNText:
-            ti.Collation, err = readCollation(r); if err != nil {
-                return
-            }
+            ti.Collation = readCollation(r)
         case typeXml:
             panic("XMLTYPE not implemented")
         }
         // ignore tablenames
-        var numparts uint8
-        err = binary.Read(r, binary.LittleEndian, &numparts); if err != nil {
-            return
+        numparts := int(r.byte())
+        for i := 0; i < numparts; i++ {
+            r.UsVarChar()
         }
-        for i := 0; i < int(numparts); i++ {
-            _, err = readUsVarChar(r); if err != nil {
-                return
-            }
-        }
-        ti.Size = int(longsize)
         ti.Reader = readLongLenType
     default:
-        return streamErrorf("Invalid type %d", ti.TypeId)
+        badStreamPanicf("Invalid type %d", ti.TypeId)
     }
     return
 }

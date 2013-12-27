@@ -163,21 +163,24 @@ type returnStatus int32
 
 
 // http://msdn.microsoft.com/en-us/library/dd358180.aspx
-func parseReturnStatus(r io.Reader) (res returnStatus, err error) {
-    err = binary.Read(r, binary.LittleEndian, &res)
-    return res, err
+func parseReturnStatus(r *tdsBuffer) returnStatus {
+    return returnStatus(r.int32())
 }
 
 
-func parseDone(r io.Reader) (res doneStruct, err error) {
-    err = binary.Read(r, binary.LittleEndian, &res)
-    return res, err
+func parseDone(r *tdsBuffer) (res doneStruct) {
+    res.Status = r.uint16()
+    res.CurCmd = r.uint16()
+    res.RowCount = r.uint64()
+    return res
 }
 
 
-func parseDoneInProc(r io.Reader) (res doneInProcStruct, err error) {
-    err = binary.Read(r, binary.LittleEndian, &res)
-    return res, err
+func parseDoneInProc(r *tdsBuffer) (res doneInProcStruct) {
+    res.Status = r.uint16()
+    res.CurCmd = r.uint16()
+    res.RowCount = r.uint64()
+    return res
 }
 
 
@@ -188,61 +191,41 @@ type loginAckStruct struct {
     ProgVer uint32
 }
 
-func parseLoginAck(r io.Reader) (res loginAckStruct, err error) {
-    var size uint16
-    err = binary.Read(r, binary.LittleEndian, &size)
-    if err != nil {
-        return
-    }
+func parseLoginAck(r *tdsBuffer) loginAckStruct {
+    size := r.uint16()
     buf := make([]byte, size)
-    _, err = io.ReadFull(r, buf)
-    if err != nil {
-        return
-    }
+    r.ReadFull(buf)
+    var res loginAckStruct
     res.Interface = buf[0]
     res.TDSVersion = binary.BigEndian.Uint32(buf[1:])
     prognamelen := buf[1+4]
+    var err error
     if res.ProgName, err = ucs22str(buf[1+4+1:1+4+1 + prognamelen * 2]); err != nil {
-        return
+        badStreamPanic(err)
     }
     res.ProgVer = binary.BigEndian.Uint32(buf[size - 4:])
-    return
+    return res
 }
 
 
 // http://msdn.microsoft.com/en-us/library/dd357363.aspx
-func parseColMetadata72(r io.Reader) (columns []columnStruct, err error) {
-    var count uint16
-    err = binary.Read(r, binary.LittleEndian, &count)
-    if err != nil {
-        return nil, err
-    }
+func parseColMetadata72(r *tdsBuffer) (columns []columnStruct) {
+    count := r.uint16()
     if count == 0xffff {
         // no metadata is sent
-        return nil, nil
+        return nil
     }
     columns = make([]columnStruct, count)
     for i := range columns {
         column := &columns[i]
-        err = binary.Read(r, binary.LittleEndian, &column.UserType)
-        if err != nil {
-            return nil, err
-        }
-        err = binary.Read(r, binary.LittleEndian, &column.Flags)
-        if err != nil {
-            return nil, err
-        }
+        column.UserType = r.uint32()
+        column.Flags = r.uint16()
 
         // parsing TYPE_INFO structure
-        column.ti, err = readTypeInfo(r); if err != nil {
-            return
-        }
-        column.ColName, err = readBVarChar(r)
-        if err != nil {
-            return nil, err
-        }
+        column.ti = readTypeInfo(r)
+        column.ColName = r.BVarChar()
     }
-    return columns, nil
+    return columns
 }
 
 
@@ -444,40 +427,24 @@ func processResponseImpl(sess *tdsSession, ch chan tokenStruct) error {
     var columns []columnStruct
     for {
         token := sess.buf.byte()
-        var err error
         switch token {
         case tokenReturnStatus:
-            returnStatus, err := parseReturnStatus(sess.buf)
-            if err != nil {
-                return err
-            }
+            returnStatus := parseReturnStatus(sess.buf)
             ch <- returnStatus
         case tokenLoginAck:
-            loginAck, err := parseLoginAck(sess.buf)
-            if err != nil {
-                return err
-            }
+            loginAck := parseLoginAck(sess.buf)
             ch <- loginAck
         case tokenDoneInProc:
-            done, err := parseDoneInProc(sess.buf)
-            if err != nil {
-                return err
-            }
+            done := parseDoneInProc(sess.buf)
             ch <- done
         case tokenDone, tokenDoneProc:
-            done, err := parseDone(sess.buf)
-            if err != nil {
-                return err
-            }
+            done := parseDone(sess.buf)
             ch <- done
             if done.Status & doneMore == 0 {
                 return nil
             }
         case tokenColMetadata:
-            columns, err = parseColMetadata72(sess.buf)
-            if err != nil {
-                return err
-            }
+            columns = parseColMetadata72(sess.buf)
             ch <- columns
         case tokenRow:
             row, err := parseRow(sess.buf, columns)

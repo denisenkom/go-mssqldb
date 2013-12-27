@@ -37,3 +37,11 @@ func (e StreamError) Error() string {
 func streamErrorf(format string, v ...interface{}) StreamError {
     return StreamError{"Invalid TDS stream: " + fmt.Sprintf(format, v...)}
 }
+
+func badStreamPanic(err error) {
+    panic(err)
+}
+
+func badStreamPanicf(format string, v ...interface{}) {
+    panic(streamErrorf(format, v...))
+}

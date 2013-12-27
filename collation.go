@@ -24,13 +24,10 @@ func (c collation)getVersion() uint32 {
     return (c.lcidAndFlags & 0xf0000000) >> 28
 }
 
-func readCollation(r io.Reader) (res collation, err error) {
-    err = binary.Read(r, binary.LittleEndian, &res.lcidAndFlags)
-    if err != nil {
-        return res, err
-    }
-    err = binary.Read(r, binary.LittleEndian, &res.sortId)
-    return res, err
+func readCollation(r *tdsBuffer) (res collation) {
+    res.lcidAndFlags = r.uint32()
+    res.sortId = r.byte()
+    return
 }
 
 func writeCollation(w io.Writer, col collation) (err error) {
