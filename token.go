@@ -230,13 +230,11 @@ func parseColMetadata72(r *tdsBuffer) (columns []columnStruct) {
 
 
 // http://msdn.microsoft.com/en-us/library/dd357254.aspx
-func parseRow(r io.Reader, columns []columnStruct) (row []interface{}, err error) {
+func parseRow(r *tdsBuffer, columns []columnStruct) (row []interface{}) {
     row = make([]interface{}, len(columns))
     for i, column := range columns {
         var buf []byte
-        buf, err = column.ti.Reader(&column.ti, r); if err != nil {
-            return
-        }
+        buf = column.ti.Reader(&column.ti, r)
         if buf == nil {
             row[i] = nil
             continue
@@ -279,15 +277,13 @@ func parseRow(r io.Reader, columns []columnStruct) (row []interface{}, err error
             case 8:
                 row[i] = int64(binary.LittleEndian.Uint64(buf))
             default:
-                err = streamErrorf("Invalid size for INTNTYPE")
-                return
+                badStreamPanicf("Invalid size for INTNTYPE")
             }
         case typeDecimal, typeNumeric, typeDecimalN, typeNumericN:
             row[i] = decodeDecimal(column.ti, buf)
         case typeBitN:
             if len(buf) != 1 {
-                err = streamErrorf("Invalid size for BITNTYPE")
-                return
+                badStreamPanicf("Invalid size for BITNTYPE")
             }
             row[i] = buf[0] != 0
         case typeFltN:
@@ -297,8 +293,7 @@ func parseRow(r io.Reader, columns []columnStruct) (row []interface{}, err error
             case 8:
                 row[i] = math.Float64frombits(binary.LittleEndian.Uint64(buf))
             default:
-                err = streamErrorf("Invalid size for FLTNTYPE")
-                return
+                badStreamPanicf("Invalid size for FLTNTYPE")
             }
         case typeMoneyN:
             switch len(buf) {
@@ -307,8 +302,7 @@ func parseRow(r io.Reader, columns []columnStruct) (row []interface{}, err error
             case 8:
                 row[i] = decodeMoney(buf)
             default:
-                err = streamErrorf("Invalid size for MONEYNTYPE")
-                return
+                badStreamPanicf("Invalid size for MONEYNTYPE")
             }
         case typeDateTimeN:
             switch len(buf) {
@@ -317,13 +311,11 @@ func parseRow(r io.Reader, columns []columnStruct) (row []interface{}, err error
             case 8:
                 row[i] = decodeDateTime(buf)
             default:
-                err = streamErrorf("Invalid size for DATETIMENTYPE")
-                return
+                badStreamPanicf("Invalid size for DATETIMENTYPE")
             }
         case typeDateN:
             if len(buf) != 3 {
-                err = streamErrorf("Invalid size for DATENTYPE")
-                return
+                badStreamPanicf("Invalid size for DATENTYPE")
             }
             row[i] = decodeDate(buf)
         case typeTimeN:
@@ -337,18 +329,19 @@ func parseRow(r io.Reader, columns []columnStruct) (row []interface{}, err error
         case typeBinary, typeBigVarBin, typeBigBinary, typeImage:
             row[i] = buf
         case typeNVarChar, typeNChar, typeNText:
+            var err error
             row[i], err = decodeNChar(column, buf); if err != nil {
-                return
+                badStreamPanicf("Invalid encoding for NCHAR: %s", err.Error())
             }
         case typeXml:
             row[i] = decodeXml(column, buf)
         case typeUdt:
             row[i] = decodeUdt(column, buf)
         default:
-            panic("Invalid typeid")
+            badStreamPanicf("Invalid typeid")
         }
     }
-    return row, nil
+    return row
 }
 
 
@@ -447,10 +440,7 @@ func processResponseImpl(sess *tdsSession, ch chan tokenStruct) error {
             columns = parseColMetadata72(sess.buf)
             ch <- columns
         case tokenRow:
-            row, err := parseRow(sess.buf, columns)
-            if err != nil {
-                return err
-            }
+            row := parseRow(sess.buf, columns)
             ch <- row
         case tokenEnvChange:
             if err := processEnvChg(sess); err != nil {

@@ -77,7 +77,7 @@ type typeInfo struct {
     Prec uint8
     Buffer []byte
     Collation collation
-    Reader func(ti *typeInfo, r io.Reader) (res []byte, err error)
+    Reader func(ti *typeInfo, r *tdsBuffer) (res []byte)
     Writer func(w io.Writer, ti typeInfo, buf []byte) (err error)
 }
 
@@ -202,9 +202,9 @@ func decodeDateTime(buf []byte) time.Time {
 }
 
 
-func readFixedType(ti *typeInfo, r io.Reader) (res []byte, err error) {
-    _, err = io.ReadFull(r, ti.Buffer)
-    return ti.Buffer, nil
+func readFixedType(ti *typeInfo, r *tdsBuffer) (res []byte) {
+    r.ReadFull(ti.Buffer)
+    return ti.Buffer
 }
 
 func writeFixedType(w io.Writer, ti typeInfo, buf []byte) (err error) {
@@ -212,18 +212,13 @@ func writeFixedType(w io.Writer, ti typeInfo, buf []byte) (err error) {
     return
 }
 
-func readByteLenType(ti *typeInfo, r io.Reader) (res []byte, err error) {
-    var size uint8
-    err = binary.Read(r, binary.LittleEndian, &size); if err != nil {
-        return
-    }
+func readByteLenType(ti *typeInfo, r *tdsBuffer) (res []byte) {
+    size := r.byte()
     if size == 0 {
-        return nil, nil
+        return nil
     }
-    _, err = io.ReadFull(r, ti.Buffer[:size]); if err != nil {
-        return
-    }
-    return ti.Buffer[:size], nil
+    r.ReadFull(ti.Buffer[:size])
+    return ti.Buffer[:size]
 }
 
 func writeByteLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
@@ -237,18 +232,13 @@ func writeByteLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
     return
 }
 
-func readShortLenType(ti *typeInfo, r io.Reader) (res []byte, err error) {
-    var size uint16
-    err = binary.Read(r, binary.LittleEndian, &size); if err != nil {
-        return
-    }
+func readShortLenType(ti *typeInfo, r *tdsBuffer) (res []byte) {
+    size := r.uint16()
     if size == 0xffff {
-        return nil, nil
+        return nil
     }
-    _, err = io.ReadFull(r, ti.Buffer[:size]); if err != nil {
-        return
-    }
-    return ti.Buffer[:size], nil
+    r.ReadFull(ti.Buffer[:size])
+    return ti.Buffer[:size]
 }
 
 func writeShortLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
@@ -268,48 +258,33 @@ func writeShortLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
     return
 }
 
-func readLongLenType(ti *typeInfo, r io.Reader) (res []byte, err error) {
-    var textptrsize uint8
-    err = binary.Read(r, binary.LittleEndian, &textptrsize); if err != nil {
-        return
-    }
+func readLongLenType(ti *typeInfo, r *tdsBuffer) (res []byte) {
+    textptrsize := r.byte()
     if textptrsize == 0 {
-        return nil, nil
+        return nil
     }
     textptr := make([]byte, textptrsize)
-    _, err = io.ReadFull(r, textptr); if err != nil {
-        return
-    }
-    var timestamp uint64
-    err = binary.Read(r, binary.LittleEndian, &timestamp); if err != nil {
-        return
-    }
-    var size int32
-    err = binary.Read(r, binary.LittleEndian, &size); if err != nil {
-        return
-    }
+    r.ReadFull(textptr)
+    timestamp := r.uint64()
+    _ = timestamp  // ignore timestamp
+    size := r.int32()
     if size == -1 {
-        return nil, nil
+        return nil
     }
     buf := make([]byte, size)
-    _, err = io.ReadFull(r, buf); if err != nil {
-        return
-    }
-    return buf, nil
+    r.ReadFull(buf)
+    return buf
 }
 
 // partially length prefixed stream
 // http://msdn.microsoft.com/en-us/library/dd340469.aspx
-func readPLPType(ti *typeInfo, r io.Reader) (res []byte, err error) {
-    var size uint64
-    err = binary.Read(r, binary.LittleEndian, &size); if err != nil {
-        return
-    }
+func readPLPType(ti *typeInfo, r *tdsBuffer) (res []byte) {
+    size := r.uint64()
     var buf *bytes.Buffer
     switch size {
     case 0xffffffffffffffff:
         // null
-        return nil, nil
+        return nil
     case 0xfffffffffffffffe:
         // size unknown
         buf = bytes.NewBuffer(make([]byte, 0, 1000))
@@ -317,18 +292,15 @@ func readPLPType(ti *typeInfo, r io.Reader) (res []byte, err error) {
         buf = bytes.NewBuffer(make([]byte, 0, size))
     }
     for true {
-        var chunksize uint32
-        err = binary.Read(r, binary.LittleEndian, &chunksize); if err != nil {
-            return
-        }
+        chunksize := r.uint32()
         if chunksize == 0 {
             break
         }
-        _, err = io.CopyN(buf, r, int64(chunksize)); if err != nil {
-            return
+        if _, err := io.CopyN(buf, r, int64(chunksize)); err != nil {
+            badStreamPanicf("Reading PLP type failed: %s", err.Error())
         }
     }
-    return buf.Bytes(), nil
+    return buf.Bytes()
 }
 
 func readVarLen(ti *typeInfo, r *tdsBuffer) {
