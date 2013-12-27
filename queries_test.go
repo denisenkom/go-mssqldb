@@ -247,3 +247,18 @@ func TestError(t *testing.T) {
         }
     }
 }
+
+
+func TestQueryNoRows(t *testing.T) {
+    conn := open(t)
+    defer conn.Close()
+
+    var rows *sql.Rows
+    var err error
+    if rows, err = conn.Query("create table ##abc (fld int)"); err != nil {
+        t.Fatal("Query failed", err)
+    }
+    if rows.Next() {
+        t.Fatal("Query shoulnd't return any rows")
+    }
+}

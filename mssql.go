@@ -247,7 +247,7 @@ func (s *MssqlStmt) Query(args []driver.Value) (res driver.Rows, err error) {
     for tok := range tokchan {
         switch token := tok.(type) {
         case doneStruct:
-            return nil, nil
+            break loop
         case []columnStruct:
             cols = make([]string, len(token))
             for i, col := range token {
@@ -295,14 +295,8 @@ func (rc *MssqlRows) Columns() (res []string) {
 }
 
 func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
-    if rc.tokchan == nil {
-        return io.EOF
-    }
     for tok := range rc.tokchan {
         switch tokdata := tok.(type) {
-        case doneStruct:
-            rc.tokchan = nil
-            return io.EOF
         case []columnStruct:
             return streamErrorf("Unexpected token COLMETADATA")
         case []interface{}:
@@ -311,11 +305,10 @@ func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
             }
             return nil
         case error:
-            rc.tokchan = nil
             return tokdata
         }
     }
-    return nil
+    return io.EOF
 }
 
 
