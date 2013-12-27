@@ -2,7 +2,7 @@
 
 ## Install
 
-    go get github.com/lib/pg
+    go get github.com/denisenkom/go-mssqldb
 
 ## Tests
 
