@@ -82,45 +82,41 @@ func doneFlags2Str(flags uint16) string {
 
 // ENVCHANGE stream
 // http://msdn.microsoft.com/en-us/library/dd303449.aspx
-func processEnvChg(sess *tdsSession) (err error) {
-    r := io.Reader(sess.buf)
-    var size uint16
-    err = binary.Read(r, binary.LittleEndian, &size)
-    if err != nil {
-        return err
-    }
-    r = &io.LimitedReader{r, int64(size)}
-    for true {
+func processEnvChg(sess *tdsSession) {
+    size := sess.buf.uint16()
+    r := &io.LimitedReader{sess.buf, int64(size)}
+    for {
+        var err error
         var envtype uint8
         err = binary.Read(r, binary.LittleEndian, &envtype)
         if err == io.EOF {
-            return nil
+            return
         }
         if err != nil {
-            return err
+            badStreamPanic(err)
         }
         switch envtype {
         case envTypDatabase:
             _, err = readBVarChar(r)
             if err != nil {
-                return err
+                badStreamPanic(err)
             }
             sess.database, err = readBVarChar(r)
             if err != nil {
-                return err
+                badStreamPanic(err)
             }
         case envTypPacketSize:
             packetsize, err := readBVarChar(r)
             if err != nil {
-                return err
+                badStreamPanic(err)
             }
             _, err = readBVarChar(r)
             if err != nil {
-                return err
+                badStreamPanic(err)
             }
             packetsizei, err := strconv.Atoi(packetsize)
             if err != nil {
-                return streamErrorf("Invalid Packet size value returned from server (%s): %s", packetsize, err.Error())
+                badStreamPanicf("Invalid Packet size value returned from server (%s): %s", packetsize, err.Error())
             }
             if len(sess.buf.buf) != packetsizei {
                 newbuf := make([]byte, packetsizei)
@@ -130,32 +126,31 @@ func processEnvChg(sess *tdsSession) (err error) {
         case envTypBeginTran:
             tranid, err := readBVarByte(r)
             if len(tranid) != 8 {
-                return streamErrorf("invalid size of transaction identifier: %d", len(tranid))
+                badStreamPanicf("invalid size of transaction identifier: %d", len(tranid))
             }
             sess.tranid = binary.LittleEndian.Uint64(tranid)
             if err != nil {
-                return err
+                badStreamPanic(err)
             }
             _, err = readBVarByte(r)
             if err != nil {
-                return err
+                badStreamPanic(err)
             }
         case envTypCommitTran, envTypRollbackTran:
             _, err = readBVarByte(r)
             if err != nil {
-                return err
+                badStreamPanic(err)
             }
             _, err = readBVarByte(r)
             if err != nil {
-                return err
+                badStreamPanic(err)
             }
             sess.tranid = 0
         default:
-            return streamErrorf("unknown env type: %d", envtype)
+            badStreamPanicf("unknown env type: %d", envtype)
         }
 
     }
-    return nil
 }
 
 
@@ -443,9 +438,7 @@ func processResponseImpl(sess *tdsSession, ch chan tokenStruct) error {
             row := parseRow(sess.buf, columns)
             ch <- row
         case tokenEnvChange:
-            if err := processEnvChg(sess); err != nil {
-                return err
-            }
+            processEnvChg(sess)
         case tokenError:
             srverr, err := parseError72(sess)
             if err != nil {
