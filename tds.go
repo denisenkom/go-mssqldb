@@ -114,8 +114,6 @@ type tdsSession struct {
 
     loginAck loginAckStruct
 
-    messages []Error
-
     database string
 
     columns []columnStruct
@@ -623,7 +621,6 @@ func connect(params map[string]string) (res *tdsSession, err error) {
     outbuf := newTdsBuffer(4096, toconn)
     sess := tdsSession{
         buf: outbuf,
-        messages: make([]Error, 0, 20),
     }
 
     err = writePrelogin(outbuf, instance)
@@ -661,11 +658,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
         }
     }
     if !success {
-        if len(sess.messages) > 0 {
-            return nil, sess.messages[0]
-        } else {
-            return nil, fmt.Errorf("Login failed")
-        }
+        return nil, fmt.Errorf("Login failed")
     }
     return &sess, nil
 }

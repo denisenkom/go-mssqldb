@@ -37,11 +37,6 @@ func (c *MssqlConn) Commit() error {
     go processResponse(c.sess, tokchan)
     for tok := range tokchan {
         switch token := tok.(type) {
-        case doneStruct:
-            if token.Status & doneError != 0 {
-                return c.sess.messages[0]
-            }
-            break
         case error:
             return token
         }
@@ -62,11 +57,6 @@ func (c *MssqlConn) Rollback() error {
     go processResponse(c.sess, tokchan)
     for tok := range tokchan {
         switch token := tok.(type) {
-        case doneStruct:
-            if token.Status & doneError != 0 {
-                return c.sess.messages[0]
-            }
-            break
         case error:
             return token
         }
@@ -91,11 +81,6 @@ func (c *MssqlConn) Begin() (driver.Tx, error) {
     go processResponse(c.sess, tokchan)
     for tok := range tokchan {
         switch token := tok.(type) {
-        case doneStruct:
-            if token.Status & doneError != 0 {
-                return nil, c.sess.messages[0]
-            }
-            break
         case error:
             return nil, token
         }
@@ -262,9 +247,6 @@ func (s *MssqlStmt) Query(args []driver.Value) (res driver.Rows, err error) {
     for tok := range tokchan {
         switch token := tok.(type) {
         case doneStruct:
-            if token.Status & doneError != 0 {
-                return nil, s.c.sess.messages[0]
-            }
             return nil, nil
         case []columnStruct:
             cols = make([]string, len(token))
@@ -288,9 +270,6 @@ func (s *MssqlStmt) Exec(args []driver.Value) (res driver.Result, err error) {
     for token := range tokchan {
         switch token := token.(type) {
         case doneStruct:
-            if token.Status & doneError != 0 {
-                return nil, s.c.sess.messages[0]
-            }
             return nil, nil
         case error:
             return nil, token
@@ -323,9 +302,6 @@ func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
         switch tokdata := tok.(type) {
         case doneStruct:
             rc.tokchan = nil
-            if tokdata.Status & doneError != 0 {
-                return rc.sess.messages[0]
-            }
             return io.EOF
         case []columnStruct:
             return streamErrorf("Unexpected token COLMETADATA")
