@@ -348,7 +348,6 @@ func readVarLen(ti *typeInfo, r *tdsBuffer) {
         ti.Reader = readByteLenType
     case typeXml:
         schemapresent := r.byte()
-        println("schemapresent", schemapresent)
         if schemapresent != 0 {
             // just ignore this for now
             // dbname
