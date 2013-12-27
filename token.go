@@ -361,16 +361,6 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
         }
         close(ch)
     }()
-    err = processResponseImpl(sess, ch)
-    if err != nil {
-        ch <- err
-        return
-    }
-    return
-}
-
-
-func processResponseImpl(sess *tdsSession, ch chan tokenStruct) error {
     var packet_type uint8
     for {
         var timeout bool
@@ -415,7 +405,7 @@ func processResponseImpl(sess *tdsSession, ch chan tokenStruct) error {
             srverr := parseError72(sess.buf)
             sess.messages = append(sess.messages, srverr)
         default:
-            return streamErrorf("Unknown token type: %d", token)
+            badStreamPanicf("Unknown token type: %d", token)
         }
     }
     return nil
