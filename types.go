@@ -346,24 +346,26 @@ func readVarLen(ti *typeInfo, r *tdsBuffer) {
             ti.Scale = r.byte()
         }
         ti.Reader = readByteLenType
+    case typeXml:
+        schemapresent := r.byte()
+        println("schemapresent", schemapresent)
+        if schemapresent != 0 {
+            // just ignore this for now
+            // dbname
+            r.BVarChar()
+            // owning schema
+            r.BVarChar()
+            // xml schema collection
+            r.UsVarChar()
+        }
+        ti.Reader = readPLPType
     case typeBigVarBin, typeBigVarChar, typeBigBinary, typeBigChar,
-            typeNVarChar, typeNChar, typeXml, typeUdt:
+            typeNVarChar, typeNChar, typeUdt:
         // short len types
         ti.Size = int(r.uint16())
         switch ti.TypeId {
         case typeBigVarChar, typeBigChar, typeNVarChar, typeNChar:
             ti.Collation = readCollation(r)
-        case typeXml:
-            schemapresent := r.byte()
-            if schemapresent != 0 {
-                // just ignore this for now
-                // dbname
-                r.BVarChar()
-                // owning schema
-                r.BVarChar()
-                // xml schema collection
-                r.UsVarChar()
-            }
         }
         if ti.Size == 0xffff {
             ti.Reader = readPLPType
@@ -473,12 +475,19 @@ func decodeChar(ti typeInfo, buf []byte) string {
     return string(buf)
 }
 
-func decodeNChar(ti typeInfo, buf []byte) (string, error) {
-    return ucs22utf8.ConvertString(string(buf))
+func decodeUcs2(buf []byte) string {
+    res, err := ucs22utf8.ConvertString(string(buf)); if err != nil {
+        badStreamPanicf("Invalid UCS2 encoding: %s", err.Error())
+    }
+    return res
 }
 
-func decodeXml(ti typeInfo, buf []byte) int {
-    panic("Not implemented")
+func decodeNChar(ti typeInfo, buf []byte) string {
+    return decodeUcs2(buf)
+}
+
+func decodeXml(ti typeInfo, buf []byte) string {
+    return decodeUcs2(buf)
 }
 
 func decodeUdt(ti typeInfo, buf []byte) int {

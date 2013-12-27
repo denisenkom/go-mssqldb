@@ -317,11 +317,7 @@ func decodeVal(buf []byte, ti typeInfo) (res interface{}) {
     case typeBinary, typeBigVarBin, typeBigBinary, typeImage:
         return buf
     case typeNVarChar, typeNChar, typeNText:
-        var err error
-        res, err = decodeNChar(ti, buf); if err != nil {
-            badStreamPanicf("Invalid encoding for NCHAR: %s", err.Error())
-        }
-        return
+        return decodeNChar(ti, buf)
     case typeXml:
         return decodeXml(ti, buf)
     case typeUdt:
