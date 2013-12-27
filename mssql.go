@@ -6,9 +6,7 @@ import (
     "database/sql/driver"
     "encoding/binary"
     "math"
-//	"math/big"
     "time"
-//	"unsafe"
     "strings"
     "fmt"
 )
@@ -64,11 +62,6 @@ func (c *MssqlConn) Rollback() error {
     return nil
 }
 
-//func (c *MssqlConn) exec(cmd string) error {
-//	_, err := oleutil.CallMethod(c.db, "Execute", cmd)
-//	return err
-//}
-//
 func (c *MssqlConn) Begin() (driver.Tx, error) {
     headers := []headerStruct{
         {hdrtype: dataStmHdrTransDescr,
@@ -133,74 +126,13 @@ func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
 	return &MssqlStmt{c, query}, nil
 }
 
-//func (s *MssqlStmt) Bind(bind []string) error {
-//	s.b = bind
-//	return nil
-//}
-
 func (s *MssqlStmt) Close() error {
-//	s.s.Release()
     return nil
 }
 
 func (s *MssqlStmt) NumInput() int {
-//	if s.b != nil {
-//		return len(s.b)
-//	}
-//	_, err := oleutil.CallMethod(s.ps, "Refresh")
-//	if err != nil {
-//		return -1
-//	}
-//	val, err := oleutil.GetProperty(s.ps, "Count")
-//	if err != nil {
-//		return -1
-//	}
-//	c := int(val.Val)
-//	return c
     return -1
 }
-
-//func (s *MssqlStmt) bind(args []driver.Value) error {
-//	if s.b != nil {
-//		for i, v := range args {
-//			var b string = "?"
-//			if len(s.b) < i {
-//				b = s.b[i]
-//			}
-//			unknown, err := oleutil.CallMethod(s.s, "CreateParameter", b, 12, 1)
-//			if err != nil {
-//				return err
-//			}
-//			param := unknown.ToIDispatch()
-//			defer param.Release()
-//			_, err = oleutil.PutProperty(param, "Value", v)
-//			if err != nil {
-//				return err
-//			}
-//			_, err = oleutil.CallMethod(s.ps, "Append", param)
-//			if err != nil {
-//				return err
-//			}
-//		}
-//	} else {
-//		for i, v := range args {
-//			var varval ole.VARIANT
-//			varval.VT = ole.VT_I4
-//			varval.Val = int64(i)
-//			val, err := oleutil.CallMethod(s.ps, "Item", &varval)
-//			if err != nil {
-//				return err
-//			}
-//			item := val.ToIDispatch()
-//			defer item.Release()
-//			_, err = oleutil.PutProperty(item, "Value", v)
-//			if err != nil {
-//				return err
-//			}
-//		}
-//	}
-//	return nil
-//}
 
 func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
     headers := []headerStruct{
