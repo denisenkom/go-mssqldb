@@ -334,37 +334,36 @@ func decodeVal(buf []byte, ti typeInfo) (res interface{}) {
 
 
 // http://msdn.microsoft.com/en-us/library/dd357254.aspx
-func parseRow(r *tdsBuffer, columns []columnStruct) (row []interface{}) {
-    row = make([]interface{}, len(columns))
+func parseRow(r *tdsBuffer, columns []columnStruct, row []interface{}) {
     for i, column := range columns {
         var buf []byte
         buf = column.ti.Reader(&column.ti, r)
         if buf == nil {
+            row[i] = nil
             continue
         }
         row[i] = decodeVal(buf, column.ti)
     }
-    return row
 }
 
 
 // http://msdn.microsoft.com/en-us/library/dd304783.aspx
-func parseNbcRow(r *tdsBuffer, columns []columnStruct) (row []interface{}) {
+func parseNbcRow(r *tdsBuffer, columns []columnStruct, row []interface{}) {
     bitlen := (len(columns) + 7) / 8
     pres := make([]byte, bitlen)
     r.ReadFull(pres)
-    row = make([]interface{}, len(columns))
     for i, col := range columns {
         if pres[i / 8] & (1 << (uint(i) % 8)) != 0 {
+            row[i] = nil
             continue
         }
         buf := col.ti.Reader(&col.ti, r)
         if buf == nil {
+            row[i] = nil
             continue
         }
         row[i] = decodeVal(buf, col.ti)
     }
-    return row
 }
 
 
@@ -412,6 +411,7 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
     }
     var columns []columnStruct
     errors := make([]Error, 0, 10)
+    var row []interface{}
     for {
         token := sess.buf.byte()
         switch token {
@@ -437,12 +437,14 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
             }
         case tokenColMetadata:
             columns = parseColMetadata72(sess.buf)
+            row = make([]interface{}, len(columns))
             ch <- columns
         case tokenRow:
-            row := parseRow(sess.buf, columns)
+            parseRow(sess.buf, columns, row)
             ch <- row
         case tokenNbcRow:
-            ch <- parseNbcRow(sess.buf, columns)
+            parseNbcRow(sess.buf, columns, row)
+            ch <- row
         case tokenEnvChange:
             processEnvChg(sess)
         case tokenError:
