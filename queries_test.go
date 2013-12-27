@@ -61,6 +61,7 @@ func TestSelect(t *testing.T) {
         {"cast(null as text)", nil},
         {"cast(N'abc' as ntext)", "abc"},
         {"cast(0x1234 as image)", []byte{0x12, 0x34}},
+        {"cast(N'проверка' as nvarchar(max))", "проверка"},
     }
 
     for _, test := range values {
