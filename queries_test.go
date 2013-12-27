@@ -179,6 +179,9 @@ func TestExec(t *testing.T) {
 
 
 func TestTimeout(t *testing.T) {
+    if testing.Short() {
+        return
+    }
     conn := open(t)
     defer conn.Close()
 
@@ -190,4 +193,38 @@ func TestTimeout(t *testing.T) {
         t.Fatal("Exec should fail with timeout, failed with", err)
     }
     _ = res
+}
+
+
+func TestTwoQueries(t *testing.T) {
+    conn := open(t)
+    defer conn.Close()
+
+    rows, err := conn.Query("select 1")
+    if err != nil {
+        t.Fatal("First exec failed", err)
+    }
+    if !rows.Next() {
+        t.Fatal("First query didn't return row")
+    }
+    var i int
+    if err = rows.Scan(&i); err != nil {
+        t.Fatal("Scan failed", err)
+    }
+    if i != 1 {
+        t.Fatalf("Wrong value returned %d, should be 1", i)
+    }
+
+    if rows, err = conn.Query("select 2"); err != nil {
+        t.Fatal("Second query failed", err)
+    }
+    if !rows.Next() {
+        t.Fatal("Second query didn't return row")
+    }
+    if err = rows.Scan(&i); err != nil {
+        t.Fatal("Scan failed", err)
+    }
+    if i != 2 {
+        t.Fatalf("Wrong value returned %d, should be 2", i)
+    }
 }
