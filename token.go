@@ -340,44 +340,16 @@ func parseRow(r *tdsBuffer, columns []columnStruct) (row []interface{}) {
 }
 
 
-func parseError72(sess *tdsSession) (res Error, err error) {
-    r := sess.buf
-    hdr := struct {
-        Length uint16
-        Number int32
-        State uint8
-        Class uint8
-    }{}
-    err = binary.Read(r, binary.LittleEndian, &hdr)
-    if err != nil {
-        return
-    }
-    msgtext, err := readUsVarChar(r)
-    if err != nil {
-        return
-    }
-    servername, err := readBVarChar(r)
-    if err != nil {
-        return
-    }
-    procname, err := readBVarChar(r)
-    if err != nil {
-        return
-    }
-    var lineno int32
-    err = binary.Read(r, binary.LittleEndian, &lineno)
-    if err != nil {
-        return
-    }
-    res = Error{
-        Number: hdr.Number,
-        State: hdr.State,
-        Class: hdr.Class,
-        Message: msgtext,
-        ServerName: servername,
-        ProcName: procname,
-        LineNo: lineno,
-    }
+func parseError72(r *tdsBuffer) (res Error) {
+    length := r.uint16()
+    _ = length  // ignore length
+    res.Number = r.int32()
+    res.State = r.byte()
+    res.Class = r.byte()
+    res.Message = r.UsVarChar()
+    res.ServerName = r.BVarChar()
+    res.ProcName = r.BVarChar()
+    res.LineNo = r.int32()
     return
 }
 
@@ -440,10 +412,7 @@ func processResponseImpl(sess *tdsSession, ch chan tokenStruct) error {
         case tokenEnvChange:
             processEnvChg(sess)
         case tokenError:
-            srverr, err := parseError72(sess)
-            if err != nil {
-                return err
-            }
+            srverr := parseError72(sess.buf)
             sess.messages = append(sess.messages, srverr)
         default:
             return streamErrorf("Unknown token type: %d", token)
