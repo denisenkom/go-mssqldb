@@ -634,7 +634,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
     }
 
     login := login{
-        TDSVersion: verTDS73A,
+        TDSVersion: verTDS74,
         PacketSize: uint32(len(outbuf.buf)),
         UserName: user,
         Password: password,

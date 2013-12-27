@@ -259,6 +259,10 @@ func writeShortLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
 }
 
 func readLongLenType(ti *typeInfo, r *tdsBuffer) (res []byte) {
+    // information about this format can be found here:
+    // http://msdn.microsoft.com/en-us/library/dd304783.aspx
+    // and here:
+    // http://msdn.microsoft.com/en-us/library/dd357254.aspx
     textptrsize := r.byte()
     if textptrsize == 0 {
         return nil
@@ -469,15 +473,15 @@ func decodeChar(ti typeInfo, buf []byte) string {
     return string(buf)
 }
 
-func decodeNChar(column columnStruct, buf []byte) (string, error) {
+func decodeNChar(ti typeInfo, buf []byte) (string, error) {
     return ucs22utf8.ConvertString(string(buf))
 }
 
-func decodeXml(column columnStruct, buf []byte) int {
+func decodeXml(ti typeInfo, buf []byte) int {
     panic("Not implemented")
 }
 
-func decodeUdt(column columnStruct, buf []byte) int {
+func decodeUdt(ti typeInfo, buf []byte) int {
     panic("Not implemented")
 }
 

@@ -262,3 +262,19 @@ func TestQueryNoRows(t *testing.T) {
         t.Fatal("Query shoulnd't return any rows")
     }
 }
+
+
+func TestQueryManyNullsRow(t *testing.T) {
+    conn := open(t)
+    defer conn.Close()
+
+    var row *sql.Row
+    var err error
+    if row = conn.QueryRow("select null, null, null, null, null, null, null, null"); err != nil {
+        t.Fatal("Query failed", err)
+    }
+    var v [8]sql.NullInt64
+    if err = row.Scan(&v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6], &v[7]); err != nil {
+        t.Fatal("Scan failed", err)
+    }
+}
