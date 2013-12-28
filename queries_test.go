@@ -131,6 +131,7 @@ func TestTrans(t *testing.T) {
 
 func TestParams(t *testing.T) {
     longstr := strings.Repeat("x", 10000)
+    longbytes := make([]byte, 10000)
     values := []interface{}{
         int64(5),
         "hello",
@@ -141,6 +142,7 @@ func TestParams(t *testing.T) {
         false,
         nil,
         longstr,
+        longbytes,
     }
 
     conn := open(t)
