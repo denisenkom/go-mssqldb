@@ -246,10 +246,9 @@ func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
 
 func makeParam(val driver.Value) (res Param, err error) {
     if val == nil {
-        res.ti.TypeId = typeNChar
+        res.ti.TypeId = typeNVarChar
         res.buffer = nil
         res.ti.Size = 2
-        res.ti.Writer = writeShortLenType
         return
     }
     switch val := val.(type) {
@@ -258,29 +257,24 @@ func makeParam(val driver.Value) (res Param, err error) {
         res.buffer = make([]byte, 8)
         res.ti.Size = 8
         binary.LittleEndian.PutUint64(res.buffer, uint64(val))
-        res.ti.Writer = writeByteLenType
     case float32:
         res.ti.TypeId = typeFltN
         res.ti.Size = 4
         res.buffer = make([]byte, 4)
         binary.LittleEndian.PutUint32(res.buffer, math.Float32bits(val))
-        res.ti.Writer = writeByteLenType
     case float64:
         res.ti.TypeId = typeFltN
         res.ti.Size = 8
         res.buffer = make([]byte, 8)
         binary.LittleEndian.PutUint64(res.buffer, math.Float64bits(val))
-        res.ti.Writer = writeByteLenType
     case []byte:
-        res.ti.TypeId = typeBigBinary
+        res.ti.TypeId = typeBigVarBin
         res.ti.Size = len(val)
         res.buffer = val
-        res.ti.Writer = writeShortLenType
     case string:
-        res.ti.TypeId = typeNChar
+        res.ti.TypeId = typeNVarChar
         res.buffer = str2ucs2(val)
         res.ti.Size = len(res.buffer)
-        res.ti.Writer = writeShortLenType
     case bool:
         res.ti.TypeId = typeBitN
         res.ti.Size = 1
@@ -288,7 +282,6 @@ func makeParam(val driver.Value) (res Param, err error) {
         if val {
             res.buffer[0] = 1
         }
-        res.ti.Writer = writeByteLenType
     case time.Time:
         res.ti.TypeId = typeDateTimeOffsetN
         panic("time not implemented")

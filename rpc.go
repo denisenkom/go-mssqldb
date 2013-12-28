@@ -89,7 +89,7 @@ func sendRpc(buf *tdsBuffer, headers []headerStruct, proc ProcId, flags uint16, 
         if err = binary.Write(buf, binary.LittleEndian, param.Flags); err != nil {
             return
         }
-        err = writeTypeInfo(buf, param.ti); if err != nil {
+        err = writeTypeInfo(buf, &param.ti); if err != nil {
             return
         }
         err = param.ti.Writer(buf, param.ti, param.buffer); if err != nil {

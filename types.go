@@ -109,7 +109,7 @@ func readTypeInfo(r *tdsBuffer) (res typeInfo) {
 }
 
 
-func writeTypeInfo(w io.Writer, ti typeInfo) (err error) {
+func writeTypeInfo(w io.Writer, ti *typeInfo) (err error) {
     err = binary.Write(w, binary.LittleEndian, ti.TypeId); if err != nil {
         return
     }
@@ -126,7 +126,7 @@ func writeTypeInfo(w io.Writer, ti typeInfo) (err error) {
 }
 
 
-func writeVarLen(w io.Writer, ti typeInfo) (err error) {
+func writeVarLen(w io.Writer, ti *typeInfo) (err error) {
     switch ti.TypeId {
     case typeDateN:
         ;
@@ -154,14 +154,20 @@ func writeVarLen(w io.Writer, ti typeInfo) (err error) {
                 return
             }
         }
+        ti.Writer = writeByteLenType
     case typeBigVarBin, typeBigVarChar, typeBigBinary, typeBigChar,
             typeNVarChar, typeNChar, typeXml, typeUdt:
         // short len types
-        if ti.Size > 0xfffe {
-            panic("Invalid size for USHORTLEN_TYPE")
-        }
-        if err = binary.Write(w, binary.LittleEndian, uint16(ti.Size)); err != nil {
-            return
+        if ti.Size > 8000 {
+            if err = binary.Write(w, binary.LittleEndian, uint16(0xffff)); err != nil {
+                return
+            }
+            ti.Writer = writePLPType
+        } else {
+            if err = binary.Write(w, binary.LittleEndian, uint16(ti.Size)); err != nil {
+                return
+            }
+            ti.Writer = writeShortLenType
         }
         switch ti.TypeId {
         case typeBigVarChar, typeBigChar, typeNVarChar, typeNChar:
@@ -305,6 +311,31 @@ func readPLPType(ti *typeInfo, r *tdsBuffer) (res []byte) {
         }
     }
     return buf.Bytes()
+}
+
+func writePLPType(w io.Writer, ti typeInfo, buf []byte) (err error) {
+    if buf == nil {
+        if err = binary.Write(w, binary.LittleEndian, uint64(0xffffffffffffffff)); err != nil {
+            return
+        }
+        return
+    }
+    if err = binary.Write(w, binary.LittleEndian, uint64(len(buf))); err != nil {
+        return
+    }
+    for {
+        chunksize := uint32(len(buf) % 0x100000000)
+        if err = binary.Write(w, binary.LittleEndian, chunksize); err != nil {
+            return
+        }
+        if chunksize == 0 {
+            return
+        }
+        if _, err = w.Write(buf[:chunksize]); err != nil {
+            return
+        }
+        buf = buf[chunksize:]
+    }
 }
 
 func readVarLen(ti *typeInfo, r *tdsBuffer) {
@@ -523,10 +554,18 @@ func makeDecl(ti typeInfo) string {
         default:
             panic("invalid size of FLNNTYPE")
         }
-    case typeBigBinary:
-        return fmt.Sprintf("binary(%d)", ti.Size)
-    case typeNChar:
-        return fmt.Sprintf("nchar(%d)", ti.Size / 2)
+    case typeBigVarBin:
+        if ti.Size > 8000 {
+            return fmt.Sprintf("varbinary(max)")
+        } else {
+            return fmt.Sprintf("varbinary(%d)", ti.Size)
+        }
+    case typeNVarChar:
+        if ti.Size > 8000 {
+            return fmt.Sprintf("nvarchar(max)")
+        } else {
+            return fmt.Sprintf("nvarchar(%d)", ti.Size / 2)
+        }
     case typeBit, typeBitN:
         return "bit"
     default:

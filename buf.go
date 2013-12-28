@@ -35,13 +35,38 @@ func newTdsBuffer(bufsize int, transport io.ReadWriteCloser) *tdsBuffer {
     return w
 }
 
+func (w *tdsBuffer) flush() (err error) {
+    binary.BigEndian.PutUint16(w.buf[2:], w.pos)
+    if _, err = w.transport.Write(w.buf[:w.pos]); err != nil {
+        return err
+    }
+    w.pos = 8
+    return nil
+}
+
 func (w * tdsBuffer) Write(p []byte) (nn int, err error) {
-    copied := copy(w.buf[w.pos:], p)
-    w.pos += uint16(copied)
-    return copied, nil
+    total := 0
+    for {
+        copied := copy(w.buf[w.pos:], p)
+        w.pos += uint16(copied)
+        total += copied
+        if copied == len(p) {
+            break
+        }
+        if err = w.flush(); err != nil {
+            return total, err
+        }
+        p = p[copied:]
+    }
+    return total, nil
 }
 
 func (w * tdsBuffer) WriteByte(b byte) error {
+    if int(w.pos) == len(w.buf) {
+        if err := w.flush(); err != nil {
+            return err
+        }
+    }
     w.buf[w.pos] = b
     w.pos += 1
     return nil

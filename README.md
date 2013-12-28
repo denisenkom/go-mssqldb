@@ -17,3 +17,4 @@ Example:
 
 * Can be used on linux
 * Supports new date/time types: date, time, datetime2, datetimeoffset
+* Supports string parameters longer that 8000 characters

@@ -98,6 +98,7 @@ const (
 
 
 // prelogin fields
+// http://msdn.microsoft.com/en-us/library/dd357559.aspx
 const (
     preloginVERSION = 0
     preloginENCRYPTION = 1
@@ -131,6 +132,7 @@ type columnStruct struct {
 }
 
 
+// http://msdn.microsoft.com/en-us/library/dd357559.aspx
 func writePrelogin(w * tdsBuffer, instance string) error {
     var err error
 
@@ -213,6 +215,16 @@ func readPrelogin(r * tdsBuffer) (map[uint8][]byte, error) {
     return results, nil
 }
 
+
+// OptionFlags2
+// http://msdn.microsoft.com/en-us/library/dd304019.aspx
+const (
+    fLanguageFatal = 1
+    fODBC = 2
+    fTransBoundary = 4
+    fCacheConnect = 8
+    fIntSecurity = 0x80
+)
 
 type login struct {
     TDSVersion uint32
@@ -306,6 +318,7 @@ func manglePassword(password string) []byte {
 }
 
 
+// http://msdn.microsoft.com/en-us/library/dd304019.aspx
 func sendLogin(w * tdsBuffer, login login) error {
     w.BeginPacket(packLogin7)
     hostname := str2ucs2(login.HostName)
@@ -638,6 +651,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
         PacketSize: uint32(len(outbuf.buf)),
         UserName: user,
         Password: password,
+        OptionFlags2: fODBC,  // to get unlimited TEXTSIZE
     }
     err = sendLogin(outbuf, login)
     if err != nil {

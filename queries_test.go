@@ -5,6 +5,8 @@ import (
     "time"
     "bytes"
     "database/sql"
+    "strings"
+    "fmt"
 )
 
 func TestSelect(t *testing.T) {
@@ -15,6 +17,8 @@ func TestSelect(t *testing.T) {
         sql string
         val interface{}
     }
+
+    longstr := strings.Repeat("x", 10000)
 
     values := []testStruct{
         {"1", int32(1)},
@@ -62,6 +66,7 @@ func TestSelect(t *testing.T) {
         {"cast(N'abc' as ntext)", "abc"},
         {"cast(0x1234 as image)", []byte{0x12, 0x34}},
         {"cast(N'проверка' as nvarchar(max))", "проверка"},
+        {fmt.Sprintf("cast(N'%s' as nvarchar(max))", longstr), longstr},
     }
 
     for _, test := range values {
@@ -125,6 +130,7 @@ func TestTrans(t *testing.T) {
 
 
 func TestParams(t *testing.T) {
+    longstr := strings.Repeat("x", 10000)
     values := []interface{}{
         int64(5),
         "hello",
@@ -134,6 +140,7 @@ func TestParams(t *testing.T) {
         true,
         false,
         nil,
+        longstr,
     }
 
     conn := open(t)
