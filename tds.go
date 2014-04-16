@@ -1,33 +1,24 @@
 package mssql
 
 import (
+    "bytes"
     "errors"
     "io"
     "fmt"
     "net"
-    iconv "github.com/djimenez/iconv-go"
     "strings"
     "strconv"
     "encoding/binary"
     "io/ioutil"
     "unicode/utf8"
+    "unicode/utf16"
     "time"
 )
-
-var ascii2utf8 *iconv.Converter
-var utf82ucs2 *iconv.Converter
-var ucs22utf8 *iconv.Converter
-
 
 func parseInstances(msg []byte) (map[string]map[string]string) {
     results := map[string]map[string]string{}
     if len(msg) > 3 && msg[0] == 5 {
-        var out = make([]byte, len(msg[3:]))
-        var _, written, err = ascii2utf8.Convert(msg[3:], out)
-        if err != nil {
-            return results
-        }
-        out_s := string(out[:written])
+        out_s := string(msg[3:])
         tokens := strings.Split(out_s, ";")
         instdict := map[string]string{}
         got_name := false
@@ -136,8 +127,7 @@ type columnStruct struct {
 func writePrelogin(w * tdsBuffer, instance string) error {
     var err error
 
-    instance_buf := make([]byte, len(instance))
-    iconv.Convert([]byte(instance), instance_buf, "utf8", "ascii")
+    instance_buf := []byte(instance)
     instance_buf = append(instance_buf, 0)  // zero terminate instance name
 
     fields := map[uint8][]byte{
@@ -296,16 +286,24 @@ type loginHeader struct {
 
 
 func str2ucs2(s string) []byte {
-    res, err := utf82ucs2.ConvertString(s)
-    if err != nil {
-        panic("ConvertString failed unexpectedly: " + err.Error())
+    res := utf16.Encode([]rune(s))
+    buf := new(bytes.Buffer)
+    for _, item := range res {
+        binary.Write(buf, binary.LittleEndian, item)
     }
-    return []byte(res)
+    return buf.Bytes()
 }
 
 
 func ucs22str(s []byte) (string, error) {
-    return ucs22utf8.ConvertString(string(s))
+    if len(s) % 2 != 0 {
+        return "", fmt.Errorf("Illegal UCS2 string length: %d", len(s))
+    }
+    buf := make([]uint16, len(s)/2)
+    for i := 0; i < len(s); i += 2 {
+        buf[i/2] = binary.LittleEndian.Uint16(s[i:])
+    }
+    return string(utf16.Decode(buf)), nil
 }
 
 
@@ -572,23 +570,6 @@ func sendSqlBatch72(buf *tdsBuffer,
         return err
     }
     return buf.FinishPacket()
-}
-
-
-func init() {
-    var err error
-    ascii2utf8, err = iconv.NewConverter("ascii", "utf8")
-    if err != nil {
-        panic("Can't create ascii to utf8 convertor: " + err.Error())
-    }
-    utf82ucs2, err = iconv.NewConverter("utf8", "ucs2")
-    if err != nil {
-        panic("Can't create utf8 to ucs2 convertor: " + err.Error())
-    }
-    ucs22utf8, err = iconv.NewConverter("ucs2", "utf8")
-    if err != nil {
-        panic("Can't create ucs2 to utf8 convertor: " + err.Error())
-    }
 }
 
 
