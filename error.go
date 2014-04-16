@@ -1,47 +1,44 @@
 package mssql
 
 import (
-    "fmt"
+	"fmt"
 )
 
 type Error struct {
-    Number int32
-    State uint8
-    Class uint8
-    Message string
-    ServerName string
-    ProcName string
-    LineNo int32
-    timeout bool
+	Number     int32
+	State      uint8
+	Class      uint8
+	Message    string
+	ServerName string
+	ProcName   string
+	LineNo     int32
+	timeout    bool
 }
 
 func (e Error) Timeout() bool {
-    return e.timeout
+	return e.timeout
 }
-
 
 func (e Error) Error() string {
-    return "mssql: " + e.Message
+	return "mssql: " + e.Message
 }
 
-
 type StreamError struct {
-    Message string
+	Message string
 }
 
 func (e StreamError) Error() string {
-    return e.Message
+	return e.Message
 }
 
-
 func streamErrorf(format string, v ...interface{}) StreamError {
-    return StreamError{"Invalid TDS stream: " + fmt.Sprintf(format, v...)}
+	return StreamError{"Invalid TDS stream: " + fmt.Sprintf(format, v...)}
 }
 
 func badStreamPanic(err error) {
-    panic(err)
+	panic(err)
 }
 
 func badStreamPanicf(format string, v ...interface{}) {
-    panic(streamErrorf(format, v...))
+	panic(streamErrorf(format, v...))
 }
