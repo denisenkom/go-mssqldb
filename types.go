@@ -324,7 +324,7 @@ func writePLPType(w io.Writer, ti typeInfo, buf []byte) (err error) {
 		return
 	}
 	for {
-		chunksize := uint32(len(buf) % 0x100000000)
+		chunksize := uint32(len(buf))
 		if err = binary.Write(w, binary.LittleEndian, chunksize); err != nil {
 			return
 		}
@@ -505,7 +505,7 @@ func decodeChar(ti typeInfo, buf []byte) string {
 }
 
 func decodeUcs2(buf []byte) string {
-	res, err := ucs22utf8.ConvertString(string(buf))
+	res, err := ucs22str(buf)
 	if err != nil {
 		badStreamPanicf("Invalid UCS2 encoding: %s", err.Error())
 	}
