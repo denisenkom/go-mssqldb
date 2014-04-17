@@ -280,3 +280,47 @@ func TestQueryManyNullsRow(t *testing.T) {
 		t.Fatal("Scan failed", err)
 	}
 }
+
+func TestOrderBy(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+
+	tx, err := conn.Begin()
+	if err != nil {
+		t.Fatal("Begin tran failed", err)
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec("if (exists(select * from INFORMATION_SCHEMA.TABLES where TABLE_NAME='tbl')) drop table tbl")
+	if err != nil {
+		t.Fatal("Drop table failed", err)
+	}
+
+	_, err = tx.Exec("create table tbl (fld1 int, fld2 int)")
+	if err != nil {
+		t.Fatal("Create table failed", err)
+	}
+	_, err = tx.Exec("insert into tbl (fld1, fld2) values (1, 2), (2, 1)")
+	if err != nil {
+		t.Fatal("Insert failed", err)
+	}
+
+	rows, err := tx.Query("select * from tbl order by fld1")
+	if err != nil {
+		t.Fatal("Query failed", err)
+	}
+
+	for rows.Next() {
+		var fld1 int32
+		var fld2 int32
+		err = rows.Scan(&fld1, &fld2)
+		if err != nil {
+			t.Fatal("Scan failed", err)
+		}
+	}
+
+	err = rows.Err()
+	if err != nil {
+		t.Fatal("Rows have errors", err)
+	}
+}

@@ -13,6 +13,7 @@ import (
 const (
 	tokenReturnStatus = 121 // 0x79
 	tokenColMetadata  = 129 // 0x81
+	tokenOrder        = 169 // 0xA9
 	tokenError        = 170 // 0xAA
 	tokenLoginAck     = 173 // 0xad
 	tokenRow          = 209 // 0xd1
@@ -48,6 +49,10 @@ const (
 
 // interface for all tokens
 type tokenStruct interface{}
+
+type orderStruct struct {
+	ColIds []uint16
+}
 
 type doneStruct struct {
 	Status   uint16
@@ -155,6 +160,15 @@ type returnStatus int32
 // http://msdn.microsoft.com/en-us/library/dd358180.aspx
 func parseReturnStatus(r *tdsBuffer) returnStatus {
 	return returnStatus(r.int32())
+}
+
+func parseOrder(r *tdsBuffer) (res orderStruct) {
+	len := int(r.uint16())
+	res.ColIds = make([]uint16, len/2)
+	for i := 0; i < len/2; i++ {
+		res.ColIds[i] = r.uint16()
+	}
+	return res
 }
 
 func parseDone(r *tdsBuffer) (res doneStruct) {
@@ -401,6 +415,9 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
 		case tokenLoginAck:
 			loginAck := parseLoginAck(sess.buf)
 			ch <- loginAck
+		case tokenOrder:
+			order := parseOrder(sess.buf)
+			ch <- order
 		case tokenDoneInProc:
 			done := parseDoneInProc(sess.buf)
 			ch <- done
