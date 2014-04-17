@@ -81,7 +81,7 @@ func doneFlags2Str(flags uint16) string {
 // http://msdn.microsoft.com/en-us/library/dd303449.aspx
 func processEnvChg(sess *tdsSession) {
 	size := sess.buf.uint16()
-	r := &io.LimitedReader{sess.buf, int64(size)}
+	r := &io.LimitedReader{R: sess.buf, N: int64(size)}
 	for {
 		var err error
 		var envtype uint8
@@ -434,5 +434,4 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
 			badStreamPanicf("Unknown token type: %d", token)
 		}
 	}
-	return nil
 }
