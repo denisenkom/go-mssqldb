@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	sql.Register("go-mssql", &MssqlDriver{})
+	sql.Register("mssql", &MssqlDriver{})
 }
 
 type MssqlDriver struct {
