@@ -82,7 +82,7 @@ func TestSelect(t *testing.T) {
 		err = row.Scan(&retval)
 		if err != nil {
 			t.Error("Scan failed:", test.sql, err.Error())
-			return
+			continue
 		}
 		var same bool
 		switch decodedval := retval.(type) {
@@ -300,7 +300,11 @@ func TestOrderBy(t *testing.T) {
 	if err != nil {
 		t.Fatal("Create table failed", err)
 	}
-	_, err = tx.Exec("insert into tbl (fld1, fld2) values (1, 2), (2, 1)")
+	_, err = tx.Exec("insert into tbl (fld1, fld2) values (1, 2)")
+	if err != nil {
+		t.Fatal("Insert failed", err)
+	}
+	_, err = tx.Exec("insert into tbl (fld1, fld2) values (2, 1)")
 	if err != nil {
 		t.Fatal("Insert failed", err)
 	}
