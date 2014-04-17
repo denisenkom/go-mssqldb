@@ -72,6 +72,7 @@ func TestSendSqlBatch(t *testing.T) {
 		"server":   fmt.Sprintf("%s\\%s", addr, instance),
 		"user id":  os.Getenv("SQLUSER"),
 		"password": os.Getenv("SQLPASSWORD"),
+		"database": os.Getenv("DATABASE"),
 	})
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
