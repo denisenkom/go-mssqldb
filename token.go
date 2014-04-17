@@ -391,7 +391,6 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
 	}
 	var columns []columnStruct
 	errors := make([]Error, 0, 10)
-	var row []interface{}
 	for {
 		token := sess.buf.byte()
 		switch token {
@@ -417,12 +416,13 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
 			}
 		case tokenColMetadata:
 			columns = parseColMetadata72(sess.buf)
-			row = make([]interface{}, len(columns))
 			ch <- columns
 		case tokenRow:
+			row := make([]interface{}, len(columns))
 			parseRow(sess.buf, columns, row)
 			ch <- row
 		case tokenNbcRow:
+			row := make([]interface{}, len(columns))
 			parseNbcRow(sess.buf, columns, row)
 			ch <- row
 		case tokenEnvChange:
