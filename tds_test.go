@@ -72,6 +72,7 @@ func TestSendSqlBatch(t *testing.T) {
 		"server":   fmt.Sprintf("%s\\%s", addr, instance),
 		"user id":  os.Getenv("SQLUSER"),
 		"password": os.Getenv("SQLPASSWORD"),
+		"database": os.Getenv("DATABASE"),
 	})
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
@@ -126,7 +127,7 @@ func makeConnStr() string {
 }
 
 func open(t *testing.T) *sql.DB {
-	conn, err := sql.Open("go-mssql", makeConnStr())
+	conn, err := sql.Open("mssql", makeConnStr())
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
 		return nil
@@ -135,7 +136,7 @@ func open(t *testing.T) *sql.DB {
 }
 
 func TestConnect(t *testing.T) {
-	conn, err := sql.Open("go-mssql", makeConnStr())
+	conn, err := sql.Open("mssql", makeConnStr())
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
 		return
@@ -150,7 +151,7 @@ func TestBadConnect(t *testing.T) {
 			os.Getenv("HOST"), os.Getenv("INSTANCE")),
 	}
 	for _, badDsn := range badDsns {
-		conn, err := sql.Open("go-mssql", badDsn)
+		conn, err := sql.Open("mssql", badDsn)
 		if err != nil {
 			t.Error("Open connection failed:", err.Error())
 		}

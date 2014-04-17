@@ -560,6 +560,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 	if len(parts) > 1 {
 		instance = parts[1]
 	}
+	database := params["database"]
 	user := params["user id"]
 	if len(user) == 0 {
 		err = fmt.Errorf("Login failed, User Id is required")
@@ -610,6 +611,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		PacketSize:   uint32(len(outbuf.buf)),
 		UserName:     user,
 		Password:     password,
+		Database:     database,
 		OptionFlags2: fODBC, // to get unlimited TEXTSIZE
 	}
 	err = sendLogin(outbuf, login)
