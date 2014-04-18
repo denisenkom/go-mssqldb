@@ -35,6 +35,8 @@ func TestSelect(t *testing.T) {
 		{"cast(0.5 as decimal(18,1))", []byte("0.5")},
 		{"cast(-0.5 as decimal(18,1))", []byte("-0.5")},
 		{"cast(-0.5 as numeric(18,1))", []byte("-0.5")},
+		{"cast(4294967296 as numeric(20,0))", []byte("4294967296")},
+		{"cast(-0.5 as numeric(18,2))", []byte("-0.50")},
 		{"N'abc'", string("abc")},
 		{"cast(null as nvarchar(3))", nil},
 		{"NULL", nil},

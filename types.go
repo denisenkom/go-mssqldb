@@ -446,8 +446,9 @@ func decodeDecimal(ti typeInfo, buf []byte) []byte {
 		scale:    ti.Scale,
 	}
 	buf = buf[1:]
-	for i := 0; i < len(buf)/4; i++ {
-		dec.integer[i] = binary.LittleEndian.Uint32(buf)
+	l := len(buf) / 4
+	for i := 0; i < l; i++ {
+		dec.integer[i] = binary.LittleEndian.Uint32(buf[0:4])
 		buf = buf[4:]
 	}
 	return dec.Bytes()
