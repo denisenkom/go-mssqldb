@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -30,10 +31,10 @@ func TestSelect(t *testing.T) {
 		{"'abc'", string("abc")},
 		{"cast(0.5 as float)", float64(0.5)},
 		{"cast(0.5 as real)", float64(0.5)},
-		{"cast(1 as decimal)", Decimal{[...]uint32{1, 0, 0, 0}, true, 18, 0}},
-		{"cast(0.5 as decimal(18,1))", Decimal{[...]uint32{5, 0, 0, 0}, true, 18, 1}},
-		{"cast(-0.5 as decimal(18,1))", Decimal{[...]uint32{5, 0, 0, 0}, false, 18, 1}},
-		{"cast(-0.5 as numeric(18,1))", Decimal{[...]uint32{5, 0, 0, 0}, false, 18, 1}},
+		{"cast(1 as decimal)", []byte("1")},
+		{"cast(0.5 as decimal(18,1))", []byte("0.5")},
+		{"cast(-0.5 as decimal(18,1))", []byte("-0.5")},
+		{"cast(-0.5 as numeric(18,1))", []byte("-0.5")},
 		{"N'abc'", string("abc")},
 		{"cast(null as nvarchar(3))", nil},
 		{"NULL", nil},
@@ -326,5 +327,32 @@ func TestOrderBy(t *testing.T) {
 	err = rows.Err()
 	if err != nil {
 		t.Fatal("Rows have errors", err)
+	}
+}
+
+func TestScanDecimal(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+
+	var f float64
+	err := conn.QueryRow("select cast(0.5 as numeric(25,1))").Scan(&f)
+	if err != nil {
+		t.Error("query row / scan failed:", err.Error())
+		return
+	}
+	if math.Abs(f-0.5) > 0.000001 {
+		t.Error("Value is not 0.5:", f)
+		return
+	}
+
+	var s string
+	err = conn.QueryRow("select cast(-0.05 as numeric(25,2))").Scan(&s)
+	if err != nil {
+		t.Error("query row / scan failed:", err.Error())
+		return
+	}
+	if s != "-0.05" {
+		t.Error("Value is not -0.05:", s)
+		return
 	}
 }
