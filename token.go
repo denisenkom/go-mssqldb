@@ -279,7 +279,7 @@ func decodeVal(buf []byte, ti typeInfo) (res interface{}) {
 	case typeFltN:
 		switch len(buf) {
 		case 4:
-			return math.Float32frombits(binary.LittleEndian.Uint32(buf))
+			return float64(math.Float32frombits(binary.LittleEndian.Uint32(buf)))
 		case 8:
 			return math.Float64frombits(binary.LittleEndian.Uint64(buf))
 		default:
