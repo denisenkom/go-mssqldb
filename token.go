@@ -86,7 +86,7 @@ func doneFlags2Str(flags uint16) string {
 // http://msdn.microsoft.com/en-us/library/dd303449.aspx
 func processEnvChg(sess *tdsSession) {
 	size := sess.buf.uint16()
-	r := &io.LimitedReader{sess.buf, int64(size)}
+	r := &io.LimitedReader{R: sess.buf, N: int64(size)}
 	for {
 		var err error
 		var envtype uint8
@@ -405,7 +405,6 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
 	}
 	var columns []columnStruct
 	errors := make([]Error, 0, 10)
-	var row []interface{}
 	for {
 		token := sess.buf.byte()
 		switch token {
@@ -434,12 +433,13 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
 			}
 		case tokenColMetadata:
 			columns = parseColMetadata72(sess.buf)
-			row = make([]interface{}, len(columns))
 			ch <- columns
 		case tokenRow:
+			row := make([]interface{}, len(columns))
 			parseRow(sess.buf, columns, row)
 			ch <- row
 		case tokenNbcRow:
+			row := make([]interface{}, len(columns))
 			parseNbcRow(sess.buf, columns, row)
 			ch <- row
 		case tokenEnvChange:
@@ -451,5 +451,4 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
 			badStreamPanicf("Unknown token type: %d", token)
 		}
 	}
-	return nil
 }
