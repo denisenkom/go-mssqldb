@@ -437,7 +437,7 @@ func decodeGuid(buf []byte) (res [16]byte) {
 	return
 }
 
-func decodeDecimal(ti typeInfo, buf []byte) Decimal {
+func decodeDecimal(ti typeInfo, buf []byte) []byte {
 	var sign uint8
 	sign = buf[0]
 	dec := Decimal{
@@ -450,7 +450,7 @@ func decodeDecimal(ti typeInfo, buf []byte) Decimal {
 		dec.integer[i] = binary.LittleEndian.Uint32(buf)
 		buf = buf[4:]
 	}
-	return dec
+	return dec.Bytes()
 }
 
 // http://msdn.microsoft.com/en-us/library/ee780895.aspx

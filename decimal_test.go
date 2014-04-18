@@ -4,6 +4,28 @@ import (
 	"testing"
 )
 
+func TestToString(t *testing.T) {
+	values := []struct {
+		dec Decimal
+		s   string
+	}{
+		{Decimal{positive: true, prec: 10, scale: 0, integer: [4]uint32{1, 0, 0, 0}}, "1"},
+		{Decimal{positive: false, prec: 10, scale: 0, integer: [4]uint32{1, 0, 0, 0}}, "-1"},
+		{Decimal{positive: true, prec: 10, scale: 1, integer: [4]uint32{1, 0, 0, 0}}, "0.1"},
+		{Decimal{positive: false, prec: 10, scale: 1, integer: [4]uint32{1, 0, 0, 0}}, "-0.1"},
+		{Decimal{positive: true, prec: 10, scale: 2, integer: [4]uint32{100, 0, 0, 0}}, "1.00"},
+		{Decimal{positive: false, prec: 10, scale: 2, integer: [4]uint32{100, 0, 0, 0}}, "-1.00"},
+		{Decimal{positive: true, prec: 30, scale: 0, integer: [4]uint32{0, 1, 0, 0}}, "4294967296"},           // 2^32
+		{Decimal{positive: true, prec: 30, scale: 0, integer: [4]uint32{0, 0, 1, 0}}, "18446744073709551616"}, // 2^64
+		{Decimal{positive: true, prec: 30, scale: 0, integer: [4]uint32{0, 1, 1, 0}}, "18446744078004518912"}, // 2^64+2^32
+	}
+	for _, v := range values {
+		if v.dec.String() != v.s {
+			t.Error("String values don't match ", v.dec.String(), v.s)
+		}
+	}
+}
+
 func TestToFloat64(t *testing.T) {
 	values := []struct {
 		dec Decimal
