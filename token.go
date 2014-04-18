@@ -233,13 +233,13 @@ func decodeVal(buf []byte, ti typeInfo) (res interface{}) {
 	case typeNull:
 		return nil
 	case typeInt1:
-		return buf[0]
+		return int64(buf[0])
 	case typeBit:
 		return buf[0] != 0
 	case typeInt2:
-		return int16(binary.LittleEndian.Uint16(buf))
+		return int64(binary.LittleEndian.Uint16(buf))
 	case typeInt4:
-		return int32(binary.LittleEndian.Uint32(buf))
+		return int64(binary.LittleEndian.Uint32(buf))
 	case typeDateTim4:
 		return decodeDateTim4(buf)
 	case typeFlt4:
@@ -259,11 +259,11 @@ func decodeVal(buf []byte, ti typeInfo) (res interface{}) {
 	case typeIntN:
 		switch len(buf) {
 		case 1:
-			return uint8(buf[0])
+			return int64(buf[0])
 		case 2:
-			return int16(binary.LittleEndian.Uint16(buf))
+			return int64(binary.LittleEndian.Uint16(buf))
 		case 4:
-			return int32(binary.LittleEndian.Uint32(buf))
+			return int64(binary.LittleEndian.Uint32(buf))
 		case 8:
 			return int64(binary.LittleEndian.Uint64(buf))
 		default:

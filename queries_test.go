@@ -21,9 +21,9 @@ func TestSelect(t *testing.T) {
 	longstr := strings.Repeat("x", 10000)
 
 	values := []testStruct{
-		{"1", int32(1)},
-		{"cast(1 as tinyint)", uint8(1)},
-		{"cast(1 as smallint)", int16(1)},
+		{"1", int64(1)},
+		{"cast(1 as tinyint)", int64(1)},
+		{"cast(1 as smallint)", int64(1)},
 		{"cast(1 as bigint)", int64(1)},
 		{"cast(1 as bit)", true},
 		{"cast(0 as bit)", false},
