@@ -571,6 +571,8 @@ func makeDecl(ti typeInfo) string {
 		return "bit"
 	case typeDateTimeN:
 		return "datetime"
+	case typeDateTimeOffsetN:
+		return fmt.Sprintf("datetimeoffet(%d)", ti.Scale)
 	default:
 		panic(fmt.Sprintf("not implemented makeDecl for type %d", ti.TypeId))
 	}

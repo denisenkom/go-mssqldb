@@ -146,12 +146,12 @@ func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
 	} else {
 		params := make([]Param, len(args)+2)
 		decls := make([]string, len(args))
-		params[0], err = makeParam(s.query)
+		params[0], err = s.makeParam(s.query)
 		if err != nil {
 			return
 		}
 		for i, val := range args {
-			params[i+2], err = makeParam(val)
+			params[i+2], err = s.makeParam(val)
 			if err != nil {
 				return
 			}
@@ -159,7 +159,7 @@ func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
 			params[i+2].Name = name
 			decls[i] = fmt.Sprintf("%s %s", name, makeDecl(params[i+2].ti))
 		}
-		params[1], err = makeParam(strings.Join(decls, ","))
+		params[1], err = s.makeParam(strings.Join(decls, ","))
 		if err != nil {
 			return
 		}
@@ -246,7 +246,7 @@ func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
 	return io.EOF
 }
 
-func makeParam(val driver.Value) (res Param, err error) {
+func (s *MssqlStmt) makeParam(val driver.Value) (res Param, err error) {
 	if val == nil {
 		res.ti.TypeId = typeNVarChar
 		res.buffer = nil
@@ -280,15 +280,39 @@ func makeParam(val driver.Value) (res Param, err error) {
 			res.buffer[0] = 1
 		}
 	case time.Time:
-		res.ti.TypeId = typeDateTimeN
-		res.ti.Size = 8
-		res.buffer = make([]byte, 8)
-		ref := time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
-		dur := val.Sub(ref)
-		days := dur / (24 * time.Hour)
-		tm := (300 * (dur % (24 * time.Hour))) / time.Second
-		binary.LittleEndian.PutUint32(res.buffer[0:4], uint32(days))
-		binary.LittleEndian.PutUint32(res.buffer[4:8], uint32(tm))
+		if s.c.sess.loginAck.TDSVersion >= verTDS73 {
+			res.ti.TypeId = typeDateTimeOffsetN
+			res.ti.Scale = 7
+			res.ti.Size = 10
+			buf := make([]byte, 10)
+			res.buffer = buf
+			ref := time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
+			dur := val.Sub(ref)
+			days := dur / (24 * time.Hour)
+			buf[0] = byte(days)
+			buf[1] = byte(days >> 8)
+			buf[2] = byte(days >> 16)
+			tm := (dur % (24 * time.Hour)) / (time.Second / 1e7)
+			buf[3] = byte(tm)
+			buf[4] = byte(tm >> 8)
+			buf[5] = byte(tm >> 16)
+			buf[6] = byte(tm >> 24)
+			buf[7] = byte(tm >> 32)
+			_, offset := val.Zone()
+			offset /= 60
+			buf[8] = byte(offset)
+			buf[9] = byte(offset >> 8)
+		} else {
+			res.ti.TypeId = typeDateTimeN
+			res.ti.Size = 8
+			res.buffer = make([]byte, 8)
+			ref := time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
+			dur := val.Sub(ref)
+			days := dur / (24 * time.Hour)
+			tm := (300 * (dur % (24 * time.Hour))) / time.Second
+			binary.LittleEndian.PutUint32(res.buffer[0:4], uint32(days))
+			binary.LittleEndian.PutUint32(res.buffer[4:8], uint32(tm))
+		}
 	default:
 		err = fmt.Errorf("mssql: unknown type for %T", val)
 		return
