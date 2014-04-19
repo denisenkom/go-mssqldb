@@ -120,10 +120,11 @@ func (c *MssqlConn) Close() error {
 type MssqlStmt struct {
 	c     *MssqlConn
 	query string
+	cols  []columnStruct
 }
 
 func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
-	return &MssqlStmt{c, query}, nil
+	return &MssqlStmt{c, query, nil}, nil
 }
 
 func (s *MssqlStmt) Close() error {
@@ -132,6 +133,17 @@ func (s *MssqlStmt) Close() error {
 
 func (s *MssqlStmt) NumInput() int {
 	return -1
+}
+
+func (s *MssqlStmt) ColumnConverter(idx int) driver.ValueConverter {
+    if idx < len(s.cols) {
+        ti := s.cols[idx].ti
+        switch ti.TypeId {
+        case typeDecimal, typeNumeric, typeDecimalN, typeNumericN:
+                return DecimalValueConverter{ti}
+        }
+    }
+    return DefaultValueConverter{}
 }
 
 func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
@@ -170,30 +182,29 @@ func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
 	return
 }
 
-func (s *MssqlStmt) Query(args []driver.Value) (res driver.Rows, err error) {
+func (s *MssqlStmt) queryIfNotYet(args []driver.Value) error {
 	if err = s.sendQuery(args); err != nil {
 		return
 	}
 	tokchan := make(chan tokenStruct, 5)
 	go processResponse(s.c.sess, tokchan)
 	// process metadata
-	var cols []string
 loop:
 	for tok := range tokchan {
 		switch token := tok.(type) {
 		case doneStruct:
 			break loop
 		case []columnStruct:
-			cols = make([]string, len(token))
-			for i, col := range token {
-				cols[i] = col.ColName
-			}
+			s.cols = token
 			break loop
 		case error:
 			return nil, token
 		}
 	}
-	return &MssqlRows{sess: s.c.sess, tokchan: tokchan, cols: cols}, nil
+}
+
+func (s *MssqlStmt) Query(args []driver.Value) (res driver.Rows, err error) {
+	return &MssqlRows{sess: s.c.sess, tokchan: tokchan, cols: s.cols}, nil
 }
 
 func (s *MssqlStmt) Exec(args []driver.Value) (res driver.Result, err error) {
@@ -216,7 +227,7 @@ func (s *MssqlStmt) Exec(args []driver.Value) (res driver.Result, err error) {
 type MssqlRows struct {
 	sess    *tdsSession
 	nc      int
-	cols    []string
+	cols    []columnStruct
 	tokchan chan tokenStruct
 }
 
@@ -226,7 +237,11 @@ func (rc *MssqlRows) Close() error {
 }
 
 func (rc *MssqlRows) Columns() (res []string) {
-	return rc.cols
+        res = make([]string, len(rc.cols))
+        for i, col := range rc.cols {
+                res[i] = col.ColName
+        }
+	return res
 }
 
 func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
@@ -292,4 +307,24 @@ func makeParam(val driver.Value) (res Param, err error) {
 		return
 	}
 	return
+}
+
+type DefaultValueConverter struct {
+}
+
+func (conv DefaultValueConverter) ConvertValue(v interface{}) (driver.Value, error) {
+    return v, nil
+}
+
+type DecimalValueConverter struct {
+        ti typeInfo
+}
+
+func (conv DecimalValueConverter) ConvertValue(v interface{}) (driver.Value, error) {
+        switch decodedval := v.(type) {
+        case []byte:
+                return decodeDecimal(conv.ti, decodedval).ToFloat64(), nil
+        default:
+                return decodedval, nil
+        }
 }

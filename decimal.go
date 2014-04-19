@@ -1,6 +1,7 @@
 package mssql
 
 import (
+	"encoding/binary"
 	"errors"
 	"math"
 	"math/big"
@@ -29,6 +30,19 @@ func (d Decimal) ToFloat64() float64 {
 		val /= scaletblflt64[d.scale]
 	}
 	return val
+}
+
+func (d Decimal) Pack() []byte {
+        buf := make([]byte, 4 + 1)
+        if d.positive {
+            buf[0] = 1
+        } else {
+            buf[0] = 0
+        }
+        for i := 0; i < 1; i++ {
+            binary.LittleEndian.PutUint32(buf[1 + i * 4:], d.integer[i])
+        }
+        return buf
 }
 
 func Float64ToDecimal(f float64) (Decimal, error) {

@@ -31,10 +31,10 @@ func TestSelect(t *testing.T) {
 		{"'abc'", string("abc")},
 		{"cast(0.5 as float)", float64(0.5)},
 		{"cast(0.5 as real)", float64(0.5)},
-		{"cast(1 as decimal)", []byte("1")},
-		{"cast(0.5 as decimal(18,1))", []byte("0.5")},
-		{"cast(-0.5 as decimal(18,1))", []byte("-0.5")},
-		{"cast(-0.5 as numeric(18,1))", []byte("-0.5")},
+		{"cast(1 as decimal)", Decimal{[...]uint32{1, 0, 0, 0}, true, 18, 0}.Pack()},
+		{"cast(0.5 as decimal(18,1))", Decimal{[...]uint32{5, 0, 0, 0}, true, 18, 1}.Pack()},
+		{"cast(-0.5 as decimal(18,1))", Decimal{[...]uint32{5, 0, 0, 0}, false, 18, 1}.Pack()},
+		{"cast(-0.5 as numeric(18,1))", Decimal{[...]uint32{5, 0, 0, 0}, false, 18, 1}.Pack()},
 		{"N'abc'", string("abc")},
 		{"cast(null as nvarchar(3))", nil},
 		{"NULL", nil},
@@ -102,6 +102,18 @@ func TestSelect(t *testing.T) {
 			return
 		}
 	}
+}
+
+func TestDecimal(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+
+        row := conn.QueryRow("select cast(0.5 as decimal)")
+        var val float64
+        err := row.Scan(&val)
+        if err != nil {
+                t.Fatal("Scan failed:", err.Error())
+        }
 }
 
 func TestTrans(t *testing.T) {

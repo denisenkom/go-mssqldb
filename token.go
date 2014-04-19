@@ -270,7 +270,7 @@ func decodeVal(buf []byte, ti typeInfo) (res interface{}) {
 			badStreamPanicf("Invalid size for INTNTYPE")
 		}
 	case typeDecimal, typeNumeric, typeDecimalN, typeNumericN:
-		return decodeDecimal(ti, buf)
+		return buf
 	case typeBitN:
 		if len(buf) != 1 {
 			badStreamPanicf("Invalid size for BITNTYPE")
