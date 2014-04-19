@@ -1,6 +1,7 @@
 package mssql
 
 import (
+	"encoding/binary"
 	"errors"
 	"math"
 	"math/big"
@@ -64,38 +65,24 @@ func Float64ToDecimal(f float64) (Decimal, error) {
 	return dec, nil
 }
 
-var factor1, factor2, factor3 big.Int
-
 func init() {
 	var acc float64 = 1
 	for i := 0; i <= 38; i++ {
 		scaletblflt64[i] = acc
 		acc *= 10
 	}
-	factor1.Exp(big.NewInt(2), big.NewInt(32), nil)
-	factor2.Exp(big.NewInt(2), big.NewInt(64), nil)
-	factor3.Exp(big.NewInt(2), big.NewInt(96), nil)
 }
 
 func (d Decimal) Bytes() []byte {
-	x := big.NewInt(int64(d.integer[0]))
-	if d.integer[1] != 0 {
-		y := big.NewInt(int64(d.integer[1]))
-		y.Mul(y, &factor1)
-		x.Add(x, y)
-	}
-	if d.integer[2] != 0 {
-		y := big.NewInt(int64(d.integer[2]))
-		y.Mul(y, &factor2)
-		x.Add(x, y)
-	}
-	if d.integer[3] != 0 {
-		y := big.NewInt(int64(d.integer[3]))
-		y.Mul(y, &factor3)
-		x.Add(x, y)
-	}
-	b := x.String()
-	pos := len(b) - int(d.scale)
+	bytes := make([]byte, 16)
+	binary.BigEndian.PutUint32(bytes[0:4], d.integer[3])
+	binary.BigEndian.PutUint32(bytes[4:8], d.integer[2])
+	binary.BigEndian.PutUint32(bytes[8:12], d.integer[1])
+	binary.BigEndian.PutUint32(bytes[12:16], d.integer[0])
+	var x big.Int
+	x.SetBytes(bytes)
+	s := x.String()
+	pos := len(s) - int(d.scale)
 	var z []byte
 	if !d.positive {
 		z = append(z, byte('-'))
@@ -103,7 +90,7 @@ func (d Decimal) Bytes() []byte {
 	if pos <= 0 {
 		z = append(z, byte('0'))
 	} else if pos > 0 {
-		z = append(z, []byte(b[:pos])...)
+		z = append(z, []byte(s[:pos])...)
 	}
 	if d.scale > 0 {
 		z = append(z, byte('.'))
@@ -111,7 +98,7 @@ func (d Decimal) Bytes() []byte {
 			z = append(z, byte('0'))
 			pos++
 		}
-		z = append(z, []byte(b[pos:])...)
+		z = append(z, []byte(s[pos:])...)
 	}
 	return z
 }
