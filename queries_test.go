@@ -358,3 +358,38 @@ func TestScanDecimal(t *testing.T) {
 		return
 	}
 }
+
+func TestAffectedRows(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+
+	tx, err := conn.Begin()
+	if err != nil {
+		t.Fatal("Begin tran failed", err)
+	}
+	defer tx.Rollback()
+
+	res, err := tx.Exec("create table #foo (bar int)")
+	if err != nil {
+		t.Fatal("create table failed")
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		t.Fatal("rows affected failed")
+	}
+	if n != 0 {
+		t.Error("Expected 0 rows affected, got ", n)
+	}
+
+	res, err = tx.Exec("insert into #foo (bar) values (1)")
+	if err != nil {
+		t.Fatal("insert failed")
+	}
+	n, err = res.RowsAffected()
+	if err != nil {
+		t.Fatal("rows affected failed")
+	}
+	if n != 1 {
+		t.Error("Expected 1 row affected, got ", n)
+	}
+}

@@ -205,7 +205,7 @@ func (s *MssqlStmt) Exec(args []driver.Value) (res driver.Result, err error) {
 	for token := range tokchan {
 		switch token := token.(type) {
 		case doneStruct:
-			return nil, nil
+			return driver.RowsAffected(token.RowCount), nil
 		case error:
 			return nil, token
 		}
