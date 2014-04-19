@@ -569,6 +569,8 @@ func makeDecl(ti typeInfo) string {
 		}
 	case typeBit, typeBitN:
 		return "bit"
+	case typeDateTimeN:
+		return "datetime"
 	default:
 		panic(fmt.Sprintf("not implemented makeDecl for type %d", ti.TypeId))
 	}

@@ -393,3 +393,24 @@ func TestAffectedRows(t *testing.T) {
 		t.Error("Expected 1 row affected, got ", n)
 	}
 }
+
+func TestDateTimeParam(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+
+	t1, err := time.Parse("2006-01-02 15:04:05.99", "2004-06-03 12:13:14.15")
+	if err != nil {
+		t.Error("time parse failed", err.Error())
+		return
+	}
+	var t2 time.Time
+	err = conn.QueryRow("select @p1", t1).Scan(&t2)
+	if err != nil {
+		t.Error("select / scan failed", err.Error())
+		return
+	}
+	if t1 != t2 {
+		t.Error("datetime does not match:", t1, t2)
+		return
+	}
+}

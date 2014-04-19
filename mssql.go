@@ -280,8 +280,15 @@ func makeParam(val driver.Value) (res Param, err error) {
 			res.buffer[0] = 1
 		}
 	case time.Time:
-		res.ti.TypeId = typeDateTimeOffsetN
-		panic("time not implemented")
+		res.ti.TypeId = typeDateTimeN
+		res.ti.Size = 8
+		res.buffer = make([]byte, 8)
+		ref := time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
+		dur := val.Sub(ref)
+		days := dur / (24 * time.Hour)
+		tm := (300 * (dur % (24 * time.Hour))) / time.Second
+		binary.LittleEndian.PutUint32(res.buffer[0:4], uint32(days))
+		binary.LittleEndian.PutUint32(res.buffer[4:8], uint32(tm))
 	default:
 		err = fmt.Errorf("mssql: unknown type for %T", val)
 		return
