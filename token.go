@@ -15,6 +15,7 @@ const (
 	tokenColMetadata  = 129 // 0x81
 	tokenOrder        = 169 // 0xA9
 	tokenError        = 170 // 0xAA
+	tokenInfo         = 171 // 0xAB
 	tokenLoginAck     = 173 // 0xad
 	tokenRow          = 209 // 0xd1
 	tokenNbcRow       = 210 // 0xd2
@@ -362,7 +363,22 @@ func parseNbcRow(r *tdsBuffer, columns []columnStruct, row []interface{}) {
 	}
 }
 
+// http://msdn.microsoft.com/en-us/library/dd304156.aspx
 func parseError72(r *tdsBuffer) (res Error) {
+	length := r.uint16()
+	_ = length // ignore length
+	res.Number = r.int32()
+	res.State = r.byte()
+	res.Class = r.byte()
+	res.Message = r.UsVarChar()
+	res.ServerName = r.BVarChar()
+	res.ProcName = r.BVarChar()
+	res.LineNo = r.int32()
+	return
+}
+
+// http://msdn.microsoft.com/en-us/library/dd304156.aspx
+func parseInfo(r *tdsBuffer) (res Error) {
 	length := r.uint16()
 	_ = length // ignore length
 	res.Number = r.int32()
@@ -405,6 +421,7 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
 	}
 	var columns []columnStruct
 	errors := make([]Error, 0, 10)
+	messages := make([]Error, 0, 10)
 	for {
 		token := sess.buf.byte()
 		switch token {
@@ -447,6 +464,9 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
 		case tokenError:
 			srverr := parseError72(sess.buf)
 			errors = append(errors, srverr)
+		case tokenInfo:
+			info := parseInfo(sess.buf)
+			messages = append(messages, info)
 		default:
 			badStreamPanicf("Unknown token type: %d", token)
 		}

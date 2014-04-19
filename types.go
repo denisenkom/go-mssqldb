@@ -131,6 +131,7 @@ func writeVarLen(w io.Writer, ti *typeInfo) (err error) {
 		if err = binary.Write(w, binary.LittleEndian, ti.Scale); err != nil {
 			return
 		}
+		ti.Writer = writeByteLenType
 	case typeGuid, typeIntN, typeDecimal, typeNumeric,
 		typeBitN, typeDecimalN, typeNumericN, typeFltN,
 		typeMoneyN, typeDateTimeN, typeChar,
@@ -497,8 +498,29 @@ func decodeDateTimeOffset(scale uint8, buf []byte) time.Time {
 	days := decodeDateInt(buf[:3])
 	buf = buf[3:]
 	offset := int(int16(binary.LittleEndian.Uint16(buf))) // in mins
-	return time.Date(1, 1, 1+days, 0, 0, sec, ns,
+	return time.Date(1, 1, 1+days, 0, 0, sec+offset*60, ns,
 		time.FixedZone("", offset*60))
+}
+
+func divFloor(x int64, y int64) int64 {
+	q := x / y
+	r := x % y
+	if r != 0 && ((r < 0) != (y < 0)) {
+		q--
+	}
+	return q
+}
+
+func dateTime2(t time.Time) (days int32, ns int64) {
+	// number of days since Jan 1 1970 UTC
+	days64 := divFloor(t.Unix(), 24*60*60)
+	// number of days since Jan 1 1 UTC
+	days = int32(days64) + 1969*365 + 1969/4 - 1969/100 + 1969/400
+	// number of seconds within day
+	secs := t.Unix() - days64*24*60*60
+	// number of nanoseconds within day
+	ns = secs*1e9 + int64(t.Nanosecond())
+	return
 }
 
 func decodeChar(ti typeInfo, buf []byte) string {
@@ -572,7 +594,7 @@ func makeDecl(ti typeInfo) string {
 	case typeDateTimeN:
 		return "datetime"
 	case typeDateTimeOffsetN:
-		return fmt.Sprintf("datetimeoffet(%d)", ti.Scale)
+		return fmt.Sprintf("datetimeoffset(%d)", ti.Scale)
 	default:
 		panic(fmt.Sprintf("not implemented makeDecl for type %d", ti.TypeId))
 	}
