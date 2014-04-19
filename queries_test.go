@@ -100,7 +100,7 @@ func TestSelect(t *testing.T) {
 			same = retval == test.val
 		}
 		if !same {
-			t.Error("Values don't match", test.sql, retval, test.val)
+			t.Errorf("Values don't match '%s' '%s' for test: %s", retval, test.val, test.sql)
 			return
 		}
 	}
@@ -409,8 +409,8 @@ func TestDateTimeParam(t *testing.T) {
 		t.Error("select / scan failed", err.Error())
 		return
 	}
-	if t1 != t2 {
-		t.Error("datetime does not match:", t1, t2)
+	if t1.Sub(t2) != 0 {
+		t.Errorf("datetime does not match: '%s' '%s' delta: %d", t1, t2, t1.Sub(t2))
 		return
 	}
 }
