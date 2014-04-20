@@ -205,7 +205,7 @@ func (s *MssqlStmt) Exec(args []driver.Value) (res driver.Result, err error) {
 	for token := range tokchan {
 		switch token := token.(type) {
 		case doneStruct:
-			return driver.RowsAffected(token.RowCount), nil
+			return &MssqlResult{s.c, int64(token.RowCount)}, nil
 		case error:
 			return nil, token
 		}
@@ -316,4 +316,33 @@ func (s *MssqlStmt) makeParam(val driver.Value) (res Param, err error) {
 		return
 	}
 	return
+}
+
+type MssqlResult struct {
+	c            *MssqlConn
+	rowsAffected int64
+}
+
+func (r *MssqlResult) RowsAffected() (int64, error) {
+	return r.rowsAffected, nil
+}
+
+func (r *MssqlResult) LastInsertId() (int64, error) {
+	s, err := r.c.Prepare("select cast(@@identity as bigint)")
+	if err != nil {
+		return 0, err
+	}
+	defer s.Close()
+	rows, err := s.Query(nil)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	dest := make([]driver.Value, 1)
+	err = rows.Next(dest)
+	if err != nil {
+		return 0, err
+	}
+	lastInsertId := dest[0].(int64)
+	return lastInsertId, nil
 }
