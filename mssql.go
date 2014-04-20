@@ -1,12 +1,14 @@
 package mssql
 
 import (
+	"bytes"
 	"database/sql"
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -123,7 +125,7 @@ type MssqlStmt struct {
 }
 
 func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
-	return &MssqlStmt{c, query}, nil
+	return &MssqlStmt{c, parseParams(query)}, nil
 }
 
 func (s *MssqlStmt) Close() error {
@@ -244,6 +246,21 @@ func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
 		}
 	}
 	return io.EOF
+}
+
+func parseParams(query string) string {
+	var buf bytes.Buffer
+	var i int
+	for _, r := range query {
+		if r == '?' {
+			buf.WriteString("@p")
+			i++
+			buf.WriteString(strconv.Itoa(i))
+		} else {
+			buf.WriteRune(r)
+		}
+	}
+	return buf.String()
 }
 
 func (s *MssqlStmt) makeParam(val driver.Value) (res Param, err error) {

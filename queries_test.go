@@ -150,7 +150,7 @@ func TestParams(t *testing.T) {
 	defer conn.Close()
 
 	for _, val := range values {
-		row := conn.QueryRow("select @p1", val)
+		row := conn.QueryRow("select ?", val)
 		var retval interface{}
 		err := row.Scan(&retval)
 		if err != nil {
@@ -445,7 +445,7 @@ func TestDateTimeParam(t *testing.T) {
 		return
 	}
 	var t2 time.Time
-	err = conn.QueryRow("select @p1", t1).Scan(&t2)
+	err = conn.QueryRow("select ?", t1).Scan(&t2)
 	if err != nil {
 		t.Error("select / scan failed", err.Error())
 		return
