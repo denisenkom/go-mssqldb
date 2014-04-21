@@ -1,12 +1,14 @@
 package mssql
 
 import (
+	"bytes"
 	"database/sql"
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -123,7 +125,7 @@ type MssqlStmt struct {
 }
 
 func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
-	return &MssqlStmt{c, query}, nil
+	return &MssqlStmt{c, parseParams(query)}, nil
 }
 
 func (s *MssqlStmt) Close() error {
@@ -205,7 +207,7 @@ func (s *MssqlStmt) Exec(args []driver.Value) (res driver.Result, err error) {
 	for token := range tokchan {
 		switch token := token.(type) {
 		case doneStruct:
-			return driver.RowsAffected(token.RowCount), nil
+			return &MssqlResult{s.c, int64(token.RowCount)}, nil
 		case error:
 			return nil, token
 		}
@@ -244,6 +246,21 @@ func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
 		}
 	}
 	return io.EOF
+}
+
+func parseParams(query string) string {
+	var buf bytes.Buffer
+	var i int
+	for _, r := range query {
+		if r == '?' {
+			buf.WriteString("@p")
+			i++
+			buf.WriteString(strconv.Itoa(i))
+		} else {
+			buf.WriteRune(r)
+		}
+	}
+	return buf.String()
 }
 
 func (s *MssqlStmt) makeParam(val driver.Value) (res Param, err error) {
@@ -316,4 +333,33 @@ func (s *MssqlStmt) makeParam(val driver.Value) (res Param, err error) {
 		return
 	}
 	return
+}
+
+type MssqlResult struct {
+	c            *MssqlConn
+	rowsAffected int64
+}
+
+func (r *MssqlResult) RowsAffected() (int64, error) {
+	return r.rowsAffected, nil
+}
+
+func (r *MssqlResult) LastInsertId() (int64, error) {
+	s, err := r.c.Prepare("select cast(@@identity as bigint)")
+	if err != nil {
+		return 0, err
+	}
+	defer s.Close()
+	rows, err := s.Query(nil)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	dest := make([]driver.Value, 1)
+	err = rows.Next(dest)
+	if err != nil {
+		return 0, err
+	}
+	lastInsertId := dest[0].(int64)
+	return lastInsertId, nil
 }

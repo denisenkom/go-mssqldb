@@ -150,7 +150,7 @@ func TestParams(t *testing.T) {
 	defer conn.Close()
 
 	for _, val := range values {
-		row := conn.QueryRow("select @p1", val)
+		row := conn.QueryRow("select ?", val)
 		var retval interface{}
 		err := row.Scan(&retval)
 		if err != nil {
@@ -394,6 +394,47 @@ func TestAffectedRows(t *testing.T) {
 	}
 }
 
+func TestIdentity(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+
+	tx, err := conn.Begin()
+	if err != nil {
+		t.Fatal("Begin tran failed", err)
+	}
+	defer tx.Rollback()
+
+	res, err := tx.Exec("create table #foo (bar int identity, baz int)")
+	if err != nil {
+		t.Fatal("create table failed")
+	}
+
+	res, err = tx.Exec("insert into #foo (baz) values (1)")
+	if err != nil {
+		t.Fatal("insert failed")
+	}
+	n, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal("last insert id failed")
+	}
+	if n != 1 {
+		t.Error("Expected 1 for identity, got ", n)
+	}
+
+	res, err = tx.Exec("insert into #foo (baz) values (20)")
+	if err != nil {
+		t.Fatal("insert failed")
+	}
+	n, err = res.LastInsertId()
+	if err != nil {
+		t.Fatal("last insert id failed")
+	}
+	if n != 2 {
+		t.Error("Expected 2 for identity, got ", n)
+	}
+
+}
+
 func TestDateTimeParam(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
@@ -404,7 +445,7 @@ func TestDateTimeParam(t *testing.T) {
 		return
 	}
 	var t2 time.Time
-	err = conn.QueryRow("select @p1", t1).Scan(&t2)
+	err = conn.QueryRow("select ?", t1).Scan(&t2)
 	if err != nil {
 		t.Error("select / scan failed", err.Error())
 		return
