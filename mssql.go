@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -120,12 +121,14 @@ func (c *MssqlConn) Close() error {
 }
 
 type MssqlStmt struct {
-	c     *MssqlConn
-	query string
+	c          *MssqlConn
+	query      string
+	paramCount int
 }
 
 func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
-	return &MssqlStmt{c, parseParams(query)}, nil
+	q, paramCount := parseParams(query)
+	return &MssqlStmt{c, q, paramCount}, nil
 }
 
 func (s *MssqlStmt) Close() error {
@@ -140,6 +143,9 @@ func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
 	headers := []headerStruct{
 		{hdrtype: dataStmHdrTransDescr,
 			data: transDescrHdr{s.c.sess.tranid, 1}.pack()},
+	}
+	if len(args) != s.paramCount {
+		return errors.New(fmt.Sprintf("sql: expected %d parameters, got %d", s.paramCount, len(args)))
 	}
 	if len(args) == 0 {
 		if err = sendSqlBatch72(s.c.sess.buf, s.query, headers); err != nil {
@@ -248,19 +254,127 @@ func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
 	return io.EOF
 }
 
-func parseParams(query string) string {
+const (
+	normalState = iota
+	quotedState
+	endQuotedState
+	doubleQuotedState
+	endDoubleQuotedState
+	bracketState
+	endBracketState
+	dashState
+	doubleDashState
+	slashState
+	commentState
+	starState
+)
+
+func parseParams(query string) (string, int) {
 	var buf bytes.Buffer
-	var i int
+	var paramCount int
+	state := normalState
 	for _, r := range query {
-		if r == '?' {
-			buf.WriteString("@p")
-			i++
-			buf.WriteString(strconv.Itoa(i))
-		} else {
+	retry:
+		switch state {
+		case normalState:
+			switch r {
+			case '?':
+				buf.WriteString("@p")
+				paramCount++
+				buf.WriteString(strconv.Itoa(paramCount))
+			case '\'':
+				buf.WriteRune(r)
+				state = quotedState
+			case '"':
+				buf.WriteRune(r)
+				state = doubleQuotedState
+			case '[':
+				buf.WriteRune(r)
+				state = bracketState
+			case '-':
+				buf.WriteRune(r)
+				state = dashState
+			case '/':
+				buf.WriteRune(r)
+				state = slashState
+			default:
+				buf.WriteRune(r)
+			}
+		case quotedState:
+			if r == '\'' {
+				state = endQuotedState
+			}
+			buf.WriteRune(r)
+		case endQuotedState:
+			if r == '\'' {
+				state = quotedState
+			} else {
+				state = normalState
+				goto retry
+			}
+			buf.WriteRune(r)
+		case doubleQuotedState:
+			if r == '"' {
+				state = endDoubleQuotedState
+			}
+			buf.WriteRune(r)
+		case endDoubleQuotedState:
+			if r == '\'' {
+				state = doubleQuotedState
+			} else {
+				state = normalState
+				goto retry
+			}
+			buf.WriteRune(r)
+		case bracketState:
+			if r == ']' {
+				state = endBracketState
+			}
+			buf.WriteRune(r)
+		case endBracketState:
+			if r == ']' {
+				state = bracketState
+			} else {
+				state = normalState
+				goto retry
+			}
+			buf.WriteRune(r)
+		case dashState:
+			if r == '-' {
+				state = doubleDashState
+			} else {
+				state = normalState
+				goto retry
+			}
+			buf.WriteRune(r)
+		case doubleDashState:
+			if r == '\n' {
+				state = normalState
+			}
+			buf.WriteRune(r)
+		case slashState:
+			if r == '*' {
+				state = commentState
+			} else {
+				state = normalState
+				goto retry
+			}
+			buf.WriteRune(r)
+		case commentState:
+			if r == '*' {
+				state = starState
+			}
+			buf.WriteRune(r)
+		case starState:
+			if r == '/' {
+				state = normalState
+			} else if r != '*' {
+				state = commentState
+			}
 			buf.WriteRune(r)
 		}
 	}
-	return buf.String()
+	return buf.String(), paramCount
 }
 
 func (s *MssqlStmt) makeParam(val driver.Value) (res Param, err error) {
