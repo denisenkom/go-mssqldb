@@ -257,9 +257,7 @@ func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
 const (
 	normalState = iota
 	quotedState
-	endQuotedState
 	doubleQuotedState
-	endDoubleQuotedState
 	bracketState
 	endBracketState
 	dashState
@@ -302,28 +300,12 @@ func parseParams(query string) (string, int) {
 			}
 		case quotedState:
 			if r == '\'' {
-				state = endQuotedState
-			}
-			buf.WriteRune(r)
-		case endQuotedState:
-			if r == '\'' {
-				state = quotedState
-			} else {
 				state = normalState
-				goto retry
 			}
 			buf.WriteRune(r)
 		case doubleQuotedState:
 			if r == '"' {
-				state = endDoubleQuotedState
-			}
-			buf.WriteRune(r)
-		case endDoubleQuotedState:
-			if r == '\'' {
-				state = doubleQuotedState
-			} else {
 				state = normalState
-				goto retry
 			}
 			buf.WriteRune(r)
 		case bracketState:
