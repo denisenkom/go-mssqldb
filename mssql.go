@@ -1,14 +1,13 @@
 package mssql
 
 import (
-	"bytes"
 	"database/sql"
 	"database/sql/driver"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -120,12 +119,14 @@ func (c *MssqlConn) Close() error {
 }
 
 type MssqlStmt struct {
-	c     *MssqlConn
-	query string
+	c          *MssqlConn
+	query      string
+	paramCount int
 }
 
 func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
-	return &MssqlStmt{c, parseParams(query)}, nil
+	q, paramCount := parseParams(query)
+	return &MssqlStmt{c, q, paramCount}, nil
 }
 
 func (s *MssqlStmt) Close() error {
@@ -140,6 +141,9 @@ func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
 	headers := []headerStruct{
 		{hdrtype: dataStmHdrTransDescr,
 			data: transDescrHdr{s.c.sess.tranid, 1}.pack()},
+	}
+	if len(args) != s.paramCount {
+		return errors.New(fmt.Sprintf("sql: expected %d parameters, got %d", s.paramCount, len(args)))
 	}
 	if len(args) == 0 {
 		if err = sendSqlBatch72(s.c.sess.buf, s.query, headers); err != nil {
@@ -246,21 +250,6 @@ func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
 		}
 	}
 	return io.EOF
-}
-
-func parseParams(query string) string {
-	var buf bytes.Buffer
-	var i int
-	for _, r := range query {
-		if r == '?' {
-			buf.WriteString("@p")
-			i++
-			buf.WriteString(strconv.Itoa(i))
-		} else {
-			buf.WriteRune(r)
-		}
-	}
-	return buf.String()
 }
 
 func (s *MssqlStmt) makeParam(val driver.Value) (res Param, err error) {
