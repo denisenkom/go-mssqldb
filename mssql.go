@@ -264,6 +264,7 @@ const (
 	doubleDashState
 	slashState
 	commentState
+	slashCommentState
 	starState
 	paramDigitState
 )
@@ -273,6 +274,7 @@ func parseParams(query string) (string, int) {
 	var paramCount int
 	var paramN int
 	var paramMax int
+	var nestedComments int
 	state := normalState
 	for _, r := range query {
 	retry:
@@ -347,11 +349,25 @@ func parseParams(query string) (string, int) {
 		case commentState:
 			if r == '*' {
 				state = starState
+			} else if r == '/' {
+				state = slashCommentState
+			}
+			buf.WriteRune(r)
+		case slashCommentState:
+			if r == '*' {
+				nestedComments++
+			} else if r != '/' {
+				state = commentState
 			}
 			buf.WriteRune(r)
 		case starState:
 			if r == '/' {
-				state = normalState
+				if nestedComments > 0 {
+					nestedComments--
+					state = commentState
+				} else {
+					state = normalState
+				}
 			} else if r != '*' {
 				state = commentState
 			}
