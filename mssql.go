@@ -356,6 +356,7 @@ func parseParams(query string) (string, int) {
 		case slashCommentState:
 			if r == '*' {
 				nestedComments++
+				state = commentState
 			} else if r != '/' {
 				state = commentState
 			}

@@ -33,6 +33,7 @@ func TestParseParams(t *testing.T) {
 		{"select ?1, ?1", "select @p1, @p1", 1},
 		{"select $12", "select @p12", 12},
 		{"select ? /* ? /* ? */ ? */ ?", "select @p1 /* ? /* ? */ ? */ @p2", 2},
+		{"select ? /* ? / ? */ ?", "select @p1 /* ? / ? */ @p2", 2},
 	}
 
 	for _, v := range values {
