@@ -24,6 +24,17 @@ Example:
 
     db, err := sql.Open("mssql", "server=localhost;user id=sa")
 
+## Statement Parameters
+
+In the SQL statement text, literals may be replaced by a parameter that matches one of the following:
+
+* ?
+* ?nnn
+* :nnn
+* $nnn
+
+where nnn represents an integer.
+
 ## Features
 
 * Can be used on linux and on Mac OS X

@@ -22,6 +22,16 @@ func TestParseParams(t *testing.T) {
 		{"select \"foo?\", ?", "select \"foo?\", @p1", 1},
 		{"select 'foo?', ?", "select 'foo?', @p1", 1},
 		{"select [foo?], ?", "select [foo?], @p1", 1},
+		{"select $1", "select @p1", 1},
+		{"select $1, $2", "select @p1, @p2", 2},
+		{"select $1, $1", "select @p1, @p1", 1},
+		{"select :1", "select @p1", 1},
+		{"select :1, :2", "select @p1, @p2", 2},
+		{"select :1, :1", "select @p1, @p1", 1},
+		{"select ?1", "select @p1", 1},
+		{"select ?1, ?2", "select @p1, @p2", 2},
+		{"select ?1, ?1", "select @p1, @p1", 1},
+		{"select $12", "select @p12", 12},
 	}
 
 	for _, v := range values {

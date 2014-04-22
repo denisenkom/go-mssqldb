@@ -265,21 +265,23 @@ const (
 	slashState
 	commentState
 	starState
+	paramDigitState
 )
 
 func parseParams(query string) (string, int) {
 	var buf bytes.Buffer
 	var paramCount int
+	var paramN int
+	var paramMax int
 	state := normalState
 	for _, r := range query {
 	retry:
 		switch state {
 		case normalState:
 			switch r {
-			case '?':
-				buf.WriteString("@p")
-				paramCount++
-				buf.WriteString(strconv.Itoa(paramCount))
+			case '$', ':', '?':
+				paramN = 0
+				state = paramDigitState
 			case '\'':
 				buf.WriteRune(r)
 				state = quotedState
@@ -354,7 +356,35 @@ func parseParams(query string) (string, int) {
 				state = commentState
 			}
 			buf.WriteRune(r)
+		case paramDigitState:
+			if r >= '0' && r <= '9' {
+				paramN = paramN*10 + int(r-'0')
+			} else {
+				if paramN == 0 {
+					paramCount++
+					paramN = paramCount
+				} else if paramN > paramMax {
+					paramMax = paramN
+				}
+				buf.WriteString("@p")
+				buf.WriteString(strconv.Itoa(paramN))
+				state = normalState
+				goto retry
+			}
 		}
+	}
+	if state == paramDigitState {
+		if paramN == 0 {
+			paramCount++
+			paramN = paramCount
+		} else if paramN > paramMax {
+			paramMax = paramN
+		}
+		buf.WriteString("@p")
+		buf.WriteString(strconv.Itoa(paramN))
+	}
+	if paramMax > paramCount {
+		paramCount = paramMax
 	}
 	return buf.String(), paramCount
 }
