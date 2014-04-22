@@ -1,7 +1,6 @@
 package mssql
 
 import (
-	"bytes"
 	"database/sql"
 	"database/sql/driver"
 	"encoding/binary"
@@ -9,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -252,157 +250,6 @@ func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
 		}
 	}
 	return io.EOF
-}
-
-const (
-	normalState = iota
-	quotedState
-	doubleQuotedState
-	bracketState
-	endBracketState
-	dashState
-	doubleDashState
-	slashState
-	commentState
-	slashCommentState
-	starState
-	paramDigitState
-)
-
-func parseParams(query string) (string, int) {
-	var buf bytes.Buffer
-	var paramCount int
-	var paramN int
-	var paramMax int
-	var nestedComments int
-	state := normalState
-	for _, r := range query {
-	retry:
-		switch state {
-		case normalState:
-			switch r {
-			case '$', ':', '?':
-				paramN = 0
-				state = paramDigitState
-			case '\'':
-				buf.WriteRune(r)
-				state = quotedState
-			case '"':
-				buf.WriteRune(r)
-				state = doubleQuotedState
-			case '[':
-				buf.WriteRune(r)
-				state = bracketState
-			case '-':
-				buf.WriteRune(r)
-				state = dashState
-			case '/':
-				buf.WriteRune(r)
-				state = slashState
-			default:
-				buf.WriteRune(r)
-			}
-		case quotedState:
-			if r == '\'' {
-				state = normalState
-			}
-			buf.WriteRune(r)
-		case doubleQuotedState:
-			if r == '"' {
-				state = normalState
-			}
-			buf.WriteRune(r)
-		case bracketState:
-			if r == ']' {
-				state = endBracketState
-			}
-			buf.WriteRune(r)
-		case endBracketState:
-			if r == ']' {
-				state = bracketState
-			} else {
-				state = normalState
-				goto retry
-			}
-			buf.WriteRune(r)
-		case dashState:
-			if r == '-' {
-				state = doubleDashState
-			} else {
-				state = normalState
-				goto retry
-			}
-			buf.WriteRune(r)
-		case doubleDashState:
-			if r == '\n' {
-				state = normalState
-			}
-			buf.WriteRune(r)
-		case slashState:
-			if r == '*' {
-				state = commentState
-			} else {
-				state = normalState
-				goto retry
-			}
-			buf.WriteRune(r)
-		case commentState:
-			if r == '*' {
-				state = starState
-			} else if r == '/' {
-				state = slashCommentState
-			}
-			buf.WriteRune(r)
-		case slashCommentState:
-			if r == '*' {
-				nestedComments++
-				state = commentState
-			} else if r != '/' {
-				state = commentState
-			}
-			buf.WriteRune(r)
-		case starState:
-			if r == '/' {
-				if nestedComments > 0 {
-					nestedComments--
-					state = commentState
-				} else {
-					state = normalState
-				}
-			} else if r != '*' {
-				state = commentState
-			}
-			buf.WriteRune(r)
-		case paramDigitState:
-			if r >= '0' && r <= '9' {
-				paramN = paramN*10 + int(r-'0')
-			} else {
-				if paramN == 0 {
-					paramCount++
-					paramN = paramCount
-				}
-				if paramN > paramMax {
-					paramMax = paramN
-				}
-				buf.WriteString("@p")
-				buf.WriteString(strconv.Itoa(paramN))
-				state = normalState
-				goto retry
-			}
-		}
-	}
-	if state == paramDigitState {
-		if paramN == 0 {
-			paramCount++
-			paramN = paramCount
-		}
-		if paramN > paramMax {
-			paramMax = paramN
-		}
-		buf.WriteString("@p")
-		buf.WriteString(strconv.Itoa(paramN))
-	}
-	return buf.String(), paramMax
 }
 
 func (s *MssqlStmt) makeParam(val driver.Value) (res Param, err error) {
