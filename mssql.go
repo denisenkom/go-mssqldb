@@ -379,7 +379,8 @@ func parseParams(query string) (string, int) {
 				if paramN == 0 {
 					paramCount++
 					paramN = paramCount
-				} else if paramN > paramMax {
+				}
+				if paramN > paramMax {
 					paramMax = paramN
 				}
 				buf.WriteString("@p")
@@ -393,16 +394,14 @@ func parseParams(query string) (string, int) {
 		if paramN == 0 {
 			paramCount++
 			paramN = paramCount
-		} else if paramN > paramMax {
+		}
+		if paramN > paramMax {
 			paramMax = paramN
 		}
 		buf.WriteString("@p")
 		buf.WriteString(strconv.Itoa(paramN))
 	}
-	if paramMax > paramCount {
-		paramCount = paramMax
-	}
-	return buf.String(), paramCount
+	return buf.String(), paramMax
 }
 
 func (s *MssqlStmt) makeParam(val driver.Value) (res Param, err error) {
