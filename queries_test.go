@@ -23,6 +23,7 @@ func TestSelect(t *testing.T) {
 
 	values := []testStruct{
 		{"1", int64(1)},
+		{"-1", int64(-1)},
 		{"cast(1 as tinyint)", int64(1)},
 		{"cast(1 as smallint)", int64(1)},
 		{"cast(1 as bigint)", int64(1)},
