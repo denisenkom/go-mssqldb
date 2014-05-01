@@ -33,7 +33,7 @@ func parseInstances(msg []byte) map[string]map[string]string {
 					if len(instdict) == 0 {
 						break
 					}
-					results[instdict["InstanceName"]] = instdict
+					results[strings.ToUpper(instdict["InstanceName"])] = instdict
 					instdict = map[string]string{}
 					continue
 				}
@@ -569,6 +569,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 	password := params["password"]
 	port = 1433
 	if instance != "" {
+		instance = strings.ToUpper(instance)
 		instances, err := getInstances(host)
 		if err != nil {
 			f := "Unable to get instances from Sql Server Browser on host %v: %v"
