@@ -575,7 +575,11 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 			err = fmt.Errorf(f, host, err.Error())
 			return nil, err
 		}
-		strport := instances[instance]["tcp"]
+		strport, ok := instances[instance]["tcp"]
+		if !ok {
+			f := "No instance matching '%v' returned from host '%v'"
+			return nil, fmt.Errorf(f, instance, host)
+		}
 		port, err = strconv.ParseUint(strport, 0, 16)
 		if err != nil {
 			f := "Invalid tcp port returned from Sql Server Browser '%v': %v"
