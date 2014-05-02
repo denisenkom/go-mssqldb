@@ -11,7 +11,7 @@ Environment variables are used to pass login information.
 
 Example:
 
-    env HOST=localhost SQLUSER=sa SQLPASSWORD=sa go test
+    env HOST=localhost SQLUSER=sa SQLPASSWORD=sa DATABASE=test go test
 
 ## Connection Parameters
 
