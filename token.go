@@ -411,8 +411,7 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 		badStreamPanicf("invalid response packet type, expected REPLY, actual: %d", packet_type)
 	}
 	var columns []columnStruct
-	errors := make([]Error, 0, 10)
-	messages := make([]Error, 0, 10)
+	var lastError Error
 	for {
 		token := sess.buf.byte()
 		switch token {
@@ -431,8 +430,7 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 		case tokenDone, tokenDoneProc:
 			done := parseDone(sess.buf)
 			if done.Status&doneError != 0 {
-				err := errors[len(errors)-1]
-				ch <- err
+				ch <- lastError
 				return
 			}
 			ch <- done
@@ -453,11 +451,9 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 		case tokenEnvChange:
 			processEnvChg(sess)
 		case tokenError:
-			srverr := parseError72(sess.buf)
-			errors = append(errors, srverr)
+			lastError = parseError72(sess.buf)
 		case tokenInfo:
-			info := parseInfo(sess.buf)
-			messages = append(messages, info)
+			_ = parseInfo(sess.buf)
 		default:
 			badStreamPanicf("Unknown token type: %d", token)
 		}
