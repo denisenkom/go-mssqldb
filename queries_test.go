@@ -252,11 +252,11 @@ func TestError(t *testing.T) {
 		t.Fatal("Query should fail")
 	}
 
-	if err, ok := err.(Error); !ok {
-		t.Fatalf("Should be sql error, actually %t, %v", err, err)
+	if sqlerr, ok := err.(Error); !ok {
+		t.Fatalf("Should be sql error, actually %T, %v", err, err)
 	} else {
-		if err.Number != 2812 { // Could not find stored procedure 'bad'
-			t.Fatalf("Should be specific error code 2812, actually %d %s", err.Number, err)
+		if sqlerr.Number != 2812 { // Could not find stored procedure 'bad'
+			t.Fatalf("Should be specific error code 2812, actually %d %s", sqlerr.Number, sqlerr)
 		}
 	}
 }
