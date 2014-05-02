@@ -134,7 +134,7 @@ func (s *MssqlStmt) Close() error {
 }
 
 func (s *MssqlStmt) NumInput() int {
-	return -1
+	return s.paramCount
 }
 
 func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
