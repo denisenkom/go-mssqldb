@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strconv"
 	"time"
 )
 
@@ -425,12 +426,21 @@ func readVarLen(ti *typeInfo, r *tdsBuffer) {
 	return
 }
 
-func decodeMoney(buf []byte) int {
-	panic("Not implemented")
+func decodeMoney(buf []byte) []byte {
+	money := int64(uint64(buf[4]) |
+		uint64(buf[5])<<8 |
+		uint64(buf[6])<<16 |
+		uint64(buf[7])<<24 |
+		uint64(buf[0])<<32 |
+		uint64(buf[1])<<40 |
+		uint64(buf[2])<<48 |
+		uint64(buf[3])<<56)
+	return scaleBytes(strconv.FormatInt(money, 10), 4)
 }
 
-func decodeMoney4(buf []byte) int {
-	panic("Not implemented")
+func decodeMoney4(buf []byte) []byte {
+	money := int32(binary.LittleEndian.Uint32(buf[0:4]))
+	return scaleBytes(strconv.FormatInt(int64(money), 10), 4)
 }
 
 func decodeGuid(buf []byte) (res [16]byte) {

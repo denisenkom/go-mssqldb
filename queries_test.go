@@ -38,6 +38,10 @@ func TestSelect(t *testing.T) {
 		{"cast(0.5 as float)", float64(0.5)},
 		{"cast(0.5 as real)", float64(0.5)},
 		{"cast(1 as decimal)", []byte("1")},
+		{"cast(1.2345 as money)", []byte("1.2345")},
+		{"cast(-1.2345 as money)", []byte("-1.2345")},
+		{"cast(1.2345 as smallmoney)", []byte("1.2345")},
+		{"cast(-1.2345 as smallmoney)", []byte("-1.2345")},
 		{"cast(0.5 as decimal(18,1))", []byte("0.5")},
 		{"cast(-0.5 as decimal(18,1))", []byte("-0.5")},
 		{"cast(-0.5 as numeric(18,1))", []byte("-0.5")},
@@ -107,7 +111,7 @@ func TestSelect(t *testing.T) {
 		}
 		if !same {
 			t.Errorf("Values don't match '%s' '%s' for test: %s", retval, test.val, test.sql)
-			return
+			continue
 		}
 	}
 }
