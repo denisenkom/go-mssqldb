@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"io"
 	"math"
-	"net"
 	"strconv"
 	"strings"
 )
@@ -394,14 +393,6 @@ func parseInfo(r *tdsBuffer) (res Error) {
 func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
 	defer func() {
 		if err := recover(); err != nil {
-			switch err := err.(type) {
-			case StreamError:
-				ch <- err
-			case net.Error:
-				ch <- err
-			default:
-				panic(err)
-			}
 			ch <- err
 		}
 		close(ch)
