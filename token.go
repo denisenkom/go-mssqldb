@@ -390,7 +390,7 @@ func parseInfo(r *tdsBuffer) (res Error) {
 	return
 }
 
-func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
+func processResponse(sess *tdsSession, ch chan tokenStruct) {
 	defer func() {
 		if err := recover(); err != nil {
 			ch <- err
@@ -408,7 +408,7 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
 		}
 	}
 	if packet_type != packReply {
-		return streamErrorf("invalid response packet type, expected REPLY, actual: %d", packet_type)
+		badStreamPanicf("invalid response packet type, expected REPLY, actual: %d", packet_type)
 	}
 	var columns []columnStruct
 	errors := make([]Error, 0, 10)
@@ -431,13 +431,13 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
 		case tokenDone, tokenDoneProc:
 			done := parseDone(sess.buf)
 			if done.Status&doneError != 0 {
-				err = errors[len(errors)-1]
+				err := errors[len(errors)-1]
 				ch <- err
-				return err
+				return
 			}
 			ch <- done
 			if done.Status&doneMore == 0 {
-				return nil
+				return
 			}
 		case tokenColMetadata:
 			columns = parseColMetadata72(sess.buf)
