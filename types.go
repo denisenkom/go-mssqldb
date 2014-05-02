@@ -443,9 +443,10 @@ func decodeMoney4(buf []byte) []byte {
 	return scaleBytes(strconv.FormatInt(int64(money), 10), 4)
 }
 
-func decodeGuid(buf []byte) (res [16]byte) {
-	copy(res[:], buf)
-	return
+func decodeGuid(buf []byte) []byte {
+	res := make([]byte, 16)
+	copy(res, buf)
+	return res
 }
 
 func decodeDecimal(ti typeInfo, buf []byte) []byte {
