@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"net"
 	"strings"
 	"testing"
 	"time"
@@ -203,7 +204,7 @@ func TestTimeout(t *testing.T) {
 	if err == nil {
 		t.Fatal("Exec should fail with timeout")
 	}
-	if neterr, ok := err.(Error); !ok || !neterr.Timeout() {
+	if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
 		t.Fatal("Exec should fail with timeout, failed with", err)
 	}
 	_ = res

@@ -3,7 +3,6 @@ package mssql
 import (
 	"encoding/binary"
 	"io"
-	"net"
 )
 
 type header struct {
@@ -103,16 +102,12 @@ func (r *tdsBuffer) readNextPacket() error {
 	return nil
 }
 
-func (r *tdsBuffer) BeginRead() (packet_type uint8, timeout bool) {
+func (r *tdsBuffer) BeginRead() (uint8, error) {
 	err := r.readNextPacket()
 	if err != nil {
-		if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-			return packet_type, true
-		} else {
-			panic(err)
-		}
+		return 0, err
 	}
-	return r.packet_type, false
+	return r.packet_type, nil
 }
 
 func (r *tdsBuffer) ReadByte() (res byte, err error) {

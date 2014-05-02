@@ -397,15 +397,10 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 		}
 		close(ch)
 	}()
-	var packet_type uint8
-	for {
-		var timeout bool
-		packet_type, timeout = sess.buf.BeginRead()
-		if timeout {
-			ch <- Error{timeout: true}
-		} else {
-			break
-		}
+	packet_type, err := sess.buf.BeginRead()
+	if err != nil {
+		ch <- err
+		return
 	}
 	if packet_type != packReply {
 		badStreamPanicf("invalid response packet type, expected REPLY, actual: %d", packet_type)
