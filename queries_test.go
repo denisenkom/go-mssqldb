@@ -67,6 +67,28 @@ func TestSelect(t *testing.T) {
 		{"cast(0x1234 as image)", []byte{0x12, 0x34}},
 		{"cast(N'проверка' as nvarchar(max))", "проверка"},
 		{fmt.Sprintf("cast(N'%s' as nvarchar(max))", longstr), longstr},
+		{"cast(NULL as sql_variant)", nil},
+		{"cast(cast(0x6F9619FF8B86D011B42D00C04FC964FF as uniqueidentifier) as sql_variant)",
+			[]byte{0x6F, 0x96, 0x19, 0xFF, 0x8B, 0x86, 0xD0, 0x11, 0xB4, 0x2D, 0x00, 0xC0, 0x4F, 0xC9, 0x64, 0xFF}},
+		{"cast(cast(1 as bit) as sql_variant)", true},
+		{"cast(cast(10 as tinyint) as sql_variant)", int64(10)},
+		{"cast(cast(-10 as smallint) as sql_variant)", int64(-10)},
+		{"cast(cast(-20 as int) as sql_variant)", int64(-20)},
+		{"cast(cast(-20 as bigint) as sql_variant)", int64(-20)},
+		{"cast(cast('2000-01-01' as datetime) as sql_variant)", time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
+		{"cast(cast('2000-01-01T12:13:00' as smalldatetime) as sql_variant)",
+			time.Date(2000, 1, 1, 12, 13, 0, 0, time.UTC)},
+		{"cast(cast(0.125 as real) as sql_variant)", float64(0.125)},
+		{"cast(cast(0.125 as float) as sql_variant)", float64(0.125)},
+		{"cast(cast(1.2345 as smallmoney) as sql_variant)", []byte("1.2345")},
+		{"cast(cast(1.2345 as money) as sql_variant)", []byte("1.2345")},
+		{"cast(cast(0x1234 as varbinary(2)) as sql_variant)", []byte{0x12, 0x34}},
+		{"cast(cast(0x1234 as binary(2)) as sql_variant)", []byte{0x12, 0x34}},
+		{"cast(cast(-0.5 as decimal(18,1)) as sql_variant)", []byte("-0.5")},
+		{"cast(cast(-0.5 as numeric(18,1)) as sql_variant)", []byte("-0.5")},
+		{"cast(cast('abc' as varchar(3)) as sql_variant)", "abc"},
+		{"cast(cast('abc' as char(3)) as sql_variant)", "abc"},
+		{"cast(N'abc' as sql_variant)", "abc"},
 	}
 
 	for _, test := range values {
@@ -107,7 +129,7 @@ func TestSelectNewTypes(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
 	var ver string
-	err := conn.QueryRow("select cast(SERVERPROPERTY('productversion') as varchar(max))").Scan(&ver)
+	err := conn.QueryRow("select SERVERPROPERTY('productversion')").Scan(&ver)
 	if err != nil {
 		t.Fatalf("cannot select productversion: %s", err)
 	}
@@ -138,6 +160,14 @@ func TestSelectNewTypes(t *testing.T) {
 		{"cast('2010-11-15T11:56:45.123' as datetime2(3))",
 			time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.UTC)},
 		//{"cast('2010-11-15T11:56:45.123+10:00' as datetimeoffset(3))",
+		// time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.FixedZone("", 10*60*60)) },
+		{"cast(cast('2000-01-01' as date) as sql_variant)",
+			time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
+		{"cast(cast('00:00:45.123' as time(3)) as sql_variant)",
+			time.Date(1, 1, 1, 00, 00, 45, 123000000, time.UTC)},
+		{"cast(cast('2010-11-15T11:56:45.123' as datetime2(3)) as sql_variant)",
+			time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.UTC)},
+		//{"cast(cast('2010-11-15T11:56:45.123+10:00' as datetimeoffset(3)) as sql_variant)",
 		// time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.FixedZone("", 10*60*60)) },
 	}
 	for _, test := range values {

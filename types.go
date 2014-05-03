@@ -76,7 +76,7 @@ type typeInfo struct {
 	Prec      uint8
 	Buffer    []byte
 	Collation collation
-	Reader    func(ti *typeInfo, r *tdsBuffer) (res []byte)
+	Reader    func(ti *typeInfo, r *tdsBuffer) (res interface{})
 	Writer    func(w io.Writer, ti typeInfo, buf []byte) (err error)
 }
 
@@ -207,9 +207,38 @@ func decodeDateTime(buf []byte) time.Time {
 		0, 0, secs, ns, time.UTC)
 }
 
-func readFixedType(ti *typeInfo, r *tdsBuffer) (res []byte) {
+func readFixedType(ti *typeInfo, r *tdsBuffer) (res interface{}) {
 	r.ReadFull(ti.Buffer)
-	return ti.Buffer
+	buf := ti.Buffer
+	switch ti.TypeId {
+	case typeNull:
+		return nil
+	case typeInt1:
+		return int64(buf[0])
+	case typeBit:
+		return buf[0] != 0
+	case typeInt2:
+		return int64(int16(binary.LittleEndian.Uint16(buf)))
+	case typeInt4:
+		return int64(int32(binary.LittleEndian.Uint32(buf)))
+	case typeDateTim4:
+		return decodeDateTim4(buf)
+	case typeFlt4:
+		return math.Float32frombits(binary.LittleEndian.Uint32(buf))
+	case typeMoney4:
+		return decodeMoney4(buf)
+	case typeMoney:
+		return decodeMoney(buf)
+	case typeDateTime:
+		return decodeDateTime(buf)
+	case typeFlt8:
+		return math.Float64frombits(binary.LittleEndian.Uint64(buf))
+	case typeInt8:
+		return int64(binary.LittleEndian.Uint64(buf))
+	default:
+		badStreamPanicf("Invalid typeid")
+	}
+	panic("shoulnd't get here")
 }
 
 func writeFixedType(w io.Writer, ti typeInfo, buf []byte) (err error) {
@@ -217,13 +246,82 @@ func writeFixedType(w io.Writer, ti typeInfo, buf []byte) (err error) {
 	return
 }
 
-func readByteLenType(ti *typeInfo, r *tdsBuffer) (res []byte) {
+func readByteLenType(ti *typeInfo, r *tdsBuffer) (res interface{}) {
 	size := r.byte()
 	if size == 0 {
 		return nil
 	}
 	r.ReadFull(ti.Buffer[:size])
-	return ti.Buffer[:size]
+	buf := ti.Buffer[:size]
+	switch ti.TypeId {
+	case typeDateN:
+		if len(buf) != 3 {
+			badStreamPanicf("Invalid size for DATENTYPE")
+		}
+		return decodeDate(buf)
+	case typeTimeN:
+		return decodeTime(ti.Scale, buf)
+	case typeDateTime2N:
+		return decodeDateTime2(ti.Scale, buf)
+	case typeDateTimeOffsetN:
+		return decodeDateTimeOffset(ti.Scale, buf)
+	case typeGuid:
+		return decodeGuid(buf)
+	case typeIntN:
+		switch len(buf) {
+		case 1:
+			return int64(buf[0])
+		case 2:
+			return int64(int16((binary.LittleEndian.Uint16(buf))))
+		case 4:
+			return int64(int32(binary.LittleEndian.Uint32(buf)))
+		case 8:
+			return int64(binary.LittleEndian.Uint64(buf))
+		default:
+			badStreamPanicf("Invalid size for INTNTYPE")
+		}
+	case typeDecimal, typeNumeric, typeDecimalN, typeNumericN:
+		return decodeDecimal(ti.Prec, ti.Scale, buf)
+	case typeBitN:
+		if len(buf) != 1 {
+			badStreamPanicf("Invalid size for BITNTYPE")
+		}
+		return buf[0] != 0
+	case typeFltN:
+		switch len(buf) {
+		case 4:
+			return float64(math.Float32frombits(binary.LittleEndian.Uint32(buf)))
+		case 8:
+			return math.Float64frombits(binary.LittleEndian.Uint64(buf))
+		default:
+			badStreamPanicf("Invalid size for FLTNTYPE")
+		}
+	case typeMoneyN:
+		switch len(buf) {
+		case 4:
+			return decodeMoney4(buf)
+		case 8:
+			return decodeMoney(buf)
+		default:
+			badStreamPanicf("Invalid size for MONEYNTYPE")
+		}
+	case typeDateTimeN:
+		switch len(buf) {
+		case 4:
+			return decodeDateTim4(buf)
+		case 8:
+			return decodeDateTime(buf)
+		default:
+			badStreamPanicf("Invalid size for DATETIMENTYPE")
+		}
+	case typeChar, typeVarChar:
+		return decodeChar(ti.Collation, buf)
+	case typeBinary, typeVarBinary:
+		return buf
+	default:
+		badStreamPanicf("Invalid typeid")
+	}
+	panic("shoulnd't get here")
 }
 
 func writeByteLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
@@ -238,13 +336,26 @@ func writeByteLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
 	return
 }
 
-func readShortLenType(ti *typeInfo, r *tdsBuffer) (res []byte) {
+func readShortLenType(ti *typeInfo, r *tdsBuffer) (res interface{}) {
 	size := r.uint16()
 	if size == 0xffff {
 		return nil
 	}
 	r.ReadFull(ti.Buffer[:size])
-	return ti.Buffer[:size]
+	buf := ti.Buffer[:size]
+	switch ti.TypeId {
+	case typeBigVarChar, typeBigChar:
+		return decodeChar(ti.Collation, buf)
+	case typeBigVarBin, typeBigBinary:
+		return buf
+	case typeNVarChar, typeNChar:
+		return decodeNChar(buf)
+	case typeUdt:
+		return decodeUdt(*ti, buf)
+	default:
+		badStreamPanicf("Invalid typeid")
+	}
+	panic("shoulnd't get here")
 }
 
 func writeShortLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
@@ -266,7 +377,7 @@ func writeShortLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
 	return
 }
 
-func readLongLenType(ti *typeInfo, r *tdsBuffer) (res []byte) {
+func readLongLenType(ti *typeInfo, r *tdsBuffer) (res interface{}) {
 	// information about this format can be found here:
 	// http://msdn.microsoft.com/en-us/library/dd304783.aspx
 	// and here:
@@ -285,12 +396,114 @@ func readLongLenType(ti *typeInfo, r *tdsBuffer) (res []byte) {
 	}
 	buf := make([]byte, size)
 	r.ReadFull(buf)
-	return buf
+	switch ti.TypeId {
+	case typeText:
+		return decodeChar(ti.Collation, buf)
+	case typeImage:
+		return buf
+	case typeNText:
+		return decodeNChar(buf)
+	default:
+		badStreamPanicf("Invalid typeid")
+	}
+	panic("shoulnd't get here")
+}
+
+// reads variant value
+// http://msdn.microsoft.com/en-us/library/dd303302.aspx
+func readVariantType(ti *typeInfo, r *tdsBuffer) (res interface{}) {
+	size := r.int32()
+	if size == 0 {
+		return nil
+	}
+	vartype := r.byte()
+	propbytes := int32(r.byte())
+	switch vartype {
+	case typeGuid:
+		buf := make([]byte, size-2-propbytes)
+		r.ReadFull(buf)
+		return buf
+	case typeBit:
+		return r.byte() != 0
+	case typeInt1:
+		return int64(r.byte())
+	case typeInt2:
+		return int64(int16(r.uint16()))
+	case typeInt4:
+		return int64(r.int32())
+	case typeInt8:
+		return int64(r.uint64())
+	case typeDateTime:
+		buf := make([]byte, size-2-propbytes)
+		r.ReadFull(buf)
+		return decodeDateTime(buf)
+	case typeDateTim4:
+		buf := make([]byte, size-2-propbytes)
+		r.ReadFull(buf)
+		return decodeDateTim4(buf)
+	case typeFlt4:
+		return float64(math.Float32frombits(r.uint32()))
+	case typeFlt8:
+		return math.Float64frombits(r.uint64())
+	case typeMoney4:
+		buf := make([]byte, size-2-propbytes)
+		r.ReadFull(buf)
+		return decodeMoney4(buf)
+	case typeMoney:
+		buf := make([]byte, size-2-propbytes)
+		r.ReadFull(buf)
+		return decodeMoney(buf)
+	case typeDateN:
+		buf := make([]byte, size-2-propbytes)
+		r.ReadFull(buf)
+		return decodeDate(buf)
+	case typeTimeN:
+		scale := r.byte()
+		buf := make([]byte, size-2-propbytes)
+		r.ReadFull(buf)
+		return decodeTime(scale, buf)
+	case typeDateTime2N:
+		scale := r.byte()
+		buf := make([]byte, size-2-propbytes)
+		r.ReadFull(buf)
+		return decodeDateTime2(scale, buf)
+	case typeDateTimeOffsetN:
+		scale := r.byte()
+		buf := make([]byte, size-2-propbytes)
+		r.ReadFull(buf)
+		return decodeDateTimeOffset(scale, buf)
+	case typeBigVarBin, typeBigBinary:
+		r.uint16() // max length, ignoring
+		buf := make([]byte, size-2-propbytes)
+		r.ReadFull(buf)
+		return buf
+	case typeDecimalN, typeNumericN:
+		prec := r.byte()
+		scale := r.byte()
+		buf := make([]byte, size-2-propbytes)
+		r.ReadFull(buf)
+		return decodeDecimal(prec, scale, buf)
+	case typeBigVarChar, typeBigChar:
+		col := readCollation(r)
+		r.uint16() // max length, ignoring
+		buf := make([]byte, size-2-propbytes)
+		r.ReadFull(buf)
+		return decodeChar(col, buf)
+	case typeNVarChar, typeNChar:
+		_ = readCollation(r)
+		r.uint16() // max length, ignoring
+		buf := make([]byte, size-2-propbytes)
+		r.ReadFull(buf)
+		return decodeNChar(buf)
+	default:
+		badStreamPanicf("Invalid variant typeid")
+	}
+	panic("shoulnd't get here")
 }
 
 // partially length prefixed stream
 // http://msdn.microsoft.com/en-us/library/dd340469.aspx
-func readPLPType(ti *typeInfo, r *tdsBuffer) (res []byte) {
+func readPLPType(ti *typeInfo, r *tdsBuffer) (res interface{}) {
 	size := r.uint64()
 	var buf *bytes.Buffer
 	switch size {
@@ -312,7 +525,19 @@ func readPLPType(ti *typeInfo, r *tdsBuffer) (res []byte) {
 			badStreamPanicf("Reading PLP type failed: %s", err.Error())
 		}
 	}
-	return buf.Bytes()
+	switch ti.TypeId {
+	case typeXml:
+		return decodeXml(*ti, buf.Bytes())
+	case typeBigVarChar, typeBigChar, typeText:
+		return decodeChar(ti.Collation, buf.Bytes())
+	case typeBigVarBin, typeBigBinary, typeImage:
+		return buf.Bytes()
+	case typeNVarChar, typeNChar, typeNText:
+		return decodeNChar(buf.Bytes())
+	case typeUdt:
+		return decodeUdt(*ti, buf.Bytes())
+	}
+	panic("shoulnd't get here")
 }
 
 func writePLPType(w io.Writer, ti typeInfo, buf []byte) (err error) {
@@ -411,15 +636,24 @@ func readVarLen(ti *typeInfo, r *tdsBuffer) {
 		switch ti.TypeId {
 		case typeText, typeNText:
 			ti.Collation = readCollation(r)
+			// ignore tablenames
+			numparts := int(r.byte())
+			for i := 0; i < numparts; i++ {
+				r.UsVarChar()
+			}
+			ti.Reader = readLongLenType
+		case typeImage:
+			// ignore tablenames
+			numparts := int(r.byte())
+			for i := 0; i < numparts; i++ {
+				r.UsVarChar()
+			}
+			ti.Reader = readLongLenType
 		case typeXml:
 			panic("XMLTYPE not implemented")
+		case typeVariant:
+			ti.Reader = readVariantType
 		}
-		// ignore tablenames
-		numparts := int(r.byte())
-		for i := 0; i < numparts; i++ {
-			r.UsVarChar()
-		}
-		ti.Reader = readLongLenType
 	default:
 		badStreamPanicf("Invalid type %d", ti.TypeId)
 	}
@@ -449,13 +683,13 @@ func decodeGuid(buf []byte) []byte {
 	return res
 }
 
-func decodeDecimal(ti typeInfo, buf []byte) []byte {
+func decodeDecimal(prec uint8, scale uint8, buf []byte) []byte {
 	var sign uint8
 	sign = buf[0]
 	dec := Decimal{
 		positive: sign != 0,
-		prec:     ti.Prec,
-		scale:    ti.Scale,
+		prec:     prec,
+		scale:    scale,
 	}
 	buf = buf[1:]
 	l := len(buf) / 4
@@ -490,8 +724,8 @@ func decodeTimeInt(scale uint8, buf []byte) (sec int, ns int) {
 	return
 }
 
-func decodeTime(ti typeInfo, buf []byte) time.Time {
-	sec, ns := decodeTimeInt(ti.Scale, buf)
+func decodeTime(scale uint8, buf []byte) time.Time {
+	sec, ns := decodeTimeInt(scale, buf)
 	return time.Date(1, 1, 1, 0, 0, sec, ns, time.UTC)
 }
 
@@ -534,7 +768,8 @@ func dateTime2(t time.Time) (days int32, ns int64) {
 	return
 }
 
-func decodeChar(ti typeInfo, buf []byte) string {
+func decodeChar(col collation, buf []byte) string {
+	// TODO: use charset from collation to decode string Issue #25
 	return string(buf)
 }
 
@@ -546,7 +781,7 @@ func decodeUcs2(buf []byte) string {
 	return res
 }
 
-func decodeNChar(ti typeInfo, buf []byte) string {
+func decodeNChar(buf []byte) string {
 	return decodeUcs2(buf)
 }
 
