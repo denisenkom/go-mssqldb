@@ -16,6 +16,7 @@ Example:
 ## Connection Parameters
 
 * server - host or host\instance
+* port - used only when there is no instance in server (default 1433)
 * user id
 * password
 * database

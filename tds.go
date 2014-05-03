@@ -580,6 +580,15 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 			f := "Invalid tcp port returned from Sql Server Browser '%v': %v"
 			return nil, fmt.Errorf(f, strport, err.Error())
 		}
+	} else {
+		strport, ok := params["port"]
+		if ok {
+			port, err = strconv.ParseUint(strport, 0, 16)
+			if err != nil {
+				f := "Invalid tcp port '%v': %v"
+				return nil, fmt.Errorf(f, strport, err.Error())
+			}
+		}
 	}
 	addr := host + ":" + strconv.FormatUint(port, 10)
 	var dial_timeout time.Duration = 5
