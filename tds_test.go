@@ -93,6 +93,7 @@ func TestSendSqlBatch(t *testing.T) {
 	ch := make(chan tokenStruct, 5)
 	go processResponse(conn, ch)
 
+	var lastRow []interface{}
 loop:
 	for tok := range ch {
 		switch token := tok.(type) {
@@ -101,13 +102,13 @@ loop:
 		case []columnStruct:
 			conn.columns = token
 		case []interface{}:
-			conn.lastRow = token
+			lastRow = token
 		default:
 			fmt.Println("unknown token", tok)
 		}
 	}
 
-	switch value := conn.lastRow[0].(type) {
+	switch value := lastRow[0].(type) {
 	case int32:
 		if value != 1 {
 			t.Error("Invalid value returned, should be 1", value)

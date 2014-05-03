@@ -100,16 +100,11 @@ const (
 )
 
 type tdsSession struct {
-	buf *tdsBuffer
-
+	buf      *tdsBuffer
 	loginAck loginAckStruct
-
 	database string
-
-	columns []columnStruct
-
-	lastRow []interface{}
-	tranid  uint64
+	columns  []columnStruct
+	tranid   uint64
 }
 
 type columnStruct struct {
