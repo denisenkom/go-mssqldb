@@ -51,6 +51,8 @@ func TestSelect(t *testing.T) {
 		{"cast(null as nvarchar(3))", nil},
 		{"NULL", nil},
 		{"cast('2000-01-01' as datetime)", time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
+		{"cast('2000-01-01T12:13:14.12' as datetime)",
+			time.Date(2000, 1, 1, 12, 13, 14, 120000000, time.UTC)},
 		{"cast(NULL as datetime)", nil},
 		{"cast('2000-01-01T12:13:00' as smalldatetime)",
 			time.Date(2000, 1, 1, 12, 13, 0, 0, time.UTC)},
@@ -148,8 +150,6 @@ func TestSelectNewTypes(t *testing.T) {
 		val interface{}
 	}
 	values := []testStruct{
-		{"cast('2000-01-01T12:13:14.12' as datetime)",
-			time.Date(2000, 1, 1, 12, 13, 14, 120000000, time.UTC)},
 		{"cast('2000-01-01' as date)",
 			time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
 		{"cast(NULL as date)", nil},
