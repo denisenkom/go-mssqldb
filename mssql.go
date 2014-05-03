@@ -226,6 +226,8 @@ type MssqlRows struct {
 }
 
 func (rc *MssqlRows) Close() error {
+	for _ = range rc.tokchan {
+	}
 	rc.tokchan = nil
 	return nil
 }

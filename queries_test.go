@@ -566,3 +566,29 @@ func TestDateTimeParam(t *testing.T) {
 		return
 	}
 }
+
+func TestBigQuery(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	rows, err := conn.Query(`WITH n(n) AS
+		(
+		    SELECT 1
+		    UNION ALL
+		    SELECT n+1 FROM n WHERE n < 10000
+		)
+		SELECT n, @@version FROM n ORDER BY n
+		OPTION (MAXRECURSION 10000);`)
+	if err != nil {
+		t.Fatal("cannot exec query", err)
+	}
+	rows.Next()
+	rows.Close()
+	var res int
+	err = conn.QueryRow("select 0").Scan(&res)
+	if err != nil {
+		t.Fatal("cannot scan value", err)
+	}
+	if res != 0 {
+		t.Fatal("expected 0, got ", res)
+	}
+}
