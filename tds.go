@@ -582,13 +582,25 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		}
 	}
 	addr := host + ":" + strconv.FormatUint(port, 10)
-	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+	var dial_timeout time.Duration = 5
+	var conn_timeout time.Duration = 30
+	strtimeout, ok := params["connection timeout"]
+	if ok {
+		timeout, err := strconv.ParseUint(strtimeout, 0, 16)
+		if err != nil {
+			f := "Invalid connection timeout '%v': %v"
+			return nil, fmt.Errorf(f, strtimeout, err.Error())
+		}
+		dial_timeout = time.Duration(timeout)
+		conn_timeout = time.Duration(timeout)
+	}
+	conn, err := net.DialTimeout("tcp", addr, dial_timeout*time.Second)
 	if err != nil {
 		f := "Unable to open tcp connection with host '%v': %v"
 		return nil, fmt.Errorf(f, addr, err.Error())
 	}
 
-	toconn := timeoutConn{conn, 30 * time.Second}
+	toconn := timeoutConn{conn, conn_timeout * time.Second}
 
 	outbuf := newTdsBuffer(4096, toconn)
 	sess := tdsSession{

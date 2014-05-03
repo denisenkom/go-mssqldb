@@ -19,6 +19,7 @@ Example:
 * user id
 * password
 * database
+* connection timeout - in seconds (default is 30)
 
 Example:
 

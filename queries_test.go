@@ -273,7 +273,7 @@ func TestExec(t *testing.T) {
 	_ = res
 }
 
-func TestTimeout(t *testing.T) {
+func TestDefaultTimeout(t *testing.T) {
 	if testing.Short() {
 		return
 	}
@@ -281,6 +281,27 @@ func TestTimeout(t *testing.T) {
 	defer conn.Close()
 
 	res, err := conn.Exec("waitfor delay '00:31'")
+	if err == nil {
+		t.Fatal("Exec should fail with timeout")
+	}
+	if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
+		t.Fatal("Exec should fail with timeout, failed with", err)
+	}
+	_ = res
+}
+
+func TestShortTimeout(t *testing.T) {
+	if testing.Short() {
+		return
+	}
+	dsn := makeConnStr() + ";Connection Timeout=2"
+	conn, err := sql.Open("mssql", dsn)
+	if err != nil {
+		t.Fatal("Open connection failed:", err.Error())
+	}
+	defer conn.Close()
+
+	res, err := conn.Exec("waitfor delay '00:03'")
 	if err == nil {
 		t.Fatal("Exec should fail with timeout")
 	}
