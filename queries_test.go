@@ -460,7 +460,7 @@ func TestIdentity(t *testing.T) {
 	}
 	defer tx.Rollback()
 
-	res, err := tx.Exec("create table #foo (bar int identity, baz int)")
+	res, err := tx.Exec("create table #foo (bar int identity, baz int unique)")
 	if err != nil {
 		t.Fatal("create table failed")
 	}
@@ -489,6 +489,10 @@ func TestIdentity(t *testing.T) {
 		t.Error("Expected 2 for identity, got ", n)
 	}
 
+	res, err = tx.Exec("insert into #foo (baz) values (1)")
+	if err == nil {
+		t.Fatal("insert should fail")
+	}
 }
 
 func TestDateTimeParam(t *testing.T) {
