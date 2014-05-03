@@ -349,7 +349,7 @@ func (r *MssqlResult) LastInsertId() (int64, error) {
 		return 0, err
 	}
 	if dest[0] == nil {
-		return -1, errors.new("There is no generated identity value")
+		return -1, errors.New("There is no generated identity value")
 	}
 	lastInsertId := dest[0].(int64)
 	return lastInsertId, nil
