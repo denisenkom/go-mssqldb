@@ -221,7 +221,6 @@ func (s *MssqlStmt) Exec(args []driver.Value) (res driver.Result, err error) {
 
 type MssqlRows struct {
 	sess    *tdsSession
-	nc      int
 	cols    []string
 	tokchan chan tokenStruct
 }
