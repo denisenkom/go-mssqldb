@@ -39,6 +39,6 @@ where nnn represents an integer.
 
 ## Features
 
-* Can be used on linux and on Mac OS X
+* Can be used on Linux, Mac OS X and on Windows
 * Supports new date/time types: date, time, datetime2, datetimeoffset
 * Supports string parameters longer that 8000 characters
