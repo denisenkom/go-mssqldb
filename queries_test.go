@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"net"
 	"strings"
 	"testing"
 	"time"
@@ -37,6 +38,10 @@ func TestSelect(t *testing.T) {
 		{"cast(0.5 as float)", float64(0.5)},
 		{"cast(0.5 as real)", float64(0.5)},
 		{"cast(1 as decimal)", []byte("1")},
+		{"cast(1.2345 as money)", []byte("1.2345")},
+		{"cast(-1.2345 as money)", []byte("-1.2345")},
+		{"cast(1.2345 as smallmoney)", []byte("1.2345")},
+		{"cast(-1.2345 as smallmoney)", []byte("-1.2345")},
 		{"cast(0.5 as decimal(18,1))", []byte("0.5")},
 		{"cast(-0.5 as decimal(18,1))", []byte("-0.5")},
 		{"cast(-0.5 as numeric(18,1))", []byte("-0.5")},
@@ -46,25 +51,12 @@ func TestSelect(t *testing.T) {
 		{"cast(null as nvarchar(3))", nil},
 		{"NULL", nil},
 		{"cast('2000-01-01' as datetime)", time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
-		{"cast('2000-01-01T12:13:14.12' as datetime)",
-			time.Date(2000, 1, 1, 12, 13, 14, 120000000, time.UTC)},
 		{"cast(NULL as datetime)", nil},
 		{"cast('2000-01-01T12:13:00' as smalldatetime)",
 			time.Date(2000, 1, 1, 12, 13, 0, 0, time.UTC)},
-		{"cast('2000-01-01' as date)",
-			time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
-		{"cast(NULL as date)", nil},
 		{"cast(0x6F9619FF8B86D011B42D00C04FC964FF as uniqueidentifier)",
-			[...]byte{0x6F, 0x96, 0x19, 0xFF, 0x8B, 0x86, 0xD0, 0x11, 0xB4, 0x2D, 0x00, 0xC0, 0x4F, 0xC9, 0x64, 0xFF}},
+			[]byte{0x6F, 0x96, 0x19, 0xFF, 0x8B, 0x86, 0xD0, 0x11, 0xB4, 0x2D, 0x00, 0xC0, 0x4F, 0xC9, 0x64, 0xFF}},
 		{"cast(NULL as uniqueidentifier)", nil},
-		{"cast('00:00:45.123' as time(3))",
-			time.Date(1, 1, 1, 00, 00, 45, 123000000, time.UTC)},
-		{"cast('11:56:45.123' as time(3))",
-			time.Date(1, 1, 1, 11, 56, 45, 123000000, time.UTC)},
-		{"cast('2010-11-15T11:56:45.123' as datetime2(3))",
-			time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.UTC)},
-		//{"cast('2010-11-15T11:56:45.123+10:00' as datetimeoffset(3))",
-		// time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.FixedZone("", 10*60*60)) },
 		{"cast(0x1234 as varbinary(2))", []byte{0x12, 0x34}},
 		{"cast(N'abc' as nvarchar(max))", "abc"},
 		{"cast(null as nvarchar(max))", nil},
@@ -106,7 +98,66 @@ func TestSelect(t *testing.T) {
 		}
 		if !same {
 			t.Errorf("Values don't match '%s' '%s' for test: %s", retval, test.val, test.sql)
+			continue
+		}
+	}
+}
+
+func TestSelectNewTypes(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	var ver string
+	err := conn.QueryRow("select cast(SERVERPROPERTY('productversion') as varchar(max))").Scan(&ver)
+	if err != nil {
+		t.Fatalf("cannot select productversion: %s", err)
+	}
+	var n int
+	_, err = fmt.Sscanf(ver, "%d", &n)
+	if err != nil {
+		t.Fatalf("cannot parse productversion: %s", err)
+	}
+	// 8 is SQL 2000, 9 is SQL 2005, 10 is SQL 2008, 11 is SQL 2012
+	if n < 10 {
+		return
+	}
+	// run tests for new data types available only in SQL Server 2008 and later
+	type testStruct struct {
+		sql string
+		val interface{}
+	}
+	values := []testStruct{
+		{"cast('2000-01-01T12:13:14.12' as datetime)",
+			time.Date(2000, 1, 1, 12, 13, 14, 120000000, time.UTC)},
+		{"cast('2000-01-01' as date)",
+			time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
+		{"cast(NULL as date)", nil},
+		{"cast('00:00:45.123' as time(3))",
+			time.Date(1, 1, 1, 00, 00, 45, 123000000, time.UTC)},
+		{"cast('11:56:45.123' as time(3))",
+			time.Date(1, 1, 1, 11, 56, 45, 123000000, time.UTC)},
+		{"cast('2010-11-15T11:56:45.123' as datetime2(3))",
+			time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.UTC)},
+		//{"cast('2010-11-15T11:56:45.123+10:00' as datetimeoffset(3))",
+		// time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.FixedZone("", 10*60*60)) },
+	}
+	for _, test := range values {
+		stmt, err := conn.Prepare("select " + test.sql)
+		if err != nil {
+			t.Error("Prepare failed:", test.sql, err.Error())
 			return
+		}
+		defer stmt.Close()
+
+		row := stmt.QueryRow()
+		var retval interface{}
+		err = row.Scan(&retval)
+		if err != nil {
+			t.Error("Scan failed:", test.sql, err.Error())
+			continue
+		}
+		if retval != test.val {
+			t.Errorf("Values don't match '%s' '%s' for test: %s", retval, test.val, test.sql)
+			continue
 		}
 	}
 }
@@ -203,7 +254,7 @@ func TestTimeout(t *testing.T) {
 	if err == nil {
 		t.Fatal("Exec should fail with timeout")
 	}
-	if neterr, ok := err.(Error); !ok || !neterr.Timeout() {
+	if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
 		t.Fatal("Exec should fail with timeout, failed with", err)
 	}
 	_ = res
@@ -251,11 +302,11 @@ func TestError(t *testing.T) {
 		t.Fatal("Query should fail")
 	}
 
-	if err, ok := err.(Error); !ok {
-		t.Fatalf("Should be sql error, actually %t, %v", err, err)
+	if sqlerr, ok := err.(Error); !ok {
+		t.Fatalf("Should be sql error, actually %T, %v", err, err)
 	} else {
-		if err.Number != 2812 { // Could not find stored procedure 'bad'
-			t.Fatalf("Should be specific error code 2812, actually %d %s", err.Number, err)
+		if sqlerr.Number != 2812 { // Could not find stored procedure 'bad'
+			t.Fatalf("Should be specific error code 2812, actually %d %s", sqlerr.Number, sqlerr)
 		}
 	}
 }

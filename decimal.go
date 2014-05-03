@@ -81,18 +81,25 @@ func (d Decimal) Bytes() []byte {
 	binary.BigEndian.PutUint32(bytes[12:16], d.integer[0])
 	var x big.Int
 	x.SetBytes(bytes)
-	s := x.String()
-	pos := len(s) - int(d.scale)
-	var z []byte
 	if !d.positive {
-		z = append(z, byte('-'))
+		x.Neg(&x)
 	}
+	return scaleBytes(x.String(), d.scale)
+}
+
+func scaleBytes(s string, scale uint8) []byte {
+	z := make([]byte, 0, len(s)+1)
+	if s[0] == '-' || s[0] == '+' {
+		z = append(z, byte(s[0]))
+		s = s[1:]
+	}
+	pos := len(s) - int(scale)
 	if pos <= 0 {
 		z = append(z, byte('0'))
 	} else if pos > 0 {
 		z = append(z, []byte(s[:pos])...)
 	}
-	if d.scale > 0 {
+	if scale > 0 {
 		z = append(z, byte('.'))
 		for pos < 0 {
 			z = append(z, byte('0'))

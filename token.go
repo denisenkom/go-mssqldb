@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"io"
 	"math"
-	"net"
 	"strconv"
 	"strings"
 )
@@ -391,37 +390,23 @@ func parseInfo(r *tdsBuffer) (res Error) {
 	return
 }
 
-func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
+func processResponse(sess *tdsSession, ch chan tokenStruct) {
 	defer func() {
 		if err := recover(); err != nil {
-			switch err := err.(type) {
-			case StreamError:
-				ch <- err
-			case net.Error:
-				ch <- err
-			default:
-				panic(err)
-			}
 			ch <- err
 		}
 		close(ch)
 	}()
-	var packet_type uint8
-	for {
-		var timeout bool
-		packet_type, timeout = sess.buf.BeginRead()
-		if timeout {
-			ch <- Error{timeout: true}
-		} else {
-			break
-		}
+	packet_type, err := sess.buf.BeginRead()
+	if err != nil {
+		ch <- err
+		return
 	}
 	if packet_type != packReply {
-		return streamErrorf("invalid response packet type, expected REPLY, actual: %d", packet_type)
+		badStreamPanicf("invalid response packet type, expected REPLY, actual: %d", packet_type)
 	}
 	var columns []columnStruct
-	errors := make([]Error, 0, 10)
-	messages := make([]Error, 0, 10)
+	var lastError Error
 	for {
 		token := sess.buf.byte()
 		switch token {
@@ -440,13 +425,12 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
 		case tokenDone, tokenDoneProc:
 			done := parseDone(sess.buf)
 			if done.Status&doneError != 0 {
-				err = errors[len(errors)-1]
-				ch <- err
-				return err
+				ch <- lastError
+				return
 			}
 			ch <- done
 			if done.Status&doneMore == 0 {
-				return nil
+				return
 			}
 		case tokenColMetadata:
 			columns = parseColMetadata72(sess.buf)
@@ -462,11 +446,9 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) (err error) {
 		case tokenEnvChange:
 			processEnvChg(sess)
 		case tokenError:
-			srverr := parseError72(sess.buf)
-			errors = append(errors, srverr)
+			lastError = parseError72(sess.buf)
 		case tokenInfo:
-			info := parseInfo(sess.buf)
-			messages = append(messages, info)
+			_ = parseInfo(sess.buf)
 		default:
 			badStreamPanicf("Unknown token type: %d", token)
 		}
