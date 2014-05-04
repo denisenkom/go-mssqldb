@@ -77,7 +77,7 @@ func charset2utf8(col collation, s []byte) string {
 			if i+1 == len(s) {
 				ch = 0xfffd
 			} else {
-				n := int(s[i]) + (int(s[i+1]) << 8)
+				n := int(s[i+1]) + (int(s[i]) << 8)
 				i++
 				var ok bool
 				ch, ok = cm.db[n]
