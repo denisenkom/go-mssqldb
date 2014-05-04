@@ -6,6 +6,32 @@ type charsetMap struct {
 }
 
 func collation2charset(col collation) *charsetMap {
+	// http://msdn.microsoft.com/en-us/library/ms144250.aspx
+	switch col.sortId {
+	case 31, 32, 33, 34:
+		return cp437
+	case 40, 41, 42, 44, 49, 55, 56, 57, 58, 59, 60, 61:
+		return cp850
+	case 51, 52, 53, 54:
+		return cp1252
+	case 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96:
+		return cp1250
+	case 104, 105, 106, 107, 108:
+		return cp1251
+	case 112, 113, 114, 121, 124:
+		return cp1253
+	case 128, 129, 130:
+		return cp1254
+	case 136, 137, 138:
+		return cp1255
+	case 144, 145, 146:
+		return cp1256
+	case 152, 153, 154, 155, 156, 157, 158, 159, 160:
+		return cp1257
+	case 183, 184, 185, 186:
+		return cp1252
+	}
+	// http://technet.microsoft.com/en-us/library/aa176553(v=sql.80).aspx
 	switch col.getLcid() {
 	case 0x001e, 0x041e:
 		return cp874
