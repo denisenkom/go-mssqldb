@@ -769,8 +769,7 @@ func dateTime2(t time.Time) (days int32, ns int64) {
 }
 
 func decodeChar(col collation, buf []byte) string {
-	// TODO: use charset from collation to decode string Issue #25
-	return string(buf)
+	return charset2utf8(col, buf)
 }
 
 func decodeUcs2(buf []byte) string {
