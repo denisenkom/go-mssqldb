@@ -259,5 +259,4 @@ var cp1250 *charsetMap = &charsetMap{
 		0x0163, //LATIN SMALL LETTER T WITH CEDILLA
 		0x02D9, //DOT ABOVE
 	},
-	db: nil,
 }

@@ -259,5 +259,4 @@ var cp1258 *charsetMap = &charsetMap{
 		0x20AB, //DONG SIGN
 		0x00FF, //LATIN SMALL LETTER Y WITH DIAERESIS
 	},
-	db: nil,
 }

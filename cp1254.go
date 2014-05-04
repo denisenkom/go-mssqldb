@@ -259,5 +259,4 @@ var cp1254 *charsetMap = &charsetMap{
 		0x015F, //LATIN SMALL LETTER S WITH CEDILLA
 		0x00FF, //LATIN SMALL LETTER Y WITH DIAERESIS
 	},
-	db: nil,
 }

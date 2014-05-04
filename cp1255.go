@@ -259,5 +259,4 @@ var cp1255 *charsetMap = &charsetMap{
 		0x200F, //RIGHT-TO-LEFT MARK
 		0xFFFD, //UNDEFINED
 	},
-	db: nil,
 }

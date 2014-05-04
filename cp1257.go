@@ -259,5 +259,4 @@ var cp1257 *charsetMap = &charsetMap{
 		0x017E, //LATIN SMALL LETTER Z WITH CARON
 		0x02D9, //DOT ABOVE
 	},
-	db: nil,
 }

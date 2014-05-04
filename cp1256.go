@@ -259,5 +259,4 @@ var cp1256 *charsetMap = &charsetMap{
 		0x200F, //RIGHT-TO-LEFT MARK
 		0x06D2, //ARABIC LETTER YEH BARREE
 	},
-	db: nil,
 }

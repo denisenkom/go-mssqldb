@@ -259,5 +259,4 @@ var cp1253 *charsetMap = &charsetMap{
 		0x03CE, //GREEK SMALL LETTER OMEGA WITH TONOS
 		0xFFFD, //UNDEFINED
 	},
-	db: nil,
 }

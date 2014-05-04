@@ -259,5 +259,4 @@ var cp874 *charsetMap = &charsetMap{
 		0xFFFD, //UNDEFINED
 		0xFFFD, //UNDEFINED
 	},
-	db: nil,
 }

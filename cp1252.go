@@ -259,5 +259,4 @@ var cp1252 *charsetMap = &charsetMap{
 		0x00FE, //LATIN SMALL LETTER THORN
 		0x00FF, //LATIN SMALL LETTER Y WITH DIAERESIS
 	},
-	db: nil,
 }

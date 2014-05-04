@@ -259,5 +259,4 @@ var cp1251 *charsetMap = &charsetMap{
 		0x044E, //CYRILLIC SMALL LETTER YU
 		0x044F, //CYRILLIC SMALL LETTER YA
 	},
-	db: nil,
 }
