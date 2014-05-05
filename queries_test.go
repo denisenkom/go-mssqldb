@@ -559,6 +559,11 @@ func TestIdentity(t *testing.T) {
 	if err == nil {
 		t.Fatal("insert should fail")
 	}
+
+	res, err = tx.Exec("insert into #foo (baz) values (?)", 1)
+	if err == nil {
+		t.Fatal("insert should fail")
+	}
 }
 
 func TestDateTimeParam(t *testing.T) {

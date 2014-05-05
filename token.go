@@ -293,6 +293,7 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 	}
 	var columns []columnStruct
 	var lastError Error
+	var failed bool
 	for {
 		token := sess.buf.byte()
 		switch token {
@@ -310,7 +311,12 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 			ch <- done
 		case tokenDone, tokenDoneProc:
 			done := parseDone(sess.buf)
-			if done.Status&doneError != 0 {
+			if done.Status&doneError != 0 || failed {
+				ch <- lastError
+				return
+			}
+			if done.Status&doneSrvError != 0 {
+				lastError.Message = "Server Error"
 				ch <- lastError
 				return
 			}
@@ -333,6 +339,7 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 			processEnvChg(sess)
 		case tokenError:
 			lastError = parseError72(sess.buf)
+			failed = true
 		case tokenInfo:
 			_ = parseInfo(sess.buf)
 		default:
