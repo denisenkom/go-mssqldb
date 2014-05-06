@@ -107,9 +107,6 @@ func processEnvChg(sess *tdsSession) {
 			if err != nil {
 				badStreamPanic(err)
 			}
-			if sess.logLevel >= 2 {
-				log.Println("Database", sess.database)
-			}
 		case envTypPacketSize:
 			packetsize, err := readBVarChar(r)
 			if err != nil {
