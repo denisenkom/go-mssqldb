@@ -612,3 +612,29 @@ func TestBigQuery(t *testing.T) {
 		t.Fatal("expected 0, got ", res)
 	}
 }
+
+func TestBug32(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+
+	tx, err := conn.Begin()
+	if err != nil {
+		t.Fatal("Begin tran failed", err)
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec("if (exists(select * from INFORMATION_SCHEMA.TABLES where TABLE_NAME='tbl')) drop table tbl")
+	if err != nil {
+		t.Fatal("Drop table failed", err)
+	}
+
+	_, err = tx.Exec("create table tbl(fld bit null)")
+	if err != nil {
+		t.Fatal("Create table failed", err)
+	}
+
+	_, err = tx.Exec("insert into tbl (fld) values (nullif(?, ''))", "")
+	if err != nil {
+		t.Fatal("Insert failed", err)
+	}
+}
