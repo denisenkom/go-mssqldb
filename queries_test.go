@@ -514,6 +514,18 @@ func TestAffectedRows(t *testing.T) {
 	if n != 1 {
 		t.Error("Expected 1 row affected, got ", n)
 	}
+
+	res, err = tx.Exec("insert into #foo (bar) values (?)", 2)
+	if err != nil {
+		t.Fatal("insert failed")
+	}
+	n, err = res.RowsAffected()
+	if err != nil {
+		t.Fatal("rows affected failed")
+	}
+	if n != 1 {
+		t.Error("Expected 1 row affected, got ", n)
+	}
 }
 
 func TestIdentity(t *testing.T) {

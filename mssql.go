@@ -208,15 +208,22 @@ func (s *MssqlStmt) Exec(args []driver.Value) (res driver.Result, err error) {
 	}
 	tokchan := make(chan tokenStruct, 5)
 	go processResponse(s.c.sess, tokchan)
+	var rowCount int64
 	for token := range tokchan {
 		switch token := token.(type) {
+		case doneInProcStruct:
+			if token.Status&doneCount != 0 {
+				rowCount = int64(token.RowCount)
+			}
 		case doneStruct:
-			return &MssqlResult{s.c, int64(token.RowCount)}, nil
+			if token.Status&doneCount != 0 {
+				rowCount = int64(token.RowCount)
+			}
 		case error:
 			return nil, token
 		}
 	}
-	return driver.ResultNoRows, nil
+	return &MssqlResult{s.c, rowCount}, nil
 }
 
 type MssqlRows struct {
