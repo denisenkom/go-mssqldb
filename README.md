@@ -21,6 +21,7 @@ Example:
 * password
 * database
 * connection timeout - in seconds (default is 30)
+* log - level of logging; 0=no logging (default), 1=log errors, 2=log messages, 3=log rows affected, 4=trace sql statements, 5=log statement parameters
 
 Example:
 

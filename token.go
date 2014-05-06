@@ -3,6 +3,7 @@ package mssql
 import (
 	"encoding/binary"
 	"io"
+	"log"
 	"strconv"
 	"strings"
 )
@@ -105,6 +106,9 @@ func processEnvChg(sess *tdsSession) {
 			sess.database, err = readBVarChar(r)
 			if err != nil {
 				badStreamPanic(err)
+			}
+			if sess.logLevel >= 2 {
+				log.Println("Database", sess.database)
 			}
 		case envTypPacketSize:
 			packetsize, err := readBVarChar(r)
@@ -308,9 +312,15 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 			ch <- order
 		case tokenDoneInProc:
 			done := parseDoneInProc(sess.buf)
+			if sess.logLevel >= 3 && done.Status&doneCount != 0 {
+				log.Printf("(%d row(s) affected)\n", done.RowCount)
+			}
 			ch <- done
 		case tokenDone, tokenDoneProc:
 			done := parseDone(sess.buf)
+			if sess.logLevel >= 3 && done.Status&doneCount != 0 {
+				log.Printf("(%d row(s) affected)\n", done.RowCount)
+			}
 			if done.Status&doneError != 0 || failed {
 				ch <- lastError
 				return
@@ -340,8 +350,14 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 		case tokenError:
 			lastError = parseError72(sess.buf)
 			failed = true
+			if sess.logLevel >= 1 {
+				log.Println(lastError.Message)
+			}
 		case tokenInfo:
-			_ = parseInfo(sess.buf)
+			info := parseInfo(sess.buf)
+			if sess.logLevel >= 2 {
+				log.Println(info.Message)
+			}
 		default:
 			badStreamPanicf("Unknown token type: %d", token)
 		}
