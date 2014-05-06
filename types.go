@@ -159,7 +159,7 @@ func writeVarLen(w io.Writer, ti *typeInfo) (err error) {
 	case typeBigVarBin, typeBigVarChar, typeBigBinary, typeBigChar,
 		typeNVarChar, typeNChar, typeXml, typeUdt:
 		// short len types
-		if ti.Size > 8000 {
+		if ti.Size > 8000 || ti.Size == 0 {
 			if err = binary.Write(w, binary.LittleEndian, uint16(0xffff)); err != nil {
 				return
 			}
@@ -361,9 +361,6 @@ func readShortLenType(ti *typeInfo, r *tdsBuffer) (res interface{}) {
 func writeShortLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
 	if buf == nil {
 		err = binary.Write(w, binary.LittleEndian, uint16(0xffff))
-		if err != nil {
-			return
-		}
 		return
 	}
 	if ti.Size > 0xfffe {
@@ -541,12 +538,6 @@ func readPLPType(ti *typeInfo, r *tdsBuffer) (res interface{}) {
 }
 
 func writePLPType(w io.Writer, ti typeInfo, buf []byte) (err error) {
-	if buf == nil {
-		if err = binary.Write(w, binary.LittleEndian, uint64(0xffffffffffffffff)); err != nil {
-			return
-		}
-		return
-	}
 	if err = binary.Write(w, binary.LittleEndian, uint64(len(buf))); err != nil {
 		return
 	}
@@ -829,7 +820,7 @@ func makeDecl(ti typeInfo) string {
 			return fmt.Sprintf("varbinary(%d)", ti.Size)
 		}
 	case typeNVarChar:
-		if ti.Size > 8000 {
+		if ti.Size > 8000 || ti.Size == 0 {
 			return fmt.Sprintf("nvarchar(max)")
 		} else {
 			return fmt.Sprintf("nvarchar(%d)", ti.Size/2)

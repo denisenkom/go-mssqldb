@@ -237,8 +237,8 @@ func TestParams(t *testing.T) {
 	values := []interface{}{
 		int64(5),
 		"hello",
+		"",
 		[]byte{1, 2, 3},
-		//float32(1.2),
 		float64(1.12313554),
 		true,
 		false,
