@@ -146,14 +146,14 @@ func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
 	if len(args) != s.paramCount {
 		return errors.New(fmt.Sprintf("sql: expected %d parameters, got %d", s.paramCount, len(args)))
 	}
-	if s.c.sess.logLevel >= 4 {
+	if s.c.sess.logFlags&logSQL != 0 {
 		log.Println(s.query)
-		if s.c.sess.logLevel >= 5 && len(args) > 0 {
-			for i := 0; i < len(args); i++ {
-				log.Printf("\t@p%d\t%v\n", i+1, args[i])
-			}
-
+	}
+	if s.c.sess.logFlags&logParams != 0 && len(args) > 0 {
+		for i := 0; i < len(args); i++ {
+			log.Printf("\t@p%d\t%v\n", i+1, args[i])
 		}
+
 	}
 	if len(args) == 0 {
 		if err = sendSqlBatch72(s.c.sess.buf, s.query, headers); err != nil {

@@ -309,13 +309,13 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 			ch <- order
 		case tokenDoneInProc:
 			done := parseDoneInProc(sess.buf)
-			if sess.logLevel >= 3 && done.Status&doneCount != 0 {
+			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
 				log.Printf("(%d row(s) affected)\n", done.RowCount)
 			}
 			ch <- done
 		case tokenDone, tokenDoneProc:
 			done := parseDone(sess.buf)
-			if sess.logLevel >= 3 && done.Status&doneCount != 0 {
+			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
 				log.Printf("(%d row(s) affected)\n", done.RowCount)
 			}
 			if done.Status&doneError != 0 || failed {
@@ -347,12 +347,12 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 		case tokenError:
 			lastError = parseError72(sess.buf)
 			failed = true
-			if sess.logLevel >= 1 {
+			if sess.logFlags&logErrors != 0 {
 				log.Println(lastError.Message)
 			}
 		case tokenInfo:
 			info := parseInfo(sess.buf)
-			if sess.logLevel >= 2 {
+			if sess.logFlags&logMessages != 0 {
 				log.Println(info.Message)
 			}
 		default:
