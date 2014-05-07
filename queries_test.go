@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
+	"log"
 	"math"
 	"net"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -648,5 +650,30 @@ func TestBug32(t *testing.T) {
 	_, err = tx.Exec("insert into tbl (fld) values (nullif(?, ''))", "")
 	if err != nil {
 		t.Fatal("Insert failed", err)
+	}
+}
+
+func TestLogging(t *testing.T) {
+	flags := log.Flags()
+	defer func() {
+		log.SetFlags(flags)
+		log.SetOutput(os.Stderr)
+	}()
+	log.SetFlags(0)
+	var b bytes.Buffer
+	log.SetOutput(&b)
+
+	dsn := makeConnStr() + ";Log=2"
+	conn, err := sql.Open("mssql", dsn)
+	if err != nil {
+		t.Fatal("Open connection failed:", err.Error())
+	}
+	defer conn.Close()
+	_, err = conn.Exec("print 'test'")
+	if err != nil {
+		t.Fatal("Exec print failed")
+	}
+	if b.String() != "test\n" {
+		t.Fatal("logging test failed, got", b.String())
 	}
 }
