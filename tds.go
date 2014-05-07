@@ -114,8 +114,7 @@ const (
 	logRows        = 4
 	logSQL         = 8
 	logParams      = 16
-	logDatabase    = 32
-	logTransaction = 64
+	logTransaction = 32
 )
 
 type columnStruct struct {

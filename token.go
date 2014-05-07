@@ -103,9 +103,6 @@ func processEnvChg(sess *tdsSession) {
 			if err != nil {
 				badStreamPanic(err)
 			}
-			if sess.logFlags&logDatabase != 0 {
-				log.Println("Database", sess.database)
-			}
 			_, err = readBVarChar(r)
 			if err != nil {
 				badStreamPanic(err)
