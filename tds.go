@@ -109,11 +109,13 @@ type tdsSession struct {
 }
 
 const (
-	logErrors   = 1
-	logMessages = 2
-	logRows     = 4
-	logSQL      = 8
-	logParams   = 16
+	logErrors      = 1
+	logMessages    = 2
+	logRows        = 4
+	logSQL         = 8
+	logParams      = 16
+	logDatabase    = 32
+	logTransaction = 64
 )
 
 type columnStruct struct {

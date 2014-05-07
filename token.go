@@ -99,11 +99,14 @@ func processEnvChg(sess *tdsSession) {
 		}
 		switch envtype {
 		case envTypDatabase:
-			_, err = readBVarChar(r)
+			sess.database, err = readBVarChar(r)
 			if err != nil {
 				badStreamPanic(err)
 			}
-			sess.database, err = readBVarChar(r)
+			if sess.logFlags&logDatabase != 0 {
+				log.Println("Database", sess.database)
+			}
+			_, err = readBVarChar(r)
 			if err != nil {
 				badStreamPanic(err)
 			}
@@ -134,6 +137,9 @@ func processEnvChg(sess *tdsSession) {
 			if err != nil {
 				badStreamPanic(err)
 			}
+			if sess.logFlags&logTransaction != 0 {
+				log.Printf("BEGIN TRANSACTION %x\n", sess.tranid)
+			}
 			_, err = readBVarByte(r)
 			if err != nil {
 				badStreamPanic(err)
@@ -146,6 +152,13 @@ func processEnvChg(sess *tdsSession) {
 			_, err = readBVarByte(r)
 			if err != nil {
 				badStreamPanic(err)
+			}
+			if sess.logFlags&logTransaction != 0 {
+				if envtype == envTypCommitTran {
+					log.Printf("COMMIT TRANSACTION %x\n", sess.tranid)
+				} else {
+					log.Printf("ROLLBACK TRANSACTION %x\n", sess.tranid)
+				}
 			}
 			sess.tranid = 0
 		default:

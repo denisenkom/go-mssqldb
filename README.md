@@ -21,12 +21,14 @@ Example:
 * password
 * database
 * connection timeout - in seconds (default is 30)
-* log - logging flags (default 0/no logging)
+* log - logging flags (default 0/no logging, 127 for full logging)
   *  1 log errors
   *  2 log messages
   *  4 log rows affected
   *  8 trace sql statements
   * 16 log statement parameters
+  * 32 log database change
+  * 64 log transaction begin/end
 
 Example:
 
