@@ -54,8 +54,18 @@ func parseNormal(p *parser) stateFunc {
 		if !ok {
 			return nil
 		}
-		if ch == '$' || ch == ':' || ch == '?' {
+		if ch == '?' {
 			return parseParameter
+		} else if ch == '$' || ch == ':' {
+			ch2, ok := p.next()
+			if !ok {
+				p.write(ch)
+				return nil
+			}
+			p.unread()
+			if ch2 >= '0' && ch2 <= '9' {
+				return parseParameter
+			}
 		}
 		p.write(ch)
 		switch ch {
