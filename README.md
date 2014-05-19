@@ -21,10 +21,19 @@ Example:
 * password
 * database
 * connection timeout - in seconds (default is 30)
+* log - logging flags (default 0/no logging, 63 for full logging)
+  *  1 log errors
+  *  2 log messages
+  *  4 log rows affected
+  *  8 trace sql statements
+  * 16 log statement parameters
+  * 32 log transaction begin/end
 
 Example:
 
+```go
     db, err := sql.Open("mssql", "server=localhost;user id=sa")
+```
 
 ## Statement Parameters
 

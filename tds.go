@@ -105,7 +105,17 @@ type tdsSession struct {
 	database string
 	columns  []columnStruct
 	tranid   uint64
+	logFlags uint64
 }
+
+const (
+	logErrors      = 1
+	logMessages    = 2
+	logRows        = 4
+	logSQL         = 8
+	logParams      = 16
+	logTransaction = 32
+)
 
 type columnStruct struct {
 	UserType uint32
@@ -546,6 +556,15 @@ func sendSqlBatch72(buf *tdsBuffer,
 }
 
 func connect(params map[string]string) (res *tdsSession, err error) {
+	var logFlags uint64
+	strlog, ok := params["log"]
+	if ok {
+		var err error
+		logFlags, err = strconv.ParseUint(strlog, 10, 0)
+		if err != nil {
+			return nil, fmt.Errorf("Invalid log parameter", err.Error())
+		}
+	}
 	var port uint64
 	server := params["server"]
 	parts := strings.SplitN(server, "\\", 2)
@@ -613,7 +632,8 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 
 	outbuf := newTdsBuffer(4096, toconn)
 	sess := tdsSession{
-		buf: outbuf,
+		buf:      outbuf,
+		logFlags: logFlags,
 	}
 
 	err = writePrelogin(outbuf, instance)
