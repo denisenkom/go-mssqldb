@@ -562,46 +562,54 @@ func sendSqlBatch72(buf *tdsBuffer,
 	return buf.FinishPacket()
 }
 
-func connect(params map[string]string) (res *tdsSession, err error) {
-	var logFlags uint64
+type connectParams struct {
+	logFlags     uint64
+	port         uint64
+	host         string
+	instance     string
+	database     string
+	user         string
+	password     string
+	dial_timeout time.Duration
+	conn_timeout time.Duration
+}
+
+func parseConnectParams(params map[string]string) (*connectParams, error) {
+	var p connectParams
 	strlog, ok := params["log"]
 	if ok {
 		var err error
-		logFlags, err = strconv.ParseUint(strlog, 10, 0)
+		p.logFlags, err = strconv.ParseUint(strlog, 10, 0)
 		if err != nil {
 			return nil, fmt.Errorf("Invalid log parameter", err.Error())
 		}
 	}
-	var port uint64
 	server := params["server"]
 	parts := strings.SplitN(server, "\\", 2)
-	host := parts[0]
-	var instance string
+	p.host = parts[0]
 	if len(parts) > 1 {
-		instance = parts[1]
+		p.instance = parts[1]
 	}
-	database := params["database"]
-	user := params["user id"]
-	if len(user) == 0 {
-		err = fmt.Errorf("Login failed, User Id is required")
-		return
+	p.database = params["database"]
+	p.user = params["user id"]
+	if len(p.user) == 0 {
+		return nil, fmt.Errorf("Login failed, User Id is required")
 	}
-	password := params["password"]
-	port = 1433
-	if instance != "" {
-		instance = strings.ToUpper(instance)
-		instances, err := getInstances(host)
+	p.password = params["password"]
+	p.port = 1433
+	if p.instance != "" {
+		p.instance = strings.ToUpper(p.instance)
+		instances, err := getInstances(p.host)
 		if err != nil {
 			f := "Unable to get instances from Sql Server Browser on host %v: %v"
-			err = fmt.Errorf(f, host, err.Error())
-			return nil, err
+			return nil, fmt.Errorf(f, p.host, err.Error())
 		}
-		strport, ok := instances[instance]["tcp"]
+		strport, ok := instances[p.instance]["tcp"]
 		if !ok {
 			f := "No instance matching '%v' returned from host '%v'"
-			return nil, fmt.Errorf(f, instance, host)
+			return nil, fmt.Errorf(f, p.instance, p.host)
 		}
-		port, err = strconv.ParseUint(strport, 0, 16)
+		p.port, err = strconv.ParseUint(strport, 0, 16)
 		if err != nil {
 			f := "Invalid tcp port returned from Sql Server Browser '%v': %v"
 			return nil, fmt.Errorf(f, strport, err.Error())
@@ -609,16 +617,16 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 	} else {
 		strport, ok := params["port"]
 		if ok {
-			port, err = strconv.ParseUint(strport, 0, 16)
+			var err error
+			p.port, err = strconv.ParseUint(strport, 0, 16)
 			if err != nil {
 				f := "Invalid tcp port '%v': %v"
 				return nil, fmt.Errorf(f, strport, err.Error())
 			}
 		}
 	}
-	addr := host + ":" + strconv.FormatUint(port, 10)
-	var dial_timeout time.Duration = 5
-	var conn_timeout time.Duration = 30
+	p.dial_timeout = 5
+	p.conn_timeout = 30
 	strtimeout, ok := params["connection timeout"]
 	if ok {
 		timeout, err := strconv.ParseUint(strtimeout, 0, 16)
@@ -626,24 +634,33 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 			f := "Invalid connection timeout '%v': %v"
 			return nil, fmt.Errorf(f, strtimeout, err.Error())
 		}
-		dial_timeout = time.Duration(timeout)
-		conn_timeout = time.Duration(timeout)
+		p.dial_timeout = time.Duration(timeout)
+		p.conn_timeout = time.Duration(timeout)
 	}
-	conn, err := net.DialTimeout("tcp", addr, dial_timeout*time.Second)
+	return &p, nil
+}
+
+func connect(params map[string]string) (res *tdsSession, err error) {
+	p, err := parseConnectParams(params)
+	if err != nil {
+		return nil, err
+	}
+	addr := p.host + ":" + strconv.FormatUint(p.port, 10)
+	conn, err := net.DialTimeout("tcp", addr, p.dial_timeout*time.Second)
 	if err != nil {
 		f := "Unable to open tcp connection with host '%v': %v"
 		return nil, fmt.Errorf(f, addr, err.Error())
 	}
 
-	toconn := timeoutConn{conn, conn_timeout * time.Second}
+	toconn := timeoutConn{conn, p.conn_timeout * time.Second}
 
 	outbuf := newTdsBuffer(4096, toconn)
 	sess := tdsSession{
 		buf:      outbuf,
-		logFlags: logFlags,
+		logFlags: p.logFlags,
 	}
 
-	err = writePrelogin(outbuf, instance)
+	err = writePrelogin(outbuf, p.instance)
 	if err != nil {
 		return nil, err
 	}
@@ -656,9 +673,9 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 	login := login{
 		TDSVersion:   verTDS74,
 		PacketSize:   uint32(len(outbuf.buf)),
-		UserName:     user,
-		Password:     password,
-		Database:     database,
+		UserName:     p.user,
+		Password:     p.password,
+		Database:     p.database,
 		OptionFlags2: fODBC, // to get unlimited TEXTSIZE
 	}
 	err = sendLogin(outbuf, login)
