@@ -563,15 +563,18 @@ func sendSqlBatch72(buf *tdsBuffer,
 }
 
 type connectParams struct {
-	logFlags     uint64
-	port         uint64
-	host         string
-	instance     string
-	database     string
-	user         string
-	password     string
-	dial_timeout time.Duration
-	conn_timeout time.Duration
+	logFlags               uint64
+	port                   uint64
+	host                   string
+	instance               string
+	database               string
+	user                   string
+	password               string
+	dial_timeout           time.Duration
+	conn_timeout           time.Duration
+	encrypt                bool
+	trustServerCertificate bool
+	certificate            string
 }
 
 func parseConnectParams(params map[string]string) (*connectParams, error) {
@@ -637,6 +640,26 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 		p.dial_timeout = time.Duration(timeout) * time.Second
 		p.conn_timeout = time.Duration(timeout) * time.Second
 	}
+	encrypt, ok := params["encrypt"]
+	if ok {
+		var err error
+		p.encrypt, err = strconv.ParseBool(encrypt)
+		if err != nil {
+			f := "Invalid encrypt '%s': %s"
+			return nil, fmt.Errorf(f, encrypt, err.Error())
+		}
+	}
+	trust, ok := params["trust server certificate"]
+	if ok {
+		var err error
+		p.trustServerCertificate, err = strconv.ParseBool(trust)
+		if err != nil {
+			f := "Invalid trust server certificate '%s': %s"
+			return nil, fmt.Errorf(f, trust, err.Error())
+		}
+	}
+	p.certificate = params["certificate"]
+
 	return &p, nil
 }
 

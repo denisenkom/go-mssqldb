@@ -28,6 +28,13 @@ Example:
   *  8 trace sql statements
   * 16 log statement parameters
   * 32 log transaction begin/end
+* encrypt
+  * false - Data sent between client and server is not encrypted beyond the login packet. (Default)
+  * true - Data sent between client and server is encrypted.
+* trust server certificate
+  * false - Server certificate is checked. (Default)
+  * true - Server certificate is not checked.
+* certificate - The file that contains the public key certificate of the CA that signed the SQL Server certificate. The specified certificate overrides the go platform specific CA certificates.
 
 Example:
 
