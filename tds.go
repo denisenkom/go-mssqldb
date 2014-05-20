@@ -581,7 +581,7 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 		var err error
 		p.logFlags, err = strconv.ParseUint(strlog, 10, 0)
 		if err != nil {
-			return nil, fmt.Errorf("Invalid log parameter", err.Error())
+			return nil, fmt.Errorf("Invalid log parameter '%s': %s", strlog, err.Error())
 		}
 	}
 	server := params["server"]
