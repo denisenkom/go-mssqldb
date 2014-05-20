@@ -2,6 +2,8 @@ package mssql
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -132,19 +134,8 @@ type columnStruct struct {
 }
 
 // http://msdn.microsoft.com/en-us/library/dd357559.aspx
-func writePrelogin(w *tdsBuffer, instance string) error {
+func writePrelogin(w *tdsBuffer, fields map[uint8][]byte) error {
 	var err error
-
-	instance_buf := []byte(instance)
-	instance_buf = append(instance_buf, 0) // zero terminate instance name
-
-	fields := map[uint8][]byte{
-		preloginVERSION:    {0, 0, 0, 0, 0, 0},
-		preloginENCRYPTION: {encryptNotSup},
-		preloginINSTOPT:    instance_buf,
-		preloginTHREADID:   {0, 0, 0, 0},
-		preloginMARS:       {0}, // MARS disabled
-	}
 
 	w.BeginPacket(packPrelogin)
 	offset := uint16(5*len(fields) + 1)
@@ -675,7 +666,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		return nil, fmt.Errorf(f, addr, err.Error())
 	}
 
-	toconn := timeoutConn{conn, p.conn_timeout}
+	toconn := NewTimeoutConn(conn, p.conn_timeout)
 
 	outbuf := newTdsBuffer(4096, toconn)
 	sess := tdsSession{
@@ -683,14 +674,68 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		logFlags: p.logFlags,
 	}
 
-	err = writePrelogin(outbuf, p.instance)
+	instance_buf := []byte(p.instance)
+	instance_buf = append(instance_buf, 0) // zero terminate instance name
+	var encrypt byte
+	if p.encrypt {
+		encrypt = encryptOn
+	} else {
+		encrypt = encryptOff
+	}
+	fields := map[uint8][]byte{
+		preloginVERSION:    {0, 0, 0, 0, 0, 0},
+		preloginENCRYPTION: {encrypt},
+		preloginINSTOPT:    instance_buf,
+		preloginTHREADID:   {0, 0, 0, 0},
+		preloginMARS:       {0}, // MARS disabled
+	}
+
+	err = writePrelogin(outbuf, fields)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = readPrelogin(outbuf)
+	fields, err = readPrelogin(outbuf)
 	if err != nil {
 		return nil, err
+	}
+
+	encryptBytes, ok := fields[preloginENCRYPTION]
+	if !ok {
+		return nil, fmt.Errorf("Encrypt negotiation failed")
+	}
+	encrypt = encryptBytes[0]
+	if p.encrypt && (encrypt == encryptNotSup || encrypt == encryptOff) {
+		return nil, fmt.Errorf("Server does not support encryption")
+	}
+
+	if encrypt != encryptNotSup {
+		var config tls.Config
+		if p.certificate != "" {
+			pem, err := ioutil.ReadFile(p.certificate)
+			if err != nil {
+				f := "Cannot read certificate '%s': %s"
+				return nil, fmt.Errorf(f, p.certificate, err.Error())
+			}
+			certs := x509.NewCertPool()
+			certs.AppendCertsFromPEM(pem)
+			config.RootCAs = certs
+		}
+		if p.trustServerCertificate || encrypt == encryptOff {
+			config.InsecureSkipVerify = true
+		}
+		config.ServerName = p.host
+		tlsConn := tls.Client(toconn, &config)
+
+		outbuf.transport = conn
+		toconn.buf = outbuf
+		err = tlsConn.Handshake()
+		toconn.buf = nil
+		outbuf.transport = tlsConn
+		if err != nil {
+			f := "TLS Handshake failed: %s"
+			return nil, fmt.Errorf(f, err.Error())
+		}
 	}
 
 	login := login{
@@ -704,6 +749,10 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 	err = sendLogin(outbuf, login)
 	if err != nil {
 		return nil, err
+	}
+
+	if encrypt == encryptOff {
+		outbuf.transport = toconn
 	}
 
 	// processing login response
