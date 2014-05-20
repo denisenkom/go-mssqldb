@@ -1,6 +1,7 @@
 package mssql
 
 import (
+	"fmt"
 	"net"
 	"time"
 )
@@ -26,10 +27,11 @@ func (c timeoutConn) Read(b []byte) (n int, err error) {
 			return
 		}
 		if packet != packPrelogin {
-			err = streamErrorf("unexpected packet %d, expecting prelogin", packet)
+			err = fmt.Errorf("unexpected packet %d, expecting prelogin", packet)
 			return
 		}
-		return c.buf.Read(b)
+		n, err = c.buf.Read(b)
+		return
 	}
 	err = c.c.SetDeadline(time.Now().Add(c.timeout))
 	if err != nil {
