@@ -99,6 +99,13 @@ const (
 	preloginTERMINATOR = 0xff
 )
 
+const (
+	encryptOff    = 0 // Encryption is available but off.
+	encryptOn     = 1 // Encryption is available and on.
+	encryptNotSup = 2 // Encryption is not available.
+	encryptReq    = 3 // Encryption is required.
+)
+
 type tdsSession struct {
 	buf      *tdsBuffer
 	loginAck loginAckStruct
@@ -133,7 +140,7 @@ func writePrelogin(w *tdsBuffer, instance string) error {
 
 	fields := map[uint8][]byte{
 		preloginVERSION:    {0, 0, 0, 0, 0, 0},
-		preloginENCRYPTION: {2}, // encryption not supported
+		preloginENCRYPTION: {encryptNotSup},
 		preloginINSTOPT:    instance_buf,
 		preloginTHREADID:   {0, 0, 0, 0},
 		preloginMARS:       {0}, // MARS disabled
