@@ -639,6 +639,8 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 			f := "Invalid encrypt '%s': %s"
 			return nil, fmt.Errorf(f, encrypt, err.Error())
 		}
+	} else {
+		p.trustServerCertificate = true
 	}
 	trust, ok := params["trust server certificate"]
 	if ok {
@@ -721,7 +723,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 			certs.AppendCertsFromPEM(pem)
 			config.RootCAs = certs
 		}
-		if p.trustServerCertificate || encrypt == encryptOff {
+		if p.trustServerCertificate {
 			config.InsecureSkipVerify = true
 		}
 		config.ServerName = p.host

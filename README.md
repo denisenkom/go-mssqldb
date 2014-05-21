@@ -32,8 +32,8 @@ Example:
   * false - Data sent between client and server is not encrypted beyond the login packet. (Default)
   * true - Data sent between client and server is encrypted.
 * trust server certificate
-  * false - Server certificate is checked. (Default)
-  * true - Server certificate is not checked.
+  * false - Server certificate is checked. (Default if encypt is specified)
+  * true - Server certificate is not checked. (Default if encrypt is not specified)
 * certificate - The file that contains the public key certificate of the CA that signed the SQL Server certificate. The specified certificate overrides the go platform specific CA certificates.
 
 Example:
