@@ -15,26 +15,27 @@ Example:
 
 ## Connection Parameters
 
-* server - host or host\instance
-* port - used only when there is no instance in server (default 1433)
-* user id
-* password
-* database
-* connection timeout - in seconds (default is 30)
-* log - logging flags (default 0/no logging, 63 for full logging)
+* "server" - host or host\instance
+* "port" - used only when there is no instance in server (default 1433)
+* "user id"
+* "password"
+* "database"
+* "connection timeout" - in seconds (default is 30)
+* "log" - logging flags (default 0/no logging, 63 for full logging)
   *  1 log errors
   *  2 log messages
   *  4 log rows affected
   *  8 trace sql statements
   * 16 log statement parameters
   * 32 log transaction begin/end
-* encrypt
+* "encrypt"
   * false - Data sent between client and server is not encrypted beyond the login packet. (Default)
   * true - Data sent between client and server is encrypted.
-* trust server certificate
-  * false - Server certificate is checked. (Default if encypt is specified)
-  * true - Server certificate is not checked. (Default if encrypt is not specified)
-* certificate - The file that contains the public key certificate of the CA that signed the SQL Server certificate. The specified certificate overrides the go platform specific CA certificates.
+* "trust server certificate"
+  * false - Server certificate is checked. Default is false if encypt is specified.
+  * true - Server certificate is not checked. Default is true if encrypt is not specified.
+* "certificate" - The file that contains the public key certificate of the CA that signed the SQL Server certificate. The specified certificate overrides the go platform specific CA certificates.
+* "host in certificate" - Specifies the Common Name (CN) in the server certificate. Default value is the server host. 
 
 Example:
 

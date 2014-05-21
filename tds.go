@@ -566,6 +566,7 @@ type connectParams struct {
 	encrypt                bool
 	trustServerCertificate bool
 	certificate            string
+	hostInCertificate      string
 }
 
 func parseConnectParams(params map[string]string) (*connectParams, error) {
@@ -652,6 +653,10 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 		}
 	}
 	p.certificate = params["certificate"]
+	p.hostInCertificate, ok = params["host in certificate"]
+	if !ok {
+		p.hostInCertificate = p.host
+	}
 
 	return &p, nil
 }
@@ -726,9 +731,8 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		if p.trustServerCertificate {
 			config.InsecureSkipVerify = true
 		}
-		config.ServerName = p.host
+		config.ServerName = p.hostInCertificate
 		tlsConn := tls.Client(toconn, &config)
-
 		outbuf.transport = conn
 		toconn.buf = outbuf
 		err = tlsConn.Handshake()
