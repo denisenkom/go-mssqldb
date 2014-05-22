@@ -7,9 +7,10 @@ import (
 )
 
 type timeoutConn struct {
-	c       net.Conn
-	timeout time.Duration
-	buf     *tdsBuffer
+	c             net.Conn
+	timeout       time.Duration
+	buf           *tdsBuffer
+	packetPending bool
 }
 
 func NewTimeoutConn(conn net.Conn, timeout time.Duration) *timeoutConn {
@@ -19,8 +20,15 @@ func NewTimeoutConn(conn net.Conn, timeout time.Duration) *timeoutConn {
 	}
 }
 
-func (c timeoutConn) Read(b []byte) (n int, err error) {
+func (c *timeoutConn) Read(b []byte) (n int, err error) {
 	if c.buf != nil {
+		if c.packetPending {
+			c.packetPending = false
+			err = c.buf.FinishPacket()
+			if err != nil {
+				return
+			}
+		}
 		var packet uint8
 		packet, err = c.buf.BeginRead()
 		if err != nil {
@@ -40,14 +48,16 @@ func (c timeoutConn) Read(b []byte) (n int, err error) {
 	return c.c.Read(b)
 }
 
-func (c timeoutConn) Write(b []byte) (n int, err error) {
+func (c *timeoutConn) Write(b []byte) (n int, err error) {
 	if c.buf != nil {
-		c.buf.BeginPacket(packPrelogin)
+		if !c.packetPending {
+			c.buf.BeginPacket(packPrelogin)
+			c.packetPending = true
+		}
 		n, err = c.buf.Write(b)
 		if err != nil {
 			return
 		}
-		err = c.buf.FinishPacket()
 		return
 	}
 	err = c.c.SetDeadline(time.Now().Add(c.timeout))
