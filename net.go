@@ -26,12 +26,14 @@ func (c *timeoutConn) Read(b []byte) (n int, err error) {
 			c.packetPending = false
 			err = c.buf.FinishPacket()
 			if err != nil {
+				err = fmt.Errorf("Cannot send handshake packet: %s", err.Error())
 				return
 			}
 		}
 		var packet uint8
 		packet, err = c.buf.BeginRead()
 		if err != nil {
+			err = fmt.Errorf("Cannot read handshake packet: %s", err.Error())
 			return
 		}
 		if packet != packPrelogin {
