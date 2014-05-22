@@ -283,3 +283,33 @@ func TestPing(t *testing.T) {
 	defer conn.Close()
 	conn.Ping()
 }
+
+func TestSecureWithInvalidHostName(t *testing.T) {
+	dsn := makeConnStr() + ";secure=true;trust server certificate=false;host in certificate=foo.bar"
+	conn, err := sql.Open("mssql", dsn)
+	if err != nil {
+		t.Fatal("Open connection failed:", err.Error())
+	}
+	defer conn.Close()
+	err = conn.Ping()
+	if err == nil {
+		t.Fatal("Connected to fake foo.bar server")
+	}
+}
+
+func TestSecureConnection(t *testing.T) {
+	dsn := makeConnStr() + ";secure=true;trust server certificate=true"
+	conn, err := sql.Open("mssql", dsn)
+	if err != nil {
+		t.Fatal("Open connection failed:", err.Error())
+	}
+	defer conn.Close()
+	var msg string
+	err = conn.QueryRow("select 'secret'").Scan(&msg)
+	if err != nil {
+		t.Fatal("cannot scan value", err)
+	}
+	if msg != "secret" {
+		t.Fatal("expected secret, got: ", msg)
+	}
+}
