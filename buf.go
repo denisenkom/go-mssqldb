@@ -39,6 +39,7 @@ func (w *tdsBuffer) flush() (err error) {
 		return err
 	}
 	w.pos = 8
+	w.buf[6] += 1
 	return nil
 }
 
@@ -75,7 +76,7 @@ func (w *tdsBuffer) BeginPacket(packet_type byte) {
 	w.buf[1] = 0 // packet is incomplete
 	w.buf[4] = 0 // spid
 	w.buf[5] = 0
-	w.buf[6] = 0 // packet id
+	w.buf[6] = 1 // packet id
 	w.buf[7] = 0 // window
 	w.pos = 8
 }
