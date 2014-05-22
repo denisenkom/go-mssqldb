@@ -2,7 +2,6 @@ package mssql
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 	"log"
 	"strconv"
@@ -297,7 +296,7 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 	}()
 	packet_type, err := sess.buf.BeginRead()
 	if err != nil {
-		ch <- fmt.Errorf("Cannot read packet: ", err.Error())
+		ch <- err
 		return
 	}
 	if packet_type != packReply {
