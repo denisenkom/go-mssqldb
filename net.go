@@ -45,7 +45,7 @@ func (c timeoutConn) Write(b []byte) (n int, err error) {
 		c.buf.BeginPacket(packPrelogin)
 		n, err = c.buf.Write(b)
 		if err != nil {
-			return 0, err
+			return
 		}
 		err = c.buf.FinishPacket()
 		return

@@ -732,9 +732,9 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 			config.InsecureSkipVerify = true
 		}
 		config.ServerName = p.hostInCertificate
-		tlsConn := tls.Client(toconn, &config)
 		outbuf.transport = conn
 		toconn.buf = outbuf
+		tlsConn := tls.Client(toconn, &config)
 		err = tlsConn.Handshake()
 		toconn.buf = nil
 		outbuf.transport = tlsConn
