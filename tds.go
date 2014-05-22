@@ -771,7 +771,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 			success = true
 			sess.loginAck = token
 		case error:
-			return nil, token
+			return nil, fmt.Errorf("Login error: %s", token.Error())
 		}
 	}
 	if !success {
