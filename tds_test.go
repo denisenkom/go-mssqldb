@@ -312,4 +312,12 @@ func TestSecureConnection(t *testing.T) {
 	if msg != "secret" {
 		t.Fatal("expected secret, got: ", msg)
 	}
+	var secure bool
+	err = conn.QueryRow("select encrypt_option from sys.dm_exec_connections where session_id=@@SPID").Scan(&secure)
+	if err != nil {
+		t.Fatal("cannot scan value", err)
+	}
+	if !secure {
+		t.Fatal("connection is not encrypted")
+	}
 }
