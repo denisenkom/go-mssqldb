@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -133,24 +134,36 @@ type columnStruct struct {
 	ti       typeInfo
 }
 
+type KeySlice []uint8
+
+func (p KeySlice) Len() int           { return len(p) }
+func (p KeySlice) Less(i, j int) bool { return p[i] < p[j] }
+func (p KeySlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+
 // http://msdn.microsoft.com/en-us/library/dd357559.aspx
 func writePrelogin(w *tdsBuffer, fields map[uint8][]byte) error {
 	var err error
 
 	w.BeginPacket(packPrelogin)
 	offset := uint16(5*len(fields) + 1)
+	keys := make(KeySlice, 0, len(fields))
+	for k, _ := range fields {
+		keys = append(keys, k)
+	}
+	sort.Sort(keys)
 	// writing header
-	for k, v := range fields {
+	for _, k := range keys {
 		err = w.WriteByte(k)
 		if err != nil {
 			return err
 		}
-		size := uint16(len(v))
-		err = binary.Write(w, binary.BigEndian, &offset)
+		err = binary.Write(w, binary.BigEndian, offset)
 		if err != nil {
 			return err
 		}
-		err = binary.Write(w, binary.BigEndian, &size)
+		v := fields[k]
+		size := uint16(len(v))
+		err = binary.Write(w, binary.BigEndian, size)
 		if err != nil {
 			return err
 		}
@@ -161,7 +174,8 @@ func writePrelogin(w *tdsBuffer, fields map[uint8][]byte) error {
 		return err
 	}
 	// writing values
-	for _, v := range fields {
+	for _, k := range keys {
+		v := fields[k]
 		written, err := w.Write(v)
 		if err != nil {
 			return err
