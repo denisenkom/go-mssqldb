@@ -756,6 +756,11 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 			f := "TLS Handshake failed: %s"
 			return nil, fmt.Errorf(f, err.Error())
 		}
+		if encrypt == encryptOff {
+			outbuf.afterFirst = func() {
+				outbuf.transport = toconn
+			}
+		}
 	}
 
 	login := login{
@@ -769,10 +774,6 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 	err = sendLogin(outbuf, login)
 	if err != nil {
 		return nil, err
-	}
-
-	if encrypt == encryptOff {
-		outbuf.transport = toconn
 	}
 
 	// processing login response
