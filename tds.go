@@ -578,6 +578,7 @@ type connectParams struct {
 	dial_timeout           time.Duration
 	conn_timeout           time.Duration
 	encrypt                bool
+	disableEncryption      bool
 	trustServerCertificate bool
 	certificate            string
 	hostInCertificate      string
@@ -648,11 +649,15 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 	}
 	encrypt, ok := params["encrypt"]
 	if ok {
-		var err error
-		p.encrypt, err = strconv.ParseBool(encrypt)
-		if err != nil {
-			f := "Invalid encrypt '%s': %s"
-			return nil, fmt.Errorf(f, encrypt, err.Error())
+		if strings.ToUpper(encrypt) == "DISABLE" {
+			p.disableEncryption = true
+		} else {
+			var err error
+			p.encrypt, err = strconv.ParseBool(encrypt)
+			if err != nil {
+				f := "Invalid encrypt '%s': %s"
+				return nil, fmt.Errorf(f, encrypt, err.Error())
+			}
 		}
 	} else {
 		p.trustServerCertificate = true
@@ -698,7 +703,9 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 	instance_buf := []byte(p.instance)
 	instance_buf = append(instance_buf, 0) // zero terminate instance name
 	var encrypt byte
-	if p.encrypt {
+	if p.disableEncryption {
+		encrypt = encryptNotSup
+	} else if p.encrypt {
 		encrypt = encryptOn
 	} else {
 		encrypt = encryptOff

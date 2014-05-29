@@ -29,6 +29,7 @@ Example:
   * 16 log statement parameters
   * 32 log transaction begin/end
 * "encrypt"
+  * disable - Data send between client and server is not encrypted.
   * false - Data sent between client and server is not encrypted beyond the login packet. (Default)
   * true - Data sent between client and server is encrypted.
 * "trust server certificate"
