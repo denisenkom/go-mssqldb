@@ -62,3 +62,10 @@ where nnn represents an integer.
 * Supports new date/time types: date, time, datetime2, datetimeoffset
 * Supports string parameters longer that 8000 characters
 * Supports encryption using SSL/TLS
+
+## Known Issues
+
+* SQL Server 2008 and 2008 R2 engine cannot handle login records when SSL encryption is not disabled.
+To fix SQL Server 2008 R2 issue, install SQL Server 2008 R2 Service Pack 2.
+To fix SQL Server 2008 issue, install Microsoft SQL Server 2008 Service Pack 3 and Cumulative update package 3 for SQL Server 2008 SP3.
+More information: http://support.microsoft.com/kb/2653857
