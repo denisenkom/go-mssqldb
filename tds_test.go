@@ -285,7 +285,7 @@ func TestPing(t *testing.T) {
 }
 
 func TestSecureWithInvalidHostName(t *testing.T) {
-	dsn := makeConnStr() + ";encrypt=true;trust server certificate=false;host in certificate=foo.bar"
+	dsn := makeConnStr() + ";Encrypt=true;TrustServerCertificate=false;hostNameInCertificate=foo.bar"
 	conn, err := sql.Open("mssql", dsn)
 	if err != nil {
 		t.Fatal("Open connection failed:", err.Error())
@@ -298,7 +298,7 @@ func TestSecureWithInvalidHostName(t *testing.T) {
 }
 
 func TestSecureConnection(t *testing.T) {
-	dsn := makeConnStr() + ";encrypt=true;trust server certificate=true"
+	dsn := makeConnStr() + ";Encrypt=true;TrustServerCertificate=true"
 	conn, err := sql.Open("mssql", dsn)
 	if err != nil {
 		t.Fatal("Open connection failed:", err.Error())

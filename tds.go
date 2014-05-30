@@ -662,7 +662,7 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 	} else {
 		p.trustServerCertificate = true
 	}
-	trust, ok := params["trust server certificate"]
+	trust, ok := params["trustservercertificate"]
 	if ok {
 		var err error
 		p.trustServerCertificate, err = strconv.ParseBool(trust)
@@ -672,7 +672,7 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 		}
 	}
 	p.certificate = params["certificate"]
-	p.hostInCertificate, ok = params["host in certificate"]
+	p.hostInCertificate, ok = params["hostnameincertificate"]
 	if !ok {
 		p.hostInCertificate = p.host
 	}
