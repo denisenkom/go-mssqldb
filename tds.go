@@ -2,12 +2,15 @@ package mssql
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -99,6 +102,13 @@ const (
 	preloginTERMINATOR = 0xff
 )
 
+const (
+	encryptOff    = 0 // Encryption is available but off.
+	encryptOn     = 1 // Encryption is available and on.
+	encryptNotSup = 2 // Encryption is not available.
+	encryptReq    = 3 // Encryption is required.
+)
+
 type tdsSession struct {
 	buf      *tdsBuffer
 	loginAck loginAckStruct
@@ -124,35 +134,36 @@ type columnStruct struct {
 	ti       typeInfo
 }
 
+type KeySlice []uint8
+
+func (p KeySlice) Len() int           { return len(p) }
+func (p KeySlice) Less(i, j int) bool { return p[i] < p[j] }
+func (p KeySlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+
 // http://msdn.microsoft.com/en-us/library/dd357559.aspx
-func writePrelogin(w *tdsBuffer, instance string) error {
+func writePrelogin(w *tdsBuffer, fields map[uint8][]byte) error {
 	var err error
-
-	instance_buf := []byte(instance)
-	instance_buf = append(instance_buf, 0) // zero terminate instance name
-
-	fields := map[uint8][]byte{
-		preloginVERSION:    {0, 0, 0, 0, 0, 0},
-		preloginENCRYPTION: {2}, // encryption not supported
-		preloginINSTOPT:    instance_buf,
-		preloginTHREADID:   {0, 0, 0, 0},
-		preloginMARS:       {0}, // MARS disabled
-	}
 
 	w.BeginPacket(packPrelogin)
 	offset := uint16(5*len(fields) + 1)
+	keys := make(KeySlice, 0, len(fields))
+	for k, _ := range fields {
+		keys = append(keys, k)
+	}
+	sort.Sort(keys)
 	// writing header
-	for k, v := range fields {
+	for _, k := range keys {
 		err = w.WriteByte(k)
 		if err != nil {
 			return err
 		}
-		size := uint16(len(v))
-		err = binary.Write(w, binary.BigEndian, &offset)
+		err = binary.Write(w, binary.BigEndian, offset)
 		if err != nil {
 			return err
 		}
-		err = binary.Write(w, binary.BigEndian, &size)
+		v := fields[k]
+		size := uint16(len(v))
+		err = binary.Write(w, binary.BigEndian, size)
 		if err != nil {
 			return err
 		}
@@ -163,7 +174,8 @@ func writePrelogin(w *tdsBuffer, instance string) error {
 		return err
 	}
 	// writing values
-	for _, v := range fields {
+	for _, k := range keys {
+		v := fields[k]
 		written, err := w.Write(v)
 		if err != nil {
 			return err
@@ -555,46 +567,59 @@ func sendSqlBatch72(buf *tdsBuffer,
 	return buf.FinishPacket()
 }
 
-func connect(params map[string]string) (res *tdsSession, err error) {
-	var logFlags uint64
+type connectParams struct {
+	logFlags               uint64
+	port                   uint64
+	host                   string
+	instance               string
+	database               string
+	user                   string
+	password               string
+	dial_timeout           time.Duration
+	conn_timeout           time.Duration
+	encrypt                bool
+	disableEncryption      bool
+	trustServerCertificate bool
+	certificate            string
+	hostInCertificate      string
+}
+
+func parseConnectParams(params map[string]string) (*connectParams, error) {
+	var p connectParams
 	strlog, ok := params["log"]
 	if ok {
 		var err error
-		logFlags, err = strconv.ParseUint(strlog, 10, 0)
+		p.logFlags, err = strconv.ParseUint(strlog, 10, 0)
 		if err != nil {
-			return nil, fmt.Errorf("Invalid log parameter", err.Error())
+			return nil, fmt.Errorf("Invalid log parameter '%s': %s", strlog, err.Error())
 		}
 	}
-	var port uint64
 	server := params["server"]
 	parts := strings.SplitN(server, "\\", 2)
-	host := parts[0]
-	var instance string
+	p.host = parts[0]
 	if len(parts) > 1 {
-		instance = parts[1]
+		p.instance = parts[1]
 	}
-	database := params["database"]
-	user := params["user id"]
-	if len(user) == 0 {
-		err = fmt.Errorf("Login failed, User Id is required")
-		return
+	p.database = params["database"]
+	p.user = params["user id"]
+	if len(p.user) == 0 {
+		return nil, fmt.Errorf("Login failed, User Id is required")
 	}
-	password := params["password"]
-	port = 1433
-	if instance != "" {
-		instance = strings.ToUpper(instance)
-		instances, err := getInstances(host)
+	p.password = params["password"]
+	p.port = 1433
+	if p.instance != "" {
+		p.instance = strings.ToUpper(p.instance)
+		instances, err := getInstances(p.host)
 		if err != nil {
 			f := "Unable to get instances from Sql Server Browser on host %v: %v"
-			err = fmt.Errorf(f, host, err.Error())
-			return nil, err
+			return nil, fmt.Errorf(f, p.host, err.Error())
 		}
-		strport, ok := instances[instance]["tcp"]
+		strport, ok := instances[p.instance]["tcp"]
 		if !ok {
 			f := "No instance matching '%v' returned from host '%v'"
-			return nil, fmt.Errorf(f, instance, host)
+			return nil, fmt.Errorf(f, p.instance, p.host)
 		}
-		port, err = strconv.ParseUint(strport, 0, 16)
+		p.port, err = strconv.ParseUint(strport, 0, 16)
 		if err != nil {
 			f := "Invalid tcp port returned from Sql Server Browser '%v': %v"
 			return nil, fmt.Errorf(f, strport, err.Error())
@@ -602,16 +627,16 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 	} else {
 		strport, ok := params["port"]
 		if ok {
-			port, err = strconv.ParseUint(strport, 0, 16)
+			var err error
+			p.port, err = strconv.ParseUint(strport, 0, 16)
 			if err != nil {
 				f := "Invalid tcp port '%v': %v"
 				return nil, fmt.Errorf(f, strport, err.Error())
 			}
 		}
 	}
-	addr := host + ":" + strconv.FormatUint(port, 10)
-	var dial_timeout time.Duration = 5
-	var conn_timeout time.Duration = 30
+	p.dial_timeout = 5 * time.Second
+	p.conn_timeout = 30 * time.Second
 	strtimeout, ok := params["connection timeout"]
 	if ok {
 		timeout, err := strconv.ParseUint(strtimeout, 0, 16)
@@ -619,39 +644,138 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 			f := "Invalid connection timeout '%v': %v"
 			return nil, fmt.Errorf(f, strtimeout, err.Error())
 		}
-		dial_timeout = time.Duration(timeout)
-		conn_timeout = time.Duration(timeout)
+		p.dial_timeout = time.Duration(timeout) * time.Second
+		p.conn_timeout = time.Duration(timeout) * time.Second
 	}
-	conn, err := net.DialTimeout("tcp", addr, dial_timeout*time.Second)
+	encrypt, ok := params["encrypt"]
+	if ok {
+		if strings.ToUpper(encrypt) == "DISABLE" {
+			p.disableEncryption = true
+		} else {
+			var err error
+			p.encrypt, err = strconv.ParseBool(encrypt)
+			if err != nil {
+				f := "Invalid encrypt '%s': %s"
+				return nil, fmt.Errorf(f, encrypt, err.Error())
+			}
+		}
+	} else {
+		p.trustServerCertificate = true
+	}
+	trust, ok := params["trustservercertificate"]
+	if ok {
+		var err error
+		p.trustServerCertificate, err = strconv.ParseBool(trust)
+		if err != nil {
+			f := "Invalid trust server certificate '%s': %s"
+			return nil, fmt.Errorf(f, trust, err.Error())
+		}
+	}
+	p.certificate = params["certificate"]
+	p.hostInCertificate, ok = params["hostnameincertificate"]
+	if !ok {
+		p.hostInCertificate = p.host
+	}
+
+	return &p, nil
+}
+
+func connect(params map[string]string) (res *tdsSession, err error) {
+	p, err := parseConnectParams(params)
+	if err != nil {
+		return nil, err
+	}
+	addr := p.host + ":" + strconv.FormatUint(p.port, 10)
+	conn, err := net.DialTimeout("tcp", addr, p.dial_timeout)
 	if err != nil {
 		f := "Unable to open tcp connection with host '%v': %v"
 		return nil, fmt.Errorf(f, addr, err.Error())
 	}
 
-	toconn := timeoutConn{conn, conn_timeout * time.Second}
+	toconn := NewTimeoutConn(conn, p.conn_timeout)
 
 	outbuf := newTdsBuffer(4096, toconn)
 	sess := tdsSession{
 		buf:      outbuf,
-		logFlags: logFlags,
+		logFlags: p.logFlags,
 	}
 
-	err = writePrelogin(outbuf, instance)
+	instance_buf := []byte(p.instance)
+	instance_buf = append(instance_buf, 0) // zero terminate instance name
+	var encrypt byte
+	if p.disableEncryption {
+		encrypt = encryptNotSup
+	} else if p.encrypt {
+		encrypt = encryptOn
+	} else {
+		encrypt = encryptOff
+	}
+	fields := map[uint8][]byte{
+		preloginVERSION:    {0, 0, 0, 0, 0, 0},
+		preloginENCRYPTION: {encrypt},
+		preloginINSTOPT:    instance_buf,
+		preloginTHREADID:   {0, 0, 0, 0},
+		preloginMARS:       {0}, // MARS disabled
+	}
+
+	err = writePrelogin(outbuf, fields)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = readPrelogin(outbuf)
+	fields, err = readPrelogin(outbuf)
 	if err != nil {
 		return nil, err
+	}
+
+	encryptBytes, ok := fields[preloginENCRYPTION]
+	if !ok {
+		return nil, fmt.Errorf("Encrypt negotiation failed")
+	}
+	encrypt = encryptBytes[0]
+	if p.encrypt && (encrypt == encryptNotSup || encrypt == encryptOff) {
+		return nil, fmt.Errorf("Server does not support encryption")
+	}
+
+	if encrypt != encryptNotSup {
+		var config tls.Config
+		if p.certificate != "" {
+			pem, err := ioutil.ReadFile(p.certificate)
+			if err != nil {
+				f := "Cannot read certificate '%s': %s"
+				return nil, fmt.Errorf(f, p.certificate, err.Error())
+			}
+			certs := x509.NewCertPool()
+			certs.AppendCertsFromPEM(pem)
+			config.RootCAs = certs
+		}
+		if p.trustServerCertificate {
+			config.InsecureSkipVerify = true
+		}
+		config.ServerName = p.hostInCertificate
+		outbuf.transport = conn
+		toconn.buf = outbuf
+		tlsConn := tls.Client(toconn, &config)
+		err = tlsConn.Handshake()
+		toconn.buf = nil
+		outbuf.transport = tlsConn
+		if err != nil {
+			f := "TLS Handshake failed: %s"
+			return nil, fmt.Errorf(f, err.Error())
+		}
+		if encrypt == encryptOff {
+			outbuf.afterFirst = func() {
+				outbuf.transport = toconn
+			}
+		}
 	}
 
 	login := login{
 		TDSVersion:   verTDS74,
 		PacketSize:   uint32(len(outbuf.buf)),
-		UserName:     user,
-		Password:     password,
-		Database:     database,
+		UserName:     p.user,
+		Password:     p.password,
+		Database:     p.database,
 		OptionFlags2: fODBC, // to get unlimited TEXTSIZE
 	}
 	err = sendLogin(outbuf, login)
@@ -669,7 +793,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 			success = true
 			sess.loginAck = token
 		case error:
-			return nil, token
+			return nil, fmt.Errorf("Login error: %s", token.Error())
 		}
 	}
 	if !success {

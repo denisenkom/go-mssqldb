@@ -44,7 +44,7 @@ func TestSendLogin(t *testing.T) {
 		t.Error("sendLogin should succeed")
 	}
 	ref := []byte{
-		16, 1, 0, 222, 0, 0, 0, 0, 198 + 16, 0, 0, 0, 3, 0, 10, 115, 0, 16, 0, 0, 0, 1,
+		16, 1, 0, 222, 0, 0, 1, 0, 198 + 16, 0, 0, 0, 3, 0, 10, 115, 0, 16, 0, 0, 0, 1,
 		6, 1, 100, 0, 0, 0, 0, 0, 0, 0, 224, 0, 0, 8, 16, 255, 255, 255, 4, 2, 0,
 		0, 94, 0, 7, 0, 108, 0, 4, 0, 116, 0, 7, 0, 130, 0, 7, 0, 144, 0, 10, 0, 0,
 		0, 0, 0, 164, 0, 7, 0, 178, 0, 2, 0, 182, 0, 8, 0, 18, 52, 86, 120, 144, 171,
@@ -282,4 +282,42 @@ func TestPing(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
 	conn.Ping()
+}
+
+func TestSecureWithInvalidHostName(t *testing.T) {
+	dsn := makeConnStr() + ";Encrypt=true;TrustServerCertificate=false;hostNameInCertificate=foo.bar"
+	conn, err := sql.Open("mssql", dsn)
+	if err != nil {
+		t.Fatal("Open connection failed:", err.Error())
+	}
+	defer conn.Close()
+	err = conn.Ping()
+	if err == nil {
+		t.Fatal("Connected to fake foo.bar server")
+	}
+}
+
+func TestSecureConnection(t *testing.T) {
+	dsn := makeConnStr() + ";Encrypt=true;TrustServerCertificate=true"
+	conn, err := sql.Open("mssql", dsn)
+	if err != nil {
+		t.Fatal("Open connection failed:", err.Error())
+	}
+	defer conn.Close()
+	var msg string
+	err = conn.QueryRow("select 'secret'").Scan(&msg)
+	if err != nil {
+		t.Fatal("cannot scan value", err)
+	}
+	if msg != "secret" {
+		t.Fatal("expected secret, got: ", msg)
+	}
+	var secure bool
+	err = conn.QueryRow("select encrypt_option from sys.dm_exec_connections where session_id=@@SPID").Scan(&secure)
+	if err != nil {
+		t.Fatal("cannot scan value", err)
+	}
+	if !secure {
+		t.Fatal("connection is not encrypted")
+	}
 }

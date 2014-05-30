@@ -671,7 +671,7 @@ func TestLogging(t *testing.T) {
 	defer conn.Close()
 	_, err = conn.Exec("print 'test'")
 	if err != nil {
-		t.Fatal("Exec print failed")
+		t.Fatal("Exec print failed", err.Error())
 	}
 	if b.String() != "test\n" {
 		t.Fatal("logging test failed, got", b.String())

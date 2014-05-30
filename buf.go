@@ -21,6 +21,7 @@ type tdsBuffer struct {
 	size        uint16
 	final       bool
 	packet_type uint8
+	afterFirst  func()
 }
 
 func newTdsBuffer(bufsize int, transport io.ReadWriteCloser) *tdsBuffer {
@@ -38,7 +39,12 @@ func (w *tdsBuffer) flush() (err error) {
 	if _, err = w.transport.Write(w.buf[:w.pos]); err != nil {
 		return err
 	}
+	if w.afterFirst != nil {
+		w.afterFirst()
+		w.afterFirst = nil
+	}
 	w.pos = 8
+	w.buf[6] += 1
 	return nil
 }
 
@@ -73,6 +79,10 @@ func (w *tdsBuffer) WriteByte(b byte) error {
 func (w *tdsBuffer) BeginPacket(packet_type byte) {
 	w.buf[0] = packet_type
 	w.buf[1] = 0 // packet is incomplete
+	w.buf[4] = 0 // spid
+	w.buf[5] = 0
+	w.buf[6] = 1 // packet id
+	w.buf[7] = 0 // window
 	w.pos = 8
 }
 
@@ -80,6 +90,10 @@ func (w *tdsBuffer) FinishPacket() (err error) {
 	w.buf[1] = 1 // packet is complete
 	binary.BigEndian.PutUint16(w.buf[2:], w.pos)
 	_, err = w.transport.Write(w.buf[:w.pos])
+	if w.afterFirst != nil {
+		w.afterFirst()
+		w.afterFirst = nil
+	}
 	return err
 }
 
