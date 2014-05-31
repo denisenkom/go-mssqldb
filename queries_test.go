@@ -241,6 +241,7 @@ func TestParams(t *testing.T) {
 		"hello",
 		"",
 		[]byte{1, 2, 3},
+		[]byte{},
 		float64(1.12313554),
 		true,
 		false,

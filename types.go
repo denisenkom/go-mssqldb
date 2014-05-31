@@ -814,7 +814,7 @@ func makeDecl(ti typeInfo) string {
 			panic("invalid size of FLNNTYPE")
 		}
 	case typeBigVarBin:
-		if ti.Size > 8000 {
+		if ti.Size > 8000 || ti.Size == 0 {
 			return fmt.Sprintf("varbinary(max)")
 		} else {
 			return fmt.Sprintf("varbinary(%d)", ti.Size)
