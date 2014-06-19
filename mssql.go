@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"math"
+	"net"
 	"strings"
 	"time"
 )
@@ -18,6 +19,17 @@ func init() {
 }
 
 type MssqlDriver struct {
+}
+
+func CheckBadConn(err error) error {
+	if err == io.EOF {
+		return driver.ErrBadConn
+	}
+	neterr, ok := err.(net.Error)
+	if !ok || neterr.Temporary() {
+		return err
+	}
+	return driver.ErrBadConn
 }
 
 type MssqlConn struct {
@@ -157,7 +169,7 @@ func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
 	}
 	if len(args) == 0 {
 		if err = sendSqlBatch72(s.c.sess.buf, s.query, headers); err != nil {
-			return
+			return CheckBadConn(err)
 		}
 	} else {
 		params := make([]Param, len(args)+2)
@@ -180,7 +192,7 @@ func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
 			return
 		}
 		if err = sendRpc(s.c.sess.buf, headers, Sp_ExecuteSql, 0, params); err != nil {
-			return
+			return CheckBadConn(err)
 		}
 	}
 	return
