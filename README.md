@@ -21,6 +21,7 @@ Example:
 * "password"
 * "database"
 * "connection timeout" - in seconds (default is 30)
+* "keepAlive" - in seconds; 0 to disable (default is 0)
 * "log" - logging flags (default 0/no logging, 63 for full logging)
   *  1 log errors
   *  2 log messages

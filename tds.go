@@ -577,6 +577,7 @@ type connectParams struct {
 	password               string
 	dial_timeout           time.Duration
 	conn_timeout           time.Duration
+	keepAlive              time.Duration
 	encrypt                bool
 	disableEncryption      bool
 	trustServerCertificate bool
@@ -647,6 +648,15 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 		p.dial_timeout = time.Duration(timeout) * time.Second
 		p.conn_timeout = time.Duration(timeout) * time.Second
 	}
+	keepAlive, ok := params["keepAlive"]
+	if ok {
+		timeout, err := strconv.ParseUint(keepAlive, 0, 16)
+		if err != nil {
+			f := "Invalid keepAlive value '%s': %s"
+			return nil, fmt.Errorf(f, keepAlive, err.Error())
+		}
+		p.keepAlive = time.Duration(timeout) * time.Second
+	}
 	encrypt, ok := params["encrypt"]
 	if ok {
 		if strings.ToUpper(encrypt) == "DISABLE" {
@@ -686,7 +696,8 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		return nil, err
 	}
 	addr := p.host + ":" + strconv.FormatUint(p.port, 10)
-	conn, err := net.DialTimeout("tcp", addr, p.dial_timeout)
+	d := net.Dialer{Timeout: p.dial_timeout, KeepAlive: p.keepAlive}
+	conn, err := d.Dial("tcp", addr)
 	if err != nil {
 		f := "Unable to open tcp connection with host '%v': %v"
 		return nil, fmt.Errorf(f, addr, err.Error())
