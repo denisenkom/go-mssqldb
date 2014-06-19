@@ -598,6 +598,9 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 	server := params["server"]
 	parts := strings.SplitN(server, "\\", 2)
 	p.host = parts[0]
+	if p.host == "." || strings.ToUpper(p.host) == "(LOCAL)" {
+		p.host = "localhost"
+	}
 	if len(parts) > 1 {
 		p.instance = parts[1]
 	}
