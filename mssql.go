@@ -169,6 +169,9 @@ func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
 	}
 	if len(args) == 0 {
 		if err = sendSqlBatch72(s.c.sess.buf, s.query, headers); err != nil {
+			if s.c.sess.tranid != 0 {
+				return err
+			}
 			return CheckBadConn(err)
 		}
 	} else {
@@ -192,6 +195,9 @@ func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
 			return
 		}
 		if err = sendRpc(s.c.sess.buf, headers, Sp_ExecuteSql, 0, params); err != nil {
+			if s.c.sess.tranid != 0 {
+				return err
+			}
 			return CheckBadConn(err)
 		}
 	}
