@@ -82,7 +82,7 @@ func (c *MssqlConn) Begin() (driver.Tx, error) {
 			data: transDescrHdr{0, 1}.pack()},
 	}
 	if err := sendBeginXact(c.sess.buf, headers, 0, ""); err != nil {
-		return nil, err
+		return nil, CheckBadConn(err)
 	}
 	tokchan := make(chan tokenStruct, 5)
 	go processResponse(c.sess, tokchan)
