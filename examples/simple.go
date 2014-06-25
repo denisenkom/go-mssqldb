@@ -6,7 +6,7 @@ import "log"
 import "fmt"
 import "flag"
 
-var debug = flag.Bool("debug", false, "dnable debugging")
+var debug = flag.Bool("debug", false, "enable debugging")
 var password = flag.String("password", "", "the database password")
 var port *int = flag.Int("port", 1433, "the database port")
 var server = flag.String("server", "", "the database server")
