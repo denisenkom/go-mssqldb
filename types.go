@@ -201,7 +201,7 @@ func decodeDateTim4(buf []byte) time.Time {
 func decodeDateTime(buf []byte) time.Time {
 	days := int32(binary.LittleEndian.Uint32(buf))
 	tm := binary.LittleEndian.Uint32(buf[4:])
-	ns := int(math.Trunc(float64(tm%300*10000000) / 3.0))
+	ns := int(math.Trunc(float64(tm%300)/0.3+0.5)) * 1000000
 	secs := int(tm / 300)
 	return time.Date(1900, 1, 1+int(days),
 		0, 0, secs, ns, time.UTC)
