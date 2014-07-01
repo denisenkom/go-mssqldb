@@ -55,6 +55,7 @@ func TestSelect(t *testing.T) {
 		{"cast('2000-01-01' as datetime)", time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
 		{"cast('2000-01-01T12:13:14.12' as datetime)",
 			time.Date(2000, 1, 1, 12, 13, 14, 120000000, time.UTC)},
+		{"cast('2014-06-26 11:08:09.673' as datetime)", time.Date(2014, 06, 26, 11, 8, 9, 673000000, time.UTC)},
 		{"cast(NULL as datetime)", nil},
 		{"cast('2000-01-01T12:13:00' as smalldatetime)",
 			time.Date(2000, 1, 1, 12, 13, 0, 0, time.UTC)},
