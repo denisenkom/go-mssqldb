@@ -58,6 +58,7 @@ func TestSelect(t *testing.T) {
 		{"cast(NULL as datetime)", nil},
 		{"cast('2000-01-01T12:13:00' as smalldatetime)",
 			time.Date(2000, 1, 1, 12, 13, 0, 0, time.UTC)},
+		{"cast('2014-06-26 11:08:09.673' as datetime)", time.Date(2014, 06, 26, 11, 8, 9, 673000000, time.UTC)},
 		{"cast(0x6F9619FF8B86D011B42D00C04FC964FF as uniqueidentifier)",
 			[]byte{0x6F, 0x96, 0x19, 0xFF, 0x8B, 0x86, 0xD0, 0x11, 0xB4, 0x2D, 0x00, 0xC0, 0x4F, 0xC9, 0x64, 0xFF}},
 		{"cast(NULL as uniqueidentifier)", nil},
