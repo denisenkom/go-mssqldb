@@ -216,6 +216,38 @@ func readPrelogin(r *tdsBuffer) (map[uint8][]byte, error) {
 	return results, nil
 }
 
+func negotiate(auth Auth, w *tdsBuffer) error {
+	for {
+		packet_type, err := w.BeginRead()
+		if err != nil {
+			return err
+		}
+		sspi_in_buf, err := ioutil.ReadAll(w)
+		if err != nil {
+			return err
+		}
+		if packet_type != packSSPIMessage {
+			return fmt.Errorf("Invalid response, expected SSPI message, got %d", packet_type)
+		}
+		sspi_out_buf, err, done := auth.NextBytes(sspi_in_buf)
+		if err != nil {
+			return err
+		}
+		if done {
+			return nil
+		}
+		w.BeginPacket(packSSPIMessage)
+		_, err = w.Write(sspi_out_buf)
+		if err != nil {
+			return err
+		}
+		err = w.FinishPacket()
+		if err != nil {
+			return err
+		}
+	}
+}
+
 // OptionFlags2
 // http://msdn.microsoft.com/en-us/library/dd304019.aspx
 const (
@@ -693,6 +725,11 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 	return &p, nil
 }
 
+type Auth interface {
+	InitialBytes() ([]byte, error)
+	NextBytes([]byte) ([]byte, error, bool)
+}
+
 func connect(params map[string]string) (res *tdsSession, err error) {
 	p, err := parseConnectParams(params)
 	if err != nil {
@@ -787,14 +824,29 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 	login := login{
 		TDSVersion:   verTDS74,
 		PacketSize:   uint32(len(outbuf.buf)),
-		UserName:     p.user,
-		Password:     p.password,
 		Database:     p.database,
 		OptionFlags2: fODBC, // to get unlimited TEXTSIZE
+	}
+	auth, auth_ok := getAuth(p.user, p.password)
+	if auth_ok {
+		login.SSPI, err = auth.InitialBytes()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		login.UserName = p.user
+		login.Password = p.password
 	}
 	err = sendLogin(outbuf, login)
 	if err != nil {
 		return nil, err
+	}
+
+	if auth_ok {
+		err = negotiate(auth, outbuf)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// processing login response
