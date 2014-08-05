@@ -61,7 +61,7 @@ where nnn represents an integer.
 * Can be used with SQL Server 2005 or newer
 * Can be used on all go supported platforms (e.g. Linux, Mac OS X and Windows)
 * Supports new date/time types: date, time, datetime2, datetimeoffset
-* Supports string parameters longer that 8000 characters
+* Supports string parameters longer than 8000 characters
 * Supports encryption using SSL/TLS
 
 ## Known Issues
