@@ -13,7 +13,7 @@ type NTLMAuth struct {
 	Password string
 }
 
-func getAuth(user, password string) (Auth, bool) {
+func getAuth(user, password, service string) (Auth, bool) {
 	if !strings.ContainsRune(user, '\\') {
 		return nil, false
 	}

@@ -827,7 +827,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		Database:     p.database,
 		OptionFlags2: fODBC, // to get unlimited TEXTSIZE
 	}
-	auth, auth_ok := getAuth(p.user, p.password)
+	auth, auth_ok := getAuth(p.user, p.password, fmt.Sprintf("MSSQLSvc/%s:%d", p.host, p.port))
 	if auth_ok {
 		login.SSPI, err = auth.InitialBytes()
 		if err != nil {

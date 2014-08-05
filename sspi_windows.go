@@ -9,11 +9,12 @@ type SSPIAuth struct {
 	Domain   string
 	UserName string
 	Password string
+	Service  string
 }
 
-func getAuth(user, password string) (Auth, bool) {
+func getAuth(user, password, service string) (Auth, bool) {
 	if user == "" {
-		return &SSPIAuth{}, true
+		return &SSPIAuth{Service: service}, true
 	}
 	if !strings.ContainsRune(user, '\\') {
 		return nil, false
