@@ -703,7 +703,8 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 
 type Auth interface {
 	InitialBytes() ([]byte, error)
-	NextBytes([]byte) ([]byte, error, bool)
+	NextBytes([]byte) ([]byte, error)
+	Free()
 }
 
 func connect(params map[string]string) (res *tdsSession, err error) {
@@ -810,6 +811,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 			return nil, err
 		}
 		login.OptionFlags2 |= fIntSecurity
+		defer auth.Free()
 	} else {
 		login.UserName = p.user
 		login.Password = p.password

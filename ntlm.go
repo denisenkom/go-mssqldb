@@ -29,6 +29,9 @@ func (auth *NTLMAuth) InitialBytes() ([]byte, error) {
 	return nil, errors.New("NTLM is not implemented")
 }
 
-func (auth *NTLMAuth) NextBytes(bytes []byte) ([]byte, error, bool) {
-	return nil, errors.New("NTLM is not implemented"), false
+func (auth *NTLMAuth) NextBytes(bytes []byte) ([]byte, error) {
+	return nil, errors.New("NTLM is not implemented")
+}
+
+func (auth *NTLMAuth) Free() {
 }

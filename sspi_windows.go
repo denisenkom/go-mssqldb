@@ -192,7 +192,7 @@ func (auth *SSPIAuth) InitialBytes() ([]byte, error) {
 	return outbuf[:buf.cbBuffer], nil
 }
 
-func (auth *SSPIAuth) NextBytes(bytes []byte) ([]byte, error, bool) {
+func (auth *SSPIAuth) NextBytes(bytes []byte) ([]byte, error) {
 	var in_buf, out_buf SecBuffer
 	var in_desc, out_desc SecBufferDesc
 
@@ -231,23 +231,19 @@ func (auth *SSPIAuth) NextBytes(bytes []byte) ([]byte, error, bool) {
 		uintptr(unsafe.Pointer(&ts)))
 	if sec_ok != SEC_E_OK {
 
-		return nil, fmt.Errorf("NextBytes InitializeSecurityContext failed %x", sec_ok), false
+		return nil, fmt.Errorf("NextBytes InitializeSecurityContext failed %x", sec_ok)
 	}
 
-	var done bool
-	if out_buf.cbBuffer == 0 {
-		done = true
-	}
+	return outbuf[:out_buf.cbBuffer], nil
+}
 
-	if done {
-		syscall.Syscall6(sec_fn.DeleteSecurityContext,
-			1,
-			uintptr(unsafe.Pointer(&auth.ctxt)),
-			0, 0, 0, 0, 0)
-		syscall.Syscall6(sec_fn.FreeCredentialsHandle,
-			1,
-			uintptr(unsafe.Pointer(&auth.cred)),
-			0, 0, 0, 0, 0)
-	}
-	return outbuf[:out_buf.cbBuffer], nil, done
+func (auth *SSPIAuth) Free() {
+	syscall.Syscall6(sec_fn.DeleteSecurityContext,
+		1,
+		uintptr(unsafe.Pointer(&auth.ctxt)),
+		0, 0, 0, 0, 0)
+	syscall.Syscall6(sec_fn.FreeCredentialsHandle,
+		1,
+		uintptr(unsafe.Pointer(&auth.cred)),
+		0, 0, 0, 0, 0)
 }
