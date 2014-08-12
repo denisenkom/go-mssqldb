@@ -3,7 +3,6 @@ package mssql
 import (
 	"encoding/binary"
 	"io"
-	"io/ioutil"
 	"log"
 	"strconv"
 	"strings"
@@ -200,11 +199,10 @@ func parseDoneInProc(r *tdsBuffer) (res doneInProcStruct) {
 type sspiMsg []byte
 
 func parseSSPIMsg(r *tdsBuffer) sspiMsg {
-	msg, err := ioutil.ReadAll(r)
-	if err != nil {
-		badStreamPanic(err)
-	}
-	return msg
+	size := r.uint16()
+	buf := make([]byte, size)
+	r.ReadFull(buf)
+	return sspiMsg(buf)
 }
 
 type loginAckStruct struct {
