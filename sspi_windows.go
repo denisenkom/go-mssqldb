@@ -190,7 +190,7 @@ func (auth *SSPIAuth) InitialBytes() ([]byte, error) {
 			0, 0, 0, 0, 0)
 		return nil, fmt.Errorf("InitializeSecurityContext returned %x", sec_ok)
 	}
-	return outbuf, nil
+	return outbuf[:buf.cbBuffer], nil
 }
 
 func (auth *SSPIAuth) NextBytes(bytes []byte) ([]byte, error, bool) {
