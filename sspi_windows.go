@@ -2,6 +2,7 @@ package mssql
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -14,20 +15,18 @@ var (
 )
 
 func init() {
-	ptr, _, callErr := initSecurityInterface.Call()
-	if callErr != syscall.Errno(0) {
-		panic(callErr)
-	}
+	ptr, _, _ := initSecurityInterface.Call()
 	sec_fn = (*SecurityFunctionTable)(unsafe.Pointer(ptr))
 }
 
 const (
-	SEC_E_OK             = 0
-	SECPKG_CRED_OUTBOUND = 2
+	SEC_E_OK                        = 0
+	SECPKG_CRED_OUTBOUND            = 2
+	SEC_WINNT_AUTH_IDENTITY_UNICODE = 2
 )
 
 type SecurityFunctionTable struct {
-	dwVersion                  uintptr
+	dwVersion                  uint32
 	EnumerateSecurityPackages  uintptr
 	QueryCredentialsAttributes uintptr
 	AcquireCredentialsHandle   uintptr
@@ -56,11 +55,33 @@ type SecurityFunctionTable struct {
 	DecryptMessage             uintptr
 }
 
+type SEC_WINNT_AUTH_IDENTITY struct {
+	User           *uint16
+	UserLength     uint32
+	Domain         *uint16
+	DomainLength   uint32
+	Password       *uint16
+	PasswordLength uint32
+	Flags          uint32
+}
+
+type TimeStamp struct {
+	LowPart  uint32
+	HighPart int32
+}
+
+type SecHandle struct {
+	dwLower uint32
+	dwUpper uint32
+}
+
 type SSPIAuth struct {
 	Domain   string
 	UserName string
 	Password string
 	Service  string
+	cred     SecHandle
+	ctxt     SecHandle
 }
 
 func getAuth(user, password, service string) (Auth, bool) {
@@ -80,25 +101,37 @@ func getAuth(user, password, service string) (Auth, bool) {
 }
 
 func (auth *SSPIAuth) InitialBytes() ([]byte, error) {
-	/*
-		sec_ok, _, callErr := syscall.Syscall9(sec_fn.AcquireCredentialsHandle,
-			9,
-			0,
-			uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr("Negotiate"))),
-			SECPKG_CRED_OUTBOUND,
-			0,
-			0, //TODO identity
-			0,
-			0,
-			0, //TODO credentials
-			0) //TODO timestamp
-		if callErr != 0 {
-			return nil, errors.New("AcquireCredentialsHandle failed")
+	var identity *SEC_WINNT_AUTH_IDENTITY
+	if auth.UserName != "" {
+		identity = &SEC_WINNT_AUTH_IDENTITY{
+			Flags:          SEC_WINNT_AUTH_IDENTITY_UNICODE,
+			Password:       syscall.StringToUTF16Ptr(auth.Password),
+			PasswordLength: uint32(len(auth.Password)),
+			Domain:         syscall.StringToUTF16Ptr(auth.Domain),
+			DomainLength:   uint32(len(auth.Domain)),
+			User:           syscall.StringToUTF16Ptr(auth.UserName),
+			UserLength:     uint32(len(auth.UserName)),
 		}
-		if sec_ok != SEC_E_OK {
-			return nil, fmt.Errorf("AcquireCredentialsHandle returned %d", sec_ok)
-		}
-	*/
+	}
+	var ts TimeStamp
+	sec_ok, _, _ := syscall.Syscall9(sec_fn.AcquireCredentialsHandle,
+		9,
+		0,
+		uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr("Negotiate"))),
+		SECPKG_CRED_OUTBOUND,
+		0,
+		uintptr(unsafe.Pointer(identity)),
+		0,
+		0,
+		uintptr(unsafe.Pointer(&auth.cred)),
+		uintptr(unsafe.Pointer(&ts)))
+	if sec_ok != SEC_E_OK {
+		return nil, fmt.Errorf("AcquireCredentialsHandle returned %d", sec_ok)
+	}
+	syscall.Syscall6(sec_fn.FreeCredentialsHandle,
+		1,
+		uintptr(unsafe.Pointer(&auth.cred)),
+		0, 0, 0, 0, 0)
 	return nil, errors.New("SSPI is not implemented")
 }
 
