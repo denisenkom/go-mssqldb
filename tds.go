@@ -639,9 +639,6 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 	}
 	p.database = params["database"]
 	p.user = params["user id"]
-	if len(p.user) == 0 {
-		return nil, fmt.Errorf("Login failed, User Id is required")
-	}
 	p.password = params["password"]
 	p.port = 1433
 	if p.instance != "" {
