@@ -1,7 +1,6 @@
 package mssql
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"syscall"
@@ -147,7 +146,7 @@ func (auth *SSPIAuth) InitialBytes() ([]byte, error) {
 		uintptr(unsafe.Pointer(&auth.cred)),
 		uintptr(unsafe.Pointer(&ts)))
 	if sec_ok != SEC_E_OK {
-		return nil, fmt.Errorf("AcquireCredentialsHandle returned %x", sec_ok)
+		return nil, fmt.Errorf("AcquireCredentialsHandle failed %x", sec_ok)
 	}
 
 	var buf SecBuffer
@@ -188,19 +187,67 @@ func (auth *SSPIAuth) InitialBytes() ([]byte, error) {
 			1,
 			uintptr(unsafe.Pointer(&auth.cred)),
 			0, 0, 0, 0, 0)
-		return nil, fmt.Errorf("InitializeSecurityContext returned %x", sec_ok)
+		return nil, fmt.Errorf("InitialBytes InitializeSecurityContext failed %x", sec_ok)
 	}
 	return outbuf[:buf.cbBuffer], nil
 }
 
 func (auth *SSPIAuth) NextBytes(bytes []byte) ([]byte, error, bool) {
-	syscall.Syscall6(sec_fn.DeleteSecurityContext,
-		1,
-		uintptr(unsafe.Pointer(&auth.ctxt)),
-		0, 0, 0, 0, 0)
-	syscall.Syscall6(sec_fn.FreeCredentialsHandle,
-		1,
+	var in_buf, out_buf SecBuffer
+	var in_desc, out_desc SecBufferDesc
+
+	in_desc.ulVersion = SECBUFFER_VERSION
+	in_desc.cBuffers = 1
+	in_desc.pBuffers = &in_buf
+
+	out_desc.ulVersion = SECBUFFER_VERSION
+	out_desc.cBuffers = 1
+	out_desc.pBuffers = &out_buf
+
+	in_buf.BufferType = SECBUFFER_TOKEN
+	in_buf.pvBuffer = &bytes[0]
+	in_buf.cbBuffer = uint32(len(bytes))
+
+	outbuf := make([]byte, NTLMBUF_LEN)
+	out_buf.BufferType = SECBUFFER_TOKEN
+	out_buf.pvBuffer = &outbuf[0]
+	out_buf.cbBuffer = NTLMBUF_LEN
+
+	var attrs uint32
+	var ts TimeStamp
+	sec_ok, _, _ := syscall.Syscall12(sec_fn.InitializeSecurityContext,
+		12,
 		uintptr(unsafe.Pointer(&auth.cred)),
-		0, 0, 0, 0, 0)
-	return nil, errors.New("SSPI is not implemented"), false
+		uintptr(unsafe.Pointer(&auth.ctxt)),
+		uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(auth.Service))),
+		ISC_REQ_CONFIDENTIALITY|ISC_REQ_REPLAY_DETECT|ISC_REQ_CONNECTION,
+		0,
+		SECURITY_NETWORK_DREP,
+		uintptr(unsafe.Pointer(&in_desc)),
+		0,
+		uintptr(unsafe.Pointer(&auth.ctxt)),
+		uintptr(unsafe.Pointer(&out_desc)),
+		uintptr(unsafe.Pointer(&attrs)),
+		uintptr(unsafe.Pointer(&ts)))
+	if sec_ok != SEC_E_OK {
+
+		return nil, fmt.Errorf("NextBytes InitializeSecurityContext failed %x", sec_ok), false
+	}
+
+	var done bool
+	if out_buf.cbBuffer == 0 {
+		done = true
+	}
+
+	if done {
+		syscall.Syscall6(sec_fn.DeleteSecurityContext,
+			1,
+			uintptr(unsafe.Pointer(&auth.ctxt)),
+			0, 0, 0, 0, 0)
+		syscall.Syscall6(sec_fn.FreeCredentialsHandle,
+			1,
+			uintptr(unsafe.Pointer(&auth.cred)),
+			0, 0, 0, 0, 0)
+	}
+	return outbuf[:out_buf.cbBuffer], nil, done
 }

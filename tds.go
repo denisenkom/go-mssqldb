@@ -226,8 +226,8 @@ func negotiate(auth Auth, w *tdsBuffer) error {
 		if err != nil {
 			return err
 		}
-		if packet_type != packSSPIMessage {
-			return fmt.Errorf("Invalid response, expected SSPI message, got %d", packet_type)
+		if packet_type != packReply {
+			return fmt.Errorf("Invalid response, expected Reply message, got %d", packet_type)
 		}
 		sspi_out_buf, err, done := auth.NextBytes(sspi_in_buf)
 		if err != nil {
