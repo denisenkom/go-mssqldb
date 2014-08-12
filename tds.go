@@ -864,6 +864,20 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 	success := false
 	for tok := range tokchan {
 		switch token := tok.(type) {
+		case sspiMsg:
+			sspi_out, err := auth.NextBytes(token)
+			if err != nil {
+				return nil, err
+			}
+			outbuf.BeginPacket(packSSPIMessage)
+			_, err = outbuf.Write(sspi_out)
+			if err != nil {
+				return nil, err
+			}
+			err = outbuf.FinishPacket()
+			if err != nil {
+				return nil, err
+			}
 		case loginAckStruct:
 			success = true
 			sess.loginAck = token

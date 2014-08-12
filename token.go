@@ -3,6 +3,7 @@ package mssql
 import (
 	"encoding/binary"
 	"io"
+	"io/ioutil"
 	"log"
 	"strconv"
 	"strings"
@@ -19,6 +20,7 @@ const (
 	tokenRow          = 209 // 0xd1
 	tokenNbcRow       = 210 // 0xd2
 	tokenEnvChange    = 227 // 0xE3
+	tokenSSPI         = 237 // 0xED
 	tokenDone         = 253 // 0xFD
 	tokenDoneProc     = 254
 	tokenDoneInProc   = 255
@@ -195,6 +197,16 @@ func parseDoneInProc(r *tdsBuffer) (res doneInProcStruct) {
 	return res
 }
 
+type sspiMsg []byte
+
+func parseSSPIMsg(r *tdsBuffer) sspiMsg {
+	msg, err := ioutil.ReadAll(r)
+	if err != nil {
+		badStreamPanic(err)
+	}
+	return msg
+}
+
 type loginAckStruct struct {
 	Interface  uint8
 	TDSVersion uint32
@@ -308,6 +320,8 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 	for {
 		token := sess.buf.byte()
 		switch token {
+		case tokenSSPI:
+			ch <- parseSSPIMsg(sess.buf)
 		case tokenReturnStatus:
 			returnStatus := parseReturnStatus(sess.buf)
 			ch <- returnStatus
