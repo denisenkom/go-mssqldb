@@ -23,6 +23,12 @@ const (
 	SEC_E_OK                        = 0
 	SECPKG_CRED_OUTBOUND            = 2
 	SEC_WINNT_AUTH_IDENTITY_UNICODE = 2
+	ISC_REQ_REPLAY_DETECT           = 0x00000004
+	ISC_REQ_CONFIDENTIALITY         = 0x00000010
+	ISC_REQ_CONNECTION              = 0x00000800
+	SECURITY_NETWORK_DREP           = 0
+	SEC_I_CONTINUE_NEEDED           = 0x00090312
+	SEC_I_COMPLETE_AND_CONTINUE     = 0x00090314
 )
 
 type SecurityFunctionTable struct {
@@ -35,7 +41,7 @@ type SecurityFunctionTable struct {
 	InitializeSecurityContext  uintptr
 	AcceptSecurityContext      uintptr
 	CompleteAuthToken          uintptr
-	DeleteSecurityToken        uintptr
+	DeleteSecurityContext      uintptr
 	ApplyControlToken          uintptr
 	QueryContextAttributes     uintptr
 	ImpersonateSecurityContext uintptr
@@ -126,8 +132,37 @@ func (auth *SSPIAuth) InitialBytes() ([]byte, error) {
 		uintptr(unsafe.Pointer(&auth.cred)),
 		uintptr(unsafe.Pointer(&ts)))
 	if sec_ok != SEC_E_OK {
-		return nil, fmt.Errorf("AcquireCredentialsHandle returned %d", sec_ok)
+		return nil, fmt.Errorf("AcquireCredentialsHandle returned %x", sec_ok)
 	}
+
+	var attrs uint32
+	sec_ok, _, _ = syscall.Syscall12(sec_fn.InitializeSecurityContext,
+		12,
+		uintptr(unsafe.Pointer(&auth.cred)),
+		0,
+		uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(auth.Service))),
+		ISC_REQ_CONFIDENTIALITY|ISC_REQ_REPLAY_DETECT|ISC_REQ_CONNECTION,
+		0,
+		SECURITY_NETWORK_DREP,
+		0,
+		0,
+		uintptr(unsafe.Pointer(&auth.ctxt)),
+		0, //descr
+		uintptr(unsafe.Pointer(&attrs)),
+		uintptr(unsafe.Pointer(&ts)))
+	if sec_ok == SEC_I_COMPLETE_AND_CONTINUE ||
+		sec_ok == SEC_I_CONTINUE_NEEDED {
+		syscall.Syscall6(sec_fn.CompleteAuthToken,
+			1,
+			0, //descr
+			0, 0, 0, 0, 0)
+	} else if sec_ok != SEC_E_OK {
+		return nil, fmt.Errorf("InitializeSecurityContext returned %x", sec_ok)
+	}
+	syscall.Syscall6(sec_fn.DeleteSecurityContext,
+		1,
+		uintptr(unsafe.Pointer(&auth.ctxt)),
+		0, 0, 0, 0, 0)
 	syscall.Syscall6(sec_fn.FreeCredentialsHandle,
 		1,
 		uintptr(unsafe.Pointer(&auth.cred)),
