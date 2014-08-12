@@ -29,6 +29,9 @@ const (
 	SECURITY_NETWORK_DREP           = 0
 	SEC_I_CONTINUE_NEEDED           = 0x00090312
 	SEC_I_COMPLETE_AND_CONTINUE     = 0x00090314
+	SECBUFFER_VERSION               = 0
+	SECBUFFER_TOKEN                 = 2
+	NTLMBUF_LEN                     = 4096
 )
 
 type SecurityFunctionTable struct {
@@ -79,6 +82,18 @@ type TimeStamp struct {
 type SecHandle struct {
 	dwLower uint32
 	dwUpper uint32
+}
+
+type SecBuffer struct {
+	cbBuffer   uint32
+	BufferType uint32
+	pvBuffer   *byte
+}
+
+type SecBufferDesc struct {
+	ulVersion uint32
+	cBuffers  uint32
+	pBuffers  *SecBuffer
 }
 
 type SSPIAuth struct {
@@ -135,6 +150,17 @@ func (auth *SSPIAuth) InitialBytes() ([]byte, error) {
 		return nil, fmt.Errorf("AcquireCredentialsHandle returned %x", sec_ok)
 	}
 
+	var buf SecBuffer
+	var desc SecBufferDesc
+	desc.ulVersion = SECBUFFER_VERSION
+	desc.cBuffers = 1
+	desc.pBuffers = &buf
+
+	outbuf := make([]byte, NTLMBUF_LEN)
+	buf.cbBuffer = NTLMBUF_LEN
+	buf.BufferType = SECBUFFER_TOKEN
+	buf.pvBuffer = &outbuf[0]
+
 	var attrs uint32
 	sec_ok, _, _ = syscall.Syscall12(sec_fn.InitializeSecurityContext,
 		12,
@@ -147,18 +173,27 @@ func (auth *SSPIAuth) InitialBytes() ([]byte, error) {
 		0,
 		0,
 		uintptr(unsafe.Pointer(&auth.ctxt)),
-		0, //descr
+		uintptr(unsafe.Pointer(&desc)),
 		uintptr(unsafe.Pointer(&attrs)),
 		uintptr(unsafe.Pointer(&ts)))
 	if sec_ok == SEC_I_COMPLETE_AND_CONTINUE ||
 		sec_ok == SEC_I_CONTINUE_NEEDED {
 		syscall.Syscall6(sec_fn.CompleteAuthToken,
-			1,
-			0, //descr
-			0, 0, 0, 0, 0)
+			2,
+			uintptr(unsafe.Pointer(&auth.ctxt)),
+			uintptr(unsafe.Pointer(&desc)),
+			0, 0, 0, 0)
 	} else if sec_ok != SEC_E_OK {
+		syscall.Syscall6(sec_fn.FreeCredentialsHandle,
+			1,
+			uintptr(unsafe.Pointer(&auth.cred)),
+			0, 0, 0, 0, 0)
 		return nil, fmt.Errorf("InitializeSecurityContext returned %x", sec_ok)
 	}
+	return outbuf, nil
+}
+
+func (auth *SSPIAuth) NextBytes(bytes []byte) ([]byte, error, bool) {
 	syscall.Syscall6(sec_fn.DeleteSecurityContext,
 		1,
 		uintptr(unsafe.Pointer(&auth.ctxt)),
@@ -167,9 +202,5 @@ func (auth *SSPIAuth) InitialBytes() ([]byte, error) {
 		1,
 		uintptr(unsafe.Pointer(&auth.cred)),
 		0, 0, 0, 0, 0)
-	return nil, errors.New("SSPI is not implemented")
-}
-
-func (auth *SSPIAuth) NextBytes(bytes []byte) ([]byte, error, bool) {
 	return nil, errors.New("SSPI is not implemented"), false
 }
