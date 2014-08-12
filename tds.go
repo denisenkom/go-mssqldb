@@ -615,6 +615,7 @@ type connectParams struct {
 	trustServerCertificate bool
 	certificate            string
 	hostInCertificate      string
+	serverSPN              string
 }
 
 func parseConnectParams(params map[string]string) (*connectParams, error) {
@@ -722,6 +723,12 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 		p.hostInCertificate = p.host
 	}
 
+	serverSPN, ok := params["ServerSPN"]
+	if ok {
+		p.serverSPN = serverSPN
+	} else {
+		p.serverSPN = fmt.Sprintf("MSSQLSvc/%s:%d", p.host, p.port)
+	}
 	return &p, nil
 }
 
@@ -827,7 +834,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		Database:     p.database,
 		OptionFlags2: fODBC, // to get unlimited TEXTSIZE
 	}
-	auth, auth_ok := getAuth(p.user, p.password, fmt.Sprintf("MSSQLSvc/%s:%d", p.host, p.port))
+	auth, auth_ok := getAuth(p.user, p.password, p.serverSPN)
 	if auth_ok {
 		login.SSPI, err = auth.InitialBytes()
 		if err != nil {
