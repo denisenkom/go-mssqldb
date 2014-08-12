@@ -840,6 +840,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		if err != nil {
 			return nil, err
 		}
+		login.OptionFlags2 |= fIntSecurity
 	} else {
 		login.UserName = p.user
 		login.Password = p.password
