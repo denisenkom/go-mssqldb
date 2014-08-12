@@ -452,6 +452,10 @@ func sendLogin(w *tdsBuffer, login login) error {
 	if err != nil {
 		return err
 	}
+	_, err = w.Write(login.SSPI)
+	if err != nil {
+		return err
+	}
 	_, err = w.Write(atchdbfile)
 	if err != nil {
 		return err
