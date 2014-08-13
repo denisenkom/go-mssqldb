@@ -27,6 +27,7 @@ const (
 	ISC_REQ_SEQUENCE_DETECT         = 0x00000008
 	ISC_REQ_CONFIDENTIALITY         = 0x00000010
 	ISC_REQ_CONNECTION              = 0x00000800
+	ISC_REQ                         = ISC_REQ_CONFIDENTIALITY | ISC_REQ_REPLAY_DETECT | ISC_REQ_SEQUENCE_DETECT | ISC_REQ_CONNECTION | ISC_REQ_DELEGATE
 	SECURITY_NETWORK_DREP           = 0
 	SEC_I_CONTINUE_NEEDED           = 0x00090312
 	SEC_I_COMPLETE_NEEDED           = 0x00090313
@@ -169,7 +170,7 @@ func (auth *SSPIAuth) InitialBytes() ([]byte, error) {
 		uintptr(unsafe.Pointer(&auth.cred)),
 		0,
 		uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(auth.Service))),
-		ISC_REQ_CONFIDENTIALITY|ISC_REQ_REPLAY_DETECT|ISC_REQ_SEQUENCE_DETECT|ISC_REQ_CONNECTION|ISC_REQ_DELEGATE,
+		ISC_REQ,
 		0,
 		SECURITY_NETWORK_DREP,
 		0,
@@ -224,7 +225,7 @@ func (auth *SSPIAuth) NextBytes(bytes []byte) ([]byte, error) {
 		uintptr(unsafe.Pointer(&auth.cred)),
 		uintptr(unsafe.Pointer(&auth.ctxt)),
 		uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(auth.Service))),
-		ISC_REQ_CONFIDENTIALITY|ISC_REQ_REPLAY_DETECT|ISC_REQ_SEQUENCE_DETECT|ISC_REQ_CONNECTION|ISC_REQ_DELEGATE,
+		ISC_REQ,
 		0,
 		SECURITY_NETWORK_DREP,
 		uintptr(unsafe.Pointer(&in_desc)),
