@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -588,6 +589,7 @@ type connectParams struct {
 	certificate            string
 	hostInCertificate      string
 	serverSPN              string
+	workstation            string
 }
 
 func parseConnectParams(params map[string]string) (*connectParams, error) {
@@ -698,6 +700,16 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 	} else {
 		p.serverSPN = fmt.Sprintf("MSSQLSvc/%s:%d", p.host, p.port)
 	}
+
+	workstation, ok := params["Workstation ID"]
+	if ok {
+		p.workstation = workstation
+	} else {
+		workstation, err := os.Hostname()
+		if err == nil {
+			p.workstation = workstation
+		}
+	}
 	return &p, nil
 }
 
@@ -803,8 +815,9 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		PacketSize:   uint32(len(outbuf.buf)),
 		Database:     p.database,
 		OptionFlags2: fODBC, // to get unlimited TEXTSIZE
+		HostName:     p.workstation,
 	}
-	auth, auth_ok := getAuth(p.user, p.password, p.serverSPN)
+	auth, auth_ok := getAuth(p.user, p.password, p.serverSPN, p.workstation)
 	if auth_ok {
 		login.SSPI, err = auth.InitialBytes()
 		if err != nil {

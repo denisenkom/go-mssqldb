@@ -39,6 +39,7 @@ Example:
 * "certificate" - The file that contains the public key certificate of the CA that signed the SQL Server certificate. The specified certificate overrides the go platform specific CA certificates.
 * "hostNameInCertificate" - Specifies the Common Name (CN) in the server certificate. Default value is the server host. 
 * "ServerSPN" - The kerberos SPN (Service Principal Name) for the server. Default is MSSQLSvc/host:port.
+* "Workstation ID" - The workstation name (default is the host name)
 
 Example:
 

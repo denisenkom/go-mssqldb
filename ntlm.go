@@ -47,20 +47,22 @@ const NEGOTIATE_FLAGS = NEGOTIATE_UNICODE |
 	NEGOTIATE_EXTENDED_SECURITY
 
 type NTLMAuth struct {
-	Domain   string
-	UserName string
-	Password string
+	Domain      string
+	UserName    string
+	Password    string
+	Workstation string
 }
 
-func getAuth(user, password, service string) (Auth, bool) {
+func getAuth(user, password, service, workstation string) (Auth, bool) {
 	if !strings.ContainsRune(user, '\\') {
 		return nil, false
 	}
 	domain_user := strings.SplitN(user, "\\", 2)
 	return &NTLMAuth{
-		Domain:   domain_user[0],
-		UserName: domain_user[1],
-		Password: password,
+		Domain:      domain_user[0],
+		UserName:    domain_user[1],
+		Password:    password,
+		Workstation: workstation,
 	}, true
 }
 
