@@ -43,6 +43,7 @@ const (
 const NEGOTIATE_FLAGS = NEGOTIATE_UNICODE |
 	NEGOTIATE_NTLM |
 	NEGOTIATE_DOMAIN_SUPPLIED |
+	NEGOTIATE_WORKSTATION_SUPPLIED |
 	NEGOTIATE_ALWAYS_SIGN |
 	NEGOTIATE_EXTENDED_SECURITY
 
@@ -81,21 +82,22 @@ func utf16le(val string) []byte {
 }
 
 func (auth *NTLMAuth) InitialBytes() ([]byte, error) {
-	domain16 := utf16le(auth.Domain)
-	domain_len := len(domain16)
-	msg := make([]byte, 40+domain_len)
+	domain_len := len(auth.Domain)
+	workstation_len := len(auth.Workstation)
+	msg := make([]byte, 40+domain_len+workstation_len)
 	copy(msg, []byte("NTLMSSP\x00"))
 	binary.LittleEndian.PutUint32(msg[8:], NEGOTIATE_MESSAGE)
 	binary.LittleEndian.PutUint32(msg[12:], NEGOTIATE_FLAGS)
 	binary.LittleEndian.PutUint16(msg[16:], uint16(domain_len))
 	binary.LittleEndian.PutUint16(msg[18:], uint16(domain_len))
 	binary.LittleEndian.PutUint32(msg[20:], 40) // domain offset
-	binary.LittleEndian.PutUint16(msg[24:], 0)
-	binary.LittleEndian.PutUint16(msg[26:], 0)
-	binary.LittleEndian.PutUint32(msg[28:], 0) // workstation offset
-	binary.LittleEndian.PutUint32(msg[32:], 0) // version
+	binary.LittleEndian.PutUint16(msg[24:], uint16(workstation_len))
+	binary.LittleEndian.PutUint16(msg[26:], uint16(workstation_len))
+	binary.LittleEndian.PutUint32(msg[28:], uint32(40+domain_len)) // workstation offset
+	binary.LittleEndian.PutUint32(msg[32:], 0)                     // version
 	binary.LittleEndian.PutUint32(msg[36:], 0)
-	copy(msg[40:], domain16)
+	copy(msg[40:], auth.Domain)
+	copy(msg[40+domain_len:], auth.Workstation)
 	return msg, nil
 }
 
