@@ -185,7 +185,7 @@ func (auth *NTLMAuth) NextBytes(bytes []byte) ([]byte, error) {
 	if binary.LittleEndian.Uint32(bytes[8:12]) != CHALLENGE_MESSAGE {
 		return nil, errorNTLM
 	}
-	flags := binary.LittleEndian.Uint32(bytes[12:16])
+	flags := binary.LittleEndian.Uint32(bytes[20:24])
 	var challenge [8]byte
 	copy(challenge[:], bytes[24:32])
 
@@ -201,49 +201,49 @@ func (auth *NTLMAuth) NextBytes(bytes []byte) ([]byte, error) {
 	workstation16 := utf16le(auth.Workstation)
 	workstation_len := len(workstation16)
 
-	msg := make([]byte, 90+lm_len+nt_len+domain_len+user_len+workstation_len)
+	msg := make([]byte, 88+lm_len+nt_len+domain_len+user_len+workstation_len)
 	copy(msg, []byte("NTLMSSP\x00"))
 	binary.LittleEndian.PutUint32(msg[8:], AUTHENTICATE_MESSAGE)
 	// Lm Challenge Response Fields
 	binary.LittleEndian.PutUint16(msg[12:], uint16(lm_len))
 	binary.LittleEndian.PutUint16(msg[14:], uint16(lm_len))
-	binary.LittleEndian.PutUint32(msg[16:], 90)
+	binary.LittleEndian.PutUint32(msg[16:], 88)
 	// Nt Challenge Response Fields
 	binary.LittleEndian.PutUint16(msg[20:], uint16(nt_len))
 	binary.LittleEndian.PutUint16(msg[22:], uint16(nt_len))
-	binary.LittleEndian.PutUint32(msg[24:], uint32(90+lm_len))
+	binary.LittleEndian.PutUint32(msg[24:], uint32(88+lm_len))
 	// Domain Name Fields
 	binary.LittleEndian.PutUint16(msg[28:], uint16(domain_len))
 	binary.LittleEndian.PutUint16(msg[30:], uint16(domain_len))
-	binary.LittleEndian.PutUint32(msg[32:], uint32(90+lm_len+nt_len))
+	binary.LittleEndian.PutUint32(msg[32:], uint32(88+lm_len+nt_len))
 	// User Name Fields
 	binary.LittleEndian.PutUint16(msg[36:], uint16(user_len))
 	binary.LittleEndian.PutUint16(msg[38:], uint16(user_len))
-	binary.LittleEndian.PutUint32(msg[40:], uint32(90+lm_len+nt_len+domain_len))
+	binary.LittleEndian.PutUint32(msg[40:], uint32(88+lm_len+nt_len+domain_len))
 	// Workstation Fields
 	binary.LittleEndian.PutUint16(msg[44:], uint16(workstation_len))
 	binary.LittleEndian.PutUint16(msg[46:], uint16(workstation_len))
-	binary.LittleEndian.PutUint32(msg[48:], uint32(90+lm_len+nt_len+domain_len+user_len))
+	binary.LittleEndian.PutUint32(msg[48:], uint32(88+lm_len+nt_len+domain_len+user_len))
 	// Encrypted Random Session Key Fields
 	binary.LittleEndian.PutUint16(msg[52:], 0)
 	binary.LittleEndian.PutUint16(msg[54:], 0)
-	binary.LittleEndian.PutUint32(msg[58:], uint32(90+lm_len+nt_len+domain_len+user_len+workstation_len))
+	binary.LittleEndian.PutUint32(msg[56:], uint32(88+lm_len+nt_len+domain_len+user_len+workstation_len))
 	// Negotiate Flags
-	binary.LittleEndian.PutUint32(msg[62:], flags)
+	binary.LittleEndian.PutUint32(msg[60:], flags)
 	// Version
-	binary.LittleEndian.PutUint32(msg[66:], 0)
-	binary.LittleEndian.PutUint32(msg[70:], 0)
+	binary.LittleEndian.PutUint32(msg[64:], 0)
+	binary.LittleEndian.PutUint32(msg[68:], 0)
 	// MIC
-	binary.LittleEndian.PutUint32(msg[74:], 0)
-	binary.LittleEndian.PutUint32(msg[78:], 0)
-	binary.LittleEndian.PutUint32(msg[82:], 0)
-	binary.LittleEndian.PutUint32(msg[86:], 0)
+	binary.LittleEndian.PutUint32(msg[72:], 0)
+	binary.LittleEndian.PutUint32(msg[76:], 0)
+	binary.LittleEndian.PutUint32(msg[88:], 0)
+	binary.LittleEndian.PutUint32(msg[84:], 0)
 	// Payload
-	copy(msg[90:], lm[:])
-	copy(msg[90+lm_len:], nt[:])
-	copy(msg[90+lm_len+nt_len:], domain16)
-	copy(msg[90+lm_len+nt_len+domain_len:], user16)
-	copy(msg[90+lm_len+nt_len+domain_len+user_len:], workstation16)
+	copy(msg[88:], lm[:])
+	copy(msg[88+lm_len:], nt[:])
+	copy(msg[88+lm_len+nt_len:], domain16)
+	copy(msg[88+lm_len+nt_len+domain_len:], user16)
+	copy(msg[88+lm_len+nt_len+domain_len+user_len:], workstation16)
 	return msg, nil
 }
 
