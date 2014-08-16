@@ -320,6 +320,7 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 		switch token {
 		case tokenSSPI:
 			ch <- parseSSPIMsg(sess.buf)
+			return
 		case tokenReturnStatus:
 			returnStatus := parseReturnStatus(sess.buf)
 			ch <- returnStatus

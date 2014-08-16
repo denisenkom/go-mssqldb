@@ -835,22 +835,15 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 	}
 
 	// processing login response
+	var sspi_msg []byte
+continue_login:
 	tokchan := make(chan tokenStruct, 5)
 	go processResponse(&sess, tokchan)
 	success := false
 	for tok := range tokchan {
 		switch token := tok.(type) {
 		case sspiMsg:
-			sspi_out, err := auth.NextBytes(token)
-			if err != nil {
-				return nil, err
-			}
-			outbuf.BeginPacket(packSSPIMessage)
-			_, err = outbuf.Write(sspi_out)
-			if err != nil {
-				return nil, err
-			}
-			err = outbuf.FinishPacket()
+			sspi_msg, err = auth.NextBytes(token)
 			if err != nil {
 				return nil, err
 			}
@@ -860,6 +853,19 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		case error:
 			return nil, fmt.Errorf("Login error: %s", token.Error())
 		}
+	}
+	if sspi_msg != nil {
+		outbuf.BeginPacket(packSSPIMessage)
+		_, err = outbuf.Write(sspi_msg)
+		if err != nil {
+			return nil, err
+		}
+		err = outbuf.FinishPacket()
+		if err != nil {
+			return nil, err
+		}
+		sspi_msg = nil
+		goto continue_login
 	}
 	if !success {
 		return nil, fmt.Errorf("Login failed")
