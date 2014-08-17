@@ -39,7 +39,7 @@ const (
 	NEGOTIATE_TARGET_INFO              = 0x00800000
 	NEGOTIATE_VERSION                  = 0x02000000
 	NEGOTIATE_128                      = 0x20000000
-	NEGOTIATE_KEY_EXCH                 = 0x400000000
+	NEGOTIATE_KEY_EXCH                 = 0x40000000
 	NEGOTIATE_56                       = 0x80000000
 )
 
@@ -110,16 +110,15 @@ func (auth *NTLMAuth) InitialBytes() ([]byte, error) {
 
 var errorNTLM = errors.New("NTLM protocol error")
 
-func createDesKey(dst, src []byte) {
-	dst[0] = src[0]
-	dst[1] = (src[1] >> 1) | (src[0] << 7)
-	dst[2] = (src[2] >> 2) | (src[1] << 6)
-	dst[3] = (src[3] >> 3) | (src[2] << 5)
-	dst[4] = (src[4] >> 4) | (src[3] << 4)
-	dst[5] = (src[5] >> 5) | (src[4] << 3)
-	dst[6] = (src[6] >> 6) | (src[5] << 2)
-	dst[7] = src[6] << 1
-	oddParity(dst)
+func createDesKey(bytes, material []byte) {
+	material[0] = bytes[0]
+	material[1] = (byte)(bytes[0]<<7 | (bytes[1]&0xff)>>1)
+	material[2] = (byte)(bytes[1]<<6 | (bytes[2]&0xff)>>2)
+	material[3] = (byte)(bytes[2]<<5 | (bytes[3]&0xff)>>3)
+	material[4] = (byte)(bytes[3]<<4 | (bytes[4]&0xff)>>4)
+	material[5] = (byte)(bytes[4]<<3 | (bytes[5]&0xff)>>5)
+	material[6] = (byte)(bytes[5]<<2 | (bytes[6]&0xff)>>6)
+	material[7] = (byte)(bytes[6] << 1)
 }
 
 func oddParity(bytes []byte) {
@@ -136,7 +135,7 @@ func oddParity(bytes []byte) {
 
 func encryptDes(key []byte, cleartext []byte, ciphertext []byte) error {
 	var desKey [8]byte
-	createDesKey(desKey[:], key)
+	createDesKey(key, desKey[:])
 	cipher, err := des.NewCipher(desKey[:])
 	if err != nil {
 		return err
