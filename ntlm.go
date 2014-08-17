@@ -4,6 +4,8 @@ package mssql
 
 import (
 	"crypto/des"
+	"crypto/md5"
+	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"strings"
@@ -47,8 +49,8 @@ const NEGOTIATE_FLAGS = NEGOTIATE_UNICODE |
 	NEGOTIATE_NTLM |
 	NEGOTIATE_OEM_DOMAIN_SUPPLIED |
 	NEGOTIATE_OEM_WORKSTATION_SUPPLIED |
-	NEGOTIATE_ALWAYS_SIGN /*|
-	NEGOTIATE_EXTENDED_SESSIONSECURITY*/
+	NEGOTIATE_ALWAYS_SIGN |
+	NEGOTIATE_EXTENDED_SESSIONSECURITY
 
 type NTLMAuth struct {
 	Domain      string
@@ -133,21 +135,20 @@ func oddParity(bytes []byte) {
 	}
 }
 
-func encryptDes(key []byte, cleartext []byte, ciphertext []byte) error {
+func encryptDes(key []byte, cleartext []byte, ciphertext []byte) {
 	var desKey [8]byte
 	createDesKey(key, desKey[:])
 	cipher, err := des.NewCipher(desKey[:])
 	if err != nil {
-		return err
+		panic(err)
 	}
 	cipher.Encrypt(ciphertext, cleartext)
-	return nil
 }
 
 func response(challenge [8]byte, hash [21]byte) (ret [24]byte) {
-	_ = encryptDes(hash[:7], challenge[:], ret[:8])
-	_ = encryptDes(hash[7:14], challenge[:], ret[8:16])
-	_ = encryptDes(hash[14:], challenge[:], ret[16:])
+	encryptDes(hash[:7], challenge[:], ret[:8])
+	encryptDes(hash[7:14], challenge[:], ret[8:16])
+	encryptDes(hash[14:], challenge[:], ret[16:])
 	return
 }
 
@@ -155,8 +156,8 @@ func lmHash(password string) (hash [21]byte) {
 	var lmpass [14]byte
 	copy(lmpass[:14], []byte(strings.ToUpper(password)))
 	magic := []byte("KGS!@#$%")
-	_ = encryptDes(lmpass[:7], magic, hash[:8])
-	_ = encryptDes(lmpass[7:], magic, hash[8:])
+	encryptDes(lmpass[:7], magic, hash[:8])
+	encryptDes(lmpass[7:], magic, hash[8:])
 	return
 }
 
@@ -177,6 +178,26 @@ func ntResponse(challenge [8]byte, password string) [24]byte {
 	return response(challenge, hash)
 }
 
+func clientChallenge() (nonce [8]byte) {
+	_, err := rand.Read(nonce[:])
+	if err != nil {
+		panic(err)
+	}
+	return
+}
+
+func ntlmSessionResponse(clientNonce [8]byte, serverChallenge [8]byte, password string) [24]byte {
+	var sessionHash [16]byte
+	h := md5.New()
+	h.Write(serverChallenge[:])
+	h.Write(clientNonce[:])
+	h.Sum(sessionHash[:0])
+	var hash [8]byte
+	copy(hash[:], sessionHash[:8])
+	passwordHash := ntlmHash(password)
+	return response(hash, passwordHash)
+}
+
 func (auth *NTLMAuth) NextBytes(bytes []byte) ([]byte, error) {
 	if string(bytes[0:8]) != "NTLMSSP\x00" {
 		return nil, errorNTLM
@@ -188,9 +209,21 @@ func (auth *NTLMAuth) NextBytes(bytes []byte) ([]byte, error) {
 	var challenge [8]byte
 	copy(challenge[:], bytes[24:32])
 
-	lm := lmResponse(challenge, auth.Password)
+	var lm, nt []byte
+	if (flags & NEGOTIATE_EXTENDED_SESSIONSECURITY) != 0 {
+		nonce := clientChallenge()
+		var lm_bytes [24]byte
+		copy(lm_bytes[:8], nonce[:])
+		lm = lm_bytes[:]
+		nt_bytes := ntlmSessionResponse(nonce, challenge, auth.Password)
+		nt = nt_bytes[:]
+	} else {
+		lm_bytes := lmResponse(challenge, auth.Password)
+		lm = lm_bytes[:]
+		nt_bytes := ntResponse(challenge, auth.Password)
+		nt = nt_bytes[:]
+	}
 	lm_len := len(lm)
-	nt := ntResponse(challenge, auth.Password)
 	nt_len := len(nt)
 
 	domain16 := utf16le(auth.Domain)
@@ -238,8 +271,8 @@ func (auth *NTLMAuth) NextBytes(bytes []byte) ([]byte, error) {
 	binary.LittleEndian.PutUint32(msg[88:], 0)
 	binary.LittleEndian.PutUint32(msg[84:], 0)
 	// Payload
-	copy(msg[88:], lm[:])
-	copy(msg[88+lm_len:], nt[:])
+	copy(msg[88:], lm)
+	copy(msg[88+lm_len:], nt)
 	copy(msg[88+lm_len+nt_len:], domain16)
 	copy(msg[88+lm_len+nt_len+domain_len:], user16)
 	copy(msg[88+lm_len+nt_len+domain_len+user_len:], workstation16)
