@@ -17,7 +17,7 @@ Example:
 
 * "server" - host or host\instance (default localhost)
 * "port" - used only when there is no instance in server (default 1433)
-* "user id"
+* "user id" - enter the SQL Server Authentication user id or the Windows Authentication user id in the DOMAIN\User format. On Windows, if user id is empty or missing Single-Sign-On is used.
 * "password"
 * "database"
 * "connection timeout" - in seconds (default is 30)
@@ -65,6 +65,8 @@ where nnn represents an integer.
 * Supports new date/time types: date, time, datetime2, datetimeoffset
 * Supports string parameters longer that 8000 characters
 * Supports encryption using SSL/TLS
+* Supports SQL Server and Windows Authentication
+* Supports Single-Sign-On on Windows
 
 ## Known Issues
 
