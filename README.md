@@ -15,9 +15,9 @@ Example:
 
 ## Connection Parameters
 
-* "server" - host or host\instance
+* "server" - host or host\instance (default localhost)
 * "port" - used only when there is no instance in server (default 1433)
-* "user id"
+* "user id" - enter the SQL Server Authentication user id or the Windows Authentication user id in the DOMAIN\User format. On Windows, if user id is empty or missing Single-Sign-On is used.
 * "password"
 * "database"
 * "connection timeout" - in seconds (default is 30)
@@ -38,6 +38,8 @@ Example:
   * true - Server certificate is not checked. Default is true if encrypt is not specified. If trust server certificate is true, driver accepts any certificate presented by the server and any host name in that certificate. In this mode, TLS is susceptible to man-in-the-middle attacks. This should be used only for testing.
 * "certificate" - The file that contains the public key certificate of the CA that signed the SQL Server certificate. The specified certificate overrides the go platform specific CA certificates.
 * "hostNameInCertificate" - Specifies the Common Name (CN) in the server certificate. Default value is the server host. 
+* "ServerSPN" - The kerberos SPN (Service Principal Name) for the server. Default is MSSQLSvc/host:port.
+* "Workstation ID" - The workstation name (default is the host name)
 
 Example:
 
@@ -63,6 +65,8 @@ where nnn represents an integer.
 * Supports new date/time types: date, time, datetime2, datetimeoffset
 * Supports string parameters longer than 8000 characters
 * Supports encryption using SSL/TLS
+* Supports SQL Server and Windows Authentication
+* Supports Single-Sign-On on Windows
 
 ## Known Issues
 

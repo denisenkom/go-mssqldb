@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -420,6 +421,10 @@ func sendLogin(w *tdsBuffer, login login) error {
 	if err != nil {
 		return err
 	}
+	_, err = w.Write(login.SSPI)
+	if err != nil {
+		return err
+	}
 	_, err = w.Write(atchdbfile)
 	if err != nil {
 		return err
@@ -583,6 +588,8 @@ type connectParams struct {
 	trustServerCertificate bool
 	certificate            string
 	hostInCertificate      string
+	serverSPN              string
+	workstation            string
 }
 
 func parseConnectParams(params map[string]string) (*connectParams, error) {
@@ -598,7 +605,7 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 	server := params["server"]
 	parts := strings.SplitN(server, "\\", 2)
 	p.host = parts[0]
-	if p.host == "." || strings.ToUpper(p.host) == "(LOCAL)" {
+	if p.host == "." || strings.ToUpper(p.host) == "(LOCAL)" || p.host == "" {
 		p.host = "localhost"
 	}
 	if len(parts) > 1 {
@@ -606,9 +613,6 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 	}
 	p.database = params["database"]
 	p.user = params["user id"]
-	if len(p.user) == 0 {
-		return nil, fmt.Errorf("Login failed, User Id is required")
-	}
 	p.password = params["password"]
 	p.port = 1433
 	if p.instance != "" {
@@ -690,7 +694,29 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 		p.hostInCertificate = p.host
 	}
 
+	serverSPN, ok := params["ServerSPN"]
+	if ok {
+		p.serverSPN = serverSPN
+	} else {
+		p.serverSPN = fmt.Sprintf("MSSQLSvc/%s:%d", p.host, p.port)
+	}
+
+	workstation, ok := params["Workstation ID"]
+	if ok {
+		p.workstation = workstation
+	} else {
+		workstation, err := os.Hostname()
+		if err == nil {
+			p.workstation = workstation
+		}
+	}
 	return &p, nil
+}
+
+type Auth interface {
+	InitialBytes() ([]byte, error)
+	NextBytes([]byte) ([]byte, error)
+	Free()
 }
 
 func connect(params map[string]string) (res *tdsSession, err error) {
@@ -787,10 +813,21 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 	login := login{
 		TDSVersion:   verTDS74,
 		PacketSize:   uint32(len(outbuf.buf)),
-		UserName:     p.user,
-		Password:     p.password,
 		Database:     p.database,
 		OptionFlags2: fODBC, // to get unlimited TEXTSIZE
+		HostName:     p.workstation,
+	}
+	auth, auth_ok := getAuth(p.user, p.password, p.serverSPN, p.workstation)
+	if auth_ok {
+		login.SSPI, err = auth.InitialBytes()
+		if err != nil {
+			return nil, err
+		}
+		login.OptionFlags2 |= fIntSecurity
+		defer auth.Free()
+	} else {
+		login.UserName = p.user
+		login.Password = p.password
 	}
 	err = sendLogin(outbuf, login)
 	if err != nil {
@@ -798,17 +835,37 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 	}
 
 	// processing login response
+	var sspi_msg []byte
+continue_login:
 	tokchan := make(chan tokenStruct, 5)
 	go processResponse(&sess, tokchan)
 	success := false
 	for tok := range tokchan {
 		switch token := tok.(type) {
+		case sspiMsg:
+			sspi_msg, err = auth.NextBytes(token)
+			if err != nil {
+				return nil, err
+			}
 		case loginAckStruct:
 			success = true
 			sess.loginAck = token
 		case error:
 			return nil, fmt.Errorf("Login error: %s", token.Error())
 		}
+	}
+	if sspi_msg != nil {
+		outbuf.BeginPacket(packSSPIMessage)
+		_, err = outbuf.Write(sspi_msg)
+		if err != nil {
+			return nil, err
+		}
+		err = outbuf.FinishPacket()
+		if err != nil {
+			return nil, err
+		}
+		sspi_msg = nil
+		goto continue_login
 	}
 	if !success {
 		return nil, fmt.Errorf("Login failed")
