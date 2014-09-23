@@ -88,8 +88,8 @@ type TimeStamp struct {
 }
 
 type SecHandle struct {
-	dwLower uint32
-	dwUpper uint32
+	dwLower uintptr
+	dwUpper uintptr
 }
 
 type SecBuffer struct {
