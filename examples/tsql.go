@@ -93,6 +93,9 @@ func exec(db *sql.DB, cmd string) error {
 		fmt.Println()
 
 	}
+	if rows.Err() != nil {
+		return rows.Err()
+	}
 	return nil
 }
 
