@@ -33,7 +33,7 @@ const (
 	SEC_I_COMPLETE_AND_CONTINUE     = 0x00090314
 	SECBUFFER_VERSION               = 0
 	SECBUFFER_TOKEN                 = 2
-	NTLMBUF_LEN                     = 4096
+	NTLMBUF_LEN                     = 12000
 )
 
 const ISC_REQ = ISC_REQ_CONFIDENTIALITY |
