@@ -645,15 +645,24 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 	}
 	p.dial_timeout = 5 * time.Second
 	p.conn_timeout = 30 * time.Second
-	strtimeout, ok := params["connection timeout"]
+	strconntimeout, ok := params["connection timeout"]
 	if ok {
-		timeout, err := strconv.ParseUint(strtimeout, 0, 16)
+		timeout, err := strconv.ParseUint(strconntimeout, 0, 16)
 		if err != nil {
 			f := "Invalid connection timeout '%v': %v"
-			return nil, fmt.Errorf(f, strtimeout, err.Error())
+			return nil, fmt.Errorf(f, strconntimeout, err.Error())
 		}
 		p.dial_timeout = time.Duration(timeout) * time.Second
 		p.conn_timeout = time.Duration(timeout) * time.Second
+	}
+	strdialtimeout, ok := params["dial timeout"]
+	if ok {
+		timeout, err := strconv.ParseUint(strdialtimeout, 0, 16)
+		if err != nil {
+			f := "Invalid dial timeout '%v': %v"
+			return nil, fmt.Errorf(f, strdialtimeout, err.Error())
+		}
+		p.dial_timeout = time.Duration(timeout) * time.Second
 	}
 	keepAlive, ok := params["keepAlive"]
 	if ok {
