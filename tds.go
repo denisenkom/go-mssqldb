@@ -652,7 +652,6 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 			f := "Invalid connection timeout '%v': %v"
 			return nil, fmt.Errorf(f, strconntimeout, err.Error())
 		}
-		p.dial_timeout = time.Duration(timeout) * time.Second
 		p.conn_timeout = time.Duration(timeout) * time.Second
 	}
 	strdialtimeout, ok := params["dial timeout"]
