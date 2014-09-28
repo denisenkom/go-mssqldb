@@ -11,6 +11,7 @@ type timeoutConn struct {
 	timeout       time.Duration
 	buf           *tdsBuffer
 	packetPending bool
+	continueRead  bool
 }
 
 func NewTimeoutConn(conn net.Conn, timeout time.Duration) *timeoutConn {
@@ -29,16 +30,20 @@ func (c *timeoutConn) Read(b []byte) (n int, err error) {
 				err = fmt.Errorf("Cannot send handshake packet: %s", err.Error())
 				return
 			}
+			c.continueRead = false
 		}
-		var packet uint8
-		packet, err = c.buf.BeginRead()
-		if err != nil {
-			err = fmt.Errorf("Cannot read handshake packet: %s", err.Error())
-			return
-		}
-		if packet != packPrelogin {
-			err = fmt.Errorf("unexpected packet %d, expecting prelogin", packet)
-			return
+		if !c.continueRead {
+			var packet uint8
+			packet, err = c.buf.BeginRead()
+			if err != nil {
+				err = fmt.Errorf("Cannot read handshake packet: %s", err.Error())
+				return
+			}
+			if packet != packPrelogin {
+				err = fmt.Errorf("unexpected packet %d, expecting prelogin", packet)
+				return
+			}
+			c.continueRead = true
 		}
 		n, err = c.buf.Read(b)
 		return
