@@ -825,6 +825,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		Database:     p.database,
 		OptionFlags2: fODBC, // to get unlimited TEXTSIZE
 		HostName:     p.workstation,
+		ServerName:   p.host,
 	}
 	auth, auth_ok := getAuth(p.user, p.password, p.serverSPN, p.workstation)
 	if auth_ok {
