@@ -226,7 +226,7 @@ func TestTrans(t *testing.T) {
 	if tx, err = conn.Begin(); err != nil {
 		t.Fatal("Begin failed", err.Error())
 	}
-	if _, err = tx.Exec("create table ##abc (fld int)"); err != nil {
+	if _, err = tx.Exec("create table #abc (fld int)"); err != nil {
 		t.Fatal("Create table failed", err.Error())
 	}
 	if err = tx.Rollback(); err != nil {
@@ -285,7 +285,7 @@ func TestExec(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
 
-	res, err := conn.Exec("create table ##abc (fld int)")
+	res, err := conn.Exec("create table #abc (fld int)")
 	if err != nil {
 		t.Fatal("Exec failed", err.Error())
 	}
@@ -387,7 +387,7 @@ func TestQueryNoRows(t *testing.T) {
 
 	var rows *sql.Rows
 	var err error
-	if rows, err = conn.Query("create table ##abc (fld int)"); err != nil {
+	if rows, err = conn.Query("create table #abc (fld int)"); err != nil {
 		t.Fatal("Query failed", err)
 	}
 	if rows.Next() {
@@ -425,7 +425,7 @@ func TestOrderBy(t *testing.T) {
 		t.Fatal("Drop table failed", err)
 	}
 
-	_, err = tx.Exec("create table tbl (fld1 int, fld2 int)")
+	_, err = tx.Exec("create table tbl (fld1 int primary key, fld2 int)")
 	if err != nil {
 		t.Fatal("Create table failed", err)
 	}
@@ -644,12 +644,12 @@ func TestBug32(t *testing.T) {
 		t.Fatal("Drop table failed", err)
 	}
 
-	_, err = tx.Exec("create table tbl(fld bit null)")
+	_, err = tx.Exec("create table tbl(a int primary key,fld bit null)")
 	if err != nil {
 		t.Fatal("Create table failed", err)
 	}
 
-	_, err = tx.Exec("insert into tbl (fld) values (nullif(?, ''))", "")
+	_, err = tx.Exec("insert into tbl (a,fld) values (1,nullif(?, ''))", "")
 	if err != nil {
 		t.Fatal("Insert failed", err)
 	}
