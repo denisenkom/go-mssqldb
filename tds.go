@@ -53,18 +53,16 @@ func getInstances(address string) (map[string]map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer conn.Close()
 	_, err = conn.Write([]byte{3})
 	if err != nil {
-		conn.Close()
 		return nil, err
 	}
 	var resp = make([]byte, 16*1024-1)
 	read, err := conn.Read(resp)
 	if err != nil {
-		conn.Close()
 		return nil, err
 	}
-	conn.Close()
 	return parseInstances(resp[:read]), nil
 }
 
