@@ -160,7 +160,15 @@ func processEnvChg(sess *tdsSession) {
 			}
 			sess.tranid = 0
 		default:
-			badStreamPanicf("unknown env type: %d", envtype)
+                        // ignore unknown env change types
+			_, err = readBVarByte(r)
+			if err != nil {
+				badStreamPanic(err)
+			}
+			_, err = readBVarByte(r)
+			if err != nil {
+				badStreamPanic(err)
+			}
 		}
 
 	}
