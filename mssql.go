@@ -26,7 +26,7 @@ func CheckBadConn(err error) error {
 		return driver.ErrBadConn
 	}
 	neterr, ok := err.(net.Error)
-	if !ok || neterr.Temporary() {
+	if !ok || (!neterr.Timeout() && neterr.Temporary()) {
 		return err
 	}
 	return driver.ErrBadConn
@@ -224,7 +224,10 @@ loop:
 			}
 			break loop
 		case error:
-			return nil, token
+			if s.c.sess.tranid != 0 {
+				return nil, err
+			}
+			return nil, CheckBadConn(token)
 		}
 	}
 	return &MssqlRows{sess: s.c.sess, tokchan: tokchan, cols: cols}, nil
@@ -248,7 +251,10 @@ func (s *MssqlStmt) Exec(args []driver.Value) (res driver.Result, err error) {
 				rowCount = int64(token.RowCount)
 			}
 		case error:
-			return nil, token
+			if s.c.sess.tranid != 0 {
+				return nil, err
+			}
+			return nil, CheckBadConn(token)
 		}
 	}
 	return &MssqlResult{s.c, rowCount}, nil
