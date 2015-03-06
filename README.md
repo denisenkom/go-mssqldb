@@ -41,6 +41,7 @@ Example:
 * "hostNameInCertificate" - Specifies the Common Name (CN) in the server certificate. Default value is the server host. 
 * "ServerSPN" - The kerberos SPN (Service Principal Name) for the server. Default is MSSQLSvc/host:port.
 * "Workstation ID" - The workstation name (default is the host name)
+* "app name" - The application name (default is go-mssqldb)
 
 Example:
 

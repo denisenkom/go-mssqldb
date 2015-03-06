@@ -591,6 +591,7 @@ type connectParams struct {
 	hostInCertificate      string
 	serverSPN              string
 	workstation            string
+	appname                string
 }
 
 func parseConnectParams(params map[string]string) (*connectParams, error) {
@@ -719,6 +720,12 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 			p.workstation = workstation
 		}
 	}
+
+	appname, ok := params["app name"]
+	if !ok {
+		appname = "go-mssqldb"
+	}
+	p.appname = appname
 	return &p, nil
 }
 
@@ -826,6 +833,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		OptionFlags2: fODBC, // to get unlimited TEXTSIZE
 		HostName:     p.workstation,
 		ServerName:   p.host,
+		AppName:      p.appname,
 	}
 	auth, auth_ok := getAuth(p.user, p.password, p.serverSPN, p.workstation)
 	if auth_ok {
