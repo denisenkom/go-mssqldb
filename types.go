@@ -565,7 +565,7 @@ func readVarLen(ti *typeInfo, r *tdsBuffer) {
 	case typeTimeN, typeDateTime2N, typeDateTimeOffsetN:
 		ti.Scale = r.byte()
 		switch ti.Scale {
-		case 1, 2:
+		case 0, 1, 2:
 			ti.Size = 3
 		case 3, 4:
 			ti.Size = 4
