@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 )
 
 type MockTransport struct {
@@ -319,5 +320,17 @@ func TestSecureConnection(t *testing.T) {
 	}
 	if !secure {
 		t.Fatal("connection is not encrypted")
+	}
+}
+
+func TestParseConnectParamsKeepAlive(t *testing.T) {
+	params := parseConnectionString("keepAlive=60")
+	parsedParams, err := parseConnectParams(params)
+	if err != nil {
+		t.Fatal("cannot parse params: ", err)
+	}
+
+	if parsedParams.keepAlive != time.Duration(60)*time.Second {
+		t.Fail()
 	}
 }
