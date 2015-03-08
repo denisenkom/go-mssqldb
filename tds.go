@@ -665,7 +665,7 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 		}
 		p.dial_timeout = time.Duration(timeout) * time.Second
 	}
-	keepAlive, ok := params["keepAlive"]
+	keepAlive, ok := params["keepalive"]
 	if ok {
 		timeout, err := strconv.ParseUint(keepAlive, 0, 16)
 		if err != nil {
