@@ -225,7 +225,7 @@ loop:
 			break loop
 		case error:
 			if s.c.sess.tranid != 0 {
-				return nil, err
+				return nil, token
 			}
 			return nil, CheckBadConn(token)
 		}
@@ -252,7 +252,7 @@ func (s *MssqlStmt) Exec(args []driver.Value) (res driver.Result, err error) {
 			}
 		case error:
 			if s.c.sess.tranid != 0 {
-				return nil, err
+				return nil, token
 			}
 			return nil, CheckBadConn(token)
 		}
