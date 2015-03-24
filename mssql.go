@@ -89,7 +89,10 @@ func (c *MssqlConn) Begin() (driver.Tx, error) {
 	for tok := range tokchan {
 		switch token := tok.(type) {
 		case error:
-			return nil, token
+			if c.sess.tranid != 0 {
+				return nil, token
+			}
+			return nil, CheckBadConn(token)
 		}
 	}
 	// successful BEGINXACT request will return sess.tranid
