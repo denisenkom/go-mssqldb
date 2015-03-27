@@ -741,7 +741,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		return nil, err
 	}
 	addr := p.host + ":" + strconv.FormatUint(p.port, 10)
-	d := net.Dialer{Timeout: p.dial_timeout, KeepAlive: p.keepAlive}
+	d := createDialer(p)
 	conn, err := d.Dial("tcp", addr)
 	if err != nil {
 		f := "Unable to open tcp connection with host '%v': %v"
