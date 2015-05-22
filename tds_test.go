@@ -125,7 +125,7 @@ func makeConnStr() string {
 	password := os.Getenv("SQLPASSWORD")
 	database := os.Getenv("DATABASE")
 	return fmt.Sprintf(
-		"Server=%s\\%s;User Id=%s;Password=%s;Database=%s",
+		"Server=%s\\%s;User Id=%s;Password=%s;Database=%s;log=63",
 		addr, instance, user, password, database)
 }
 

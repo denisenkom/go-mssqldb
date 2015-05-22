@@ -39,13 +39,14 @@ const (
 // ENVCHANGE types
 // http://msdn.microsoft.com/en-us/library/dd303449.aspx
 const (
-	envTypDatabase     = 1
-	envTypLanguage     = 2
-	envTypCharset      = 3
-	envTypPacketSize   = 4
-	envTypBeginTran    = 8
-	envTypCommitTran   = 9
-	envTypRollbackTran = 10
+	envTypDatabase           = 1
+	envTypLanguage           = 2
+	envTypCharset            = 3
+	envTypPacketSize         = 4
+	envTypBeginTran          = 8
+	envTypCommitTran         = 9
+	envTypRollbackTran       = 10
+	envDatabaseMirrorPartner = 13
 )
 
 // interface for all tokens
@@ -159,8 +160,18 @@ func processEnvChg(sess *tdsSession) {
 				}
 			}
 			sess.tranid = 0
+		case envDatabaseMirrorPartner:
+			// ignore envDatabaseMirrorPartner
+			_, err = readBVarChar(r)
+			if err != nil {
+				badStreamPanic(err)
+			}
+			_, err = readBVarChar(r)
+			if err != nil {
+				badStreamPanic(err)
+			}
 		default:
-                        // ignore unknown env change types
+			// ignore unknown env change types
 			_, err = readBVarByte(r)
 			if err != nil {
 				badStreamPanic(err)
