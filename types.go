@@ -317,7 +317,12 @@ func readByteLenType(ti *typeInfo, r *tdsBuffer) (res interface{}) {
 	case typeChar, typeVarChar:
 		return decodeChar(ti.Collation, buf)
 	case typeBinary, typeVarBinary:
-		return buf
+		// a copy, because the backing array for ti.Buffer is reused
+		// and can be overwritten by the next row while this row waits
+		// in a buffered chan
+		cpy := make([]byte, len(buf))
+		copy(cpy, buf)
+		return cpy
 	default:
 		badStreamPanicf("Invalid typeid")
 	}
@@ -347,7 +352,12 @@ func readShortLenType(ti *typeInfo, r *tdsBuffer) (res interface{}) {
 	case typeBigVarChar, typeBigChar:
 		return decodeChar(ti.Collation, buf)
 	case typeBigVarBin, typeBigBinary:
-		return buf
+		// a copy, because the backing array for ti.Buffer is reused
+		// and can be overwritten by the next row while this row waits
+		// in a buffered chan
+		cpy := make([]byte, len(buf))
+		copy(cpy, buf)
+		return cpy
 	case typeNVarChar, typeNChar:
 		return decodeNChar(buf)
 	case typeUdt:
