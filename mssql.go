@@ -108,13 +108,13 @@ func parseConnectionString(dsn string) (res map[string]string) {
 			continue
 		}
 		lst := strings.SplitN(part, "=", 2)
-		name := strings.ToLower(lst[0])
+		name := strings.TrimSpace(strings.ToLower(lst[0]))
 		if len(name) == 0 {
 			continue
 		}
 		var value string = ""
 		if len(lst) > 1 {
-			value = lst[1]
+			value = strings.TrimSpace(lst[1])
 		}
 		res[name] = value
 	}
