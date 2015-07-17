@@ -19,6 +19,11 @@ func init() {
 }
 
 type MssqlDriver struct {
+	log *log.Logger
+}
+
+func (d *MssqlDriver) SetLogger(logger *log.Logger) {
+	d.log = logger
 }
 
 func CheckBadConn(err error) error {
@@ -127,6 +132,8 @@ func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	buf.log = d.log
 	return &MssqlConn{buf}, nil
 }
 
@@ -162,11 +169,19 @@ func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
 		return errors.New(fmt.Sprintf("sql: expected %d parameters, got %d", s.paramCount, len(args)))
 	}
 	if s.c.sess.logFlags&logSQL != 0 {
-		log.Println(s.query)
+		if s.c.sess.log != nil {
+			s.c.sess.log.Println(s.query)
+		} else {
+			log.Println(s.query)
+		}
 	}
 	if s.c.sess.logFlags&logParams != 0 && len(args) > 0 {
 		for i := 0; i < len(args); i++ {
-			log.Printf("\t@p%d\t%v\n", i+1, args[i])
+			if s.c.sess.log != nil {
+				s.c.sess.log.Printf("\t@p%d\t%v\n", i+1, args[i])
+			} else {
+				log.Printf("\t@p%d\t%v\n", i+1, args[i])
+			}
 		}
 
 	}
@@ -255,7 +270,11 @@ func (s *MssqlStmt) Exec(args []driver.Value) (res driver.Result, err error) {
 			}
 		case error:
 			if s.c.sess.logFlags&logErrors != 0 {
-				log.Println("got error:", token)
+				if s.c.sess.log != nil {
+					s.c.sess.log.Println("got error:", token)
+				} else {
+					log.Println("got error:", token)
+				}
 			}
 			if s.c.sess.tranid != 0 {
 				return nil, token

@@ -137,7 +137,11 @@ func processEnvChg(sess *tdsSession) {
 				badStreamPanic(err)
 			}
 			if sess.logFlags&logTransaction != 0 {
-				log.Printf("BEGIN TRANSACTION %x\n", sess.tranid)
+				if sess.log != nil {
+					sess.log.Printf("BEGIN TRANSACTION %x\n", sess.tranid)
+				} else {
+					log.Printf("BEGIN TRANSACTION %x\n", sess.tranid)
+				}
 			}
 			_, err = readBVarByte(r)
 			if err != nil {
@@ -153,10 +157,18 @@ func processEnvChg(sess *tdsSession) {
 				badStreamPanic(err)
 			}
 			if sess.logFlags&logTransaction != 0 {
-				if envtype == envTypCommitTran {
-					log.Printf("COMMIT TRANSACTION %x\n", sess.tranid)
+				if sess.log != nil {
+					if envtype == envTypCommitTran {
+						sess.log.Printf("COMMIT TRANSACTION %x\n", sess.tranid)
+					} else {
+						sess.log.Printf("ROLLBACK TRANSACTION %x\n", sess.tranid)
+					}
 				} else {
-					log.Printf("ROLLBACK TRANSACTION %x\n", sess.tranid)
+					if envtype == envTypCommitTran {
+						log.Printf("COMMIT TRANSACTION %x\n", sess.tranid)
+					} else {
+						log.Printf("ROLLBACK TRANSACTION %x\n", sess.tranid)
+					}
 				}
 			}
 			sess.tranid = 0
@@ -352,13 +364,21 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 		case tokenDoneInProc:
 			done := parseDoneInProc(sess.buf)
 			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
-				log.Printf("(%d row(s) affected)\n", done.RowCount)
+				if sess.log != nil {
+					sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
+				} else {
+					log.Printf("(%d row(s) affected)\n", done.RowCount)
+				}
 			}
 			ch <- done
 		case tokenDone, tokenDoneProc:
 			done := parseDone(sess.buf)
 			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
-				log.Printf("(%d row(s) affected)\n", done.RowCount)
+				if sess.log != nil {
+					sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
+				} else {
+					log.Printf("(%d row(s) affected)\n", done.RowCount)
+				}
 			}
 			if done.Status&doneError != 0 || failed {
 				ch <- lastError
@@ -390,12 +410,20 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 			lastError = parseError72(sess.buf)
 			failed = true
 			if sess.logFlags&logErrors != 0 {
-				log.Println(lastError.Message)
+				if sess.log != nil {
+					sess.log.Println(lastError.Message)
+				} else {
+					log.Println(lastError.Message)
+				}
 			}
 		case tokenInfo:
 			info := parseInfo(sess.buf)
 			if sess.logFlags&logMessages != 0 {
-				log.Println(info.Message)
+				if sess.log != nil {
+					sess.log.Println(info.Message)
+				} else {
+					log.Println(info.Message)
+				}
 			}
 		default:
 			badStreamPanicf("Unknown token type: %d", token)
