@@ -740,10 +740,18 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 	if err != nil {
 		return nil, err
 	}
-	ips, err := net.LookupIP(p.host)
+
+	var ips []net.IP
+	ips, err = net.LookupIP(p.host)
 	if err != nil {
-		return nil, err
+		ip := net.ParseIP(p.host)
+		if ip == nil {
+			return nil, err
+		}
+
+		ips = []net.IP{ip}
 	}
+
 	d := createDialer(p)
 	var conn net.Conn
 	for _, ip := range ips {
