@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"os"
 	"sort"
@@ -119,7 +118,7 @@ type tdsSession struct {
 	columns  []columnStruct
 	tranid   uint64
 	logFlags uint64
-	log      *log.Logger
+	log      *Logger
 }
 
 const (
