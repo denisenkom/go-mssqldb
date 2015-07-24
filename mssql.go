@@ -11,8 +11,11 @@ import (
 	"math"
 	"net"
 	"strings"
+	"sync"
 	"time"
 )
+
+var partnersCache partners = partners{mu: sync.RWMutex{}, v: make(map[string]string)}
 
 func init() {
 	sql.Register("mssql", &MssqlDriver{})
@@ -123,9 +126,37 @@ func parseConnectionString(dsn string) (res map[string]string) {
 
 func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
 	params := parseConnectionString(dsn)
+	return open(dsn, params)
+}
+
+func open(dsn string, params map[string]string) (driver.Conn, error) {
 	buf, err := connect(params)
 	if err != nil {
+		partner := partnersCache.Get(dsn)
+		if partner == "" {
+			partner = params["failoverpartner"]
+			// remove the failoverpartner entry to prevent infinite recursion
+			delete(params, "failoverpartner")
+			if port, ok := params["failoverport"]; ok {
+				params["port"] = port
+			}
+		}
+
+		if partner != "" {
+			params["server"] = partner
+			return open(dsn, params)
+		}
+
 		return nil, err
+	}
+
+	if partner := buf.partner; partner != "" {
+		// append an instance so the port will be ignored when this value is used;
+		// tds does not provide the port number.
+		if !strings.Contains(partner, `\`) {
+			partner += `\.`
+		}
+		partnersCache.Set(dsn, partner)
 	}
 	return &MssqlConn{buf}, nil
 }
@@ -402,4 +433,27 @@ func (r *MssqlResult) LastInsertId() (int64, error) {
 	}
 	lastInsertId := dest[0].(int64)
 	return lastInsertId, nil
+}
+
+type partners struct {
+	mu sync.RWMutex
+	v  map[string]string
+}
+
+func (p partners) Set(key, value string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if _, ok := p.v[key]; ok {
+		return errors.New("key already exists")
+	}
+
+	p.v[key] = value
+	return nil
+}
+
+func (p partners) Get(key string) (value string) {
+	p.mu.RLock()
+	value = p.v[key]
+	p.mu.RUnlock()
+	return
 }

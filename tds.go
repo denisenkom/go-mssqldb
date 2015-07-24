@@ -115,6 +115,7 @@ type tdsSession struct {
 	buf      *tdsBuffer
 	loginAck loginAckStruct
 	database string
+	partner  string
 	columns  []columnStruct
 	tranid   uint64
 	logFlags uint64
