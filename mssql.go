@@ -22,6 +22,11 @@ func init() {
 }
 
 type MssqlDriver struct {
+	log *log.Logger
+}
+
+func (d *MssqlDriver) SetLogger(logger *log.Logger) {
+	d.log = logger
 }
 
 func CheckBadConn(err error) error {
@@ -126,10 +131,17 @@ func parseConnectionString(dsn string) (res map[string]string) {
 
 func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
 	params := parseConnectionString(dsn)
-	return open(dsn, params)
+
+	conn, err := open(dsn, params)
+	if err != nil {
+		return nil, err
+	}
+
+	conn.sess.log = (*Logger)(d.log)
+	return conn, nil
 }
 
-func open(dsn string, params map[string]string) (driver.Conn, error) {
+func open(dsn string, params map[string]string) (*MssqlConn, error) {
 	buf, err := connect(params)
 	if err != nil {
 		partner := partnersCache.Get(dsn)
@@ -158,6 +170,7 @@ func open(dsn string, params map[string]string) (driver.Conn, error) {
 		}
 		partnersCache.Set(dsn, partner)
 	}
+
 	return &MssqlConn{buf}, nil
 }
 
@@ -193,11 +206,11 @@ func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
 		return errors.New(fmt.Sprintf("sql: expected %d parameters, got %d", s.paramCount, len(args)))
 	}
 	if s.c.sess.logFlags&logSQL != 0 {
-		log.Println(s.query)
+		s.c.sess.log.Println(s.query)
 	}
 	if s.c.sess.logFlags&logParams != 0 && len(args) > 0 {
 		for i := 0; i < len(args); i++ {
-			log.Printf("\t@p%d\t%v\n", i+1, args[i])
+			s.c.sess.log.Printf("\t@p%d\t%v\n", i+1, args[i])
 		}
 
 	}
@@ -286,7 +299,7 @@ func (s *MssqlStmt) Exec(args []driver.Value) (res driver.Result, err error) {
 			}
 		case error:
 			if s.c.sess.logFlags&logErrors != 0 {
-				log.Println("got error:", token)
+				s.c.sess.log.Println("got error:", token)
 			}
 			if s.c.sess.tranid != 0 {
 				return nil, token
