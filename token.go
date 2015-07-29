@@ -160,8 +160,8 @@ func processEnvChg(sess *tdsSession) {
 			}
 			sess.tranid = 0
 		case envDatabaseMirrorPartner:
-			// ignore envDatabaseMirrorPartner
-			_, err = readBVarChar(r)
+			sess.partner, err = readBVarChar(r)
+
 			if err != nil {
 				badStreamPanic(err)
 			}
