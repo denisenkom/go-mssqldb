@@ -132,7 +132,7 @@ func parseConnectionString(dsn string) (res map[string]string) {
 func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
 	params := parseConnectionString(dsn)
 
-	conn, err := open(dsn, params)
+	conn, err := openConnection(dsn, params)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
 	return conn, nil
 }
 
-func open(dsn string, params map[string]string) (*MssqlConn, error) {
+func openConnection(dsn string, params map[string]string) (*MssqlConn, error) {
 	buf, err := connect(params)
 	if err != nil {
 		partner := partnersCache.Get(dsn)
@@ -156,7 +156,7 @@ func open(dsn string, params map[string]string) (*MssqlConn, error) {
 
 		if partner != "" {
 			params["server"] = partner
-			return open(dsn, params)
+			return openConnection(dsn, params)
 		}
 
 		return nil, err
