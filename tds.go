@@ -1,7 +1,6 @@
 package mssql
 
 import (
-	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
@@ -297,13 +296,17 @@ type loginHeader struct {
 	SSPILongLength       uint32
 }
 
+// convert Go string to UTF-16 encoded []byte (littleEndian)
+// done manually rather than using bytes and binary packages
+// for performance reasons
 func str2ucs2(s string) []byte {
 	res := utf16.Encode([]rune(s))
-	buf := new(bytes.Buffer)
-	for _, item := range res {
-		binary.Write(buf, binary.LittleEndian, item)
+	ucs2 := make([]byte, 2*len(res))
+	for i := 0; i < len(res); i++ {
+		ucs2[2*i] = byte(res[i])
+		ucs2[2*i+1] = byte(res[i] >> 8)
 	}
-	return buf.Bytes()
+	return ucs2
 }
 
 func ucs22str(s []byte) (string, error) {
