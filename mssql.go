@@ -453,7 +453,7 @@ type partners struct {
 	v  map[string]string
 }
 
-func (p partners) Set(key, value string) error {
+func (p *partners) Set(key, value string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if _, ok := p.v[key]; ok {
@@ -464,7 +464,7 @@ func (p partners) Set(key, value string) error {
 	return nil
 }
 
-func (p partners) Get(key string) (value string) {
+func (p *partners) Get(key string) (value string) {
 	p.mu.RLock()
 	value = p.v[key]
 	p.mu.RUnlock()
