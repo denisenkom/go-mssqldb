@@ -746,6 +746,9 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		return nil, err
 	}
 
+	// SQL Server AlwaysOn Availability Group Listeners are bound by DNS to a
+	// list of IP addresses.  So if there is more than one, try them all and
+	// use the first one that allows a connection.
 	var ips []net.IP
 	ips, err = net.LookupIP(p.host)
 	if err != nil {
@@ -756,21 +759,51 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 
 		ips = []net.IP{ip}
 	}
-
-	d := createDialer(p)
 	var conn net.Conn
-	for _, ip := range ips {
-		addr := fmt.Sprintf("%s:%d", ip, p.port)
+	if len(ips) == 1 {
+		d := createDialer(p)
+		addr := fmt.Sprintf("%s:%d", ips[0], p.port)
 		conn, err = d.Dial("tcp", addr)
-		if err == nil {
-			break
+
+	} else {
+		//Try Dials in parallel to avoid waiting for timeouts.
+		connChan := make(chan net.Conn, len(ips))
+		errChan := make(chan error, len(ips))
+		for _, ip := range ips {
+			go func(ip net.IP) {
+				d := createDialer(p)
+				addr := fmt.Sprintf("%s:%d", ip, p.port)
+				conn, err := d.Dial("tcp", addr)
+				if err == nil {
+					connChan <- conn
+				} else {
+					errChan <- err
+				}
+			}(ip)
+		}
+		// Wait for either the *first* successful connection, or all the errors
+	wait_loop:
+		for i, _ := range ips {
+			select {
+			case conn = <-connChan:
+				// Got a connection to use, close any others
+				go func(n int) {
+					for i := 0; i < n; i++ {
+						select {
+						case conn := <-connChan:
+							conn.Close()
+						case <-errChan:
+						}
+					}
+				}(len(ips) - i - 1)
+				break wait_loop
+			case err = <-errChan:
+			}
 		}
 	}
-	if addr := fmt.Sprintf("%s:%d", p.host, p.port); err != nil {
-		f := "Unable to open tcp connection with host '%v': %v"
-		return nil, fmt.Errorf(f, addr, err.Error())
-	} else if conn == nil {
-		return nil, fmt.Errorf("Unable to open tcp connection with host '%v'", addr)
+	if err != nil {
+		f := "Unable to open tcp connection with host '%v:%v': %v"
+		return nil, fmt.Errorf(f, p.host, p.port, err.Error())
 	}
 
 	toconn := NewTimeoutConn(conn, p.conn_timeout)
