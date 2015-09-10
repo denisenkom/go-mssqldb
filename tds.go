@@ -762,7 +762,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 	var conn net.Conn
 	if len(ips) == 1 {
 		d := createDialer(p)
-		addr := fmt.Sprintf("%s:%d", ips[0], p.port)
+		addr := net.JoinHostPort(ips[0].String(), strconv.Itoa(int(p.port)))
 		conn, err = d.Dial("tcp", addr)
 
 	} else {
@@ -772,7 +772,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		for _, ip := range ips {
 			go func(ip net.IP) {
 				d := createDialer(p)
-				addr := fmt.Sprintf("[%s]:%d", ip, p.port)
+				addr := net.JoinHostPort(ip.String(), strconv.Itoa(int(p.port)))
 				conn, err := d.Dial("tcp", addr)
 				if err == nil {
 					connChan <- conn
