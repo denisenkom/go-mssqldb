@@ -772,7 +772,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		for _, ip := range ips {
 			go func(ip net.IP) {
 				d := createDialer(p)
-				addr := fmt.Sprintf("%s:%d", ip, p.port)
+				addr := fmt.Sprintf("[%s]:%d", ip, p.port)
 				conn, err := d.Dial("tcp", addr)
 				if err == nil {
 					connChan <- conn
