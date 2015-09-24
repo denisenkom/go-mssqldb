@@ -111,14 +111,16 @@ const (
 )
 
 type tdsSession struct {
-	buf      *tdsBuffer
-	loginAck loginAckStruct
-	database string
-	partner  string
-	columns  []columnStruct
-	tranid   uint64
-	logFlags uint64
-	log      *Logger
+	buf          *tdsBuffer
+	loginAck     loginAckStruct
+	database     string
+	partner      string
+	columns      []columnStruct
+	tranid       uint64
+	logFlags     uint64
+	log          *Logger
+	routedServer string
+	routedPort   uint16
 }
 
 const (
@@ -515,6 +517,18 @@ func readBVarByte(r io.Reader) (res []byte, err error) {
 	return
 }
 
+func readUshort(r io.Reader) (res uint16, err error) {
+	err = binary.Read(r, binary.LittleEndian, &res)
+	return
+}
+
+func readByte(r io.Reader) (res byte, err error) {
+	var b [1]byte
+	_, err = r.Read(b[:])
+	res = b[0]
+	return
+}
+
 // Packet Data Stream Headers
 // http://msdn.microsoft.com/en-us/library/dd304953.aspx
 type headerStruct struct {
@@ -756,15 +770,10 @@ type Auth interface {
 	Free()
 }
 
-func connect(params map[string]string) (res *tdsSession, err error) {
-	p, err := parseConnectParams(params)
-	if err != nil {
-		return nil, err
-	}
-
-	// SQL Server AlwaysOn Availability Group Listeners are bound by DNS to a
-	// list of IP addresses.  So if there is more than one, try them all and
-	// use the first one that allows a connection.
+// SQL Server AlwaysOn Availability Group Listeners are bound by DNS to a
+// list of IP addresses.  So if there is more than one, try them all and
+// use the first one that allows a connection.
+func dialConnection(p *connectParams) (conn net.Conn, err error) {
 	var ips []net.IP
 	ips, err = net.LookupIP(p.host)
 	if err != nil {
@@ -772,10 +781,8 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		if ip == nil {
 			return nil, err
 		}
-
 		ips = []net.IP{ip}
 	}
-	var conn net.Conn
 	if len(ips) == 1 {
 		d := createDialer(p)
 		addr := net.JoinHostPort(ips[0].String(), strconv.Itoa(int(p.port)))
@@ -820,6 +827,21 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 	if err != nil {
 		f := "Unable to open tcp connection with host '%v:%v': %v"
 		return nil, fmt.Errorf(f, p.host, p.port, err.Error())
+	}
+
+	return conn, err
+}
+
+func connect(params map[string]string) (res *tdsSession, err error) {
+	p, err := parseConnectParams(params)
+	if err != nil {
+		return nil, err
+	}
+
+initiate_connection:
+	conn, err := dialConnection(p)
+	if err != nil {
+		return nil, err
 	}
 
 	toconn := NewTimeoutConn(conn, p.conn_timeout)
@@ -962,6 +984,12 @@ continue_login:
 	}
 	if !success {
 		return nil, fmt.Errorf("Login failed")
+	}
+	if sess.routedServer != "" {
+		toconn.Close()
+		p.host = sess.routedServer
+		p.port = uint64(sess.routedPort)
+		goto initiate_connection
 	}
 	return &sess, nil
 }

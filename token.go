@@ -46,6 +46,7 @@ const (
 	envTypCommitTran         = 9
 	envTypRollbackTran       = 10
 	envDatabaseMirrorPartner = 13
+	envRouting               = 20
 )
 
 // interface for all tokens
@@ -161,7 +162,6 @@ func processEnvChg(sess *tdsSession) {
 			sess.tranid = 0
 		case envDatabaseMirrorPartner:
 			sess.partner, err = readBVarChar(r)
-
 			if err != nil {
 				badStreamPanic(err)
 			}
@@ -169,6 +169,35 @@ func processEnvChg(sess *tdsSession) {
 			if err != nil {
 				badStreamPanic(err)
 			}
+		case envRouting:
+			// RoutingData message is:
+			// ValueLength                 USHORT
+			// Protocol (TCP = 0)          BYTE
+			// ProtocolProperty (new port) USHORT
+			// AlternateServer             US_VARCHAR
+			_, err := readUshort(r)
+			if err != nil {
+				badStreamPanic(err)
+			}
+			protocol, err := readByte(r)
+			if err != nil || protocol != 0 {
+				badStreamPanic(err)
+			}
+			newPort, err := readUshort(r)
+			if err != nil {
+				badStreamPanic(err)
+			}
+			newServer, err := readUsVarChar(r)
+			if err != nil {
+				badStreamPanic(err)
+			}
+			// consume the OLDVALUE = %x00 %x00
+			_, err = readUshort(r)
+			if err != nil {
+				badStreamPanic(err)
+			}
+			sess.routedServer = newServer
+			sess.routedPort = newPort
 		default:
 			// ignore unknown env change types
 			_, err = readBVarByte(r)
