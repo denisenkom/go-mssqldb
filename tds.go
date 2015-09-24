@@ -229,6 +229,13 @@ const (
 	fIntSecurity   = 0x80
 )
 
+// TypeFlags
+const (
+	// 4 bits for fSQLType
+	// 1 bit for fOLEDB
+	fReadOnlyIntent = 32
+)
+
 type login struct {
 	TDSVersion     uint32
 	PacketSize     uint32
@@ -597,6 +604,7 @@ type connectParams struct {
 	serverSPN              string
 	workstation            string
 	appname                string
+	typeFlags              uint8
 }
 
 func parseConnectParams(params map[string]string) (*connectParams, error) {
@@ -731,6 +739,14 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 		appname = "go-mssqldb"
 	}
 	p.appname = appname
+
+	appintent, ok := params["applicationintent"]
+	if ok {
+		if appintent == "ReadOnly" {
+			p.typeFlags |= fReadOnlyIntent
+		}
+	}
+
 	return &p, nil
 }
 
@@ -892,6 +908,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		HostName:     p.workstation,
 		ServerName:   p.host,
 		AppName:      p.appname,
+		TypeFlags:    p.typeFlags,
 	}
 	auth, auth_ok := getAuth(p.user, p.password, p.serverSPN, p.workstation)
 	if auth_ok {
