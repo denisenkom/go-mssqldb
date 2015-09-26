@@ -142,7 +142,7 @@ func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
 }
 
 func openConnection(dsn string, params map[string]string) (*MssqlConn, error) {
-	buf, err := connect(params)
+	sess, err := connect(params)
 	if err != nil {
 		partner := partnersCache.Get(dsn)
 		if partner == "" {
@@ -162,7 +162,7 @@ func openConnection(dsn string, params map[string]string) (*MssqlConn, error) {
 		return nil, err
 	}
 
-	if partner := buf.partner; partner != "" {
+	if partner := sess.partner; partner != "" {
 		// append an instance so the port will be ignored when this value is used;
 		// tds does not provide the port number.
 		if !strings.Contains(partner, `\`) {
@@ -171,7 +171,7 @@ func openConnection(dsn string, params map[string]string) (*MssqlConn, error) {
 		partnersCache.Set(dsn, partner)
 	}
 
-	return &MssqlConn{buf}, nil
+	return &MssqlConn{sess}, nil
 }
 
 func (c *MssqlConn) Close() error {

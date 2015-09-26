@@ -44,6 +44,7 @@ Example:
 * "ServerSPN" - The kerberos SPN (Service Principal Name) for the server. Default is MSSQLSvc/host:port.
 * "Workstation ID" - The workstation name (default is the host name)
 * "app name" - The application name (default is go-mssqldb)
+* "ApplicationIntent" - Can be given the value "ReadOnly" to initiate a read-only connection to an Availability Group listener.
 
 Example:
 
@@ -72,6 +73,7 @@ where nnn represents an integer.
 * Supports encryption using SSL/TLS
 * Supports SQL Server and Windows Authentication
 * Supports Single-Sign-On on Windows
+* Supports connections to AlwaysOn Availability Group listeners, including re-direction to read-only replicas.
 
 ## Known Issues
 
