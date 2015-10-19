@@ -824,7 +824,8 @@ func dialConnection(p *connectParams) (conn net.Conn, err error) {
 			}
 		}
 	}
-	if err != nil {
+	// Can't do the usual err != nil check, as it is possible to have gotten an error before a successful connection
+	if conn == nil {
 		f := "Unable to open tcp connection with host '%v:%v': %v"
 		return nil, fmt.Errorf(f, p.host, p.port, err.Error())
 	}
