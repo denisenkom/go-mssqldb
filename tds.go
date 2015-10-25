@@ -1,7 +1,6 @@
 package mssql
 
 import (
-	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
@@ -112,12 +111,16 @@ const (
 )
 
 type tdsSession struct {
-	buf      *tdsBuffer
-	loginAck loginAckStruct
-	database string
-	columns  []columnStruct
-	tranid   uint64
-	logFlags uint64
+	buf          *tdsBuffer
+	loginAck     loginAckStruct
+	database     string
+	partner      string
+	columns      []columnStruct
+	tranid       uint64
+	logFlags     uint64
+	log          *Logger
+	routedServer string
+	routedPort   uint16
 }
 
 const (
@@ -228,6 +231,13 @@ const (
 	fIntSecurity   = 0x80
 )
 
+// TypeFlags
+const (
+	// 4 bits for fSQLType
+	// 1 bit for fOLEDB
+	fReadOnlyIntent = 32
+)
+
 type login struct {
 	TDSVersion     uint32
 	PacketSize     uint32
@@ -295,13 +305,17 @@ type loginHeader struct {
 	SSPILongLength       uint32
 }
 
+// convert Go string to UTF-16 encoded []byte (littleEndian)
+// done manually rather than using bytes and binary packages
+// for performance reasons
 func str2ucs2(s string) []byte {
 	res := utf16.Encode([]rune(s))
-	buf := new(bytes.Buffer)
-	for _, item := range res {
-		binary.Write(buf, binary.LittleEndian, item)
+	ucs2 := make([]byte, 2*len(res))
+	for i := 0; i < len(res); i++ {
+		ucs2[2*i] = byte(res[i])
+		ucs2[2*i+1] = byte(res[i] >> 8)
 	}
-	return buf.Bytes()
+	return ucs2
 }
 
 func ucs22str(s []byte) (string, error) {
@@ -503,6 +517,18 @@ func readBVarByte(r io.Reader) (res []byte, err error) {
 	return
 }
 
+func readUshort(r io.Reader) (res uint16, err error) {
+	err = binary.Read(r, binary.LittleEndian, &res)
+	return
+}
+
+func readByte(r io.Reader) (res byte, err error) {
+	var b [1]byte
+	_, err = r.Read(b[:])
+	res = b[0]
+	return
+}
+
 // Packet Data Stream Headers
 // http://msdn.microsoft.com/en-us/library/dd304953.aspx
 type headerStruct struct {
@@ -592,6 +618,7 @@ type connectParams struct {
 	serverSPN              string
 	workstation            string
 	appname                string
+	typeFlags              uint8
 }
 
 func parseConnectParams(params map[string]string) (*connectParams, error) {
@@ -726,6 +753,14 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 		appname = "go-mssqldb"
 	}
 	p.appname = appname
+
+	appintent, ok := params["applicationintent"]
+	if ok {
+		if appintent == "ReadOnly" {
+			p.typeFlags |= fReadOnlyIntent
+		}
+	}
+
 	return &p, nil
 }
 
@@ -735,29 +770,79 @@ type Auth interface {
 	Free()
 }
 
+// SQL Server AlwaysOn Availability Group Listeners are bound by DNS to a
+// list of IP addresses.  So if there is more than one, try them all and
+// use the first one that allows a connection.
+func dialConnection(p *connectParams) (conn net.Conn, err error) {
+	var ips []net.IP
+	ips, err = net.LookupIP(p.host)
+	if err != nil {
+		ip := net.ParseIP(p.host)
+		if ip == nil {
+			return nil, err
+		}
+		ips = []net.IP{ip}
+	}
+	if len(ips) == 1 {
+		d := createDialer(p)
+		addr := net.JoinHostPort(ips[0].String(), strconv.Itoa(int(p.port)))
+		conn, err = d.Dial("tcp", addr)
+
+	} else {
+		//Try Dials in parallel to avoid waiting for timeouts.
+		connChan := make(chan net.Conn, len(ips))
+		errChan := make(chan error, len(ips))
+		for _, ip := range ips {
+			go func(ip net.IP) {
+				d := createDialer(p)
+				addr := net.JoinHostPort(ip.String(), strconv.Itoa(int(p.port)))
+				conn, err := d.Dial("tcp", addr)
+				if err == nil {
+					connChan <- conn
+				} else {
+					errChan <- err
+				}
+			}(ip)
+		}
+		// Wait for either the *first* successful connection, or all the errors
+	wait_loop:
+		for i, _ := range ips {
+			select {
+			case conn = <-connChan:
+				// Got a connection to use, close any others
+				go func(n int) {
+					for i := 0; i < n; i++ {
+						select {
+						case conn := <-connChan:
+							conn.Close()
+						case <-errChan:
+						}
+					}
+				}(len(ips) - i - 1)
+				break wait_loop
+			case err = <-errChan:
+			}
+		}
+	}
+	// Can't do the usual err != nil check, as it is possible to have gotten an error before a successful connection
+	if conn == nil {
+		f := "Unable to open tcp connection with host '%v:%v': %v"
+		return nil, fmt.Errorf(f, p.host, p.port, err.Error())
+	}
+
+	return conn, err
+}
+
 func connect(params map[string]string) (res *tdsSession, err error) {
 	p, err := parseConnectParams(params)
 	if err != nil {
 		return nil, err
 	}
-	ips, err := net.LookupIP(p.host)
+
+initiate_connection:
+	conn, err := dialConnection(p)
 	if err != nil {
 		return nil, err
-	}
-	d := createDialer(p)
-	var conn net.Conn
-	for _, ip := range ips {
-		addr := fmt.Sprintf("%s:%d", ip, p.port)
-		conn, err = d.Dial("tcp", addr)
-		if err == nil {
-			break
-		}
-	}
-	if addr := fmt.Sprintf("%s:%d", p.host, p.port); err != nil {
-		f := "Unable to open tcp connection with host '%v': %v"
-		return nil, fmt.Errorf(f, addr, err.Error())
-	} else if conn == nil {
-		return nil, fmt.Errorf("Unable to open tcp connection with host '%v'", addr)
 	}
 
 	toconn := NewTimeoutConn(conn, p.conn_timeout)
@@ -846,6 +931,7 @@ func connect(params map[string]string) (res *tdsSession, err error) {
 		HostName:     p.workstation,
 		ServerName:   p.host,
 		AppName:      p.appname,
+		TypeFlags:    p.typeFlags,
 	}
 	auth, auth_ok := getAuth(p.user, p.password, p.serverSPN, p.workstation)
 	if auth_ok {
@@ -899,6 +985,12 @@ continue_login:
 	}
 	if !success {
 		return nil, fmt.Errorf("Login failed")
+	}
+	if sess.routedServer != "" {
+		toconn.Close()
+		p.host = sess.routedServer
+		p.port = uint64(sess.routedPort)
+		goto initiate_connection
 	}
 	return &sess, nil
 }

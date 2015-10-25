@@ -11,14 +11,22 @@ import (
 	"math"
 	"net"
 	"strings"
+	"sync"
 	"time"
 )
+
+var partnersCache partners = partners{mu: sync.RWMutex{}, v: make(map[string]string)}
 
 func init() {
 	sql.Register("mssql", &MssqlDriver{})
 }
 
 type MssqlDriver struct {
+	log *log.Logger
+}
+
+func (d *MssqlDriver) SetLogger(logger *log.Logger) {
+	d.log = logger
 }
 
 func CheckBadConn(err error) error {
@@ -108,13 +116,13 @@ func parseConnectionString(dsn string) (res map[string]string) {
 			continue
 		}
 		lst := strings.SplitN(part, "=", 2)
-		name := strings.ToLower(lst[0])
+		name := strings.TrimSpace(strings.ToLower(lst[0]))
 		if len(name) == 0 {
 			continue
 		}
 		var value string = ""
 		if len(lst) > 1 {
-			value = lst[1]
+			value = strings.TrimSpace(lst[1])
 		}
 		res[name] = value
 	}
@@ -132,11 +140,47 @@ func OpenConnection(dsn string) (*MssqlConn, error) {
 
 func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
 	params := parseConnectionString(dsn)
-	buf, err := connect(params)
+
+	conn, err := openConnection(dsn, params)
 	if err != nil {
 		return nil, err
 	}
-	return &MssqlConn{buf}, nil
+
+	conn.sess.log = (*Logger)(d.log)
+	return conn, nil
+}
+
+func openConnection(dsn string, params map[string]string) (*MssqlConn, error) {
+	sess, err := connect(params)
+	if err != nil {
+		partner := partnersCache.Get(dsn)
+		if partner == "" {
+			partner = params["failoverpartner"]
+			// remove the failoverpartner entry to prevent infinite recursion
+			delete(params, "failoverpartner")
+			if port, ok := params["failoverport"]; ok {
+				params["port"] = port
+			}
+		}
+
+		if partner != "" {
+			params["server"] = partner
+			return openConnection(dsn, params)
+		}
+
+		return nil, err
+	}
+
+	if partner := sess.partner; partner != "" {
+		// append an instance so the port will be ignored when this value is used;
+		// tds does not provide the port number.
+		if !strings.Contains(partner, `\`) {
+			partner += `\.`
+		}
+		partnersCache.Set(dsn, partner)
+	}
+
+	return &MssqlConn{sess}, nil
 }
 
 func (c *MssqlConn) Close() error {
@@ -176,11 +220,11 @@ func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
 		return errors.New(fmt.Sprintf("sql: expected %d parameters, got %d", s.paramCount, len(args)))
 	}
 	if s.c.sess.logFlags&logSQL != 0 {
-		log.Println(s.query)
+		s.c.sess.log.Println(s.query)
 	}
 	if s.c.sess.logFlags&logParams != 0 && len(args) > 0 {
 		for i := 0; i < len(args); i++ {
-			log.Printf("\t@p%d\t%v\n", i+1, args[i])
+			s.c.sess.log.Printf("\t@p%d\t%v\n", i+1, args[i])
 		}
 
 	}
@@ -269,7 +313,7 @@ func (s *MssqlStmt) Exec(args []driver.Value) (res driver.Result, err error) {
 			}
 		case error:
 			if s.c.sess.logFlags&logErrors != 0 {
-				log.Println("got error:", token)
+				s.c.sess.log.Println("got error:", token)
 			}
 			if s.c.sess.tranid != 0 {
 				return nil, token
@@ -416,4 +460,27 @@ func (r *MssqlResult) LastInsertId() (int64, error) {
 	}
 	lastInsertId := dest[0].(int64)
 	return lastInsertId, nil
+}
+
+type partners struct {
+	mu sync.RWMutex
+	v  map[string]string
+}
+
+func (p *partners) Set(key, value string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if _, ok := p.v[key]; ok {
+		return errors.New("key already exists")
+	}
+
+	p.v[key] = value
+	return nil
+}
+
+func (p *partners) Get(key string) (value string) {
+	p.mu.RLock()
+	value = p.v[key]
+	p.mu.RUnlock()
+	return
 }

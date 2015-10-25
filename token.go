@@ -3,7 +3,6 @@ package mssql
 import (
 	"encoding/binary"
 	"io"
-	"log"
 	"strconv"
 	"strings"
 )
@@ -47,6 +46,7 @@ const (
 	envTypCommitTran         = 9
 	envTypRollbackTran       = 10
 	envDatabaseMirrorPartner = 13
+	envRouting               = 20
 )
 
 // interface for all tokens
@@ -137,7 +137,7 @@ func processEnvChg(sess *tdsSession) {
 				badStreamPanic(err)
 			}
 			if sess.logFlags&logTransaction != 0 {
-				log.Printf("BEGIN TRANSACTION %x\n", sess.tranid)
+				sess.log.Printf("BEGIN TRANSACTION %x\n", sess.tranid)
 			}
 			_, err = readBVarByte(r)
 			if err != nil {
@@ -154,15 +154,14 @@ func processEnvChg(sess *tdsSession) {
 			}
 			if sess.logFlags&logTransaction != 0 {
 				if envtype == envTypCommitTran {
-					log.Printf("COMMIT TRANSACTION %x\n", sess.tranid)
+					sess.log.Printf("COMMIT TRANSACTION %x\n", sess.tranid)
 				} else {
-					log.Printf("ROLLBACK TRANSACTION %x\n", sess.tranid)
+					sess.log.Printf("ROLLBACK TRANSACTION %x\n", sess.tranid)
 				}
 			}
 			sess.tranid = 0
 		case envDatabaseMirrorPartner:
-			// ignore envDatabaseMirrorPartner
-			_, err = readBVarChar(r)
+			sess.partner, err = readBVarChar(r)
 			if err != nil {
 				badStreamPanic(err)
 			}
@@ -170,6 +169,35 @@ func processEnvChg(sess *tdsSession) {
 			if err != nil {
 				badStreamPanic(err)
 			}
+		case envRouting:
+			// RoutingData message is:
+			// ValueLength                 USHORT
+			// Protocol (TCP = 0)          BYTE
+			// ProtocolProperty (new port) USHORT
+			// AlternateServer             US_VARCHAR
+			_, err := readUshort(r)
+			if err != nil {
+				badStreamPanic(err)
+			}
+			protocol, err := readByte(r)
+			if err != nil || protocol != 0 {
+				badStreamPanic(err)
+			}
+			newPort, err := readUshort(r)
+			if err != nil {
+				badStreamPanic(err)
+			}
+			newServer, err := readUsVarChar(r)
+			if err != nil {
+				badStreamPanic(err)
+			}
+			// consume the OLDVALUE = %x00 %x00
+			_, err = readUshort(r)
+			if err != nil {
+				badStreamPanic(err)
+			}
+			sess.routedServer = newServer
+			sess.routedPort = newPort
 		default:
 			// ignore unknown env change types
 			_, err = readBVarByte(r)
@@ -352,13 +380,13 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 		case tokenDoneInProc:
 			done := parseDoneInProc(sess.buf)
 			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
-				log.Printf("(%d row(s) affected)\n", done.RowCount)
+				sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
 			}
 			ch <- done
 		case tokenDone, tokenDoneProc:
 			done := parseDone(sess.buf)
 			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
-				log.Printf("(%d row(s) affected)\n", done.RowCount)
+				sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
 			}
 			if done.Status&doneError != 0 || failed {
 				ch <- lastError
@@ -390,12 +418,12 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 			lastError = parseError72(sess.buf)
 			failed = true
 			if sess.logFlags&logErrors != 0 {
-				log.Println(lastError.Message)
+				sess.log.Println(lastError.Message)
 			}
 		case tokenInfo:
 			info := parseInfo(sess.buf)
 			if sess.logFlags&logMessages != 0 {
-				log.Println(info.Message)
+				sess.log.Println(info.Message)
 			}
 		default:
 			badStreamPanicf("Unknown token type: %d", token)
