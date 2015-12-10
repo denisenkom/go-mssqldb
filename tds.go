@@ -819,6 +819,8 @@ func dialConnection(p *connectParams) (conn net.Conn, err error) {
 						}
 					}
 				}(len(ips) - i - 1)
+				// Remove any earlier errors we may have collected
+				err = nil
 				break wait_loop
 			case err = <-errChan:
 			}
