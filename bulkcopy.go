@@ -181,8 +181,9 @@ func (b *MssqlBulk) makeRowData(row []interface{}) ([]byte, error) {
 	logcol := ""
 	for i, col := range b.bulkColumns {
 
-		logcol = logcol + fmt.Sprintf(" col[%d]='%v' ", i, row[i])
-
+		if b.Debug {
+			logcol = logcol + fmt.Sprintf(" col[%d]='%v' ", i, row[i])
+		}
 		param, err := b.makeParam(row[i], col)
 		if err != nil {
 			return nil, fmt.Errorf("bulkcopy: %s", err.Error())
@@ -205,7 +206,10 @@ func (b *MssqlBulk) makeRowData(row []interface{}) ([]byte, error) {
 }
 
 func (b *MssqlBulk) Done() (rowcount int64, err error) {
-
+	if b.headerSent == false {
+		//no rows had been sent	
+		return 0, nil
+	}
 	var buf = b.cn.sess.buf
 	buf.WriteByte(tokenDone)
 
@@ -294,9 +298,11 @@ func (b *MssqlBulk) getMetadata() (err error) {
 	}
 	b.metadata = cols
 
-	//for _, col := range b.metadata {
-	//	log.Printf("col: %s typeId: %#x size: %d scale: %d prec: %d flags: %d collation: %#x\n", col.ColName, col.ti.TypeId, col.ti.Size, col.ti.Scale, col.ti.Prec, col.Flags, col.ti.Collation.lcidAndFlags)
-	//}
+	if b.Debug {
+		for _, col := range b.metadata {
+			log.Printf("col: %s typeId: %#x size: %d scale: %d prec: %d flags: %d collation: %#x\n", col.ColName, col.ti.TypeId, col.ti.Size, col.ti.Scale, col.ti.Prec, col.Flags, col.ti.Collation.lcidAndFlags)
+		}
+	}
 
 	return nil
 }
