@@ -61,7 +61,18 @@ In the SQL statement text, literals may be replaced by a parameter that matches 
 * :nnn
 * $nnn
 
-where nnn represents an integer.
+where nnn represents an integer that specifies a 1-indexed positional parameter. Ex:
+
+```go
+db.Query("SELECT * FROM t WHERE a = ?3, b = ?2, c = ?1", "x", "y", "z")
+```
+
+will expand to roughly
+
+```sql
+SELECT * FROM t WHERE a = 'z', b = 'y', c = 'x'
+```
+
 
 ## Features
 
