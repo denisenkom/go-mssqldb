@@ -2,8 +2,8 @@ package mssql
 
 import (
 	"database/sql/driver"
+	"encoding/json"
 	"errors"
-	"strings"
 )
 
 type copyin struct {
@@ -12,15 +12,25 @@ type copyin struct {
 	closed   bool
 }
 
+type SerializableBulkConfig struct {
+	TableName   string
+	ColumnsName []string
+	Options     MssqlBulkOptions
+}
+
 func (c *MssqlConn) prepareCopyIn(query string) (_ driver.Stmt, err error) {
 
-	query = query[11:]
-	info := strings.Split(query, "\u001f")
+	config_json := query[11:]
 
-	table := info[0]
-	columns := info[1:]
+	bulkconfig := SerializableBulkConfig{}
+	err = json.Unmarshal([]byte(config_json), &bulkconfig)
+	if err != nil {
+		return
+	}
 
-	bulkcopy := c.CreateBulk(table, columns)
+	bulkcopy := c.CreateBulk(bulkconfig.TableName, bulkconfig.ColumnsName)
+	bulkcopy.Options = bulkconfig.Options
+
 	ci := &copyin{
 		cn:       c,
 		bulkcopy: bulkcopy,
@@ -29,10 +39,15 @@ func (c *MssqlConn) prepareCopyIn(query string) (_ driver.Stmt, err error) {
 	return ci, nil
 }
 
-func CopyIn(table string, columns ...string) string {
+func CopyIn(table string, options MssqlBulkOptions, columns ...string) string {
+	bulkconfig := &SerializableBulkConfig{TableName: table, Options: options, ColumnsName: columns}
 
-	info := table + "\u001f" + strings.Join(columns, "\u001f")
-	stmt := "INSERTBULK " + string(info)
+	config_json, err := json.Marshal(bulkconfig)
+	if err != nil {
+		panic(err)
+	}
+
+	stmt := "INSERTBULK " + string(config_json)
 
 	return stmt
 }
