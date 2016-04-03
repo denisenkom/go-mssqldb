@@ -773,7 +773,7 @@ type Auth interface {
 // SQL Server AlwaysOn Availability Group Listeners are bound by DNS to a
 // list of IP addresses.  So if there is more than one, try them all and
 // use the first one that allows a connection.
-func dialConnection(p *connectParams) (conn net.Conn, err error) {
+func dialConnection(p connectParams) (conn net.Conn, err error) {
 	var ips []net.IP
 	ips, err = net.LookupIP(p.host)
 	if err != nil {
@@ -835,12 +835,7 @@ func dialConnection(p *connectParams) (conn net.Conn, err error) {
 	return conn, err
 }
 
-func connect(params map[string]string) (res *tdsSession, err error) {
-	p, err := parseConnectParams(params)
-	if err != nil {
-		return nil, err
-	}
-
+func connect(p connectParams) (res *tdsSession, err error) {
 initiate_connection:
 	conn, err := dialConnection(p)
 	if err != nil {
@@ -873,6 +868,9 @@ initiate_connection:
 		preloginMARS:       {0}, // MARS disabled
 	}
 
+	if p.logFlags&logSQL != 0 {
+		sess.log.Println("Sending prelogin packet")
+	}
 	err = writePrelogin(outbuf, fields)
 	if err != nil {
 		return nil, err
@@ -947,6 +945,9 @@ initiate_connection:
 		login.UserName = p.user
 		login.Password = p.password
 	}
+	if p.logFlags&logSQL != 0 {
+		sess.log.Println("Sending login packet")
+	}
 	err = sendLogin(outbuf, login)
 	if err != nil {
 		return nil, err
@@ -973,6 +974,9 @@ continue_login:
 		}
 	}
 	if sspi_msg != nil {
+		if p.logFlags&logSQL != 0 {
+			sess.log.Println("Sending SSPI packet")
+		}
 		outbuf.BeginPacket(packSSPIMessage)
 		_, err = outbuf.Write(sspi_msg)
 		if err != nil {
@@ -987,6 +991,9 @@ continue_login:
 	}
 	if !success {
 		return nil, fmt.Errorf("Login failed")
+	}
+	if p.logFlags&logSQL != 0 {
+		sess.log.Println("Connection successful")
 	}
 	if sess.routedServer != "" {
 		toconn.Close()

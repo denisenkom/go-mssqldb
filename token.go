@@ -345,6 +345,10 @@ func parseInfo(r *tdsBuffer) (res Error) {
 }
 
 func processResponse(sess *tdsSession, ch chan tokenStruct) {
+	var logPackets = sess.logFlags&logMessages != 0
+	if logPackets {
+		sess.log.Printf("processing response")
+	}
 	defer func() {
 		if err := recover(); err != nil {
 			ch <- err
@@ -366,24 +370,42 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 		token := sess.buf.byte()
 		switch token {
 		case tokenSSPI:
+			if logPackets {
+				sess.log.Printf("received SSPI packet")
+			}
 			ch <- parseSSPIMsg(sess.buf)
 			return
 		case tokenReturnStatus:
+			if logPackets {
+				sess.log.Printf("received ReturnStatus packet")
+			}
 			returnStatus := parseReturnStatus(sess.buf)
 			ch <- returnStatus
 		case tokenLoginAck:
+			if logPackets {
+				sess.log.Printf("received LoginAck packet")
+			}
 			loginAck := parseLoginAck(sess.buf)
 			ch <- loginAck
 		case tokenOrder:
+			if logPackets {
+				sess.log.Printf("received Order packet")
+			}
 			order := parseOrder(sess.buf)
 			ch <- order
 		case tokenDoneInProc:
+			if logPackets {
+				sess.log.Printf("received DoneInProc packet")
+			}
 			done := parseDoneInProc(sess.buf)
 			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
 				sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
 			}
 			ch <- done
 		case tokenDone, tokenDoneProc:
+			if logPackets {
+				sess.log.Printf("received Done[Proc] packet")
+			}
 			done := parseDone(sess.buf)
 			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
 				sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
@@ -402,25 +424,43 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 				return
 			}
 		case tokenColMetadata:
+			if logPackets {
+				sess.log.Printf("received ColMetadata packet")
+			}
 			columns = parseColMetadata72(sess.buf)
 			ch <- columns
 		case tokenRow:
+			if logPackets {
+				sess.log.Printf("received Row packet")
+			}
 			row := make([]interface{}, len(columns))
 			parseRow(sess.buf, columns, row)
 			ch <- row
 		case tokenNbcRow:
+			if logPackets {
+				sess.log.Printf("received NbcRow packet")
+			}
 			row := make([]interface{}, len(columns))
 			parseNbcRow(sess.buf, columns, row)
 			ch <- row
 		case tokenEnvChange:
+			if logPackets {
+				sess.log.Printf("received EnvChange packet")
+			}
 			processEnvChg(sess)
 		case tokenError:
+			if logPackets {
+				sess.log.Printf("received Error packet")
+			}
 			lastError = parseError72(sess.buf)
 			failed = true
 			if sess.logFlags&logErrors != 0 {
 				sess.log.Println(lastError.Message)
 			}
 		case tokenInfo:
+			if logPackets {
+				sess.log.Printf("received Info packet")
+			}
 			info := parseInfo(sess.buf)
 			if sess.logFlags&logMessages != 0 {
 				sess.log.Println(info.Message)

@@ -108,8 +108,8 @@ func (c *MssqlConn) Begin() (driver.Tx, error) {
 	return c, nil
 }
 
-func parseConnectionString(dsn string) (res map[string]string) {
-	res = map[string]string{}
+func parseConnectionString(dsn string) (*connectParams, error) {
+	res := map[string]string{}
 	parts := strings.Split(dsn, ";")
 	for _, part := range parts {
 		if len(part) == 0 {
@@ -126,13 +126,20 @@ func parseConnectionString(dsn string) (res map[string]string) {
 		}
 		res[name] = value
 	}
-	return res
+	return parseConnectParams(res)
 }
 
 func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
-	params := parseConnectionString(dsn)
+	params, err := parseConnectionString(dsn)
+	if err != nil {
+		return nil, err
+	}
 
-	conn, err := openConnection(dsn, params)
+	if params.logFlags&logMessages != 0 {
+		fmt.Printf("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+		d.log.Printf("Opening connection");
+	}
+	conn, err := openConnection(dsn, *params)
 	if err != nil {
 		return nil, err
 	}
@@ -141,21 +148,21 @@ func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
 	return conn, nil
 }
 
-func openConnection(dsn string, params map[string]string) (*MssqlConn, error) {
+func openConnection(dsn string, params connectParams) (*MssqlConn, error) {
 	sess, err := connect(params)
 	if err != nil {
 		partner := partnersCache.Get(dsn)
 		if partner == "" {
-			partner = params["failoverpartner"]
+			partner = params.failoverPartner
 			// remove the failoverpartner entry to prevent infinite recursion
-			delete(params, "failoverpartner")
-			if port, ok := params["failoverport"]; ok {
-				params["port"] = port
+			params.failoverPartner = ""
+			if params.failoverPort != 0 {
+				params.port = params.failoverPort
 			}
 		}
 
 		if partner != "" {
-			params["server"] = partner
+			params.serverSPN = partner
 			return openConnection(dsn, params)
 		}
 
@@ -215,6 +222,9 @@ func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
 
 	}
 	if len(args) == 0 {
+		if s.c.sess.logFlags&logSQL != 0 {
+			s.c.sess.log.Println("sending SqlBatch72 packet")
+		}
 		if err = sendSqlBatch72(s.c.sess.buf, s.query, headers); err != nil {
 			if s.c.sess.tranid != 0 {
 				return err
@@ -240,6 +250,9 @@ func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
 		params[1], err = s.makeParam(strings.Join(decls, ","))
 		if err != nil {
 			return
+		}
+		if s.c.sess.logFlags&logSQL != 0 {
+			s.c.sess.log.Println("sending RPC packet packet")
 		}
 		if err = sendRpc(s.c.sess.buf, headers, Sp_ExecuteSql, 0, params); err != nil {
 			if s.c.sess.tranid != 0 {
