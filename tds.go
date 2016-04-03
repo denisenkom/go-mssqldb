@@ -619,6 +619,8 @@ type connectParams struct {
 	workstation            string
 	appname                string
 	typeFlags              uint8
+	failoverPartner        string
+	failoverPort           uint64
 }
 
 func parseConnectParams(params map[string]string) (*connectParams, error) {
