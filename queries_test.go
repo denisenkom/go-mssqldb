@@ -683,3 +683,23 @@ func TestLogging(t *testing.T) {
 		t.Fatal("logging test failed, got", b.String())
 	}
 }
+
+func TestIgnoreEmptyResults(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	rows, err := conn.Query("set nocount on; select 2")
+	if err != nil {
+		t.Fatal("Query failed", err.Error())
+	}
+	if !rows.Next() {
+		t.Fatal("Query didn't return row")
+	}
+	var fld1 int32
+	err = rows.Scan(&fld1)
+	if err != nil {
+		t.Fatal("Scan failed", err)
+	}
+	if fld1 != 2 {
+		t.Fatal("Returned value doesn't match")
+	}
+}
