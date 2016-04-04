@@ -136,8 +136,9 @@ func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
 	}
 
 	if params.logFlags&logMessages != 0 {
-		fmt.Printf("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-		d.log.Printf("Opening connection");
+		if d.log != nil {
+			d.log.Printf("Opening connection");
+		}
 	}
 	conn, err := openConnection(dsn, *params)
 	if err != nil {
@@ -226,6 +227,9 @@ func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
 			s.c.sess.log.Println("sending SqlBatch72 packet")
 		}
 		if err = sendSqlBatch72(s.c.sess.buf, s.query, headers); err != nil {
+			if s.c.sess.logFlags&logSQL != 0 {
+				s.c.sess.log.Println("sendingSqlBatch72 failed with error %v", err)
+			}
 			if s.c.sess.tranid != 0 {
 				return err
 			}

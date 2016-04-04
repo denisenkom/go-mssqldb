@@ -221,7 +221,10 @@ func TestQuery(t *testing.T) {
 	if err != nil {
 		t.Error("getting columns failed", err.Error())
 	}
-	if len(columns) != 1 && columns[0] != "a" {
+	if len(columns) != 1 {
+		t.Error("returned incorrect columns (expected ['a']):", columns)
+	}
+	if len(columns) >= 1 && columns[0] != "a" {
 		t.Error("returned incorrect columns (expected ['a']):", columns)
 	}
 

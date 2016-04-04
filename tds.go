@@ -590,7 +590,10 @@ func sendSqlBatch72(buf *tdsBuffer,
 	headers []headerStruct) (err error) {
 	buf.BeginPacket(packSQLBatch)
 
-	writeAllHeaders(buf, headers)
+	err = writeAllHeaders(buf, headers)
+	if err != nil {
+		return err
+	}
 
 	_, err = buf.Write(str2ucs2(sqltext))
 	if err != nil {

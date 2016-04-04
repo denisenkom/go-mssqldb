@@ -259,6 +259,7 @@ type loginAckStruct struct {
 	ProgVer    uint32
 }
 
+// https://msdn.microsoft.com/en-us/library/dd340651.aspx
 func parseLoginAck(r *tdsBuffer) loginAckStruct {
 	size := r.uint16()
 	buf := make([]byte, size)
@@ -355,12 +356,24 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 		}
 		close(ch)
 	}()
+	if logPackets {
+		sess.log.Printf("calling BeginRead")
+	}
 	packet_type, err := sess.buf.BeginRead()
 	if err != nil {
+		if logPackets {
+			sess.log.Printf("BeginRead failed with error: %v", err)
+		}
 		ch <- err
 		return
 	}
+	if logPackets {
+		sess.log.Printf("BeginRead success")
+	}
 	if packet_type != packReply {
+		if logPackets {
+			sess.log.Printf("invalid response packet type, expected REPLY, actual: %d", packet_type)
+		}
 		badStreamPanicf("invalid response packet type, expected REPLY, actual: %d", packet_type)
 	}
 	var columns []columnStruct
@@ -368,6 +381,9 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 	var failed bool
 	for {
 		token := sess.buf.byte()
+		if logPackets {
+			sess.log.Printf("got token id %d(%x)", token, token)
+		}
 		switch token {
 		case tokenSSPI:
 			if logPackets {
@@ -386,6 +402,12 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 				sess.log.Printf("received LoginAck packet")
 			}
 			loginAck := parseLoginAck(sess.buf)
+			if logPackets {
+				sess.log.Printf("LoginAck.Interface = %d", loginAck.Interface)
+				sess.log.Printf("LoginAck.TDSVersion = %x", loginAck.TDSVersion)
+				sess.log.Printf("LoginAck.ServerName = %s", loginAck.ProgName)
+				sess.log.Printf("LoginAck.ServerVer = %x", loginAck.ProgVer)
+			}
 			ch <- loginAck
 		case tokenOrder:
 			if logPackets {
@@ -407,14 +429,25 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 				sess.log.Printf("received Done[Proc] packet")
 			}
 			done := parseDone(sess.buf)
+			if logPackets {
+				sess.log.Printf("done.Status = %d", done.Status)
+				sess.log.Printf("done.CurCmd = %d", done.CurCmd)
+				sess.log.Printf("done.RowCount = %d", done.RowCount)
+			}
 			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
 				sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
 			}
 			if done.Status&doneError != 0 || failed {
+				if logPackets {
+					sess.log.Printf("done report error %v", lastError)
+				}
 				ch <- lastError
 				return
 			}
 			if done.Status&doneSrvError != 0 {
+				if logPackets {
+					sess.log.Printf("done report server error %v", lastError)
+				}
 				lastError.Message = "Server Error"
 				ch <- lastError
 				return
@@ -466,6 +499,9 @@ func processResponse(sess *tdsSession, ch chan tokenStruct) {
 				sess.log.Println(info.Message)
 			}
 		default:
+			if logPackets {
+				sess.log.Printf("Unknown token type: %d", token)
+			}
 			badStreamPanicf("Unknown token type: %d", token)
 		}
 	}
