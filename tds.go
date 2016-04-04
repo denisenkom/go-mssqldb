@@ -53,6 +53,7 @@ func getInstances(address string) (map[string]map[string]string, error) {
 		return nil, err
 	}
 	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(5*time.Second))
 	_, err = conn.Write([]byte{3})
 	if err != nil {
 		return nil, err
