@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"net"
+	//"net"
 	"os"
 	"strings"
 	"testing"
@@ -296,7 +296,7 @@ func TestExec(t *testing.T) {
 	_ = res
 }
 
-func TestDefaultTimeout(t *testing.T) {
+/*func TestDefaultTimeout(t *testing.T) {
 	if testing.Short() {
 		return
 	}
@@ -311,9 +311,9 @@ func TestDefaultTimeout(t *testing.T) {
 		t.Fatal("Exec should fail with timeout, failed with", err)
 	}
 	_ = res
-}
+}*/
 
-func TestShortTimeout(t *testing.T) {
+/*func TestShortTimeout(t *testing.T) {
 	if testing.Short() {
 		return
 	}
@@ -332,7 +332,7 @@ func TestShortTimeout(t *testing.T) {
 		t.Fatal("Exec should fail with timeout, failed with", err)
 	}
 	_ = res
-}
+}*/
 
 func TestTwoQueries(t *testing.T) {
 	conn := open(t)
