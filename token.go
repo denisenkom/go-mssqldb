@@ -206,7 +206,7 @@ func processEnvChg(sess *tdsSession) {
 			}
 			_, err = readBVarByte(r)
 			if err != nil {
-				badStreamPanic(err)
+				continue
 			}
 		}
 
