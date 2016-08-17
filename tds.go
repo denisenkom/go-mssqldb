@@ -806,6 +806,7 @@ type Auth interface {
 // use the first one that allows a connection.
 func dialConnection(p *connectParams) (conn net.Conn, err error) {
 	var ips []net.IP
+	var ip4s []net.IP
 	ips, err = net.LookupIP(p.host)
 	if err != nil {
 		ip := net.ParseIP(p.host)
@@ -814,16 +815,26 @@ func dialConnection(p *connectParams) (conn net.Conn, err error) {
 		}
 		ips = []net.IP{ip}
 	}
+	//remove all IPv6 addresses
+	for _, ip := range ips {
+		if net.IP.To4(ip) != nil {
+			ip4s = append(ip4s, ip)
+		}
+	}
+	ips = ip4s
 	if len(ips) == 1 {
 		d := createDialer(p)
 		addr := net.JoinHostPort(ips[0].String(), strconv.Itoa(int(p.port)))
-		conn, err = d.Dial("tcp", addr)
-
-	} else {
+		conn, err = d.Dial("tcp4", addr)
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+	} else if len(ips) > 1 {
 		//Try Dials in parallel to avoid waiting for timeouts.
 		connChan := make(chan net.Conn, len(ips))
 		errChan := make(chan error, len(ips))
 		portStr := strconv.Itoa(int(p.port))
+
 		for _, ip := range ips {
 			go func(ip net.IP) {
 				d := createDialer(p)
@@ -836,6 +847,7 @@ func dialConnection(p *connectParams) (conn net.Conn, err error) {
 				}
 			}(ip)
 		}
+
 		// Wait for either the *first* successful connection, or all the errors
 	wait_loop:
 		for i, _ := range ips {
@@ -858,12 +870,12 @@ func dialConnection(p *connectParams) (conn net.Conn, err error) {
 			}
 		}
 	}
+
 	// Can't do the usual err != nil check, as it is possible to have gotten an error before a successful connection
 	if conn == nil {
 		f := "Unable to open tcp connection with host '%v:%v': %v"
 		return nil, fmt.Errorf(f, p.host, p.port, err.Error())
 	}
-
 	return conn, err
 }
 
