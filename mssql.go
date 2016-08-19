@@ -128,6 +128,15 @@ func parseConnectionString(dsn string) (res map[string]string) {
 	return res
 }
 
+func OpenConnection(dsn string) (*MssqlConn, error) {
+	params := parseConnectionString(dsn)
+	buf, err := connect(params)
+	if err != nil {
+		return nil, err
+	}
+	return &MssqlConn{buf}, nil
+}
+
 func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
 	params := parseConnectionString(dsn)
 
@@ -179,6 +188,11 @@ type queryNotifSub struct {
 }
 
 func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
+
+	if len(query) > 10 && strings.EqualFold(query[:10], "INSERTBULK") {
+		return c.prepareCopyIn(query)
+	}
+
 	q, paramCount := parseParams(query)
 	return &MssqlStmt{c, q, paramCount, nil}, nil
 }
