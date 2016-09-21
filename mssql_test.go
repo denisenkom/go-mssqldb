@@ -50,3 +50,79 @@ func TestCheckBadConn(t *testing.T) {
 		}
 	}
 }
+
+func TestParseConnectionStringHappyCase(t *testing.T) {
+
+	res := parseConnectionString("server=foo;user id=bar;password=baz;encrypt=true;TrustServerCertificate=true")
+	if val, ok := res["server"]; ok {
+		if val != "foo" {
+			t.Errorf("parseConnectionString; result key 'server'; expected 'foo', got '%s'", val)
+		}
+	} else {
+		t.Error("parseConnectionString; result key 'server'; key is missing")
+	}
+	if val, ok := res["user id"]; ok {
+		if val != "bar" {
+			t.Errorf("parseConnectionString; result key 'user id'; expected 'bar', got '%s'", val)
+		}
+	} else {
+		t.Error("parseConnectionString; result key 'user id'; key is missing")
+	}
+	if val, ok := res["password"]; ok {
+		if val != "baz" {
+			t.Errorf("parseConnectionString; result key 'password'; expected 'baz', got '%s'", val)
+		}
+	} else {
+		t.Error("parseConnectionString; result key 'password'; key is missing")
+	}
+	if val, ok := res["encrypt"]; ok {
+		if val != "true" {
+			t.Errorf("parseConnectionString; result key 'encrypt'; expected 'true', got '%s'", val)
+		}
+	} else {
+		t.Error("parseConnectionString; result key 'encrypt'; key is missing")
+	}
+	if val, ok := res["trustservercertificate"]; ok {
+		if val != "true" {
+			t.Errorf("parseConnectionString; result key 'TrustServerCertificate'; expected 'true', got '%s'", val)
+		}
+	} else {
+		t.Error("parseConnectionString; result key 'TrustServerCertificate'; key is missing")
+	}
+}
+
+func TestParseConnectionStringPasswordHasSemicolon(t *testing.T) {
+
+	res := parseConnectionString("server=foo\tuser id=bar\tpassword=baz;\tencrypt=true\tTrustServerCertificate=true")
+	if val, ok := res["password"]; ok {
+		if val != "baz;" {
+			t.Errorf("parseConnectionString; result key 'password'; expected 'baz;', got '%s'", val)
+		}
+	} else {
+		t.Error("parseConnectionString; result key 'password'; key is missing")
+	}
+}
+
+func TestParseConnectionStringPasswordHasLeadingSpace(t *testing.T) {
+
+	res := parseConnectionString("server=foo\tuser id=bar\tpassword= baz\tencrypt=true\tTrustServerCertificate=true")
+	if val, ok := res["password"]; ok {
+		if val != " baz" {
+			t.Errorf("parseConnectionString; result key 'password'; expected ' baz', got '%s'", val)
+		}
+	} else {
+		t.Error("parseConnectionString; result key 'password'; key is missing")
+	}
+}
+
+func TestParseConnectionStringPasswordHasTrailingSpace(t *testing.T) {
+
+	res := parseConnectionString("server=foo\tuser id=bar\tpassword=baz \tencrypt=true\tTrustServerCertificate=true")
+	if val, ok := res["password"]; ok {
+		if val != "baz " {
+			t.Errorf("parseConnectionString; result key 'password'; expected 'baz ', got '%s'", val)
+		}
+	} else {
+		t.Error("parseConnectionString; result key 'password'; key is missing")
+	}
+}

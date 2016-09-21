@@ -109,6 +109,9 @@ func (c *MssqlConn) Begin() (driver.Tx, error) {
 
 func parseConnectionString(dsn string) (res map[string]string) {
 	res = map[string]string{}
+	if strings.Contains(dsn, "\t") {
+		return parseConnectionStringV2(dsn)
+	}
 	parts := strings.Split(dsn, ";")
 	for _, part := range parts {
 		if len(part) == 0 {
@@ -125,6 +128,33 @@ func parseConnectionString(dsn string) (res map[string]string) {
 		}
 		res[name] = value
 	}
+
+	return res
+}
+
+func parseConnectionStringV2(dsn string) (res map[string]string) {
+	res = map[string]string{}
+	parts := strings.Split(dsn, "\t")
+	for _, part := range parts {
+		if len(part) == 0 {
+			continue
+		}
+		lst := strings.SplitN(part, "=", 2)
+		name := strings.TrimSpace(strings.ToLower(lst[0]))
+		if len(name) == 0 {
+			continue
+		}
+		var value string = ""
+		if len(lst) > 1 {
+			if name != "user id" && name != "password" {
+				value = strings.TrimSpace(lst[1])
+			} else {
+				value = lst[1]
+			}
+		}
+		res[name] = value
+	}
+
 	return res
 }
 
