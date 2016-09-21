@@ -14,6 +14,11 @@ import (
 	"time"
 )
 
+const (
+	USER_ID_KEY  = "user_id"
+	PASSWORD_KEY = "password"
+)
+
 func init() {
 	sql.Register("mssql", &MssqlDriver{})
 }
@@ -146,7 +151,7 @@ func parseConnectionStringV2(dsn string) (res map[string]string) {
 		}
 		var value string = ""
 		if len(lst) > 1 {
-			if name != "user id" && name != "password" {
+			if name != USER_ID_KEY && name != PASSWORD_KEY {
 				value = strings.TrimSpace(lst[1])
 			} else {
 				value = lst[1]
