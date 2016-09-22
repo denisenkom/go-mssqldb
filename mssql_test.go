@@ -162,3 +162,28 @@ func TestParseConnectionStringUserIdHasTrailingSpace(t *testing.T) {
 		t.Error("parseConnectionString; result key 'user id'; key is missing")
 	}
 }
+
+func TestParseConnectionStringPasswordHasCamelCaseKeyAndTrailingSpace(t *testing.T) {
+
+	res := parseConnectionString("server=foo\tuser id=bar\tPassWord=baz \tencrypt=true\tTrustServerCertificate=true")
+	if val, ok := res["password"]; ok {
+		if val != "baz " {
+			t.Errorf("parseConnectionString; result key 'password'; expected 'baz ', got '%s'", val)
+		}
+	} else {
+		t.Error("parseConnectionString; result key 'password'; key is missing")
+	}
+}
+
+func TestParseConnectionStringUserIdHasCamelCaseKeyAndTrailingSpace(t *testing.T) {
+
+	res := parseConnectionString("server=foo\tUser ID=bar \tpassword=baz\tencrypt=true\tTrustServerCertificate=true")
+	if val, ok := res["user id"]; ok {
+		if val != "bar " {
+			t.Errorf("parseConnectionString; result key 'user id'; expected 'bar ', got '%s'", val)
+		}
+	} else {
+		t.Error("parseConnectionString; result key 'user id'; key is missing")
+	}
+}
+
