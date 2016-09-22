@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	USER_ID_KEY  = "user_id"
+	USER_ID_KEY  = "user id"
 	PASSWORD_KEY = "password"
 )
 
