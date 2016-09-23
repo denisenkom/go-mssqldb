@@ -52,7 +52,7 @@ Example:
     db, err := sql.Open("mssql", "server=localhost;user id=sa")
 ```
 
-Note: <tab> may be used instead of `;` as a separator, in which case user ids and passwords with leading/trailing spaces and semicolons are preserved:
+Note: `<tab>` may be used instead of `;` as a separator, in which case user ids and passwords with leading/trailing spaces and semicolons are preserved:
 
 ```go
    db, err := sql.Open("mssql", "server=localhost\tuser id= sa \tpassword=12345;54321")
