@@ -31,8 +31,11 @@ func CheckBadConn(err error) error {
 		return driver.ErrBadConn
 	}
 
-	switch err.(type) {
+	switch e := err.(type) {
 	case net.Error:
+		if e.Timeout() {
+			return errors.New("driver: connection timeout")
+		}
 		return driver.ErrBadConn
 	default:
 		return err
