@@ -12,7 +12,7 @@ var port *int = flag.Int("port", 1433, "the database port")
 var server = flag.String("server", "", "the database server")
 var user = flag.String("user", "", "the database user")
 
-func simplemain() {
+func main() {
 	flag.Parse() // parse the command line args
 
 	if *debug {
