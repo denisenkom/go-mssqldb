@@ -207,7 +207,7 @@ func (b *MssqlBulk) makeRowData(row []interface{}) ([]byte, error) {
 
 func (b *MssqlBulk) Done() (rowcount int64, err error) {
 	if b.headerSent == false {
-		//no rows had been sent	
+		//no rows had been sent
 		return 0, nil
 	}
 	var buf = b.cn.sess.buf
@@ -528,35 +528,34 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 			err = fmt.Errorf("mssql: invalid type for datetime column", val)
 		}
 
-	/*
-		case typeDecimal, typeDecimalN:
-			switch val := val.(type) {
-			case float64:
-				dec, err := Float64ToDecimal(val)
-				if err != nil {
-					return res, err
-				}
-				dec.scale = col.ti.Scale
-				dec.prec = col.ti.Prec
-				//res.buffer = make([]byte, 3)
-				res.buffer = dec.Bytes()
-				res.ti.Size = len(res.buffer)
-			default:
-				err = fmt.Errorf("mssql: invalid type for decimal column", val)
-				return
+	case typeDecimal, typeDecimalN:
+		switch val := val.(type) {
+		case float64:
+			dec, err := Float64ToDecimal(val)
+			if err != nil {
+				return res, err
 			}
-		case typeMoney, typeMoney4, typeMoneyN:
-			if col.ti.Size == 4 {
-				res.ti.Size = 4
-				res.buffer = make([]byte, 4)
-			} else if col.ti.Size == 8 {
-				res.ti.Size = 8
-				res.buffer = make([]byte, 8)
+			dec.scale = col.ti.Scale
+			dec.prec = col.ti.Prec
+			//res.buffer = make([]byte, 3)
+			res.buffer = dec.Bytes()
+			res.ti.Size = len(res.buffer)
+		default:
+			err = fmt.Errorf("mssql: invalid type for decimal column", val)
+			return
+		}
+	case typeMoney, typeMoney4, typeMoneyN:
+		if col.ti.Size == 4 {
+			res.ti.Size = 4
+			res.buffer = make([]byte, 4)
+		} else if col.ti.Size == 8 {
+			res.ti.Size = 8
+			res.buffer = make([]byte, 8)
 
-			} else {
-				err = fmt.Errorf("mssql: invalid size of money column")
-			}
-	*/
+		} else {
+			err = fmt.Errorf("mssql: invalid size of money column")
+		}
+
 	case typeBigVarBin:
 		switch val := val.(type) {
 		case []byte:
