@@ -357,6 +357,14 @@ func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
 	return io.EOF
 }
 
+func (rc *MssqlRows) HasNextResultSet() bool {
+	return true
+}
+
+func (rc *MssqlRows) NextResultSet() error {
+	return nil
+}
+
 func (s *MssqlStmt) makeParam(val driver.Value) (res Param, err error) {
 	if val == nil {
 		res.ti.TypeId = typeNVarChar

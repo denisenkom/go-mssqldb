@@ -703,3 +703,26 @@ func TestIgnoreEmptyResults(t *testing.T) {
 		t.Fatal("Returned value doesn't match")
 	}
 }
+
+func TestNextResultSet(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	rows, err := conn.Query("select 1; select 2")
+	if err != nil {
+		t.Fatal("Query failed", err.Error())
+	}
+	if !rows.Next() {
+		t.Fatal("Query didn't return row")
+	}
+	var fld1 int32
+	err = rows.Scan(&fld1)
+	if err != nil {
+		t.Fatal("Scan failed", err)
+	}
+	if fld1 != 1 {
+		t.Fatal("Returned value doesn't match")
+	}
+	if !rows.HasNextResultSet() {
+		t.Fatal("HasNextResultSet should return true but returned false")
+	}
+}
