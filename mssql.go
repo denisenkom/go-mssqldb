@@ -362,7 +362,7 @@ func (rc *MssqlRows) HasNextResultSet() bool {
 }
 
 func (rc *MssqlRows) NextResultSet() error {
-	return nil
+	return io.EOF
 }
 
 func (s *MssqlStmt) makeParam(val driver.Value) (res Param, err error) {
