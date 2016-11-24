@@ -36,14 +36,20 @@ func newTdsBuffer(bufsize int, transport io.ReadWriteCloser) *tdsBuffer {
 }
 
 func (w *tdsBuffer) flush() (err error) {
+	// writing packet size
 	binary.BigEndian.PutUint16(w.buf[2:], w.pos)
+
+	// writing packet into underlying transport
 	if _, err = w.transport.Write(w.buf[:w.pos]); err != nil {
 		return err
 	}
+
+	// execute afterFirst hook if it is set
 	if w.afterFirst != nil {
 		w.afterFirst()
 		w.afterFirst = nil
 	}
+
 	w.pos = 8
 	// packet number
 	w.buf[6] += 1
@@ -90,19 +96,7 @@ func (w *tdsBuffer) BeginPacket(packet_type byte) {
 
 func (w *tdsBuffer) FinishPacket() (err error) {
 	w.buf[1] = 1 // this is last packet
-
-	// writing packet size
-	binary.BigEndian.PutUint16(w.buf[2:], w.pos)
-
-	// writing packet into underlying transport
-	_, err = w.transport.Write(w.buf[:w.pos])
-
-	// execute afterFirst hook if it is set
-	if w.afterFirst != nil {
-		w.afterFirst()
-		w.afterFirst = nil
-	}
-	return err
+	return w.flush()
 }
 
 func (r *tdsBuffer) readNextPacket() error {

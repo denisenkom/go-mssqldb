@@ -19,7 +19,8 @@ func (t *MockTransport) Close() error {
 }
 
 func TestSendLogin(t *testing.T) {
-	buf := newTdsBuffer(1024, new(MockTransport))
+	memBuf := new(MockTransport)
+	buf := newTdsBuffer(1024, memBuf)
 	login := login{
 		TDSVersion:     verTDS73,
 		PacketSize:     0x1000,
@@ -57,11 +58,13 @@ func TestSendLogin(t *testing.T) {
 		0, 97, 0, 114, 0, 121, 0, 101, 0, 110, 0, 100, 0, 97, 0, 116, 0, 97, 0, 98,
 		0, 97, 0, 115, 0, 101, 0, 102, 0, 105, 0, 108, 0, 101, 0, 112, 0, 97, 0,
 		116, 0, 104, 0}
-	out := buf.buf[:buf.pos]
+	out := memBuf.Bytes()
 	if !bytes.Equal(ref, out) {
-		t.Error("input output don't match")
+		fmt.Println("Expected:")
 		fmt.Print(hex.Dump(ref))
+		fmt.Println("Returned:")
 		fmt.Print(hex.Dump(out))
+		t.Error("input output don't match")
 	}
 }
 
