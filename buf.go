@@ -3,6 +3,7 @@ package mssql
 import (
 	"encoding/binary"
 	"io"
+	"errors"
 )
 
 type header struct {
@@ -105,6 +106,12 @@ func (r *tdsBuffer) readNextPacket() error {
 		return err
 	}
 	offset := uint16(binary.Size(header))
+	if int(header.Size) > len(r.buf) {
+		return errors.New("Invalid packet size, it is longer than buffer size")
+	}
+	if int(offset) > int(header.Size) {
+		return errors.New("Invalid packet size, it is shorter than header size")
+	}
 	_, err = io.ReadFull(r.transport, r.buf[offset:header.Size])
 	if err != nil {
 		return err
