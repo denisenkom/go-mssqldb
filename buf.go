@@ -45,6 +45,7 @@ func (w *tdsBuffer) flush() (err error) {
 		w.afterFirst = nil
 	}
 	w.pos = 8
+	// packet number
 	w.buf[6] += 1
 	return nil
 }
@@ -88,9 +89,15 @@ func (w *tdsBuffer) BeginPacket(packet_type byte) {
 }
 
 func (w *tdsBuffer) FinishPacket() (err error) {
-	w.buf[1] = 1 // packet is complete
+	w.buf[1] = 1 // this is last packet
+
+	// writing packet size
 	binary.BigEndian.PutUint16(w.buf[2:], w.pos)
+
+	// writing packet into underlying transport
 	_, err = w.transport.Write(w.buf[:w.pos])
+
+	// execute afterFirst hook if it is set
 	if w.afterFirst != nil {
 		w.afterFirst()
 		w.afterFirst = nil
