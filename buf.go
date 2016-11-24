@@ -56,8 +56,8 @@ func (w *tdsBuffer) flush() (err error) {
 	return nil
 }
 
-func (w *tdsBuffer) Write(p []byte) (nn int, err error) {
-	total := 0
+func (w *tdsBuffer) Write(p []byte) (total int, err error) {
+	total = 0
 	for {
 		copied := copy(w.buf[w.pos:], p)
 		w.pos += uint16(copied)
@@ -66,11 +66,11 @@ func (w *tdsBuffer) Write(p []byte) (nn int, err error) {
 			break
 		}
 		if err = w.flush(); err != nil {
-			return total, err
+			return
 		}
 		p = p[copied:]
 	}
-	return total, nil
+	return
 }
 
 func (w *tdsBuffer) WriteByte(b byte) error {
@@ -94,7 +94,7 @@ func (w *tdsBuffer) BeginPacket(packet_type byte) {
 	w.pos = 8
 }
 
-func (w *tdsBuffer) FinishPacket() (err error) {
+func (w *tdsBuffer) FinishPacket() error {
 	w.buf[1] = 1 // this is last packet
 	return w.flush()
 }
@@ -204,17 +204,19 @@ func (r *tdsBuffer) readUcs2(numchars int) string {
 	return res
 }
 
-func (r *tdsBuffer) Read(buf []byte) (n int, err error) {
+func (r *tdsBuffer) Read(buf []byte) (copied int, err error) {
+	copied = 0
+	err = nil
 	if r.pos == r.size {
 		if r.final {
 			return 0, io.EOF
 		}
 		err = r.readNextPacket()
 		if err != nil {
-			return 0, err
+			return
 		}
 	}
-	copied := copy(buf, r.buf[r.pos:r.size])
+	copied = copy(buf, r.buf[r.pos:r.size])
 	r.pos += uint16(copied)
-	return copied, nil
+	return
 }
