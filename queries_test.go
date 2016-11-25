@@ -705,14 +705,21 @@ func TestIgnoreEmptyResults(t *testing.T) {
 }
 
 func TestNextResultSet(t *testing.T) {
-	t.Skip()
-
 	conn := open(t)
 	defer conn.Close()
 	rows, err := conn.Query("select 1; select 2")
 	if err != nil {
 		t.Fatal("Query failed", err.Error())
 	}
+	defer func() {
+		err := rows.Err()
+		if err != nil {
+			t.Error("unexpected error:", err)
+		}
+	}()
+
+	defer rows.Close()
+
 	if !rows.Next() {
 		t.Fatal("Query didn't return row")
 	}
@@ -724,8 +731,14 @@ func TestNextResultSet(t *testing.T) {
 	if fld1 != 1 {
 		t.Fatal("Returned value doesn't match")
 	}
+	if rows.Next() {
+		t.Fatal("Query returned unexpected second row.")
+	}
 	if !rows.NextResultSet() {
-		t.Fatal("HasNextResultSet should return true but returned false")
+		t.Fatal("NextResultSet should return true but returned false")
+	}
+	if !rows.Next() {
+		t.Fatal("Query didn't return row")
 	}
 	err = rows.Scan(&fld2)
 	if err != nil {

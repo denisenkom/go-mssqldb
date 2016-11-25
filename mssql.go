@@ -327,6 +327,8 @@ type MssqlRows struct {
 	sess    *tdsSession
 	cols    []string
 	tokchan chan tokenStruct
+
+	nextCols []string
 }
 
 func (rc *MssqlRows) Close() error {
@@ -341,10 +343,18 @@ func (rc *MssqlRows) Columns() (res []string) {
 }
 
 func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
+	if rc.nextCols != nil {
+		return io.EOF
+	}
 	for tok := range rc.tokchan {
 		switch tokdata := tok.(type) {
 		case []columnStruct:
-			return streamErrorf("Unexpected token COLMETADATA")
+			cols := make([]string, len(tokdata))
+			for i, col := range tokdata {
+				cols[i] = col.ColName
+			}
+			rc.nextCols = cols
+			return io.EOF
 		case []interface{}:
 			for i := range dest {
 				dest[i] = tokdata[i]
@@ -358,11 +368,16 @@ func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
 }
 
 func (rc *MssqlRows) HasNextResultSet() bool {
-	return true
+	return rc.nextCols != nil
 }
 
 func (rc *MssqlRows) NextResultSet() error {
-	return io.EOF
+	rc.cols = rc.nextCols
+	rc.nextCols = nil
+	if rc.cols == nil {
+		return io.EOF
+	}
+	return nil
 }
 
 func (s *MssqlStmt) makeParam(val driver.Value) (res Param, err error) {
