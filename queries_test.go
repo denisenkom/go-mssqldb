@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"net"
 )
 
 func TestSelect(t *testing.T) {
@@ -346,7 +347,7 @@ func TestExec(t *testing.T) {
 	_ = res
 }*/
 
-/*func TestShortTimeout(t *testing.T) {
+func TestShortTimeout(t *testing.T) {
 	if testing.Short() {
 		return
 	}
@@ -361,7 +362,10 @@ func TestExec(t *testing.T) {
 	if err == nil {
 		t.Fatal("Exec should fail with timeout")
 	}
-}*/
+	if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
+		t.Fatal("Exec should fail with timeout, failed with", err)
+	}
+}
 
 func TestTwoQueries(t *testing.T) {
 	conn := open(t)

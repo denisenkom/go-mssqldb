@@ -10,7 +10,7 @@ import (
 type netError struct{}
 
 func (e netError) Timeout() bool {
-	return true
+	return false
 }
 
 func (e netError) Temporary() bool {
@@ -46,7 +46,7 @@ func TestCheckBadConn(t *testing.T) {
 	for _, tt := range tests {
 		actual := CheckBadConn(tt.err)
 		if actual != tt.expected {
-			t.Error("%s: unexpected error.", tt.name)
+			t.Errorf("%s: unexpected error, got %v, expected %v", tt.name, actual, tt.expected)
 		}
 	}
 }
