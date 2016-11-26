@@ -357,14 +357,10 @@ func TestExec(t *testing.T) {
 	}
 	defer conn.Close()
 
-	res, err := conn.Exec("waitfor delay '00:03'")
+	_, err = conn.Exec("waitfor delay '00:00:15'")
 	if err == nil {
 		t.Fatal("Exec should fail with timeout")
 	}
-	if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
-		t.Fatal("Exec should fail with timeout, failed with", err)
-	}
-	_ = res
 }*/
 
 func TestTwoQueries(t *testing.T) {
