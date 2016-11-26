@@ -334,3 +334,25 @@ func TestParseConnectParamsKeepAlive(t *testing.T) {
 		t.Fail()
 	}
 }
+
+func TestInvalidConnectionString(t *testing.T) {
+	connStrings := []string{
+		"log=invalid",
+		"port=invalid",
+		"connection timeout=invalid",
+		"dial timeout=invalid",
+		"keepalive=invalid",
+		"encrypt=invalid",
+		"trustservercertificate=invalid",
+		"failoverport=invalid",
+	}
+	for _, connStr := range connStrings {
+		_, err := parseConnectParams(connStr)
+		if err == nil {
+			t.Errorf("Connection expected to fail for connection string %s but it didn't", connStr)
+			continue
+		} else {
+			t.Logf("Connection failed for %s as expected with error %v", connStr, err)
+		}
+	}
+}

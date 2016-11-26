@@ -656,7 +656,7 @@ type connectParams struct {
 	failOverPort           uint64
 }
 
-func splitConnectinoString(dsn string) (res map[string]string) {
+func splitConnectionString(dsn string) (res map[string]string) {
 	res = map[string]string{}
 	parts := strings.Split(dsn, ";")
 	for _, part := range parts {
@@ -678,7 +678,7 @@ func splitConnectinoString(dsn string) (res map[string]string) {
 }
 
 func parseConnectParams(dsn string) (*connectParams, error) {
-	params := splitConnectinoString(dsn)
+	params := splitConnectionString(dsn)
 	var p connectParams
 	strlog, ok := params["log"]
 	if ok {
