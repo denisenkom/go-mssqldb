@@ -324,17 +324,6 @@ func TestSecureConnection(t *testing.T) {
 	}
 }
 
-func TestParseConnectParamsKeepAlive(t *testing.T) {
-	parsedParams, err := parseConnectParams("keepAlive=60")
-	if err != nil {
-		t.Fatal("cannot parse params: ", err)
-	}
-
-	if parsedParams.keepAlive != time.Duration(60)*time.Second {
-		t.Fail()
-	}
-}
-
 func TestInvalidConnectionString(t *testing.T) {
 	connStrings := []string{
 		"log=invalid",
@@ -353,6 +342,47 @@ func TestInvalidConnectionString(t *testing.T) {
 			continue
 		} else {
 			t.Logf("Connection failed for %s as expected with error %v", connStr, err)
+		}
+	}
+}
+
+func TestValidConnectionString(t *testing.T) {
+	type testStruct struct{
+		connStr string;
+		check func (connectParams) bool;
+	}
+	connStrings := []testStruct{
+		{"server=server\\instance;database=testdb;user id=tester;password=pwd", func(p connectParams) bool {return p.host == "server" && p.instance == "instance" && p.user == "tester" && p.password == "pwd"}},
+		{"server=.", func(p connectParams) bool {return p.host == "localhost"}},
+		{"server=(local)", func(p connectParams) bool {return p.host == "localhost"}},
+		{"ServerSPN=serverspn;Workstation ID=workstid", func(p connectParams) bool {return p.serverSPN == "serverspn" && p.workstation == "workstid"}},
+		{"failoverpartner=fopartner;failoverport=2000", func(p connectParams) bool {return p.failOverPartner == "fopartner" && p.failOverPort == 2000}},
+		{"app name=appname;applicationintent=ReadOnly", func(p connectParams) bool {return p.appname == "appname" && (p.typeFlags & fReadOnlyIntent != 0)}},
+		{"encrypt=disable", func(p connectParams) bool {return p.disableEncryption}},
+		{"encrypt=true", func(p connectParams) bool {return p.encrypt && !p.disableEncryption}},
+		{"encrypt=false", func(p connectParams) bool {return !p.encrypt && !p.disableEncryption}},
+		{"trustservercertificate=true", func(p connectParams) bool {return p.trustServerCertificate}},
+		{"trustservercertificate=false", func(p connectParams) bool {return !p.trustServerCertificate}},
+		{"certificate=abc", func(p connectParams) bool {return p.certificate == "abc"}},
+		{"hostnameincertificate=abc", func(p connectParams) bool {return p.hostInCertificate == "abc"}},
+		{"connection timeout=3;dial timeout=4;keepalive=5", func(p connectParams) bool {return p.conn_timeout == 3 * time.Second && p.dial_timeout == 4 * time.Second && p.keepAlive == 5 * time.Second}},
+		{"log=63;port=1000", func(p connectParams) bool {return p.logFlags == 63 && p.port == 1000}},
+
+		// those are supported currently, but maybe should not be
+		{"someparam", func(p connectParams) bool {return true}},
+		{";;=;", func(p connectParams) bool {return true}},
+	}
+	for _, ts := range connStrings {
+		p, err := parseConnectParams(ts.connStr)
+		if err == nil {
+			t.Logf("Connection string was parsed successfully %s", ts.connStr)
+		} else {
+			t.Errorf("Connection string %s failed to parse with error %s", ts.connStr, err)
+			continue
+		}
+
+		if !ts.check(p) {
+			t.Errorf("Check failed on conn str %s", ts.connStr)
 		}
 	}
 }
