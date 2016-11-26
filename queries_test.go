@@ -794,3 +794,26 @@ func TestSetLanguage(t *testing.T) {
 	}
 	t.Log("Returned value", val)
 }
+
+func TestConnectionClosing(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	for i := 1; i <= 100; i++ {
+		if conn.Stats().OpenConnections > 1 {
+			t.Errorf("Open connections is expected to stay <= 1, but it is %d", conn.Stats().OpenConnections)
+			return
+		}
+
+		stmt, err := conn.Query("select 1")
+		if err != nil {
+			t.Errorf("Query failed with unexpected error %s", err)
+		}
+		for stmt.Next() {
+			var val interface{}
+			err := stmt.Scan(&val)
+			if err != nil {
+				t.Errorf("Query failed with unexpected error %s", err)
+			}
+		}
+	}
+}
