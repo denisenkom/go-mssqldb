@@ -776,3 +776,21 @@ func TestErrorInfo(t *testing.T) {
 		t.Error("Failed to convert error to SQLErorr", err)
 	}
 }
+
+func TestSetLanguage(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+
+	_, err := conn.Exec("set language russian")
+	if err != nil {
+		t.Errorf("Query failed with unexpected error %s", err)
+	}
+
+	row := conn.QueryRow("select cast(getdate() as varchar(50))")
+	var val interface{}
+	err = row.Scan(&val)
+	if err != nil {
+		t.Errorf("Query failed with unexpected error %s", err)
+	}
+	t.Log("Returned value", val)
+}

@@ -42,10 +42,20 @@ const (
 	envTypLanguage           = 2
 	envTypCharset            = 3
 	envTypPacketSize         = 4
+	envSortId                = 5
+	envSortFlags             = 6
+	envSqlCollation          = 7
 	envTypBeginTran          = 8
 	envTypCommitTran         = 9
 	envTypRollbackTran       = 10
+	envEnlistDTC             = 11
+	envDefectTran            = 12
 	envDatabaseMirrorPartner = 13
+	envPromoteTran           = 15
+	envTranMgrAddr           = 16
+	envTranEnded             = 17
+	envResetConnAck          = 18
+	envStartedInstanceName   = 19
 	envRouting               = 20
 )
 
@@ -109,6 +119,30 @@ func processEnvChg(sess *tdsSession) {
 			if err != nil {
 				badStreamPanic(err)
 			}
+		case envTypLanguage:
+			//currently ignored
+			// old value
+			_, err = readBVarChar(r)
+			if err != nil {
+				badStreamPanic(err)
+			}
+			// new value
+			_, err = readBVarChar(r)
+			if err != nil {
+				badStreamPanic(err)
+			}
+		case envTypCharset:
+			//currently ignored
+			// old value
+			_, err = readBVarChar(r)
+			if err != nil {
+				badStreamPanic(err)
+			}
+			// new value
+			_, err = readBVarChar(r)
+			if err != nil {
+				badStreamPanic(err)
+			}
 		case envTypPacketSize:
 			packetsize, err := readBVarChar(r)
 			if err != nil {
@@ -126,6 +160,36 @@ func processEnvChg(sess *tdsSession) {
 				newbuf := make([]byte, packetsizei)
 				copy(newbuf, sess.buf.buf)
 				sess.buf.buf = newbuf
+			}
+		case envSortId:
+			// currently ignored
+			// old value, should be 0
+			if _, err = readBVarChar(r); err != nil {
+				badStreamPanic(err)
+			}
+			// new value
+			if _, err = readBVarChar(r); err != nil {
+				badStreamPanic(err)
+			}
+		case envSortFlags:
+			// currently ignored
+			// old value, should be 0
+			if _, err = readBVarChar(r); err != nil {
+				badStreamPanic(err)
+			}
+			// new value
+			if _, err = readBVarChar(r); err != nil {
+				badStreamPanic(err)
+			}
+		case envSqlCollation:
+			// currently ignored
+			// old value
+			if _, err = readBVarChar(r); err != nil {
+				badStreamPanic(err)
+			}
+			// new value
+			if _, err = readBVarChar(r); err != nil {
+				badStreamPanic(err)
 			}
 		case envTypBeginTran:
 			tranid, err := readBVarByte(r)
@@ -160,6 +224,26 @@ func processEnvChg(sess *tdsSession) {
 				}
 			}
 			sess.tranid = 0
+		case envEnlistDTC:
+			// currently ignored
+			// old value
+			if _, err = readBVarChar(r); err != nil {
+				badStreamPanic(err)
+			}
+			// new value, should be 0
+			if _, err = readBVarChar(r); err != nil {
+				badStreamPanic(err)
+			}
+		case envDefectTran:
+			// currently ignored
+			// old value, should be 0
+			if _, err = readBVarChar(r); err != nil {
+				badStreamPanic(err)
+			}
+			// new value
+			if _, err = readBVarChar(r); err != nil {
+				badStreamPanic(err)
+			}
 		case envDatabaseMirrorPartner:
 			sess.partner, err = readBVarChar(r)
 			if err != nil {
@@ -167,6 +251,57 @@ func processEnvChg(sess *tdsSession) {
 			}
 			_, err = readBVarChar(r)
 			if err != nil {
+				badStreamPanic(err)
+			}
+		case envPromoteTran:
+			// currently ignored
+			// old value, should be 0
+			if _, err = readBVarChar(r); err != nil {
+				badStreamPanic(err)
+			}
+			// dtc token
+			// spec says it should be L_VARBYTE, so this code might be wrong
+			if _, err = readBVarChar(r); err != nil {
+				badStreamPanic(err)
+			}
+		case envTranMgrAddr:
+			// currently ignored
+			// old value, should be 0
+			if _, err = readBVarChar(r); err != nil {
+				badStreamPanic(err)
+			}
+			// XACT_MANAGER_ADDRESS = B_VARBYTE
+			if _, err = readBVarChar(r); err != nil {
+				badStreamPanic(err)
+			}
+		case envTranEnded:
+			// currently ignored
+			// old value, B_VARBYTE
+			if _, err = readBVarChar(r); err != nil {
+				badStreamPanic(err)
+			}
+			// should be 0
+			if _, err = readBVarChar(r); err != nil {
+				badStreamPanic(err)
+			}
+		case envResetConnAck:
+			// currently ignored
+			// old value, should be 0
+			if _, err = readBVarChar(r); err != nil {
+				badStreamPanic(err)
+			}
+			// should be 0
+			if _, err = readBVarChar(r); err != nil {
+				badStreamPanic(err)
+			}
+		case envStartedInstanceName:
+			// currently ignored
+			// old value, should be 0
+			if _, err = readBVarChar(r); err != nil {
+				badStreamPanic(err)
+			}
+			// instance name
+			if _, err = readBVarChar(r); err != nil {
 				badStreamPanic(err)
 			}
 		case envRouting:
@@ -199,15 +334,9 @@ func processEnvChg(sess *tdsSession) {
 			sess.routedServer = newServer
 			sess.routedPort = newPort
 		default:
-			// ignore unknown env change types
-			_, err = readBVarByte(r)
-			if err != nil {
-				badStreamPanic(err)
-			}
-			_, err = readBVarByte(r)
-			if err != nil {
-				badStreamPanic(err)
-			}
+			// ignore rest of records because we don't know how to skip those
+			sess.log.Printf("WARN: Unknown ENVCHANGE record detected with type id = %d\n", envtype)
+			break
 		}
 
 	}
