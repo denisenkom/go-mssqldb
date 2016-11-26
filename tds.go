@@ -652,9 +652,33 @@ type connectParams struct {
 	workstation            string
 	appname                string
 	typeFlags              uint8
+	failOverPartner        string
+	failOverPort           uint64
 }
 
-func parseConnectParams(params map[string]string) (*connectParams, error) {
+func splitConnectinoString(dsn string) (res map[string]string) {
+	res = map[string]string{}
+	parts := strings.Split(dsn, ";")
+	for _, part := range parts {
+		if len(part) == 0 {
+			continue
+		}
+		lst := strings.SplitN(part, "=", 2)
+		name := strings.TrimSpace(strings.ToLower(lst[0]))
+		if len(name) == 0 {
+			continue
+		}
+		var value string = ""
+		if len(lst) > 1 {
+			value = strings.TrimSpace(lst[1])
+		}
+		res[name] = value
+	}
+	return res
+}
+
+func parseConnectParams(dsn string) (*connectParams, error) {
+	params := splitConnectinoString(dsn)
 	var p connectParams
 	strlog, ok := params["log"]
 	if ok {
@@ -794,6 +818,21 @@ func parseConnectParams(params map[string]string) (*connectParams, error) {
 		}
 	}
 
+	failOverPartner, ok := params["failoverpartner"]
+	if ok {
+		p.failOverPartner = failOverPartner
+	}
+
+	failOverPort, ok := params["failoverport"]
+	if ok {
+		var err error
+		p.failOverPort, err = strconv.ParseUint(failOverPort, 0, 16)
+		if err != nil {
+			f := "Invalid tcp port '%v': %v"
+			return nil, fmt.Errorf(f, failOverPort, err.Error())
+		}
+	}
+
 	return &p, nil
 }
 
@@ -869,12 +908,7 @@ func dialConnection(p *connectParams) (conn net.Conn, err error) {
 	return conn, err
 }
 
-func connect(params map[string]string) (res *tdsSession, err error) {
-	p, err := parseConnectParams(params)
-	if err != nil {
-		return nil, err
-	}
-
+func connect(p *connectParams) (res *tdsSession, err error) {
 initiate_connection:
 	conn, err := dialConnection(p)
 	if err != nil {

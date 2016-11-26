@@ -107,58 +107,34 @@ func (c *MssqlConn) Begin() (driver.Tx, error) {
 	return c, nil
 }
 
-func parseConnectionString(dsn string) (res map[string]string) {
-	res = map[string]string{}
-	parts := strings.Split(dsn, ";")
-	for _, part := range parts {
-		if len(part) == 0 {
-			continue
-		}
-		lst := strings.SplitN(part, "=", 2)
-		name := strings.TrimSpace(strings.ToLower(lst[0]))
-		if len(name) == 0 {
-			continue
-		}
-		var value string = ""
-		if len(lst) > 1 {
-			value = strings.TrimSpace(lst[1])
-		}
-		res[name] = value
-	}
-	return res
-}
-
 func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
-	params := parseConnectionString(dsn)
-
-	conn, err := openConnection(dsn, params)
+	params, err := parseConnectParams(dsn)
 	if err != nil {
 		return nil, err
 	}
 
-	conn.sess.log = (*Logger)(d.log)
-	return conn, nil
-}
-
-func openConnection(dsn string, params map[string]string) (*MssqlConn, error) {
 	sess, err := connect(params)
 	if err != nil {
-		partner := params["failoverpartner"]
-		if partner == "" {
+		// main server failed, try fail-over partner
+		if params.failOverPartner == "" {
 			return nil, err
 		}
 
-		delete(params, "failoverpartner") // remove the failoverpartner entry to prevent infinite recursion
-		params["server"] = partner
-
-		if port, ok := params["failoverport"]; ok {
-			params["port"] = port
+		params.host = params.failOverPartner
+		if params.failOverPort != 0 {
+			params.port = params.failOverPort
 		}
 
-		return openConnection(dsn, params)
+		sess, err = connect(params)
+		if err != nil {
+			// fail-over partner also failed, now fail
+			return nil, err
+		}
 	}
 
-	return &MssqlConn{sess}, nil
+	conn := &MssqlConn{sess}
+	conn.sess.log = (*Logger)(d.log)
+	return conn, nil
 }
 
 func (c *MssqlConn) Close() error {

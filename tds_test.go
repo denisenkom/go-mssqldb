@@ -69,15 +69,13 @@ func TestSendLogin(t *testing.T) {
 }
 
 func TestSendSqlBatch(t *testing.T) {
-	addr := os.Getenv("HOST")
-	instance := os.Getenv("INSTANCE")
+	p, err := parseConnectParams(makeConnStr())
+	if err != nil {
+		t.Error("parseConnectParams failed:", err.Error())
+		return
+	}
 
-	conn, err := connect(map[string]string{
-		"server":   fmt.Sprintf("%s\\%s", addr, instance),
-		"user id":  os.Getenv("SQLUSER"),
-		"password": os.Getenv("SQLPASSWORD"),
-		"database": os.Getenv("DATABASE"),
-	})
+	conn, err := connect(p)
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
 		return
@@ -327,8 +325,7 @@ func TestSecureConnection(t *testing.T) {
 }
 
 func TestParseConnectParamsKeepAlive(t *testing.T) {
-	params := parseConnectionString("keepAlive=60")
-	parsedParams, err := parseConnectParams(params)
+	parsedParams, err := parseConnectParams("keepAlive=60")
 	if err != nil {
 		t.Fatal("cannot parse params: ", err)
 	}
