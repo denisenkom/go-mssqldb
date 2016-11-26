@@ -621,11 +621,13 @@ func sendSqlBatch72(buf *tdsBuffer,
 	headers []headerStruct) (err error) {
 	buf.BeginPacket(packSQLBatch)
 
-	writeAllHeaders(buf, headers)
+	if err = writeAllHeaders(buf, headers); err != nil {
+		return
+	}
 
 	_, err = buf.Write(str2ucs2(sqltext))
 	if err != nil {
-		return err
+		return
 	}
 	return buf.FinishPacket()
 }
