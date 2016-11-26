@@ -389,7 +389,7 @@ func readLongLenType(ti *typeInfo, r *tdsBuffer) (res interface{}) {
 	// http://msdn.microsoft.com/en-us/library/dd304783.aspx
 	// and here:
 	// http://msdn.microsoft.com/en-us/library/dd357254.aspx
-	textptrsize := r.byte()
+	textptrsize := int(r.byte())
 	if textptrsize == 0 {
 		return nil
 	}
@@ -650,8 +650,6 @@ func readVarLen(ti *typeInfo, r *tdsBuffer) {
 				r.UsVarChar()
 			}
 			ti.Reader = readLongLenType
-		case typeXml:
-			panic("XMLTYPE not implemented")
 		case typeVariant:
 			ti.Reader = readVariantType
 		}

@@ -30,6 +30,7 @@ func TestSelect(t *testing.T) {
 		{"cast(1 as int)", int64(1)},
 		{"cast(-1 as int)", int64(-1)},
 		{"cast(1 as tinyint)", int64(1)},
+		{"cast(255 as tinyint)", int64(255)},
 		{"cast(1 as smallint)", int64(1)},
 		{"cast(-1 as smallint)", int64(-1)},
 		{"cast(1 as bigint)", int64(1)},
@@ -70,6 +71,8 @@ func TestSelect(t *testing.T) {
 		{"cast(null as text)", nil},
 		{"cast(N'abc' as ntext)", "abc"},
 		{"cast(0x1234 as image)", []byte{0x12, 0x34}},
+		{"cast('abc' as char(3))", "abc"},
+		{"cast('abc' as varchar(3))", "abc"},
 		{"cast(N'проверка' as nvarchar(max))", "проверка"},
 		{"cast(N'Δοκιμή' as nvarchar(max))", "Δοκιμή"},
 		{"cast(cast(N'สวัสดี' as nvarchar(max)) collate Thai_CI_AI as varchar(max))", "สวัสดี"},                // cp874
@@ -145,6 +148,40 @@ func TestSelect(t *testing.T) {
 	}
 }
 
+func TestSelectDateTimeOffset(t *testing.T) {
+	type testStruct struct {
+		sql string
+		val time.Time
+	}
+	values := []testStruct{
+		{"cast('2010-11-15T11:56:45.123+01:00' as datetimeoffset(3))",
+			time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.FixedZone("", 60*60)) },
+		{"cast(cast('2010-11-15T11:56:45.123+10:00' as datetimeoffset(3)) as sql_variant)",
+			time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.FixedZone("", 10*60*60)) },
+	}
+
+	conn := open(t)
+	defer conn.Close()
+	for _, test := range values {
+		row := conn.QueryRow("select " + test.sql)
+		var retval interface{}
+		err := row.Scan(&retval)
+		if err != nil {
+			t.Error("Scan failed:", test.sql, err.Error())
+			continue
+		}
+		retvalDate := retval.(time.Time)
+		if retvalDate.UTC() != test.val.UTC() {
+			t.Errorf("UTC values don't match '%v' '%v' for test: %s", retvalDate, test.val, test.sql)
+			continue
+		}
+		if retvalDate.String() != test.val.String() {
+			t.Errorf("Locations don't match '%v' '%v' for test: %s", retvalDate.String(), test.val.String(), test.sql)
+			continue
+		}
+	}
+}
+
 func TestSelectNewTypes(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
@@ -181,16 +218,12 @@ func TestSelectNewTypes(t *testing.T) {
 			time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.UTC)},
 		{"cast('2010-11-15T11:56:45' as datetime2(0))",
 			time.Date(2010, 11, 15, 11, 56, 45, 0, time.UTC)},
-		//{"cast('2010-11-15T11:56:45.123+10:00' as datetimeoffset(3))",
-		// time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.FixedZone("", 10*60*60)) },
 		{"cast(cast('2000-01-01' as date) as sql_variant)",
 			time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
 		{"cast(cast('00:00:45.123' as time(3)) as sql_variant)",
 			time.Date(1, 1, 1, 00, 00, 45, 123000000, time.UTC)},
 		{"cast(cast('2010-11-15T11:56:45.123' as datetime2(3)) as sql_variant)",
 			time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.UTC)},
-		//{"cast(cast('2010-11-15T11:56:45.123+10:00' as datetimeoffset(3)) as sql_variant)",
-		// time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.FixedZone("", 10*60*60)) },
 	}
 	for _, test := range values {
 		stmt, err := conn.Prepare("select " + test.sql)
