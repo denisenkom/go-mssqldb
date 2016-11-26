@@ -739,3 +739,26 @@ func TestIgnoreEmptyResults(t *testing.T) {
 		t.Fatal("Returned value doesn't match")
 	}
 }
+
+func TestMssqlStmt_SetQueryNotification(t *testing.T) {
+	mssqldriver := &MssqlDriver{}
+	cn, err := mssqldriver.Open(makeConnStr())
+	stmt, err := cn.Prepare("SELECT 1")
+	if err != nil {
+		t.Error("Connection failed", err)
+	}
+
+	sqlstmt := stmt.(*MssqlStmt)
+	sqlstmt.SetQueryNotification("ABC", "service=WebCacheNotifications", time.Hour)
+
+	rows, errQuery := sqlstmt.Query(nil)
+	if errQuery == nil {
+		t.Error("Query unexpectedly succeeded, even though we didn't setup Service Broker")
+	} else {
+		t.Skipped()
+		return
+	}
+	defer rows.Close()
+	// notifications are sent to Service Broker
+	// see for more info: https://github.com/denisenkom/go-mssqldb/pull/90
+}
