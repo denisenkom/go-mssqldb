@@ -622,22 +622,25 @@ func TestIdentity(t *testing.T) {
 func TestDateTimeParam(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
+	type testStruct struct {
+		t time.Time
+	}
+	values := []testStruct{
+		{time.Date(2004, 6, 3, 12, 13, 14, 150000000, time.UTC)},
+		{time.Date(4, 6, 3, 12, 13, 14, 150000000, time.UTC)},
+	}
+	for _, test := range values {
+		var t2 time.Time
+		err := conn.QueryRow("select ?", test.t).Scan(&t2)
+		if err != nil {
+			t.Error("select / scan failed", err.Error())
+			continue
+		}
+		if test.t.Sub(t2) != 0 {
+			t.Errorf("datetime does not match: '%s' '%s' delta: %d", test.t, t2, test.t.Sub(t2))
+		}
+	}
 
-	t1, err := time.Parse("2006-01-02 15:04:05.99", "2004-06-03 12:13:14.15")
-	if err != nil {
-		t.Error("time parse failed", err.Error())
-		return
-	}
-	var t2 time.Time
-	err = conn.QueryRow("select ?", t1).Scan(&t2)
-	if err != nil {
-		t.Error("select / scan failed", err.Error())
-		return
-	}
-	if t1.Sub(t2) != 0 {
-		t.Errorf("datetime does not match: '%s' '%s' delta: %d", t1, t2, t1.Sub(t2))
-		return
-	}
 }
 
 func TestBigQuery(t *testing.T) {
