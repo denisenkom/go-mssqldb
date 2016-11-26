@@ -762,3 +762,17 @@ func TestMssqlStmt_SetQueryNotification(t *testing.T) {
 	// notifications are sent to Service Broker
 	// see for more info: https://github.com/denisenkom/go-mssqldb/pull/90
 }
+
+func TestErrorInfo(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+
+	_, err := conn.Exec("select bad")
+	if sqlError, ok := err.(Error); ok {
+		if sqlError.SQLErrorNumber() != 207/*invalid column name*/ {
+			t.Errorf("Query failed with unexpected error number %d %s", sqlError.SQLErrorNumber(), sqlError.SQLErrorMessage())
+		}
+	} else {
+		t.Error("Failed to convert error to SQLErorr", err)
+	}
+}
