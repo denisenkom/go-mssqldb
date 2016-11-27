@@ -12,6 +12,7 @@ import (
 	"net"
 	"strings"
 	"time"
+	"reflect"
 )
 
 func init() {
@@ -239,13 +240,14 @@ func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
 }
 
 func (s *MssqlStmt) Query(args []driver.Value) (res driver.Rows, err error) {
+	res = nil
 	if err = s.sendQuery(args); err != nil {
 		return
 	}
 	tokchan := make(chan tokenStruct, 5)
 	go processResponse(s.c.sess, tokchan)
 	// process metadata
-	var cols []string
+	var cols []columnStruct
 loop:
 	for tok := range tokchan {
 		switch token := tok.(type) {
@@ -257,10 +259,7 @@ loop:
 		//case doneStruct:
 		//break loop
 		case []columnStruct:
-			cols = make([]string, len(token))
-			for i, col := range token {
-				cols[i] = col.ColName
-			}
+			cols = token
 			break loop
 		case error:
 			if s.c.sess.tranid != 0 {
@@ -269,7 +268,8 @@ loop:
 			return nil, CheckBadConn(token)
 		}
 	}
-	return &MssqlRows{sess: s.c.sess, tokchan: tokchan, cols: cols}, nil
+	res = &MssqlRows{sess: s.c.sess, tokchan: tokchan, cols: cols}
+	return
 }
 
 func (s *MssqlStmt) Exec(args []driver.Value) (res driver.Result, err error) {
@@ -304,10 +304,10 @@ func (s *MssqlStmt) Exec(args []driver.Value) (res driver.Result, err error) {
 
 type MssqlRows struct {
 	sess    *tdsSession
-	cols    []string
+	cols    []columnStruct
 	tokchan chan tokenStruct
 
-	nextCols []string
+	nextCols []columnStruct
 }
 
 func (rc *MssqlRows) Close() error {
@@ -318,21 +318,21 @@ func (rc *MssqlRows) Close() error {
 }
 
 func (rc *MssqlRows) Columns() (res []string) {
-	return rc.cols
+	res = make([]string, len(rc.cols))
+	for i, col := range rc.cols {
+		res[i] = col.ColName
+	}
+	return
 }
 
-func (rc *MssqlRows) Next(dest []driver.Value) (err error) {
+func (rc *MssqlRows) Next(dest []driver.Value) (error) {
 	if rc.nextCols != nil {
 		return io.EOF
 	}
 	for tok := range rc.tokchan {
 		switch tokdata := tok.(type) {
 		case []columnStruct:
-			cols := make([]string, len(tokdata))
-			for i, col := range tokdata {
-				cols[i] = col.ColName
-			}
-			rc.nextCols = cols
+			rc.nextCols = tokdata
 			return io.EOF
 		case []interface{}:
 			for i := range dest {
@@ -357,6 +357,57 @@ func (rc *MssqlRows) NextResultSet() error {
 		return io.EOF
 	}
 	return nil
+}
+
+// It should return
+// the value type that can be used to scan types into. For example, the database
+// column type "bigint" this should return "reflect.TypeOf(int64(0))".
+func (r *MssqlRows) ColumnTypeScanType(index int) reflect.Type {
+	return makeGoLangScanType(r.cols[index].ti)
+}
+
+// RowsColumnTypeDatabaseTypeName may be implemented by Rows. It should return the
+// database system type name without the length. Type names should be uppercase.
+// Examples of returned types: "VARCHAR", "NVARCHAR", "VARCHAR2", "CHAR", "TEXT",
+// "DECIMAL", "SMALLINT", "INT", "BIGINT", "BOOL", "[]BIGINT", "JSONB", "XML",
+// "TIMESTAMP".
+func (r *MssqlRows) ColumnTypeDatabaseTypeName(index int) string {
+	return makeGoLangTypeName(r.cols[index].ti)
+}
+
+// RowsColumnTypeLength may be implemented by Rows. It should return the length
+// of the column type if the column is a variable length type. If the column is
+// not a variable length type ok should return false.
+// If length is not limited other than system limits, it should return math.MaxInt64.
+// The following are examples of returned values for various types:
+//   TEXT          (math.MaxInt64, true)
+//   varchar(10)   (10, true)
+//   nvarchar(10)  (10, true)
+//   decimal       (0, false)
+//   int           (0, false)
+//   bytea(30)     (30, true)
+func (r *MssqlRows) ColumnTypeLength(index int) (int64, bool) {
+	return makeGoLangTypeLength(r.cols[index].ti)
+}
+
+// It should return
+// the precision and scale for decimal types. If not applicable, ok should be false.
+// The following are examples of returned values for various types:
+//   decimal(38, 4)    (38, 4, true)
+//   int               (0, 0, false)
+//   decimal           (math.MaxInt64, math.MaxInt64, true)
+func (r *MssqlRows) ColumnTypePrecisionScale(index int) (int64, int64, bool) {
+	return makeGoLangTypePrecisionScale(r.cols[index].ti)
+}
+
+// The nullable value should
+// be true if it is known the column may be null, or false if the column is known
+// to be not nullable.
+// If the column nullability is unknown, ok should be false.
+func (r *MssqlRows) ColumnTypeNullable(index int) (nullable, ok bool) {
+	nullable = r.cols[index].Flags & colFlagNullable != 0
+	ok = true
+	return
 }
 
 func (s *MssqlStmt) makeParam(val driver.Value) (res Param, err error) {

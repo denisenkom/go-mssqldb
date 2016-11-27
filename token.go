@@ -59,6 +59,13 @@ const (
 	envRouting               = 20
 )
 
+// COLMETADATA flags
+// https://msdn.microsoft.com/en-us/library/dd357363.aspx
+const (
+	colFlagNullable = 1
+	// TODO implement more flags
+)
+
 // interface for all tokens
 type tokenStruct interface{}
 

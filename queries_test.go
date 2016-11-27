@@ -750,14 +750,10 @@ func TestMssqlStmt_SetQueryNotification(t *testing.T) {
 	sqlstmt := stmt.(*MssqlStmt)
 	sqlstmt.SetQueryNotification("ABC", "service=WebCacheNotifications", time.Hour)
 
-	rows, errQuery := sqlstmt.Query(nil)
-	if errQuery == nil {
-		t.Error("Query unexpectedly succeeded, even though we didn't setup Service Broker")
-	} else {
-		t.Skipped()
-		return
+	rows, err := sqlstmt.Query(nil)
+	if err == nil {
+		rows.Close()
 	}
-	defer rows.Close()
 	// notifications are sent to Service Broker
 	// see for more info: https://github.com/denisenkom/go-mssqldb/pull/90
 }
