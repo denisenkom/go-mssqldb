@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"context"
+	"database/sql"
 )
 
 func TestNextResultSet(t *testing.T) {
@@ -214,5 +216,51 @@ func TestColumnIntrospection(t *testing.T) {
 				t.Errorf("Expected scale %d but returned %d for %s", test.scale, scale, test.expr)
 			}
 		}
+	}
+}
+
+func TestContext(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	ctx := context.Background()
+	ctx = sql.IsolationContext(ctx, sql.LevelSerializable)
+	tx, err := conn.BeginContext(ctx)
+	if err != nil {
+		t.Errorf("BeginContext failed with unexpected error %s", err)
+		return
+	}
+	rows, err := tx.QueryContext(ctx, "DBCC USEROPTIONS")
+	properties := make(map[string]string)
+	for rows.Next() {
+		var name, value string
+		if err = rows.Scan(&name, &value); err != nil {
+			t.Errorf("Scan failed with unexpected error %s", err)
+		}
+		properties[name] = value
+	}
+
+	if properties["isolation level"] != "serializable" {
+		t.Errorf("Expected isolation level to be serializable but it is %s", properties["isolation level"])
+	}
+
+	row := tx.QueryRowContext(ctx, "select 1")
+	var val int64
+	if err = row.Scan(&val); err != nil {
+		t.Errorf("QueryRowContext failed with unexpected error %s", err)
+	}
+	if val != 1 {
+		t.Error("Incorrect value returned from query")
+	}
+
+	_, err = tx.ExecContext(ctx, "select 1")
+	if err != nil {
+		t.Errorf("ExecContext failed with unexpected error %s", err)
+		return
+	}
+
+	_, err = tx.PrepareContext(ctx, "select 1")
+	if err != nil {
+		t.Errorf("PrepareContext failed with unexpected error %s", err)
+		return
 	}
 }

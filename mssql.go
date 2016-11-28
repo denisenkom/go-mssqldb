@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 	"reflect"
+	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 )
 
 func init() {
@@ -87,11 +88,15 @@ func (c *MssqlConn) Rollback() error {
 }
 
 func (c *MssqlConn) Begin() (driver.Tx, error) {
+	return c.begin(isolationUseCurrent)
+}
+
+func (c *MssqlConn) begin(tdsIsolation isoLevel) (driver.Tx, error) {
 	headers := []headerStruct{
 		{hdrtype: dataStmHdrTransDescr,
 			data: transDescrHdr{0, 1}.pack()},
 	}
-	if err := sendBeginXact(c.sess.buf, headers, 0, ""); err != nil {
+	if err := sendBeginXact(c.sess.buf, headers, tdsIsolation, ""); err != nil {
 		return nil, CheckBadConn(err)
 	}
 	tokchan := make(chan tokenStruct, 5)
@@ -158,6 +163,10 @@ type queryNotifSub struct {
 }
 
 func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
+	return c.prepareContext(context.Background(), query)
+}
+
+func (c *MssqlConn) prepareContext(ctx context.Context, query string) (driver.Stmt, error) {
 	q, paramCount := parseParams(query)
 	return &MssqlStmt{c, q, paramCount, nil}, nil
 }
@@ -178,7 +187,7 @@ func (s *MssqlStmt) NumInput() int {
 	return s.paramCount
 }
 
-func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
+func (s *MssqlStmt) sendQuery(ctx context.Context, args []namedValue) (err error) {
 	headers := []headerStruct{
 		{hdrtype: dataStmHdrTransDescr,
 			data: transDescrHdr{s.c.sess.tranid, 1}.pack()},
@@ -216,7 +225,7 @@ func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
 			return
 		}
 		for i, val := range args {
-			params[i+2], err = s.makeParam(val)
+			params[i+2], err = s.makeParam(val.Value)
 			if err != nil {
 				return
 			}
@@ -238,9 +247,29 @@ func (s *MssqlStmt) sendQuery(args []driver.Value) (err error) {
 	return
 }
 
-func (s *MssqlStmt) Query(args []driver.Value) (res driver.Rows, err error) {
-	res = nil
-	if err = s.sendQuery(args); err != nil {
+type namedValue struct {
+	Name string
+	Ordinal int
+	Value driver.Value
+}
+
+func convertOldArgs(args []driver.Value) []namedValue {
+	list := make([]namedValue, len(args))
+	for i, v := range args {
+		list[i] = namedValue{
+			Ordinal: i+1,
+			Value: v,
+		}
+	}
+	return list
+}
+
+func (s *MssqlStmt) Query(args []driver.Value) (driver.Rows, error) {
+	return s.queryContext(context.Background(), convertOldArgs(args))
+}
+
+func (s *MssqlStmt) queryContext(ctx context.Context, args []namedValue) (res driver.Rows, err error) {
+	if err = s.sendQuery(ctx, args); err != nil {
 		return
 	}
 	tokchan := make(chan tokenStruct, 5)
@@ -271,8 +300,12 @@ loop:
 	return
 }
 
-func (s *MssqlStmt) Exec(args []driver.Value) (res driver.Result, err error) {
-	if err = s.sendQuery(args); err != nil {
+func (s *MssqlStmt) Exec(args []driver.Value) (driver.Result, error) {
+	return s.exec(context.Background(), convertOldArgs(args))
+}
+
+func (s *MssqlStmt) exec(ctx context.Context, args []namedValue) (res driver.Result, err error) {
+	if err = s.sendQuery(ctx, args); err != nil {
 		return
 	}
 	tokchan := make(chan tokenStruct, 5)
