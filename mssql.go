@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"net"
 	"strings"
@@ -20,11 +19,11 @@ func init() {
 }
 
 type MssqlDriver struct {
-	log *log.Logger
+	log optionalLogger
 }
 
-func (d *MssqlDriver) SetLogger(logger *log.Logger) {
-	d.log = logger
+func (d *MssqlDriver) SetLogger(logger Logger) {
+	d.log = optionalLogger{logger}
 }
 
 func CheckBadConn(err error) error {
@@ -137,7 +136,7 @@ func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
 	}
 
 	conn := &MssqlConn{sess}
-	conn.sess.log = (*Logger)(d.log)
+	conn.sess.log = d.log
 	return conn, nil
 }
 

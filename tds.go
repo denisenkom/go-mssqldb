@@ -119,7 +119,7 @@ type tdsSession struct {
 	columns      []columnStruct
 	tranid       uint64
 	logFlags     uint64
-	log          *Logger
+	log          optionalLogger
 	routedServer string
 	routedPort   uint16
 }
