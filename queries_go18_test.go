@@ -264,3 +264,57 @@ func TestContext(t *testing.T) {
 		return
 	}
 }
+
+func TestNamedParameters(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	row := conn.QueryRow(
+		"select :param2, :param1, :param2",
+		sql.Named("param1", 1),
+		sql.Named("param2", 2))
+	var col1, col2, col3 int64
+	err := row.Scan(&col1, &col2, &col3)
+	if err != nil {
+		t.Errorf("Scan failed with unexpected error %s", err)
+		return
+	}
+	if col1 != 2 || col2 != 1 || col3 != 2 {
+		t.Errorf("Unexpected values returned col1=%d, col2=%d, col3=%d", col1, col2, col3)
+	}
+}
+
+func TestBadNamedParameters(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	row := conn.QueryRow(
+		"select :param2, :param1, :param2",
+		sql.Named("badparam1", 1),
+		sql.Named("param2", 2))
+	var col1, col2, col3 int64
+	err := row.Scan(&col1, &col2, &col3)
+	if err == nil {
+		t.Error("Scan succeeded unexpectedly")
+		return
+	}
+	t.Logf("Scan failed as expected with error %s", err)
+}
+
+func TestMixedParameters(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	row := conn.QueryRow(
+		"select :2, :param1, :param2",
+		5,  // this parameter will be unused
+		6,
+		sql.Named("param1", 1),
+		sql.Named("param2", 2))
+	var col1, col2, col3 int64
+	err := row.Scan(&col1, &col2, &col3)
+	if err != nil {
+		t.Errorf("Scan failed with unexpected error %s", err)
+		return
+	}
+	if col1 != 6 || col2 != 1 || col3 != 2 {
+		t.Errorf("Unexpected values returned col1=%d, col2=%d, col3=%d", col1, col2, col3)
+	}
+}
