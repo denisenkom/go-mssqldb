@@ -5,6 +5,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"golang.org/x/net/context"
 )
 
 // token ids
@@ -25,6 +26,7 @@ const (
 )
 
 // done flags
+// https://msdn.microsoft.com/en-us/library/dd340421.aspx
 const (
 	doneFinal    = 0
 	doneMore     = 1
@@ -80,6 +82,8 @@ type doneStruct struct {
 }
 
 type doneInProcStruct doneStruct
+
+type attnStruct doneStruct
 
 var doneFlags2str = map[uint16]string{
 	doneFinal:    "final",
@@ -365,6 +369,7 @@ func parseOrder(r *tdsBuffer) (res orderStruct) {
 	return res
 }
 
+// https://msdn.microsoft.com/en-us/library/dd340421.aspx
 func parseDone(r *tdsBuffer) (res doneStruct) {
 	res.Status = r.uint16()
 	res.CurCmd = r.uint16()
@@ -372,6 +377,7 @@ func parseDone(r *tdsBuffer) (res doneStruct) {
 	return res
 }
 
+// https://msdn.microsoft.com/en-us/library/dd340553.aspx
 func parseDoneInProc(r *tdsBuffer) (res doneInProcStruct) {
 	res.Status = r.uint16()
 	res.CurCmd = r.uint16()
@@ -480,89 +486,138 @@ func parseInfo(r *tdsBuffer) (res Error) {
 	return
 }
 
-func processResponse(sess *tdsSession, ch chan tokenStruct) {
+func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct) {
 	defer func() {
 		if err := recover(); err != nil {
+			if sess.logFlags&logErrors != 0 {
+				sess.log.Printf("ERROR: Intercepted panick %v", err)
+			}
 			ch <- err
 		}
 		close(ch)
 	}()
-	packet_type, err := sess.buf.BeginRead()
-	if err != nil {
-		ch <- err
-		return
+	doneChan := ctx.Done()
+	expectAttention := false
+	select {
+	case <-doneChan:
+	// got cancel message from context
+		sendAttention(sess.buf)
+		doneChan = nil
+		expectAttention = true
+	default:
+	// no cancel message, processing as usual
 	}
-	if packet_type != packReply {
-		badStreamPanicf("invalid response packet type, expected REPLY, actual: %d", packet_type)
-	}
-	var columns []columnStruct
-	var lastError Error
-	var failed bool
+
 	for {
-		token := sess.buf.byte()
-		switch token {
-		case tokenSSPI:
-			ch <- parseSSPIMsg(sess.buf)
+		packet_type, err := sess.buf.BeginRead()
+		if err != nil {
+			ch <- err
 			return
-		case tokenReturnStatus:
-			returnStatus := parseReturnStatus(sess.buf)
-			ch <- returnStatus
-		case tokenLoginAck:
-			loginAck := parseLoginAck(sess.buf)
-			ch <- loginAck
-		case tokenOrder:
-			order := parseOrder(sess.buf)
-			ch <- order
-		case tokenDoneInProc:
-			done := parseDoneInProc(sess.buf)
-			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
-				sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
+		}
+		if packet_type != packReply {
+			badStreamPanicf("invalid response packet type, expected REPLY, actual: %d", packet_type)
+		}
+		var columns []columnStruct
+		var lastError Error
+		var failed bool
+		packetLoop:
+		for {
+			select {
+			case <-doneChan:
+			// got cancel message from context
+				sendAttention(sess.buf)
+				doneChan = nil
+				expectAttention = true
+			default:
+			// no cancel message, processing as usual
 			}
-			ch <- done
-		case tokenDone, tokenDoneProc:
-			done := parseDone(sess.buf)
-			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
-				sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
+
+			token := sess.buf.byte()
+			if sess.logFlags&logDebug != 0 {
+				sess.log.Printf("got token id %d", token)
 			}
-			if done.Status&doneError != 0 || failed {
-				ch <- lastError
+			switch token {
+			case tokenSSPI:
+				ch <- parseSSPIMsg(sess.buf)
 				return
+			case tokenReturnStatus:
+				returnStatus := parseReturnStatus(sess.buf)
+				ch <- returnStatus
+			case tokenLoginAck:
+				loginAck := parseLoginAck(sess.buf)
+				ch <- loginAck
+			case tokenOrder:
+				order := parseOrder(sess.buf)
+				ch <- order
+			case tokenDoneInProc:
+				done := parseDoneInProc(sess.buf)
+				if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
+					sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
+				}
+				ch <- done
+			case tokenDone, tokenDoneProc:
+				done := parseDone(sess.buf)
+				if sess.logFlags&logDebug != 0 {
+					sess.log.Printf("got DONE or DONEPROC status=%d", done.Status)
+				}
+				if done.Status&doneSrvError != 0 {
+					lastError.Message = "Server Error"
+					ch <- lastError
+					return
+				}
+				if done.Status&doneAttn != 0 {
+					ch <- context.Canceled
+					return
+				}
+				if done.Status&doneError != 0 || failed {
+					if !expectAttention {
+						ch <- lastError
+						return
+					}
+				}
+				if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
+					sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
+				}
+				ch <- done
+				if done.Status&doneMore == 0 {
+					if !expectAttention {
+						return
+					}
+					break packetLoop
+				}
+			case tokenColMetadata:
+				columns = parseColMetadata72(sess.buf)
+				ch <- columns
+			case tokenRow:
+				row := make([]interface{}, len(columns))
+				parseRow(sess.buf, columns, row)
+				ch <- row
+			case tokenNbcRow:
+				row := make([]interface{}, len(columns))
+				parseNbcRow(sess.buf, columns, row)
+				ch <- row
+			case tokenEnvChange:
+				processEnvChg(sess)
+			case tokenError:
+				lastError = parseError72(sess.buf)
+				if sess.logFlags&logDebug != 0 {
+					sess.log.Printf("got ERROR %d %s", lastError.Number, lastError.Message)
+				}
+				failed = true
+				if sess.logFlags&logErrors != 0 {
+					sess.log.Println(lastError.Message)
+				}
+			case tokenInfo:
+				info := parseInfo(sess.buf)
+				if sess.logFlags&logDebug != 0 {
+					sess.log.Printf("got INFO %d %s", info.Number, info.Message)
+				}
+				if sess.logFlags&logMessages != 0 {
+					sess.log.Println(info.Message)
+				}
+			default:
+				badStreamPanicf("Unknown token type: %d", token)
 			}
-			if done.Status&doneSrvError != 0 {
-				lastError.Message = "Server Error"
-				ch <- lastError
-				return
-			}
-			ch <- done
-			if done.Status&doneMore == 0 {
-				return
-			}
-		case tokenColMetadata:
-			columns = parseColMetadata72(sess.buf)
-			ch <- columns
-		case tokenRow:
-			row := make([]interface{}, len(columns))
-			parseRow(sess.buf, columns, row)
-			ch <- row
-		case tokenNbcRow:
-			row := make([]interface{}, len(columns))
-			parseNbcRow(sess.buf, columns, row)
-			ch <- row
-		case tokenEnvChange:
-			processEnvChg(sess)
-		case tokenError:
-			lastError = parseError72(sess.buf)
-			failed = true
-			if sess.logFlags&logErrors != 0 {
-				sess.log.Println(lastError.Message)
-			}
-		case tokenInfo:
-			info := parseInfo(sess.buf)
-			if sess.logFlags&logMessages != 0 {
-				sess.log.Println(info.Message)
-			}
-		default:
-			badStreamPanicf("Unknown token type: %d", token)
 		}
 	}
 }

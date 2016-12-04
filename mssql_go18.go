@@ -42,7 +42,7 @@ func (c *MssqlConn) BeginContext(ctx context.Context) (driver.Tx, error) {
 			return nil, errors.New("Isolation level is not supported or unknown")
 		}
 	}
-	return c.begin(tdsIsolation)
+	return c.begin(ctx, tdsIsolation)
 }
 
 func (c *MssqlConn) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {

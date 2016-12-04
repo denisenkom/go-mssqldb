@@ -5,6 +5,7 @@ package mssql
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"reflect"
 	"strings"
@@ -325,5 +326,47 @@ func TestPinger(t *testing.T) {
 	err := conn.Ping()
 	if err != nil {
 		t.Errorf("Failed to hit database")
+	}
+}
+
+func TestQueryCancel(t *testing.T) {
+	drv := &MssqlDriver{}
+	conn, err := drv.open(makeConnStr())
+	if err != nil {
+		t.Errorf("Open failed with error %v", err)
+	}
+
+	defer conn.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	stmt, err := conn.prepareContext(ctx, "waitfor delay '00:00:03'")
+	if err != nil {
+		t.Errorf("Prepare failed with error %v", err)
+	}
+	err = stmt.sendQuery(ctx, []namedValue{})
+	if err != nil {
+		t.Errorf("sendQuery failed with error %v", err)
+	}
+
+	cancel()
+
+	_, err = stmt.processExec(ctx)
+	if err != context.Canceled {
+		t.Errorf("Expected error to be Cancelled but got %v", err)
+	}
+
+	// same connection should be usable again after it was cancelled
+	stmt, err = conn.prepareContext(context.Background(), "select 1")
+	if err != nil {
+		t.Errorf("Prepare failed with error %v", err)
+	}
+	rows, err := stmt.Query([]driver.Value{})
+	if err != nil {
+		t.Errorf("Query failed with error %v", err)
+	}
+
+	values := []driver.Value{nil}
+	err = rows.Next(values)
+	if err != nil {
+		t.Errorf("Next failed with error %v", err)
 	}
 }
