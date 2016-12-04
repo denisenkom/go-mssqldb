@@ -83,8 +83,6 @@ type doneStruct struct {
 
 type doneInProcStruct doneStruct
 
-type attnStruct doneStruct
-
 var doneFlags2str = map[uint16]string{
 	doneFinal:    "final",
 	doneMore:     "more",
@@ -498,24 +496,42 @@ func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct)
 	}()
 	doneChan := ctx.Done()
 	expectAttention := false
-	select {
-	case <-doneChan:
-	// got cancel message from context
-		sendAttention(sess.buf)
-		doneChan = nil
-		expectAttention = true
-	default:
-	// no cancel message, processing as usual
-	}
+	netChan := make(chan interface{}, 1)
 
 	for {
-		packet_type, err := sess.buf.BeginRead()
-		if err != nil {
-			ch <- err
-			return
+		// initiate BeginRead
+		go func() {
+			packetType, err := sess.buf.BeginRead()
+			if err != nil {
+				netChan <- err
+			} else {
+				netChan <- packetType
+			}
+		}()
+
+		// wait for BeginRead to finish
+		var pcktType packetType
+		beginReadLoop:
+		for {
+			select {
+			case beginResult := <- netChan:
+				switch res := beginResult.(type) {
+				case error:
+					ch <- res
+					return
+				case packetType:
+					pcktType = res
+					break beginReadLoop
+				}
+			case <-doneChan:
+				sendAttention(sess.buf)
+				doneChan = nil
+				expectAttention = true
+			}
 		}
-		if packet_type != packReply {
-			badStreamPanicf("invalid response packet type, expected REPLY, actual: %d", packet_type)
+
+		if pcktType != packReply {
+			badStreamPanicf("invalid response packet type, expected REPLY, actual: %d", pcktType)
 		}
 		var columns []columnStruct
 		var lastError Error

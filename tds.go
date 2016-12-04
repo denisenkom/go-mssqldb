@@ -82,7 +82,7 @@ const (
 // packet types
 // https://msdn.microsoft.com/en-us/library/dd304214.aspx
 const (
-	packSQLBatch    = 1
+	packSQLBatch packetType = 1
 	packRPCRequest  = 3
 	packReply       = 4
 
