@@ -3,13 +3,13 @@
 package mssql
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
-	"context"
-	"database/sql"
 )
 
 func TestNextResultSet(t *testing.T) {
@@ -59,14 +59,14 @@ func TestNextResultSet(t *testing.T) {
 
 func TestColumnTypeIntrospection(t *testing.T) {
 	type tst struct {
-		expr string;
-		typeName string;
-		reflType reflect.Type;
-		hasSize bool;
-		size int64;
-		hasPrecScale bool;
-		precision int64;
-		scale int64;
+		expr         string
+		typeName     string
+		reflType     reflect.Type
+		hasSize      bool
+		size         int64
+		hasPrecScale bool
+		precision    int64
+		scale        int64
 	}
 	tests := []tst{
 		{"cast(1 as bit)", "BIT", reflect.TypeOf(true), false, 0, false, 0, 0},
@@ -145,15 +145,15 @@ func TestColumnTypeIntrospection(t *testing.T) {
 
 func TestColumnIntrospection(t *testing.T) {
 	type tst struct {
-		expr string;
-		fieldName string;
-		typeName string;
-		nullable bool;
-		hasSize bool;
-		size int64;
-		hasPrecScale bool;
-		precision int64;
-		scale int64;
+		expr         string
+		fieldName    string
+		typeName     string
+		nullable     bool
+		hasSize      bool
+		size         int64
+		hasPrecScale bool
+		precision    int64
+		scale        int64
 	}
 	tests := []tst{
 		{"f1 int null", "f1", "INT", true, false, 0, false, 0, 0},
@@ -304,7 +304,7 @@ func TestMixedParameters(t *testing.T) {
 	defer conn.Close()
 	row := conn.QueryRow(
 		"select :2, :param1, :param2",
-		5,  // this parameter will be unused
+		5, // this parameter will be unused
 		6,
 		sql.Named("param1", 1),
 		sql.Named("param2", 2))
@@ -316,5 +316,14 @@ func TestMixedParameters(t *testing.T) {
 	}
 	if col1 != 6 || col2 != 1 || col3 != 2 {
 		t.Errorf("Unexpected values returned col1=%d, col2=%d, col3=%d", col1, col2, col3)
+	}
+}
+
+func TestPinger(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	err := conn.Ping()
+	if err != nil {
+		t.Errorf("Failed to hit database")
 	}
 }

@@ -3,11 +3,19 @@
 package mssql
 
 import (
-	"database/sql/driver"
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 )
+
+var _ driver.Pinger = &MssqlConn{}
+
+func (c *MssqlConn) Ping(ctx context.Context) error {
+	stmt := &MssqlStmt{c, `select 1;`, 0, nil}
+	_, err := stmt.ExecContext(ctx, nil)
+	return err
+}
 
 func (c *MssqlConn) BeginContext(ctx context.Context) (driver.Tx, error) {
 	tdsIsolation := isolationUseCurrent
