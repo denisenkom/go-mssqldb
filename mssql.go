@@ -198,9 +198,7 @@ func (s *MssqlStmt) sendQuery(ctx context.Context, args []namedValue) (err error
 			data: queryNotifHdr{s.notifSub.msgText, s.notifSub.options, s.notifSub.timeout}.pack()})
 	}
 
-	if len(args) != s.paramCount {
-		return errors.New(fmt.Sprintf("sql: expected %d parameters, got %d", s.paramCount, len(args)))
-	}
+	// no need to check number of parameters here, it is checked by database/sql
 	if s.c.sess.logFlags&logSQL != 0 {
 		s.c.sess.log.Println(s.query)
 	}
@@ -229,7 +227,12 @@ func (s *MssqlStmt) sendQuery(ctx context.Context, args []namedValue) (err error
 			if err != nil {
 				return
 			}
-			name := fmt.Sprintf("@p%d", i+1)
+			var name string
+			if len(val.Name) > 0 {
+				name = "@" + val.Name
+			} else {
+				name = fmt.Sprintf("@p%d", val.Ordinal)
+			}
 			params[i+2].Name = name
 			decls[i] = fmt.Sprintf("%s %s", name, makeDecl(params[i+2].ti))
 		}
