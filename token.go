@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"golang.org/x/net/context"
+	"database/sql/driver"
 )
 
 // token ids
@@ -79,6 +80,19 @@ type doneStruct struct {
 	Status   uint16
 	CurCmd   uint16
 	RowCount uint64
+	errors   []Error
+}
+
+func (d doneStruct) isError() bool {
+	return d.Status&doneError != 0 || len(d.errors) > 0
+}
+
+func (d doneStruct) getError() Error {
+	if len(d.errors) > 0 {
+		return d.errors[len(d.errors) - 1]
+	} else {
+		return Error{Message: "Request failed but didn't provide reason"}
+	}
 }
 
 type doneInProcStruct doneStruct
@@ -484,155 +498,170 @@ func parseInfo(r *tdsBuffer) (res Error) {
 	return
 }
 
-func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct) {
+func processSingleResponse(sess *tdsSession, ch chan tokenStruct) {
 	defer func() {
 		if err := recover(); err != nil {
 			if sess.logFlags&logErrors != 0 {
 				sess.log.Printf("ERROR: Intercepted panick %v", err)
 			}
-			ch <- err
+			ch <- driver.ErrBadConn
 		}
 		close(ch)
 	}()
-	doneChan := ctx.Done()
-	expectAttention := false
-	netChan := make(chan interface{}, 1)
 
+	packetType, err := sess.buf.BeginRead()
+	if err != nil {
+		if sess.logFlags&logErrors != 0 {
+			sess.log.Printf("ERROR: BeginRead failed %v", err)
+		}
+		ch <- driver.ErrBadConn
+		return
+	}
+	if packetType != packReply {
+		badStreamPanicf("invalid response packet type, expected REPLY, actual: %d", packetType)
+	}
+	var columns []columnStruct
+	errors := make([]Error, 0, 5)
+	//var failed bool
 	for {
-		// initiate BeginRead
-		go func() {
-			packetType, err := sess.buf.BeginRead()
-			if err != nil {
-				netChan <- err
-			} else {
-				netChan <- packetType
-			}
-		}()
-
-		// wait for BeginRead to finish
-		var pcktType packetType
-		beginReadLoop:
-		for {
-			select {
-			case beginResult := <- netChan:
-				switch res := beginResult.(type) {
-				case error:
-					ch <- res
-					return
-				case packetType:
-					pcktType = res
-					break beginReadLoop
-				}
-			case <-doneChan:
-				sendAttention(sess.buf)
-				doneChan = nil
-				expectAttention = true
-			}
+		token := sess.buf.byte()
+		if sess.logFlags&logDebug != 0 {
+			sess.log.Printf("got token id %d", token)
 		}
-
-		if pcktType != packReply {
-			badStreamPanicf("invalid response packet type, expected REPLY, actual: %d", pcktType)
-		}
-		var columns []columnStruct
-		var lastError Error
-		var failed bool
-		packetLoop:
-		for {
-			select {
-			case <-doneChan:
-			// got cancel message from context
-				sendAttention(sess.buf)
-				doneChan = nil
-				expectAttention = true
-			default:
-			// no cancel message, processing as usual
+		switch token {
+		case tokenSSPI:
+			ch <- parseSSPIMsg(sess.buf)
+			return
+		case tokenReturnStatus:
+			returnStatus := parseReturnStatus(sess.buf)
+			ch <- returnStatus
+		case tokenLoginAck:
+			loginAck := parseLoginAck(sess.buf)
+			ch <- loginAck
+		case tokenOrder:
+			order := parseOrder(sess.buf)
+			ch <- order
+		case tokenDoneInProc:
+			done := parseDoneInProc(sess.buf)
+			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
+				sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
 			}
-
-			token := sess.buf.byte()
+			ch <- done
+		case tokenDone, tokenDoneProc:
+			done := parseDone(sess.buf)
+			done.errors = errors
 			if sess.logFlags&logDebug != 0 {
-				sess.log.Printf("got token id %d", token)
+				sess.log.Printf("got DONE or DONEPROC status=%d", done.Status)
 			}
-			switch token {
-			case tokenSSPI:
-				ch <- parseSSPIMsg(sess.buf)
+			if done.Status&doneSrvError != 0 {
+				ch <- driver.ErrBadConn
 				return
-			case tokenReturnStatus:
-				returnStatus := parseReturnStatus(sess.buf)
-				ch <- returnStatus
-			case tokenLoginAck:
-				loginAck := parseLoginAck(sess.buf)
-				ch <- loginAck
-			case tokenOrder:
-				order := parseOrder(sess.buf)
-				ch <- order
-			case tokenDoneInProc:
-				done := parseDoneInProc(sess.buf)
-				if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
-					sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
-				}
-				ch <- done
-			case tokenDone, tokenDoneProc:
-				done := parseDone(sess.buf)
-				if sess.logFlags&logDebug != 0 {
-					sess.log.Printf("got DONE or DONEPROC status=%d", done.Status)
-				}
-				if done.Status&doneSrvError != 0 {
-					lastError.Message = "Server Error"
-					ch <- lastError
-					return
-				}
-				if done.Status&doneAttn != 0 {
-					ch <- context.Canceled
-					return
-				}
-				if done.Status&doneError != 0 || failed {
-					if !expectAttention {
-						ch <- lastError
+			}
+			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
+				sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
+			}
+			ch <- done
+			if done.Status&doneMore == 0 {
+				return
+			}
+		case tokenColMetadata:
+			columns = parseColMetadata72(sess.buf)
+			ch <- columns
+		case tokenRow:
+			row := make([]interface{}, len(columns))
+			parseRow(sess.buf, columns, row)
+			ch <- row
+		case tokenNbcRow:
+			row := make([]interface{}, len(columns))
+			parseNbcRow(sess.buf, columns, row)
+			ch <- row
+		case tokenEnvChange:
+			processEnvChg(sess)
+		case tokenError:
+			err := parseError72(sess.buf)
+			if sess.logFlags&logDebug != 0 {
+				sess.log.Printf("got ERROR %d %s", err.Number, err.Message)
+			}
+			errors = append(errors, err)
+			if sess.logFlags&logErrors != 0 {
+				sess.log.Println(err.Message)
+			}
+		case tokenInfo:
+			info := parseInfo(sess.buf)
+			if sess.logFlags&logDebug != 0 {
+				sess.log.Printf("got INFO %d %s", info.Number, info.Message)
+			}
+			if sess.logFlags&logMessages != 0 {
+				sess.log.Println(info.Message)
+			}
+		default:
+			badStreamPanicf("Unknown token type: %d", token)
+		}
+	}
+}
+
+func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct) {
+	defer func() {
+		close(ch)
+	}()
+	doneChan := ctx.Done()
+	cancelInProgress := false
+
+	// loop over multiple responses
+	for {
+		if sess.logFlags&logDebug != 0 {
+			sess.log.Println("initiating resonse reading")
+		}
+		tokChan := make(chan tokenStruct)
+		go processSingleResponse(sess, tokChan)
+		// loop over multiple tokens in response
+		tokensLoop:
+		for {
+			select {
+			case tok, ok := <-tokChan:
+				if ok {
+					if cancelInProgress {
+						switch tok := tok.(type) {
+						case doneStruct:
+							if tok.Status&doneAttn != 0 {
+								if sess.logFlags&logDebug != 0 {
+									sess.log.Println("got cancellation confirmation from server")
+								}
+								ch <- context.Canceled
+								return
+							}
+						}
+					} else {
+						ch <- tok
+					}
+				} else {
+					// response finished
+					if cancelInProgress {
+						if sess.logFlags&logDebug != 0 {
+							sess.log.Println("response finished but waiting for attention ack")
+						}
+						break tokensLoop
+					} else {
+						if sess.logFlags&logDebug != 0 {
+							sess.log.Println("response finished")
+						}
 						return
 					}
 				}
-				if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
-					sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
+			case <-doneChan:
+				if sess.logFlags&logDebug != 0 {
+					sess.log.Println("got cancel message, sending attention signal to server")
 				}
-				ch <- done
-				if done.Status&doneMore == 0 {
-					if !expectAttention {
-						return
+				err := sendAttention(sess.buf)
+				if err != nil {
+					if sess.logFlags&logErrors != 0 {
+						sess.log.Println("Failed to send attention signal %v", err)
 					}
-					break packetLoop
+					ch <- driver.ErrBadConn
+					return
 				}
-			case tokenColMetadata:
-				columns = parseColMetadata72(sess.buf)
-				ch <- columns
-			case tokenRow:
-				row := make([]interface{}, len(columns))
-				parseRow(sess.buf, columns, row)
-				ch <- row
-			case tokenNbcRow:
-				row := make([]interface{}, len(columns))
-				parseNbcRow(sess.buf, columns, row)
-				ch <- row
-			case tokenEnvChange:
-				processEnvChg(sess)
-			case tokenError:
-				lastError = parseError72(sess.buf)
-				if sess.logFlags&logDebug != 0 {
-					sess.log.Printf("got ERROR %d %s", lastError.Number, lastError.Message)
-				}
-				failed = true
-				if sess.logFlags&logErrors != 0 {
-					sess.log.Println(lastError.Message)
-				}
-			case tokenInfo:
-				info := parseInfo(sess.buf)
-				if sess.logFlags&logDebug != 0 {
-					sess.log.Printf("got INFO %d %s", info.Number, info.Message)
-				}
-				if sess.logFlags&logMessages != 0 {
-					sess.log.Println(info.Message)
-				}
-			default:
-				badStreamPanicf("Unknown token type: %d", token)
+				doneChan = nil
+				cancelInProgress = true
 			}
 		}
 	}

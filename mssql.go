@@ -61,6 +61,10 @@ func (c *MssqlConn) Commit() error {
 	go processResponse(c.transactionCtx, c.sess, tokchan)
 	for tok := range tokchan {
 		switch token := tok.(type) {
+		case doneStruct:
+			if token.isError() {
+				return token.getError()
+			}
 		case error:
 			return token
 		}
@@ -81,6 +85,10 @@ func (c *MssqlConn) Rollback() error {
 	go processResponse(c.transactionCtx, c.sess, tokchan)
 	for tok := range tokchan {
 		switch token := tok.(type) {
+		case doneStruct:
+			if token.isError() {
+				return token.getError()
+			}
 		case error:
 			return token
 		}
@@ -105,6 +113,10 @@ func (c *MssqlConn) begin(ctx context.Context, tdsIsolation isoLevel) (driver.Tx
 	go processResponse(ctx, c.sess, tokchan)
 	for tok := range tokchan {
 		switch token := tok.(type) {
+		case doneStruct:
+			if token.isError() {
+				return nil, token.getError()
+			}
 		case error:
 			if c.sess.tranid != 0 {
 				return nil, token
@@ -298,6 +310,10 @@ loop:
 		case []columnStruct:
 			cols = token
 			break loop
+		case doneStruct:
+			if token.isError() {
+				return nil, token.getError()
+			}
 		case error:
 			if s.c.sess.tranid != 0 {
 				return nil, token
@@ -334,10 +350,10 @@ func (s *MssqlStmt) processExec(ctx context.Context) (res driver.Result, err err
 			if token.Status&doneCount != 0 {
 				rowCount = int64(token.RowCount)
 			}
-		case error:
-			if s.c.sess.logFlags&logErrors != 0 {
-				s.c.sess.log.Println("got error:", token)
+			if token.isError() {
+				return nil, token.getError()
 			}
+		case error:
 			if s.c.sess.tranid != 0 {
 				return nil, token
 			}
@@ -384,6 +400,10 @@ func (rc *MssqlRows) Next(dest []driver.Value) (error) {
 				dest[i] = tokdata[i]
 			}
 			return nil
+		case doneStruct:
+			if tokdata.isError() {
+				return tokdata.getError()
+			}
 		case error:
 			return tokdata
 		}
