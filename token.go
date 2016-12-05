@@ -510,7 +510,7 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct) {
 		close(ch)
 	}()
 
-	packetType, err := sess.buf.BeginRead()
+	packet_type, err := sess.buf.BeginRead()
 	if err != nil {
 		if sess.logFlags&logErrors != 0 {
 			sess.log.Printf("ERROR: BeginRead failed %v", err)
@@ -522,12 +522,11 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct) {
 		}
 		return
 	}
-	if packetType != packReply {
-		badStreamPanicf("invalid response packet type, expected REPLY, actual: %d", packetType)
+	if packet_type != packReply {
+		badStreamPanicf("invalid response packet type, expected REPLY, actual: %d", packet_type)
 	}
 	var columns []columnStruct
 	errors := make([]Error, 0, 5)
-	//var failed bool
 	for {
 		token := sess.buf.byte()
 		if sess.logFlags&logDebug != 0 {
