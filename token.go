@@ -7,6 +7,7 @@ import (
 	"strings"
 	"golang.org/x/net/context"
 	"database/sql/driver"
+	"net"
 )
 
 // token ids
@@ -514,7 +515,11 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct) {
 		if sess.logFlags&logErrors != 0 {
 			sess.log.Printf("ERROR: BeginRead failed %v", err)
 		}
-		ch <- driver.ErrBadConn
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			ch <- netErr
+		} else {
+			ch <- driver.ErrBadConn
+		}
 		return
 	}
 	if packetType != packReply {
@@ -606,6 +611,8 @@ func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct)
 	}()
 	doneChan := ctx.Done()
 	cancelInProgress := false
+	cancelledByContext := false
+	var cancelError error
 
 	// loop over multiple responses
 	for {
@@ -627,12 +634,34 @@ func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct)
 								if sess.logFlags&logDebug != 0 {
 									sess.log.Println("got cancellation confirmation from server")
 								}
-								ch <- ctx.Err()
+								if cancelledByContext {
+									ch <- ctx.Err()
+								} else {
+									ch <- cancelError
+								}
 								return
 							}
 						}
 					} else {
-						ch <- tok
+						if err, ok := tok.(net.Error); ok && err.Timeout() {
+							cancelError = err
+							if sess.logFlags&logDebug != 0 {
+								sess.log.Println("got timeout error, sending attention signal to server")
+							}
+							err := sendAttention(sess.buf)
+							if err != nil {
+								if sess.logFlags&logErrors != 0 {
+									sess.log.Println("Failed to send attention signal %v", err)
+								}
+								ch <- driver.ErrBadConn
+								return
+							}
+							doneChan = nil
+							cancelInProgress = true
+							cancelledByContext = false
+						} else {
+							ch <- tok
+						}
 					}
 				} else {
 					// response finished
@@ -662,6 +691,7 @@ func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct)
 				}
 				doneChan = nil
 				cancelInProgress = true
+				cancelledByContext = true
 			}
 		}
 	}
