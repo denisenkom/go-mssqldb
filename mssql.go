@@ -340,8 +340,8 @@ func (s *MssqlStmt) processExec(ctx context.Context) (res driver.Result, err err
 	tokchan := make(chan tokenStruct, 5)
 	go processResponse(ctx, s.c.sess, tokchan)
 	var rowCount int64
-	for tok := range tokchan {
-		switch token := tok.(type) {
+	for token := range tokchan {
+		switch token := token.(type) {
 		case doneInProcStruct:
 			if token.Status&doneCount != 0 {
 				rowCount = int64(token.RowCount)
