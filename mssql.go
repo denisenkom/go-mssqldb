@@ -8,44 +8,47 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"net"
 	"strings"
 	"time"
 	"reflect"
 	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 )
 
+var driverInstance = &MssqlDriver{}
+
 func init() {
-	sql.Register("mssql", &MssqlDriver{})
+	sql.Register("mssql", driverInstance)
 }
 
 type MssqlDriver struct {
 	log optionalLogger
 }
 
-func (d *MssqlDriver) SetLogger(logger Logger) {
-	d.log = optionalLogger{logger}
+func SetLogger(logger Logger) {
+	driverInstance.SetLogger(logger)
 }
 
-func CheckBadConn(err error) error {
-	if err == io.EOF {
-		return driver.ErrBadConn
-	}
-
-	switch e := err.(type) {
-	case net.Error:
-		if e.Timeout() {
-			return e
-		}
-		return driver.ErrBadConn
-	default:
-		return err
-	}
+func (d *MssqlDriver) SetLogger(logger Logger) {
+	d.log = optionalLogger{logger}
 }
 
 type MssqlConn struct {
 	sess *tdsSession
 	transactionCtx context.Context
+}
+
+func simpleProcessResp(tokchan chan tokenStruct) error {
+	for tok := range tokchan {
+		switch token := tok.(type) {
+		case doneStruct:
+			if token.isError() {
+				return token.getError()
+			}
+		case error:
+			return token
+		}
+	}
+	return nil
 }
 
 func (c *MssqlConn) Commit() error {
@@ -54,22 +57,15 @@ func (c *MssqlConn) Commit() error {
 			data: transDescrHdr{c.sess.tranid, 1}.pack()},
 	}
 	if err := sendCommitXact(c.sess.buf, headers, "", 0, 0, ""); err != nil {
-		return err
+		if c.sess.logFlags&logErrors != 0 {
+			c.sess.log.Printf("Failed to send CommitXact with %v", err)
+		}
+		return driver.ErrBadConn
 	}
 
 	tokchan := make(chan tokenStruct, 5)
 	go processResponse(c.transactionCtx, c.sess, tokchan)
-	for tok := range tokchan {
-		switch token := tok.(type) {
-		case doneStruct:
-			if token.isError() {
-				return token.getError()
-			}
-		case error:
-			return token
-		}
-	}
-	return nil
+	return simpleProcessResp(tokchan)
 }
 
 func (c *MssqlConn) Rollback() error {
@@ -78,22 +74,15 @@ func (c *MssqlConn) Rollback() error {
 			data: transDescrHdr{c.sess.tranid, 1}.pack()},
 	}
 	if err := sendRollbackXact(c.sess.buf, headers, "", 0, 0, ""); err != nil {
-		return err
+		if c.sess.logFlags&logErrors != 0 {
+			c.sess.log.Printf("Failed to send RollbackXact with %v", err)
+		}
+		return driver.ErrBadConn
 	}
 
 	tokchan := make(chan tokenStruct, 5)
 	go processResponse(c.transactionCtx, c.sess, tokchan)
-	for tok := range tokchan {
-		switch token := tok.(type) {
-		case doneStruct:
-			if token.isError() {
-				return token.getError()
-			}
-		case error:
-			return token
-		}
-	}
-	return nil
+	return simpleProcessResp(tokchan)
 }
 
 func (c *MssqlConn) Begin() (driver.Tx, error) {
@@ -107,22 +96,15 @@ func (c *MssqlConn) begin(ctx context.Context, tdsIsolation isoLevel) (driver.Tx
 			data: transDescrHdr{0, 1}.pack()},
 	}
 	if err := sendBeginXact(c.sess.buf, headers, tdsIsolation, ""); err != nil {
-		return nil, CheckBadConn(err)
+		if c.sess.logFlags&logErrors != 0 {
+			c.sess.log.Printf("Failed to send BeginXact with %v", err)
+		}
+		return nil, driver.ErrBadConn
 	}
 	tokchan := make(chan tokenStruct, 5)
 	go processResponse(ctx, c.sess, tokchan)
-	for tok := range tokchan {
-		switch token := tok.(type) {
-		case doneStruct:
-			if token.isError() {
-				return nil, token.getError()
-			}
-		case error:
-			if c.sess.tranid != 0 {
-				return nil, token
-			}
-			return nil, CheckBadConn(token)
-		}
+	if err := simpleProcessResp(tokchan); err != nil {
+		return nil, err
 	}
 	// successful BEGINXACT request will return sess.tranid
 	// for started transaction
@@ -228,10 +210,10 @@ func (s *MssqlStmt) sendQuery(ctx context.Context, args []namedValue) (err error
 	}
 	if len(args) == 0 {
 		if err = sendSqlBatch72(s.c.sess.buf, s.query, headers); err != nil {
-			if s.c.sess.tranid != 0 {
-				return err
+			if s.c.sess.logFlags&logErrors != 0 {
+				s.c.sess.log.Printf("Failed to send SqlBatch with %v", err)
 			}
-			return CheckBadConn(err)
+			return driver.ErrBadConn
 		}
 	} else {
 		params := make([]Param, len(args)+2)
@@ -259,10 +241,10 @@ func (s *MssqlStmt) sendQuery(ctx context.Context, args []namedValue) (err error
 			return
 		}
 		if err = sendRpc(s.c.sess.buf, headers, Sp_ExecuteSql, 0, params); err != nil {
-			if s.c.sess.tranid != 0 {
-				return err
+			if s.c.sess.logFlags&logErrors != 0 {
+				s.c.sess.log.Printf("Failed to send Rpc with %v", err)
 			}
-			return CheckBadConn(err)
+			return driver.ErrBadConn
 		}
 	}
 	return
@@ -315,10 +297,7 @@ loop:
 				return nil, token.getError()
 			}
 		case error:
-			if s.c.sess.tranid != 0 {
-				return nil, token
-			}
-			return nil, CheckBadConn(token)
+			return nil, token
 		}
 	}
 	res = &MssqlRows{sess: s.c.sess, tokchan: tokchan, cols: cols}
@@ -354,10 +333,7 @@ func (s *MssqlStmt) processExec(ctx context.Context) (res driver.Result, err err
 				return nil, token.getError()
 			}
 		case error:
-			if s.c.sess.tranid != 0 {
-				return nil, token
-			}
-			return nil, CheckBadConn(token)
+			return nil, token
 		}
 	}
 	return &MssqlResult{s.c, rowCount}, nil

@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
-	"log"
 	"math"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -702,6 +700,7 @@ func TestBug32(t *testing.T) {
 	}
 }
 
+/*
 func TestLogging(t *testing.T) {
 	flags := log.Flags()
 	defer func() {
@@ -726,6 +725,7 @@ func TestLogging(t *testing.T) {
 		t.Fatal("logging test failed, got", b.String())
 	}
 }
+*/
 
 func TestIgnoreEmptyResults(t *testing.T) {
 	conn := open(t)

@@ -131,12 +131,26 @@ func makeConnStr() string {
 		addr, instance, user, password, database)
 }
 
+type testLogger struct {
+	t *testing.T
+}
+
+func (l testLogger) Printf(format string, v ...interface{}) {
+	l.t.Logf(format, v...)
+}
+
+func (l testLogger) Println(v ...interface{}) {
+	l.t.Log(v...)
+}
+
 func open(t *testing.T) *sql.DB {
 	conn, err := sql.Open("mssql", makeConnStr())
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
 		return nil
 	}
+
+	SetLogger(testLogger{t})
 	return conn
 }
 
