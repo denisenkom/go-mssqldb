@@ -627,7 +627,7 @@ func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct)
 								if sess.logFlags&logDebug != 0 {
 									sess.log.Println("got cancellation confirmation from server")
 								}
-								ch <- context.Canceled
+								ch <- ctx.Err()
 								return
 							}
 						}

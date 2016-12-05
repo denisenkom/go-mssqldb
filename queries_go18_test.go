@@ -329,7 +329,7 @@ func TestPinger(t *testing.T) {
 	}
 }
 
-func TestQueryCancel(t *testing.T) {
+func TestQueryCancelLowLevel(t *testing.T) {
 	drv := &MssqlDriver{}
 	conn, err := drv.open(makeConnStr())
 	if err != nil {
@@ -368,5 +368,47 @@ func TestQueryCancel(t *testing.T) {
 	err = rows.Next(values)
 	if err != nil {
 		t.Errorf("Next failed with error %v", err)
+	}
+}
+
+func TestQueryCancelHighLevel(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(1 * time.Second)
+		cancel()
+	}()
+	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:03'")
+	if err != context.Canceled {
+		t.Errorf("ExecContext expected to fail with Cancelled but it returned %v", err)
+	}
+
+	// connection should be usable after timeout
+	row := conn.QueryRow("select 1")
+	var val int64
+	err = row.Scan(&val)
+	if err != nil {
+		t.Fatal("Scan failed with", err)
+	}
+}
+
+func TestQueryTimeout(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 1 * time.Second)
+	defer cancel()
+	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:03'")
+	if err != context.DeadlineExceeded {
+		t.Errorf("ExecContext expected to fail with DeadlineExceeded but it returned %v", err)
+	}
+
+	// connection should be usable after timeout
+	row := conn.QueryRow("select 1")
+	var val int64
+	err = row.Scan(&val)
+	if err != nil {
+		t.Fatal("Scan failed with", err)
 	}
 }
