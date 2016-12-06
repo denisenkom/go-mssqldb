@@ -5,6 +5,7 @@ package mssql
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"reflect"
 	"strings"
@@ -325,5 +326,89 @@ func TestPinger(t *testing.T) {
 	err := conn.Ping()
 	if err != nil {
 		t.Errorf("Failed to hit database")
+	}
+}
+
+func TestQueryCancelLowLevel(t *testing.T) {
+	drv := &MssqlDriver{}
+	conn, err := drv.open(makeConnStr())
+	if err != nil {
+		t.Errorf("Open failed with error %v", err)
+	}
+
+	defer conn.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	stmt, err := conn.prepareContext(ctx, "waitfor delay '00:00:03'")
+	if err != nil {
+		t.Errorf("Prepare failed with error %v", err)
+	}
+	err = stmt.sendQuery(ctx, []namedValue{})
+	if err != nil {
+		t.Errorf("sendQuery failed with error %v", err)
+	}
+
+	cancel()
+
+	_, err = stmt.processExec(ctx)
+	if err != context.Canceled {
+		t.Errorf("Expected error to be Cancelled but got %v", err)
+	}
+
+	// same connection should be usable again after it was cancelled
+	stmt, err = conn.prepareContext(context.Background(), "select 1")
+	if err != nil {
+		t.Errorf("Prepare failed with error %v", err)
+	}
+	rows, err := stmt.Query([]driver.Value{})
+	if err != nil {
+		t.Errorf("Query failed with error %v", err)
+	}
+
+	values := []driver.Value{nil}
+	err = rows.Next(values)
+	if err != nil {
+		t.Errorf("Next failed with error %v", err)
+	}
+}
+
+func TestQueryCancelHighLevel(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(1 * time.Second)
+		cancel()
+	}()
+	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:03'")
+	if err != context.Canceled {
+		t.Errorf("ExecContext expected to fail with Cancelled but it returned %v", err)
+	}
+
+	// connection should be usable after timeout
+	row := conn.QueryRow("select 1")
+	var val int64
+	err = row.Scan(&val)
+	if err != nil {
+		t.Fatal("Scan failed with", err)
+	}
+}
+
+func TestQueryTimeout(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 1 * time.Second)
+	defer cancel()
+	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:03'")
+	if err != context.DeadlineExceeded {
+		t.Errorf("ExecContext expected to fail with DeadlineExceeded but it returned %v", err)
+	}
+
+	// connection should be usable after timeout
+	row := conn.QueryRow("select 1")
+	var val int64
+	err = row.Scan(&val)
+	if err != nil {
+		t.Fatal("Scan failed with", err)
 	}
 }

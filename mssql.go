@@ -45,6 +45,7 @@ func CheckBadConn(err error) error {
 
 type MssqlConn struct {
 	sess *tdsSession
+	transactionCtx context.Context
 }
 
 func (c *MssqlConn) Commit() error {
@@ -57,9 +58,13 @@ func (c *MssqlConn) Commit() error {
 	}
 
 	tokchan := make(chan tokenStruct, 5)
-	go processResponse(c.sess, tokchan)
+	go processResponse(c.transactionCtx, c.sess, tokchan)
 	for tok := range tokchan {
 		switch token := tok.(type) {
+		case doneStruct:
+			if token.isError() {
+				return token.getError()
+			}
 		case error:
 			return token
 		}
@@ -77,9 +82,13 @@ func (c *MssqlConn) Rollback() error {
 	}
 
 	tokchan := make(chan tokenStruct, 5)
-	go processResponse(c.sess, tokchan)
+	go processResponse(c.transactionCtx, c.sess, tokchan)
 	for tok := range tokchan {
 		switch token := tok.(type) {
+		case doneStruct:
+			if token.isError() {
+				return token.getError()
+			}
 		case error:
 			return token
 		}
@@ -88,10 +97,11 @@ func (c *MssqlConn) Rollback() error {
 }
 
 func (c *MssqlConn) Begin() (driver.Tx, error) {
-	return c.begin(isolationUseCurrent)
+	return c.begin(context.Background(), isolationUseCurrent)
 }
 
-func (c *MssqlConn) begin(tdsIsolation isoLevel) (driver.Tx, error) {
+func (c *MssqlConn) begin(ctx context.Context, tdsIsolation isoLevel) (driver.Tx, error) {
+	c.transactionCtx = ctx
 	headers := []headerStruct{
 		{hdrtype: dataStmHdrTransDescr,
 			data: transDescrHdr{0, 1}.pack()},
@@ -100,9 +110,13 @@ func (c *MssqlConn) begin(tdsIsolation isoLevel) (driver.Tx, error) {
 		return nil, CheckBadConn(err)
 	}
 	tokchan := make(chan tokenStruct, 5)
-	go processResponse(c.sess, tokchan)
+	go processResponse(ctx, c.sess, tokchan)
 	for tok := range tokchan {
 		switch token := tok.(type) {
+		case doneStruct:
+			if token.isError() {
+				return nil, token.getError()
+			}
 		case error:
 			if c.sess.tranid != 0 {
 				return nil, token
@@ -116,6 +130,10 @@ func (c *MssqlConn) begin(tdsIsolation isoLevel) (driver.Tx, error) {
 }
 
 func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
+	return d.open(dsn)
+}
+
+func (d *MssqlDriver) open(dsn string) (*MssqlConn, error) {
 	params, err := parseConnectParams(dsn)
 	if err != nil {
 		return nil, err
@@ -140,7 +158,7 @@ func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
 		}
 	}
 
-	conn := &MssqlConn{sess}
+	conn := &MssqlConn{sess, context.Background()}
 	conn.sess.log = d.log
 	return conn, nil
 }
@@ -166,7 +184,7 @@ func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
 	return c.prepareContext(context.Background(), query)
 }
 
-func (c *MssqlConn) prepareContext(ctx context.Context, query string) (driver.Stmt, error) {
+func (c *MssqlConn) prepareContext(ctx context.Context, query string) (*MssqlStmt, error) {
 	q, paramCount := parseParams(query)
 	return &MssqlStmt{c, q, paramCount, nil}, nil
 }
@@ -276,7 +294,7 @@ func (s *MssqlStmt) queryContext(ctx context.Context, args []namedValue) (res dr
 		return
 	}
 	tokchan := make(chan tokenStruct, 5)
-	go processResponse(s.c.sess, tokchan)
+	go processResponse(ctx, s.c.sess, tokchan)
 	// process metadata
 	var cols []columnStruct
 loop:
@@ -292,6 +310,10 @@ loop:
 		case []columnStruct:
 			cols = token
 			break loop
+		case doneStruct:
+			if token.isError() {
+				return nil, token.getError()
+			}
 		case error:
 			if s.c.sess.tranid != 0 {
 				return nil, token
@@ -307,12 +329,16 @@ func (s *MssqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 	return s.exec(context.Background(), convertOldArgs(args))
 }
 
-func (s *MssqlStmt) exec(ctx context.Context, args []namedValue) (res driver.Result, err error) {
-	if err = s.sendQuery(ctx, args); err != nil {
-		return
+func (s *MssqlStmt) exec(ctx context.Context, args []namedValue) (driver.Result, error) {
+	if err := s.sendQuery(ctx, args); err != nil {
+		return nil, err
 	}
+	return s.processExec(ctx)
+}
+
+func (s *MssqlStmt) processExec(ctx context.Context) (res driver.Result, err error) {
 	tokchan := make(chan tokenStruct, 5)
-	go processResponse(s.c.sess, tokchan)
+	go processResponse(ctx, s.c.sess, tokchan)
 	var rowCount int64
 	for token := range tokchan {
 		switch token := token.(type) {
@@ -324,10 +350,10 @@ func (s *MssqlStmt) exec(ctx context.Context, args []namedValue) (res driver.Res
 			if token.Status&doneCount != 0 {
 				rowCount = int64(token.RowCount)
 			}
-		case error:
-			if s.c.sess.logFlags&logErrors != 0 {
-				s.c.sess.log.Println("got error:", token)
+			if token.isError() {
+				return nil, token.getError()
 			}
+		case error:
 			if s.c.sess.tranid != 0 {
 				return nil, token
 			}
@@ -374,6 +400,10 @@ func (rc *MssqlRows) Next(dest []driver.Value) (error) {
 				dest[i] = tokdata[i]
 			}
 			return nil
+		case doneStruct:
+			if tokdata.isError() {
+				return tokdata.getError()
+			}
 		case error:
 			return tokdata
 		}

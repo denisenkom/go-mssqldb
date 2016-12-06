@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 	"time"
+	"golang.org/x/net/context"
 )
 
 type MockTransport struct {
@@ -93,7 +94,7 @@ func TestSendSqlBatch(t *testing.T) {
 	}
 
 	ch := make(chan tokenStruct, 5)
-	go processResponse(conn, ch)
+	go processResponse(context.Background(), conn, ch)
 
 	var lastRow []interface{}
 loop:
@@ -126,7 +127,7 @@ func makeConnStr() string {
 	password := os.Getenv("SQLPASSWORD")
 	database := os.Getenv("DATABASE")
 	return fmt.Sprintf(
-		"Server=%s\\%s;User Id=%s;Password=%s;Database=%s;log=63",
+		"Server=%s\\%s;User Id=%s;Password=%s;Database=%s;log=127",
 		addr, instance, user, password, database)
 }
 

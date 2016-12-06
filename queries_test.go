@@ -359,10 +359,18 @@ func TestShortTimeout(t *testing.T) {
 
 	_, err = conn.Exec("waitfor delay '00:00:15'")
 	if err == nil {
-		t.Fatal("Exec should fail with timeout")
+		t.Fatal("Exec should fail with timeout, but failed with", err)
 	}
 	if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
 		t.Fatal("Exec should fail with timeout, failed with", err)
+	}
+
+	// connection should be usable after timeout
+	row := conn.QueryRow("select 1")
+	var val int64
+	err = row.Scan(&val)
+	if err != nil {
+		t.Fatal("Scan failed with", err)
 	}
 }
 
