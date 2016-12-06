@@ -37,7 +37,9 @@ type MssqlConn struct {
 	transactionCtx context.Context
 }
 
-func simpleProcessResp(tokchan chan tokenStruct) error {
+func (c *MssqlConn) simpleProcessResp(ctx context.Context) error {
+	tokchan := make(chan tokenStruct, 5)
+	go processResponse(ctx, c.sess, tokchan)
 	for tok := range tokchan {
 		switch token := tok.(type) {
 		case doneStruct:
@@ -52,6 +54,13 @@ func simpleProcessResp(tokchan chan tokenStruct) error {
 }
 
 func (c *MssqlConn) Commit() error {
+	if err := c.sendCommitRequest(); err != nil {
+		return err
+	}
+	return c.simpleProcessResp(c.transactionCtx)
+}
+
+func (c *MssqlConn) sendCommitRequest() error {
 	headers := []headerStruct{
 		{hdrtype: dataStmHdrTransDescr,
 			data: transDescrHdr{c.sess.tranid, 1}.pack()},
@@ -62,13 +71,17 @@ func (c *MssqlConn) Commit() error {
 		}
 		return driver.ErrBadConn
 	}
-
-	tokchan := make(chan tokenStruct, 5)
-	go processResponse(c.transactionCtx, c.sess, tokchan)
-	return simpleProcessResp(tokchan)
+	return nil
 }
 
 func (c *MssqlConn) Rollback() error {
+	if err := c.sendRollbackRequest(); err != nil {
+		return err
+	}
+	return c.simpleProcessResp(c.transactionCtx)
+}
+
+func (c *MssqlConn) sendRollbackRequest() error {
 	headers := []headerStruct{
 		{hdrtype: dataStmHdrTransDescr,
 			data: transDescrHdr{c.sess.tranid, 1}.pack()},
@@ -79,10 +92,7 @@ func (c *MssqlConn) Rollback() error {
 		}
 		return driver.ErrBadConn
 	}
-
-	tokchan := make(chan tokenStruct, 5)
-	go processResponse(c.transactionCtx, c.sess, tokchan)
-	return simpleProcessResp(tokchan)
+	return nil
 }
 
 func (c *MssqlConn) Begin() (driver.Tx, error) {
@@ -90,6 +100,14 @@ func (c *MssqlConn) Begin() (driver.Tx, error) {
 }
 
 func (c *MssqlConn) begin(ctx context.Context, tdsIsolation isoLevel) (driver.Tx, error) {
+	err := c.sendBeginRequest(ctx, tdsIsolation)
+	if err != nil {
+		return nil, err
+	}
+	return c.processBeginResponse(ctx)
+}
+
+func (c *MssqlConn) sendBeginRequest(ctx context.Context, tdsIsolation isoLevel) error {
 	c.transactionCtx = ctx
 	headers := []headerStruct{
 		{hdrtype: dataStmHdrTransDescr,
@@ -99,11 +117,13 @@ func (c *MssqlConn) begin(ctx context.Context, tdsIsolation isoLevel) (driver.Tx
 		if c.sess.logFlags&logErrors != 0 {
 			c.sess.log.Printf("Failed to send BeginXact with %v", err)
 		}
-		return nil, driver.ErrBadConn
+		return driver.ErrBadConn
 	}
-	tokchan := make(chan tokenStruct, 5)
-	go processResponse(ctx, c.sess, tokchan)
-	if err := simpleProcessResp(tokchan); err != nil {
+	return nil
+}
+
+func (c *MssqlConn) processBeginResponse(ctx context.Context) (driver.Tx, error) {
+	if err := c.simpleProcessResp(ctx); err != nil {
 		return nil, err
 	}
 	// successful BEGINXACT request will return sess.tranid

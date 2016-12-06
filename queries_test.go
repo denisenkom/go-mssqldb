@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 	"net"
+	"context"
+	"database/sql/driver"
 )
 
 func TestSelect(t *testing.T) {
@@ -818,5 +820,149 @@ func TestConnectionClosing(t *testing.T) {
 				t.Errorf("Query failed with unexpected error %s", err)
 			}
 		}
+	}
+}
+
+func TestBeginTranError(t *testing.T) {
+	drv := &MssqlDriver{}
+	conn, err := drv.open(makeConnStr())
+	if err != nil {
+		t.Fatalf("Open failed with error %v", err)
+	}
+
+	defer conn.Close()
+	// close actual connection to make begin transaction to fail during sending of a packet
+	conn.sess.buf.transport.Close()
+
+	ctx := context.Background()
+	_, err = conn.begin(ctx, isolationSnapshot)
+	if err != driver.ErrBadConn {
+		t.Errorf("begin should fail with ErrBadConn but it returned %v", err)
+	}
+
+	// reopen connection
+	conn, err = drv.open(makeConnStr())
+	if err != nil {
+		t.Fatalf("Open failed with error %v", err)
+	}
+	err = conn.sendBeginRequest(ctx, isolationSerializable)
+	if err != nil {
+		t.Fatalf("sendBeginRequest failed with error %v", err)
+	}
+
+	// close connection to cause processBeginResponse to fail
+	conn.sess.buf.transport.Close()
+	_, err = conn.processBeginResponse(ctx)
+	switch err {
+	case nil:
+		t.Error("processBeginResponse should fail but it succeeded")
+	case driver.ErrBadConn:
+		t.Error("processBeginResponse should fail with error different from ErrBadConn but it did")
+	}
+}
+
+func TestCommitTranError(t *testing.T) {
+	drv := &MssqlDriver{}
+	conn, err := drv.open(makeConnStr())
+	if err != nil {
+		t.Fatalf("Open failed with error %v", err)
+	}
+
+	defer conn.Close()
+	// close actual connection to make commit transaction to fail during sending of a packet
+	conn.sess.buf.transport.Close()
+
+	ctx := context.Background()
+	err = conn.Commit()
+	if err != driver.ErrBadConn {
+		t.Errorf("begin should fail with ErrBadConn but it returned %v", err)
+	}
+
+	// reopen connection
+	conn, err = drv.open(makeConnStr())
+	if err != nil {
+		t.Fatalf("Open failed with error %v", err)
+	}
+	err = conn.sendCommitRequest()
+	if err != nil {
+		t.Fatalf("sendCommitRequest failed with error %v", err)
+	}
+
+	// close connection to cause processBeginResponse to fail
+	conn.sess.buf.transport.Close()
+	err = conn.simpleProcessResp(ctx)
+	switch err {
+	case nil:
+		t.Error("simpleProcessResp should fail but it succeeded")
+	case driver.ErrBadConn:
+		t.Error("simpleProcessResp should fail with error different from ErrBadConn but it did")
+	}
+
+	// reopen connection
+	conn, err = drv.open(makeConnStr())
+	defer conn.Close()
+	if err != nil {
+		t.Fatalf("Open failed with error %v", err)
+	}
+	// should fail because there is no transaction
+	err = conn.Commit()
+	switch err {
+	case nil:
+		t.Error("Commit should fail but it succeeded")
+	case driver.ErrBadConn:
+		t.Error("Commit should fail with error different from ErrBadConn but it did")
+	}
+}
+
+func TestRollbackTranError(t *testing.T) {
+	drv := &MssqlDriver{}
+	conn, err := drv.open(makeConnStr())
+	if err != nil {
+		t.Fatalf("Open failed with error %v", err)
+	}
+
+	defer conn.Close()
+	// close actual connection to make commit transaction to fail during sending of a packet
+	conn.sess.buf.transport.Close()
+
+	ctx := context.Background()
+	err = conn.Rollback()
+	if err != driver.ErrBadConn {
+		t.Errorf("Rollback should fail with ErrBadConn but it returned %v", err)
+	}
+
+	// reopen connection
+	conn, err = drv.open(makeConnStr())
+	if err != nil {
+		t.Fatalf("Open failed with error %v", err)
+	}
+	err = conn.sendRollbackRequest()
+	if err != nil {
+		t.Fatalf("sendCommitRequest failed with error %v", err)
+	}
+
+	// close connection to cause processBeginResponse to fail
+	conn.sess.buf.transport.Close()
+	err = conn.simpleProcessResp(ctx)
+	switch err {
+	case nil:
+		t.Error("simpleProcessResp should fail but it succeeded")
+	case driver.ErrBadConn:
+		t.Error("simpleProcessResp should fail with error different from ErrBadConn but it did")
+	}
+
+	// reopen connection
+	conn, err = drv.open(makeConnStr())
+	defer conn.Close()
+	if err != nil {
+		t.Fatalf("Open failed with error %v", err)
+	}
+	// should fail because there is no transaction
+	err = conn.Rollback()
+	switch err {
+	case nil:
+		t.Error("Commit should fail but it succeeded")
+	case driver.ErrBadConn:
+		t.Error("Commit should fail with error different from ErrBadConn but it did")
 	}
 }

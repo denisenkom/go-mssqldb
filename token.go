@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"golang.org/x/net/context"
-	"database/sql/driver"
 	"net"
+	"errors"
 )
 
 // token ids
@@ -505,7 +505,7 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct) {
 			if sess.logFlags&logErrors != 0 {
 				sess.log.Printf("ERROR: Intercepted panick %v", err)
 			}
-			ch <- driver.ErrBadConn
+			ch <- err
 		}
 		close(ch)
 	}()
@@ -515,18 +515,14 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct) {
 		if sess.logFlags&logErrors != 0 {
 			sess.log.Printf("ERROR: BeginRead failed %v", err)
 		}
-		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-			ch <- netErr
-		} else {
-			ch <- driver.ErrBadConn
-		}
+		ch <- err
 		return
 	}
 	if packet_type != packReply {
 		badStreamPanicf("invalid response packet type, expected REPLY, actual: %d", packet_type)
 	}
 	var columns []columnStruct
-	errors := make([]Error, 0, 5)
+	errs := make([]Error, 0, 5)
 	for {
 		token := sess.buf.byte()
 		if sess.logFlags&logDebug != 0 {
@@ -553,12 +549,12 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct) {
 			ch <- done
 		case tokenDone, tokenDoneProc:
 			done := parseDone(sess.buf)
-			done.errors = errors
+			done.errors = errs
 			if sess.logFlags&logDebug != 0 {
 				sess.log.Printf("got DONE or DONEPROC status=%d", done.Status)
 			}
 			if done.Status&doneSrvError != 0 {
-				ch <- driver.ErrBadConn
+				ch <- errors.New("SQL Server had internal error")
 				return
 			}
 			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
@@ -586,7 +582,7 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct) {
 			if sess.logFlags&logDebug != 0 {
 				sess.log.Printf("got ERROR %d %s", err.Number, err.Message)
 			}
-			errors = append(errors, err)
+			errs = append(errs, err)
 			if sess.logFlags&logErrors != 0 {
 				sess.log.Println(err.Message)
 			}
@@ -652,7 +648,7 @@ func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct)
 								if sess.logFlags&logErrors != 0 {
 									sess.log.Println("Failed to send attention signal %v", err)
 								}
-								ch <- driver.ErrBadConn
+								ch <- err
 								return
 							}
 							doneChan = nil
@@ -685,7 +681,7 @@ func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct)
 					if sess.logFlags&logErrors != 0 {
 						sess.log.Println("Failed to send attention signal %v", err)
 					}
-					ch <- driver.ErrBadConn
+					ch <- err
 					return
 				}
 				doneChan = nil
