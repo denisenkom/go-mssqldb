@@ -966,3 +966,107 @@ func TestRollbackTranError(t *testing.T) {
 		t.Error("Commit should fail with error different from ErrBadConn but it did")
 	}
 }
+
+func TestSendQueryErrors(t *testing.T) {
+	drv := &MssqlDriver{}
+	conn, err := drv.open(makeConnStr())
+	if err != nil {
+		t.FailNow()
+	}
+
+	defer conn.Close()
+	stmt, err := conn.prepareContext(context.Background(), "select 1")
+	if err != nil {
+		t.FailNow()
+	}
+
+	// should fail because parameter is invalid
+	_, err = stmt.Query([]driver.Value{conn})
+	if err == nil {
+		t.Fail()
+	}
+
+	// close actual connection to make commit transaction to fail during sending of a packet
+	conn.sess.buf.transport.Close()
+
+	// should fail because connection is closed
+	_, err = stmt.Query([]driver.Value{})
+	if err != driver.ErrBadConn {
+		t.Fail()
+	}
+
+	stmt, err = conn.prepareContext(context.Background(), "select ?")
+	if err != nil {
+		t.FailNow()
+	}
+	// should fail because connection is closed
+	_, err = stmt.Query([]driver.Value{int64(1)})
+	if err != driver.ErrBadConn {
+		t.Fail()
+	}
+}
+
+func TestProcessQueryErrors(t *testing.T) {
+	drv := &MssqlDriver{}
+	conn, err := drv.open(makeConnStr())
+	if err != nil {
+		t.Fatal("open expected to succeed, but it failed with", err)
+	}
+	stmt, err := conn.prepareContext(context.Background(), "select 1")
+	if err != nil {
+		t.Fatal("prepareContext expected to succeed, but it failed with", err)
+	}
+	err = stmt.sendQuery([]namedValue{})
+	if err != nil {
+		t.Fatal("sendQuery expected to succeed, but it failed with", err)
+	}
+	// close actual connection to make reading response to fail
+	conn.sess.buf.transport.Close()
+	_, err = stmt.processQueryResponse(context.Background())
+	if err == nil {
+		t.Error("processQueryResponse expected to fail but it succeeded")
+	}
+	// should not fail with ErrBadConn because query was successfully sent to server
+	if err == driver.ErrBadConn {
+		t.Error("processQueryResponse expected to fail with error other than ErrBadConn but it failed with it")
+	}
+}
+
+func TestSendExecErrors(t *testing.T) {
+	drv := &MssqlDriver{}
+	conn, err := drv.open(makeConnStr())
+	if err != nil {
+		t.FailNow()
+	}
+
+	defer conn.Close()
+	stmt, err := conn.prepareContext(context.Background(), "select 1")
+	if err != nil {
+		t.FailNow()
+	}
+
+	// should fail because parameter is invalid
+	_, err = stmt.Exec([]driver.Value{conn})
+	if err == nil {
+		t.Fail()
+	}
+
+	// close actual connection to make commit transaction to fail during sending of a packet
+	conn.sess.buf.transport.Close()
+
+	// should fail because connection is closed
+	_, err = stmt.Exec([]driver.Value{})
+	if err != driver.ErrBadConn {
+		t.Fail()
+	}
+
+	stmt, err = conn.prepareContext(context.Background(), "select ?")
+	if err != nil {
+		t.FailNow()
+	}
+	// should fail because connection is closed
+	_, err = stmt.Exec([]driver.Value{int64(1)})
+	if err != driver.ErrBadConn {
+		t.Fail()
+	}
+}

@@ -207,7 +207,7 @@ func (s *MssqlStmt) NumInput() int {
 	return s.paramCount
 }
 
-func (s *MssqlStmt) sendQuery(ctx context.Context, args []namedValue) (err error) {
+func (s *MssqlStmt) sendQuery(args []namedValue) (err error) {
 	headers := []headerStruct{
 		{hdrtype: dataStmHdrTransDescr,
 			data: transDescrHdr{s.c.sess.tranid, 1}.pack()},
@@ -238,10 +238,7 @@ func (s *MssqlStmt) sendQuery(ctx context.Context, args []namedValue) (err error
 	} else {
 		params := make([]Param, len(args)+2)
 		decls := make([]string, len(args))
-		params[0], err = s.makeParam(s.query)
-		if err != nil {
-			return
-		}
+		params[0] = makeStrParam(s.query)
 		for i, val := range args {
 			params[i+2], err = s.makeParam(val.Value)
 			if err != nil {
@@ -256,10 +253,7 @@ func (s *MssqlStmt) sendQuery(ctx context.Context, args []namedValue) (err error
 			params[i+2].Name = name
 			decls[i] = fmt.Sprintf("%s %s", name, makeDecl(params[i+2].ti))
 		}
-		params[1], err = s.makeParam(strings.Join(decls, ","))
-		if err != nil {
-			return
-		}
+		params[1] = makeStrParam(strings.Join(decls, ","))
 		if err = sendRpc(s.c.sess.buf, headers, Sp_ExecuteSql, 0, params); err != nil {
 			if s.c.sess.logFlags&logErrors != 0 {
 				s.c.sess.log.Printf("Failed to send Rpc with %v", err)
@@ -291,10 +285,14 @@ func (s *MssqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 	return s.queryContext(context.Background(), convertOldArgs(args))
 }
 
-func (s *MssqlStmt) queryContext(ctx context.Context, args []namedValue) (res driver.Rows, err error) {
-	if err = s.sendQuery(ctx, args); err != nil {
-		return
+func (s *MssqlStmt) queryContext(ctx context.Context, args []namedValue) (driver.Rows, error) {
+	if err := s.sendQuery(args); err != nil {
+		return nil, err
 	}
+	return s.processQueryResponse(ctx)
+}
+
+func (s *MssqlStmt) processQueryResponse(ctx context.Context) (res driver.Rows, err error) {
 	tokchan := make(chan tokenStruct, 5)
 	go processResponse(ctx, s.c.sess, tokchan)
 	// process metadata
@@ -329,7 +327,7 @@ func (s *MssqlStmt) Exec(args []driver.Value) (driver.Result, error) {
 }
 
 func (s *MssqlStmt) exec(ctx context.Context, args []namedValue) (driver.Result, error) {
-	if err := s.sendQuery(ctx, args); err != nil {
+	if err := s.sendQuery(args); err != nil {
 		return nil, err
 	}
 	return s.processExec(ctx)
@@ -471,6 +469,13 @@ func (r *MssqlRows) ColumnTypeNullable(index int) (nullable, ok bool) {
 	return
 }
 
+func makeStrParam(val string) (res Param) {
+	res.ti.TypeId = typeNVarChar
+	res.buffer = str2ucs2(val)
+	res.ti.Size = len(res.buffer)
+	return
+}
+
 func (s *MssqlStmt) makeParam(val driver.Value) (res Param, err error) {
 	if val == nil {
 		res.ti.TypeId = typeNVarChar
@@ -494,9 +499,7 @@ func (s *MssqlStmt) makeParam(val driver.Value) (res Param, err error) {
 		res.ti.Size = len(val)
 		res.buffer = val
 	case string:
-		res.ti.TypeId = typeNVarChar
-		res.buffer = str2ucs2(val)
-		res.ti.Size = len(res.buffer)
+		res = makeStrParam(val)
 	case bool:
 		res.ti.TypeId = typeBitN
 		res.ti.Size = 1

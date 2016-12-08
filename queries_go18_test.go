@@ -342,7 +342,7 @@ func TestQueryCancelLowLevel(t *testing.T) {
 	if err != nil {
 		t.Errorf("Prepare failed with error %v", err)
 	}
-	err = stmt.sendQuery(ctx, []namedValue{})
+	err = stmt.sendQuery([]namedValue{})
 	if err != nil {
 		t.Errorf("sendQuery failed with error %v", err)
 	}
