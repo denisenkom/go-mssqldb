@@ -43,6 +43,10 @@ func TestNextResultSet(t *testing.T) {
 	if rows.Next() {
 		t.Fatal("Query returned unexpected second row.")
 	}
+	// calling next again should still return false
+	if rows.Next() {
+		t.Fatal("Query returned unexpected second row.")
+	}
 	if !rows.NextResultSet() {
 		t.Fatal("NextResultSet should return true but returned false")
 	}
@@ -55,6 +59,9 @@ func TestNextResultSet(t *testing.T) {
 	}
 	if fld2 != 2 {
 		t.Fatal("Returned value doesn't match")
+	}
+	if rows.NextResultSet() {
+		t.Fatal("NextResultSet should return false but returned true")
 	}
 }
 
