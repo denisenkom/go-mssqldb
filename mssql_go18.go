@@ -18,6 +18,9 @@ func (c *MssqlConn) Ping(ctx context.Context) error {
 }
 
 func (c *MssqlConn) BeginContext(ctx context.Context) (driver.Tx, error) {
+	if driver.ReadOnlyFromContext(ctx) {
+		return nil, errors.New("Read-only transactions are not supported")
+	}
 	tdsIsolation := isolationUseCurrent
 	isolation, ok := driver.IsolationFromContext(ctx)
 	if ok {

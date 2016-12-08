@@ -273,6 +273,15 @@ func TestContext(t *testing.T) {
 	}
 }
 
+func TestBeginContextReadOnlyNotSupported(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	_, err := conn.BeginContext(sql.ReadOnlyContext(context.Background()))
+	if err == nil {
+		t.Error("BeginContext expected to fail for read only transaction because MSSQL doesn't support it, but it succeeded")
+	}
+}
+
 func TestNamedParameters(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
@@ -326,6 +335,27 @@ func TestMixedParameters(t *testing.T) {
 		t.Errorf("Unexpected values returned col1=%d, col2=%d, col3=%d", col1, col2, col3)
 	}
 }
+
+/*
+func TestMixedParametersExample(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	row := conn.QueryRow(
+		"select :id, ?",
+		sql.Named("id", 1),
+		2,
+		)
+	var col1, col2 int64
+	err := row.Scan(&col1, &col2)
+	if err != nil {
+		t.Errorf("Scan failed with unexpected error %s", err)
+		return
+	}
+	if col1 != 1 || col2 != 2 {
+		t.Errorf("Unexpected values returned col1=%d, col2=%d", col1, col2)
+	}
+}
+*/
 
 func TestPinger(t *testing.T) {
 	conn := open(t)
