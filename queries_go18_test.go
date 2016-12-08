@@ -282,6 +282,51 @@ func TestBeginContextReadOnlyNotSupported(t *testing.T) {
 	}
 }
 
+func TestMssqlConn_BeginContext(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	_, err := conn.Exec("create table test (f int)")
+	defer conn.Exec("drop table test")
+	if err != nil {
+		t.Fatal("create table failed with error", err)
+	}
+	tx1, err := conn.BeginContext(context.Background())
+	if err != nil {
+		t.Fatal("BeginContext failed with error", err)
+	}
+	tx2, err := conn.BeginContext(context.Background())
+	if err != nil {
+		t.Fatal("BeginContext failed with error", err)
+	}
+	_, err = tx1.Exec("insert into test (f) values (1)")
+	if err != nil {
+		t.Fatal("insert failed with error", err)
+	}
+	_, err = tx2.Exec("insert into test (f) values (2)")
+	if err != nil {
+		t.Fatal("insert failed with error", err)
+	}
+	tx1.Rollback()
+	tx2.Commit()
+
+	rows, err := conn.Query("select f from test")
+	if err != nil {
+		t.Fatal("select failed with error", err)
+	}
+	values := []int64{}
+	for rows.Next() {
+		var val int64
+		err = rows.Scan(&val)
+		if err != nil {
+			t.Fatal("scan failed with error", err)
+		}
+		values = append(values, val)
+	}
+	if !reflect.DeepEqual(values, []int64{2}) {
+		t.Errorf("Values is expected to be [1] but it is %v", values)
+	}
+}
+
 func TestNamedParameters(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
