@@ -11,39 +11,41 @@ import (
 
 var _ driver.Pinger = &MssqlConn{}
 
+// Ping is used to check if the remote server is avaiable and satisfies the Pinger interface.
 func (c *MssqlConn) Ping(ctx context.Context) error {
 	stmt := &MssqlStmt{c, `select 1;`, 0, nil}
 	_, err := stmt.ExecContext(ctx, nil)
 	return err
 }
 
-func (c *MssqlConn) BeginContext(ctx context.Context) (driver.Tx, error) {
-	if driver.ReadOnlyFromContext(ctx) {
+var _ driver.ConnBeginTx = &MssqlConn{}
+
+// BeginTx satisfies ConnBeginTx.
+func (c *MssqlConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
+	if opts.ReadOnly {
 		return nil, errors.New("Read-only transactions are not supported")
 	}
-	tdsIsolation := isolationUseCurrent
-	isolation, ok := driver.IsolationFromContext(ctx)
-	if ok {
-		switch sql.IsolationLevel(isolation) {
-		case sql.LevelDefault:
-			tdsIsolation = isolationUseCurrent
-		case sql.LevelReadUncommitted:
-			tdsIsolation = isolationReadUncommited
-		case sql.LevelReadCommitted:
-			tdsIsolation = isolationReadCommited
-		case sql.LevelWriteCommitted:
-			return nil, errors.New("LevelWriteCommitted isolation level is not supported")
-		case sql.LevelRepeatableRead:
-			tdsIsolation = isolationRepeatableRead
-		case sql.LevelSnapshot:
-			tdsIsolation = isolationSnapshot
-		case sql.LevelSerializable:
-			tdsIsolation = isolationSerializable
-		case sql.LevelLinearizable:
-			return nil, errors.New("LevelLinearizable isolation level is not supported")
-		default:
-			return nil, errors.New("Isolation level is not supported or unknown")
-		}
+
+	var tdsIsolation isoLevel
+	switch sql.IsolationLevel(opts.Isolation) {
+	case sql.LevelDefault:
+		tdsIsolation = isolationUseCurrent
+	case sql.LevelReadUncommitted:
+		tdsIsolation = isolationReadUncommited
+	case sql.LevelReadCommitted:
+		tdsIsolation = isolationReadCommited
+	case sql.LevelWriteCommitted:
+		return nil, errors.New("LevelWriteCommitted isolation level is not supported")
+	case sql.LevelRepeatableRead:
+		tdsIsolation = isolationRepeatableRead
+	case sql.LevelSnapshot:
+		tdsIsolation = isolationSnapshot
+	case sql.LevelSerializable:
+		tdsIsolation = isolationSerializable
+	case sql.LevelLinearizable:
+		return nil, errors.New("LevelLinearizable isolation level is not supported")
+	default:
+		return nil, errors.New("Isolation level is not supported or unknown")
 	}
 	return c.begin(ctx, tdsIsolation)
 }
