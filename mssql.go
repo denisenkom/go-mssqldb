@@ -6,12 +6,12 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 	"io"
 	"math"
+	"reflect"
 	"strings"
 	"time"
-	"reflect"
-	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 )
 
 var driverInstance = &MssqlDriver{}
@@ -33,7 +33,7 @@ func (d *MssqlDriver) SetLogger(logger Logger) {
 }
 
 type MssqlConn struct {
-	sess *tdsSession
+	sess           *tdsSession
 	transactionCtx context.Context
 }
 
@@ -131,24 +131,6 @@ func (c *MssqlConn) processBeginResponse(ctx context.Context) (driver.Tx, error)
 	return c, nil
 }
 
-func OpenConnection(dsn string) (*MssqlConn, error) {
-	params := parseConnectionString(dsn)
-	buf, err := connect(params)
-	if err != nil {
-		return nil, err
-	}
-	return &MssqlConn{buf}, nil
-}
-
-func OpenConnection(dsn string) (*MssqlConn, error) {
-	params := parseConnectionString(dsn)
-	buf, err := connect(params)
-	if err != nil {
-		return nil, err
-	}
-	return &MssqlConn{buf}, nil
-}
-
 func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
 	return d.open(dsn)
 }
@@ -201,23 +183,13 @@ type queryNotifSub struct {
 }
 
 func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
-<<<<<<< HEAD
-
 	if len(query) > 10 && strings.EqualFold(query[:10], "INSERTBULK") {
 		return c.prepareCopyIn(query)
 	}
-
-=======
-<<<<<<< HEAD
 	return c.prepareContext(context.Background(), query)
 }
 
 func (c *MssqlConn) prepareContext(ctx context.Context, query string) (*MssqlStmt, error) {
-=======
-
-
->>>>>>> refs/remotes/origin/master
->>>>>>> refs/heads/pr/2
 	q, paramCount := parseParams(query)
 	return &MssqlStmt{c, q, paramCount, nil}, nil
 }
@@ -296,17 +268,17 @@ func (s *MssqlStmt) sendQuery(args []namedValue) (err error) {
 }
 
 type namedValue struct {
-	Name string
+	Name    string
 	Ordinal int
-	Value driver.Value
+	Value   driver.Value
 }
 
 func convertOldArgs(args []driver.Value) []namedValue {
 	list := make([]namedValue, len(args))
 	for i, v := range args {
 		list[i] = namedValue{
-			Ordinal: i+1,
-			Value: v,
+			Ordinal: i + 1,
+			Value:   v,
 		}
 	}
 	return list
@@ -411,7 +383,7 @@ func (rc *MssqlRows) Columns() (res []string) {
 	return
 }
 
-func (rc *MssqlRows) Next(dest []driver.Value) (error) {
+func (rc *MssqlRows) Next(dest []driver.Value) error {
 	if rc.nextCols != nil {
 		return io.EOF
 	}
@@ -495,7 +467,7 @@ func (r *MssqlRows) ColumnTypePrecisionScale(index int) (int64, int64, bool) {
 // to be not nullable.
 // If the column nullability is unknown, ok should be false.
 func (r *MssqlRows) ColumnTypeNullable(index int) (nullable, ok bool) {
-	nullable = r.cols[index].Flags & colFlagNullable != 0
+	nullable = r.cols[index].Flags&colFlagNullable != 0
 	ok = true
 	return
 }

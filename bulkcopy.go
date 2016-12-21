@@ -226,7 +226,7 @@ func (b *MssqlBulk) Done() (rowcount int64, err error) {
 
 	//
 	tokchan := make(chan tokenStruct, 5)
-	go processResponse(b.cn.sess, tokchan)
+	go processResponse(nil, b.cn.sess, tokchan)
 
 	var rowCount int64
 	for token := range tokchan {
@@ -313,7 +313,7 @@ func (s *MssqlStmt) QueryMeta() (cols []columnStruct, err error) {
 		return
 	}
 	tokchan := make(chan tokenStruct, 5)
-	go processResponse(s.c.sess, tokchan)
+	go processResponse(nil, s.c.sess, tokchan)
 	// process metadata
 	//var cols []string
 loop:
