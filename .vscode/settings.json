@@ -1,0 +1,15 @@
+// Place your settings in this file to overwrite default and user settings.
+{
+    // Configure glob patterns for excluding files and folders.
+    "files.exclude": {
+        "**/*.log": true,
+        "**/*.zip": true,
+        "**/*.exe": true,
+        "**/.git": true,
+        "**/.svn": true,
+        "**/Logs": true,
+        "**/.DS_Store": true,
+        "debug": true
+    },
+     "go.lintTool": "gometalinter",
+}

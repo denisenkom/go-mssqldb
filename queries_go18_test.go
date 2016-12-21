@@ -230,11 +230,14 @@ func TestColumnIntrospection(t *testing.T) {
 func TestContext(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
+
+	opts := &sql.TxOptions{
+		Isolation: sql.LevelSerializable,
+	}
 	ctx := context.Background()
-	ctx = sql.IsolationContext(ctx, sql.LevelSerializable)
-	tx, err := conn.BeginContext(ctx)
+	tx, err := conn.BeginTx(ctx, opts)
 	if err != nil {
-		t.Errorf("BeginContext failed with unexpected error %s", err)
+		t.Errorf("BeginTx failed with unexpected error %s", err)
 		return
 	}
 	rows, err := tx.QueryContext(ctx, "DBCC USEROPTIONS")
@@ -273,16 +276,17 @@ func TestContext(t *testing.T) {
 	}
 }
 
-func TestBeginContextReadOnlyNotSupported(t *testing.T) {
+func TestBeginTxtReadOnlyNotSupported(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
-	_, err := conn.BeginContext(sql.ReadOnlyContext(context.Background()))
+	opts := &sql.TxOptions{ReadOnly: true}
+	_, err := conn.BeginTx(context.Background(), opts)
 	if err == nil {
-		t.Error("BeginContext expected to fail for read only transaction because MSSQL doesn't support it, but it succeeded")
+		t.Error("BeginTx expected to fail for read only transaction because MSSQL doesn't support it, but it succeeded")
 	}
 }
 
-func TestMssqlConn_BeginContext(t *testing.T) {
+func TestMssqlConn_BeginTx(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
 	_, err := conn.Exec("create table test (f int)")
@@ -290,13 +294,14 @@ func TestMssqlConn_BeginContext(t *testing.T) {
 	if err != nil {
 		t.Fatal("create table failed with error", err)
 	}
-	tx1, err := conn.BeginContext(context.Background())
+
+	tx1, err := conn.BeginTx(context.Background(), nil)
 	if err != nil {
-		t.Fatal("BeginContext failed with error", err)
+		t.Fatal("BeginTx failed with error", err)
 	}
-	tx2, err := conn.BeginContext(context.Background())
+	tx2, err := conn.BeginTx(context.Background(), nil)
 	if err != nil {
-		t.Fatal("BeginContext failed with error", err)
+		t.Fatal("BeginTx failed with error", err)
 	}
 	_, err = tx1.Exec("insert into test (f) values (1)")
 	if err != nil {
@@ -479,7 +484,7 @@ func TestQueryCancelHighLevel(t *testing.T) {
 func TestQueryTimeout(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 1 * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:03'")
 	if err != context.DeadlineExceeded {

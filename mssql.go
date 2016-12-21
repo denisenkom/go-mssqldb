@@ -131,6 +131,15 @@ func (c *MssqlConn) processBeginResponse(ctx context.Context) (driver.Tx, error)
 	return c, nil
 }
 
+func OpenConnection(dsn string) (*MssqlConn, error) {
+	params := parseConnectionString(dsn)
+	buf, err := connect(params)
+	if err != nil {
+		return nil, err
+	}
+	return &MssqlConn{buf}, nil
+}
+
 func (d *MssqlDriver) Open(dsn string) (driver.Conn, error) {
 	return d.open(dsn)
 }
@@ -183,10 +192,15 @@ type queryNotifSub struct {
 }
 
 func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
+<<<<<<< HEAD
 	return c.prepareContext(context.Background(), query)
 }
 
 func (c *MssqlConn) prepareContext(ctx context.Context, query string) (*MssqlStmt, error) {
+=======
+
+
+>>>>>>> refs/remotes/origin/master
 	q, paramCount := parseParams(query)
 	return &MssqlStmt{c, q, paramCount, nil}, nil
 }
