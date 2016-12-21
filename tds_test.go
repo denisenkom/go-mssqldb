@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 	"time"
+	"golang.org/x/net/context"
 )
 
 type MockTransport struct {
@@ -19,7 +20,8 @@ func (t *MockTransport) Close() error {
 }
 
 func TestSendLogin(t *testing.T) {
-	buf := newTdsBuffer(1024, new(MockTransport))
+	memBuf := new(MockTransport)
+	buf := newTdsBuffer(1024, memBuf)
 	login := login{
 		TDSVersion:     verTDS73,
 		PacketSize:     0x1000,
@@ -57,24 +59,24 @@ func TestSendLogin(t *testing.T) {
 		0, 97, 0, 114, 0, 121, 0, 101, 0, 110, 0, 100, 0, 97, 0, 116, 0, 97, 0, 98,
 		0, 97, 0, 115, 0, 101, 0, 102, 0, 105, 0, 108, 0, 101, 0, 112, 0, 97, 0,
 		116, 0, 104, 0}
-	out := buf.buf[:buf.pos]
+	out := memBuf.Bytes()
 	if !bytes.Equal(ref, out) {
-		t.Error("input output don't match")
+		fmt.Println("Expected:")
 		fmt.Print(hex.Dump(ref))
+		fmt.Println("Returned:")
 		fmt.Print(hex.Dump(out))
+		t.Error("input output don't match")
 	}
 }
 
 func TestSendSqlBatch(t *testing.T) {
-	addr := os.Getenv("HOST")
-	instance := os.Getenv("INSTANCE")
+	p, err := parseConnectParams(makeConnStr())
+	if err != nil {
+		t.Error("parseConnectParams failed:", err.Error())
+		return
+	}
 
-	conn, err := connect(map[string]string{
-		"server":   fmt.Sprintf("%s\\%s", addr, instance),
-		"user id":  os.Getenv("SQLUSER"),
-		"password": os.Getenv("SQLPASSWORD"),
-		"database": os.Getenv("DATABASE"),
-	})
+	conn, err := connect(p)
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
 		return
@@ -92,7 +94,7 @@ func TestSendSqlBatch(t *testing.T) {
 	}
 
 	ch := make(chan tokenStruct, 5)
-	go processResponse(conn, ch)
+	go processResponse(context.Background(), conn, ch)
 
 	var lastRow []interface{}
 loop:
@@ -125,8 +127,20 @@ func makeConnStr() string {
 	password := os.Getenv("SQLPASSWORD")
 	database := os.Getenv("DATABASE")
 	return fmt.Sprintf(
-		"Server=%s\\%s;User Id=%s;Password=%s;Database=%s;log=63",
+		"Server=%s\\%s;User Id=%s;Password=%s;Database=%s;log=127",
 		addr, instance, user, password, database)
+}
+
+type testLogger struct {
+	t *testing.T
+}
+
+func (l testLogger) Printf(format string, v ...interface{}) {
+	l.t.Logf(format, v...)
+}
+
+func (l testLogger) Println(v ...interface{}) {
+	l.t.Log(v...)
 }
 
 func open(t *testing.T) *sql.DB {
@@ -135,6 +149,8 @@ func open(t *testing.T) *sql.DB {
 		t.Error("Open connection failed:", err.Error())
 		return nil
 	}
+
+	SetLogger(testLogger{t})
 	return conn
 }
 
@@ -323,14 +339,65 @@ func TestSecureConnection(t *testing.T) {
 	}
 }
 
-func TestParseConnectParamsKeepAlive(t *testing.T) {
-	params := parseConnectionString("keepAlive=60")
-	parsedParams, err := parseConnectParams(params)
-	if err != nil {
-		t.Fatal("cannot parse params: ", err)
+func TestInvalidConnectionString(t *testing.T) {
+	connStrings := []string{
+		"log=invalid",
+		"port=invalid",
+		"connection timeout=invalid",
+		"dial timeout=invalid",
+		"keepalive=invalid",
+		"encrypt=invalid",
+		"trustservercertificate=invalid",
+		"failoverport=invalid",
 	}
+	for _, connStr := range connStrings {
+		_, err := parseConnectParams(connStr)
+		if err == nil {
+			t.Errorf("Connection expected to fail for connection string %s but it didn't", connStr)
+			continue
+		} else {
+			t.Logf("Connection failed for %s as expected with error %v", connStr, err)
+		}
+	}
+}
 
-	if parsedParams.keepAlive != time.Duration(60)*time.Second {
-		t.Fail()
+func TestValidConnectionString(t *testing.T) {
+	type testStruct struct{
+		connStr string;
+		check func (connectParams) bool;
+	}
+	connStrings := []testStruct{
+		{"server=server\\instance;database=testdb;user id=tester;password=pwd", func(p connectParams) bool {return p.host == "server" && p.instance == "instance" && p.user == "tester" && p.password == "pwd"}},
+		{"server=.", func(p connectParams) bool {return p.host == "localhost"}},
+		{"server=(local)", func(p connectParams) bool {return p.host == "localhost"}},
+		{"ServerSPN=serverspn;Workstation ID=workstid", func(p connectParams) bool {return p.serverSPN == "serverspn" && p.workstation == "workstid"}},
+		{"failoverpartner=fopartner;failoverport=2000", func(p connectParams) bool {return p.failOverPartner == "fopartner" && p.failOverPort == 2000}},
+		{"app name=appname;applicationintent=ReadOnly", func(p connectParams) bool {return p.appname == "appname" && (p.typeFlags & fReadOnlyIntent != 0)}},
+		{"encrypt=disable", func(p connectParams) bool {return p.disableEncryption}},
+		{"encrypt=true", func(p connectParams) bool {return p.encrypt && !p.disableEncryption}},
+		{"encrypt=false", func(p connectParams) bool {return !p.encrypt && !p.disableEncryption}},
+		{"trustservercertificate=true", func(p connectParams) bool {return p.trustServerCertificate}},
+		{"trustservercertificate=false", func(p connectParams) bool {return !p.trustServerCertificate}},
+		{"certificate=abc", func(p connectParams) bool {return p.certificate == "abc"}},
+		{"hostnameincertificate=abc", func(p connectParams) bool {return p.hostInCertificate == "abc"}},
+		{"connection timeout=3;dial timeout=4;keepalive=5", func(p connectParams) bool {return p.conn_timeout == 3 * time.Second && p.dial_timeout == 4 * time.Second && p.keepAlive == 5 * time.Second}},
+		{"log=63;port=1000", func(p connectParams) bool {return p.logFlags == 63 && p.port == 1000}},
+
+		// those are supported currently, but maybe should not be
+		{"someparam", func(p connectParams) bool {return true}},
+		{";;=;", func(p connectParams) bool {return true}},
+	}
+	for _, ts := range connStrings {
+		p, err := parseConnectParams(ts.connStr)
+		if err == nil {
+			t.Logf("Connection string was parsed successfully %s", ts.connStr)
+		} else {
+			t.Errorf("Connection string %s failed to parse with error %s", ts.connStr, err)
+			continue
+		}
+
+		if !ts.check(p) {
+			t.Errorf("Check failed on conn str %s", ts.connStr)
+		}
 	}
 }

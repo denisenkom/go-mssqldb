@@ -2,6 +2,7 @@ package mssql
 
 import (
 	"testing"
+	"math"
 )
 
 func TestToString(t *testing.T) {
@@ -12,6 +13,7 @@ func TestToString(t *testing.T) {
 		{Decimal{positive: true, prec: 10, scale: 0, integer: [4]uint32{1, 0, 0, 0}}, "1"},
 		{Decimal{positive: false, prec: 10, scale: 0, integer: [4]uint32{1, 0, 0, 0}}, "-1"},
 		{Decimal{positive: true, prec: 10, scale: 1, integer: [4]uint32{1, 0, 0, 0}}, "0.1"},
+		{Decimal{positive: true, prec: 10, scale: 2, integer: [4]uint32{1, 0, 0, 0}}, "0.01"},
 		{Decimal{positive: false, prec: 10, scale: 1, integer: [4]uint32{1, 0, 0, 0}}, "-0.1"},
 		{Decimal{positive: true, prec: 10, scale: 2, integer: [4]uint32{100, 0, 0, 0}}, "1.00"},
 		{Decimal{positive: false, prec: 10, scale: 2, integer: [4]uint32{100, 0, 0, 0}}, "-1.00"},
@@ -78,5 +80,28 @@ func TestFromFloat64(t *testing.T) {
 		} else {
 			t.Error("Float64ToDecimal failed with error:", err.Error())
 		}
+	}
+
+	_, err := Float64ToDecimal(math.NaN())
+	if err == nil {
+		t.Error("Expected to get error for conversion from NaN, but didn't")
+	}
+
+	_, err = Float64ToDecimal(math.Inf(1))
+	if err == nil {
+		t.Error("Expected to get error for conversion from positive infinity, but didn't")
+	}
+
+	_, err = Float64ToDecimal(math.Inf(-1))
+	if err == nil {
+		t.Error("Expected to get error for conversion from negative infinity, but didn't")
+	}
+	_, err = Float64ToDecimal(3.402823669209386e+38)
+	if err == nil {
+		t.Error("Expected to get error for conversion from too big number, but didn't")
+	}
+	_, err = Float64ToDecimal(-3.402823669209386e+38)
+	if err == nil {
+		t.Error("Expected to get error for conversion from too big number, but didn't")
 	}
 }
