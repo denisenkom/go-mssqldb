@@ -336,7 +336,8 @@ loop:
 
 func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err error) {
 
-	//log.Printf("makeParam col: %s  type: %s\n", col.ColName, reflect.TypeOf(val))
+	//for debugging please comment out or remove
+	log.Printf("makeParam col: %s  type: %s\n", col.ColName, reflect.TypeOf(val))
 
 	res.ti.Size = col.ti.Size
 	res.ti.TypeId = col.ti.TypeId
