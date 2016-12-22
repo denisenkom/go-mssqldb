@@ -341,11 +341,11 @@ func (s *MssqlStmt) processExec(ctx context.Context) (res driver.Result, err err
 		switch token := token.(type) {
 		case doneInProcStruct:
 			if token.Status&doneCount != 0 {
-				rowCount = int64(token.RowCount)
+				rowCount += int64(token.RowCount)
 			}
 		case doneStruct:
 			if token.Status&doneCount != 0 {
-				rowCount = int64(token.RowCount)
+				rowCount += int64(token.RowCount)
 			}
 			if token.isError() {
 				return nil, token.getError()
