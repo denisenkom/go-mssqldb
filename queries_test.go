@@ -684,7 +684,7 @@ func TestUniqueIdentifierParam(t *testing.T) {
 				t.Fatal("select / scan failed", err.Error())
 			}
 
-			if !expected.Equal(uuid2) {
+			if expected != uuid2 {
 				t.Errorf("uniqueidentifier does not match: '%s' '%s'", expected, uuid2)
 			}
 		})

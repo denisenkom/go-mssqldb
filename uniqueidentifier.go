@@ -1,16 +1,13 @@
 package mssql
 
 import (
-	"bytes"
 	"database/sql/driver"
 	"encoding/hex"
 	"errors"
 	"fmt"
 )
 
-var nilUUID = make([]byte, 16) // RFC 4122 section 4.1.7 says a nil UUID is all zeros.
-
-type UniqueIdentifier []byte
+type UniqueIdentifier [16]byte
 
 func (u *UniqueIdentifier) Scan(v interface{}) error {
 	reverse := func(b []byte) {
@@ -25,9 +22,9 @@ func (u *UniqueIdentifier) Scan(v interface{}) error {
 			return errors.New("mssql: invalid UniqueIdentifier length")
 		}
 
-		raw := make(UniqueIdentifier, 16)
+		var raw UniqueIdentifier
 
-		copy(raw, vt)
+		copy(raw[:], vt)
 
 		reverse(raw[0:4])
 		reverse(raw[4:6])
@@ -48,8 +45,7 @@ func (u *UniqueIdentifier) Scan(v interface{}) error {
 			}
 		}
 
-		*u = make(UniqueIdentifier, 16)
-		_, err := hex.Decode(*u, []byte(b))
+		_, err := hex.Decode(u[:], []byte(b))
 		return err
 	default:
 		return fmt.Errorf("mssql: cannot convert %T to UniqueIdentifier", v)
@@ -63,13 +59,8 @@ func (u UniqueIdentifier) Value() (driver.Value, error) {
 		}
 	}
 
-	if len([]byte(u)) != 16 {
-		return nil, errors.New("mssql: invalid UniqueIdentifier length")
-	}
-
-	raw := make([]byte, 16)
-
-	copy(raw, u)
+	raw := make([]byte, len(u))
+	copy(raw, u[:])
 
 	reverse(raw[0:4])
 	reverse(raw[4:6])
@@ -79,13 +70,5 @@ func (u UniqueIdentifier) Value() (driver.Value, error) {
 }
 
 func (u UniqueIdentifier) String() string {
-	b := []byte(u)
-	if len(b) != 16 {
-		b = nilUUID
-	}
-	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
-}
-
-func (u UniqueIdentifier) Equal(u2 UniqueIdentifier) bool {
-	return bytes.Equal(u, u2)
+	return fmt.Sprintf("%X-%X-%X-%X-%X", u[0:4], u[4:6], u[6:8], u[8:10], u[10:])
 }
