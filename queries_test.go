@@ -650,6 +650,47 @@ func TestDateTimeParam(t *testing.T) {
 
 }
 
+func TestUniqueIdentifierParam(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	type testStruct struct {
+		name string
+		uuid interface{}
+	}
+
+	expected := UniqueIdentifier{0x01, 0x23, 0x45, 0x67,
+		0x89, 0xAB,
+		0xCD, 0xEF,
+		0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF,
+	}
+
+	values := []testStruct{
+		{
+			"[]byte",
+			[]byte{0x67, 0x45, 0x23, 0x01,
+				0xAB, 0x89,
+				0xEF, 0xCD,
+				0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF}},
+		{
+			"string",
+			"01234567-89ab-cdef-0123-456789abcdef"},
+	}
+
+	for _, test := range values {
+		t.Run(test.name, func(t *testing.T) {
+			var uuid2 UniqueIdentifier
+			err := conn.QueryRow("select ?", test.uuid).Scan(&uuid2)
+			if err != nil {
+				t.Fatal("select / scan failed", err.Error())
+			}
+
+			if !expected.Equal(uuid2) {
+				t.Errorf("uniqueidentifier does not match: '%s' '%s'", expected, uuid2)
+			}
+		})
+	}
+}
+
 func TestBigQuery(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
