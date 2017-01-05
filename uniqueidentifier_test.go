@@ -65,29 +65,6 @@ func TestUniqueIdentifierString(t *testing.T) {
 	}
 }
 
-func TestUniqueIdentifierImplementsStringer(t *testing.T) {
-	var v interface{}
-	v = new(UniqueIdentifier)
-
-	if _, ok := v.(fmt.Stringer); !ok {
-		t.Error(`Uniqueidentifier must be fmt.Stringer`)
-	}
-
-}
-func TestUniqueIdentifierImplementsScanner(t *testing.T) {
-	var v interface{}
-	v = new(UniqueIdentifier)
-
-	if _, ok := v.(sql.Scanner); !ok {
-		t.Error(`Uniqueidentifier must be "database/sql".Scanner`)
-	}
-}
-
-func TestUniqueIdentifierImplementsValuer(t *testing.T) {
-	var v interface{}
-	v = new(UniqueIdentifier)
-
-	if _, ok := v.(driver.Valuer); !ok {
-		t.Error(`Uniqueidentifier must be "database/sql/driver".Valuer`)
-	}
-}
+var _ fmt.Stringer = UniqueIdentifier{}
+var _ sql.Scanner = &UniqueIdentifier{}
+var _ driver.Valuer = UniqueIdentifier{}
