@@ -84,13 +84,13 @@ const (
 // packet types
 // https://msdn.microsoft.com/en-us/library/dd304214.aspx
 const (
-	packSQLBatch packetType = 1
-	packRPCRequest  = 3
-	packReply       = 4
+	packSQLBatch   packetType = 1
+	packRPCRequest            = 3
+	packReply                 = 4
 
 	// 2.2.1.7 Attention: https://msdn.microsoft.com/en-us/library/dd341449.aspx
 	// 4.19.2 Out-of-Band Attention Signal: https://msdn.microsoft.com/en-us/library/dd305167.aspx
-	packAttention   = 6
+	packAttention = 6
 
 	packBulkLoadBCP = 7
 	packTransMgrReq = 14
@@ -643,7 +643,7 @@ func sendSqlBatch72(buf *tdsBuffer,
 
 // 2.2.1.7 Attention: https://msdn.microsoft.com/en-us/library/dd341449.aspx
 // 4.19.2 Out-of-Band Attention Signal: https://msdn.microsoft.com/en-us/library/dd305167.aspx
-func sendAttention(buf *tdsBuffer) (error) {
+func sendAttention(buf *tdsBuffer) error {
 	buf.BeginPacket(packAttention)
 	return buf.FinishPacket()
 }
@@ -1145,7 +1145,7 @@ func dialConnection(p connectParams) (conn net.Conn, err error) {
 	return conn, err
 }
 
-func connect(p connectParams) (res *tdsSession, err error) {
+func connect(log optionalLogger, p connectParams) (res *tdsSession, err error) {
 	res = nil
 	// if instance is specified use instance resolution service
 	if p.instance != "" {
@@ -1178,6 +1178,7 @@ initiate_connection:
 	outbuf := newTdsBuffer(4096, toconn)
 	sess := tdsSession{
 		buf:      outbuf,
+		log:      log,
 		logFlags: p.logFlags,
 	}
 

@@ -417,7 +417,8 @@ func TestPinger(t *testing.T) {
 }
 
 func TestQueryCancelLowLevel(t *testing.T) {
-	drv := &MssqlDriver{}
+	checkConnStr(t)
+	drv := driverWithProcess(t)
 	conn, err := drv.open(makeConnStr())
 	if err != nil {
 		t.Errorf("Open failed with error %v", err)
@@ -497,5 +498,91 @@ func TestQueryTimeout(t *testing.T) {
 	err = row.Scan(&val)
 	if err != nil {
 		t.Fatal("Scan failed with", err)
+	}
+}
+
+func TestDriverParams(t *testing.T) {
+	checkConnStr(t)
+	SetLogger(testLogger{t})
+	type sqlCmd struct {
+		Name   string
+		Driver string
+		Query  string
+		Param  []interface{}
+		Expect []interface{}
+	}
+
+	list := []sqlCmd{
+		{
+			Name:   "preprocess-ordinal",
+			Driver: "mssql",
+			Query:  `select V1=:1`,
+			Param:  []interface{}{"abc"},
+			Expect: []interface{}{"abc"},
+		},
+		{
+			Name:   "preprocess-name",
+			Driver: "mssql",
+			Query:  `select V1=:First`,
+			Param:  []interface{}{sql.Named("First", "abc")},
+			Expect: []interface{}{"abc"},
+		},
+		{
+			Name:   "raw-ordinal",
+			Driver: "sqlserver",
+			Query:  `select V1=@p1`,
+			Param:  []interface{}{"abc"},
+			Expect: []interface{}{"abc"},
+		},
+		{
+			Name:   "raw-name",
+			Driver: "sqlserver",
+			Query:  `select V1=@First`,
+			Param:  []interface{}{sql.Named("First", "abc")},
+			Expect: []interface{}{"abc"},
+		},
+	}
+
+	for cmdIndex, cmd := range list {
+		t.Run(cmd.Name, func(t *testing.T) {
+			db, err := sql.Open(cmd.Driver, makeConnStr())
+			if err != nil {
+				t.Fatalf("failed to open driver %q", cmd.Driver)
+			}
+			defer db.Close()
+
+			rows, err := db.Query(cmd.Query, cmd.Param...)
+			if err != nil {
+				t.Fatalf("failed to run query %q %v", cmd.Query, err)
+			}
+			defer rows.Close()
+
+			columns, err := rows.Columns()
+			if err != nil {
+				t.Fatal("failed to get column schema %v", err)
+			}
+			clen := len(columns)
+
+			if clen != len(cmd.Expect) {
+				t.Fatal("query column has %d, expect %d columns", clen, len(cmd.Expect))
+			}
+
+			values := make([]interface{}, clen)
+			into := make([]interface{}, clen)
+			for i := 0; i < clen; i++ {
+				into[i] = &values[i]
+			}
+			for rows.Next() {
+				err = rows.Scan(into...)
+				if err != nil {
+					t.Fatalf("failed to scan into row for %d %q", cmdIndex, cmd.Driver)
+				}
+				for i := range cmd.Expect {
+					if values[i] != cmd.Expect[i] {
+						t.Fatal("expected value in index %d %v != actual value %v", i, cmd.Expect[i], values[i])
+					}
+				}
+			}
+		})
 	}
 }
