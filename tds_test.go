@@ -349,6 +349,12 @@ func TestInvalidConnectionString(t *testing.T) {
 		"encrypt=invalid",
 		"trustservercertificate=invalid",
 		"failoverport=invalid",
+
+		// ODBC mode
+		"odbc:password={",
+		"odbc:password={somepass",
+		"odbc:password={somepass}}",
+		"odbc:password={some}pass",
 	}
 	for _, connStr := range connStrings {
 		_, err := parseConnectParams(connStr)
@@ -386,6 +392,55 @@ func TestValidConnectionString(t *testing.T) {
 		// those are supported currently, but maybe should not be
 		{"someparam", func(p connectParams) bool {return true}},
 		{";;=;", func(p connectParams) bool {return true}},
+
+		// ODBC mode
+		{"odbc:server=somehost;user id=someuser;password=somepass", func(p connectParams) bool {
+			return p.host == "somehost" && p.user == "someuser" && p.password == "somepass"
+		}},
+		{"odbc:server=somehost;user id=someuser;password=some{pass", func(p connectParams) bool {
+			return p.host == "somehost" && p.user == "someuser" && p.password == "some{pass"
+		}},
+		{"odbc:server={somehost};user id={someuser};password={somepass}", func(p connectParams) bool {
+			return p.host == "somehost" && p.user == "someuser" && p.password == "somepass"
+		}},
+		{"odbc:server={somehost};user id={someuser};password={some=pass}", func(p connectParams) bool {
+			return p.host == "somehost" && p.user == "someuser" && p.password == "some=pass"
+		}},
+		{"odbc:server={somehost};user id={someuser};password={some;pass}", func(p connectParams) bool {
+			return p.host == "somehost" && p.user == "someuser" && p.password == "some;pass"
+		}},
+		{"odbc:server={somehost};user id={someuser};password={some{pass}", func(p connectParams) bool {
+			return p.host == "somehost" && p.user == "someuser" && p.password == "some{pass"
+		}},
+		{"odbc:server={somehost};user id={someuser};password={some}}pass}", func(p connectParams) bool {
+			return p.host == "somehost" && p.user == "someuser" && p.password == "some}pass"
+		}},
+		{"odbc:server={somehost};user id={someuser};password={some{}}p=a;ss}", func(p connectParams) bool {
+			return p.host == "somehost" && p.user == "someuser" && p.password == "some{}p=a;ss"
+		}},
+		{"odbc: server = somehost; user id =  someuser ; password = {some pass } ", func(p connectParams) bool {
+			return p.host == "somehost" && p.user == "someuser" && p.password == "some pass "
+		}},
+
+		// URL mode
+		{"sqlserver://somehost?connection+timeout=30", func(p connectParams) bool {
+			return p.host == "somehost" && p.port == 1433 && p.instance == "" && p.conn_timeout == 30 * time.Second
+		}},
+		{"sqlserver://someuser@somehost?connection+timeout=30", func(p connectParams) bool {
+			return p.host == "somehost" && p.port == 1433 && p.instance == "" && p.user == "someuser" && p.password == "" && p.conn_timeout == 30 * time.Second
+		}},
+		{"sqlserver://someuser:@somehost?connection+timeout=30", func(p connectParams) bool {
+			return p.host == "somehost" && p.port == 1433 && p.instance == "" && p.user == "someuser" && p.password == "" && p.conn_timeout == 30 * time.Second
+		}},
+		{"sqlserver://someuser:foo%3A%2F%5C%21~%40;bar@somehost?connection+timeout=30", func(p connectParams) bool {
+			return p.host == "somehost" && p.port == 1433 && p.instance == "" && p.user == "someuser" && p.password == "foo:/\\!~@;bar" && p.conn_timeout == 30 * time.Second
+		}},
+		{"sqlserver://someuser:foo%3A%2F%5C%21~%40;bar@somehost:1434?connection+timeout=30", func(p connectParams) bool {
+			return p.host == "somehost" && p.port == 1434 && p.instance == "" && p.user == "someuser" && p.password == "foo:/\\!~@;bar" && p.conn_timeout == 30 * time.Second
+		}},
+		{"sqlserver://someuser:foo%3A%2F%5C%21~%40;bar@somehost:1434/someinstance?connection+timeout=30", func(p connectParams) bool {
+			return p.host == "somehost" && p.port == 1434 && p.instance == "someinstance" && p.user == "someuser" && p.password == "foo:/\\!~@;bar" && p.conn_timeout == 30 * time.Second
+		}},
 	}
 	for _, ts := range connStrings {
 		p, err := parseConnectParams(ts.connStr)
