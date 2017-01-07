@@ -4,16 +4,7 @@
 
     go get github.com/denisenkom/go-mssqldb
 
-## Tests
-
-`go test` is used for testing. A running instance of MSSQL server is required.
-Environment variables are used to pass login information.
-
-Example:
-
-    env HOST=localhost SQLUSER=sa SQLPASSWORD=sa DATABASE=test go test
-
-## Connection Parameters
+## Connection Parameters and DSN
 
 * "server" - host or host\instance (default localhost)
 * "port" - used only when there is no instance in server (default 1433)
@@ -48,101 +39,68 @@ Example:
 
 The connection string can be specified in one of three formats:
 
-1. `key=value` pairs separated by `;`
+1. ADO: `key=value` pairs separated by `;`. Values may not contain `;`, leading and trailing whitespace is ignored.
+     Examples:
+	
+  * `server=localhost\\SQLExpress;user id=sa;database=master;connection timeout=30`
+  * `server=localhost;user id=sa;database=master;connection timeout=30`
 
-    Example:
+2. ODBC: Prefix with `odbc`, `key=value` pairs separated by `;`. Allow `;` by wrapping
+    values in `{}`. Examples:
+	
+  * `odbc:server=localhost\\SQLExpress;user id=sa;database=master;connection timeout=30`
+  * `odbc:server=localhost;user id=sa;database=master;connection timeout=30`
+  * `odbc:server=localhost;user id=sa;password={foo;bar}` // Value marked with `{}`, password is "foo;bar"
+  * `odbc:server=localhost;user id=sa;password={foo{bar}` // Value marked with `{}`, password is "foo{bar"
+  * `odbc:server=localhost;user id=sa;password={foobar }` // Value marked with `{}`, password is "foobar "
+  * `odbc:server=localhost;user id=sa;password=foo{bar`   // Literal `{`, password is "foo{bar"
+  * `odbc:server=localhost;user id=sa;password=foo}bar`   // Literal `}`, password is "foo}bar"
+  * `odbc:server=localhost;user id=sa;password={foo{bar}` // Literal `{`, password is "foo{bar"
+  * `odbc:server=localhost;user id=sa;password={foo}}bar}` // Escaped `} with `}}`, password is "foo}bar"
 
-    ```go
-    db, err := sql.Open("mssql", "server=localhost\\SQLExpress;user id=sa;database=master;connection timeout=30")
-    db, err := sql.Open("mssql", "server=localhost;user id=sa;database=master;connection timeout=30")
-    ```
+3. URL: with `sqlserver` scheme. username and password appears before the host. Any instance appears as
+    the first segment in the path. All other options are query parameters. Examples:
 
-    This format doesn't allow characters like `;` within a value. Leading and trailing whitespace is stripped.
+  * `sqlserver://username:password@host/instance?param1=value&param2=value`
+  * `sqlserver://username:password@host:port?param1=value&param2=value`
+  * `sqlserver://sa@localhost/SQLExpress?database=master&connection+timeout=30` // `SQLExpress instance.
+  * `sqlserver://sa:mypass@localhost?database=master&connection+timeout=30`     // username=sa, password=mypass.
+  * `sqlserver://sa:mypass@localhost:1234?database=master&connection+timeout=30"` // port 1234 on localhost.
+  * `sqlserver://sa:my%7Bpass@somehost?connection+timeout=30` // password is "my{pass"
 
-1. ODBC format - `key=value` pairs separated by `;`. The string is prefixed with `odbc:`
+  A string of this format can be constructed using the `URL` type in the `net/url` package.
 
-    Example:
+  ```go
+  query := url.Values{}
+  query.Add("connection timeout", fmt.Sprintf("%d", connectionTimeout))
 
-    ```go
-    db, err := sql.Open("mssql", "odbc:server=localhost\\SQLExpress;user id=sa;database=master;connection timeout=30")
-    db, err := sql.Open("mssql", "odbc:server=localhost;user id=sa;database=master;connection timeout=30")
-    ```
+  u := &url.URL{
+      Scheme:   "sqlserver",
+      User:     url.UserPassword(username, password),
+      Host:     fmt.Sprintf("%s:%d", hostname, port),
+      // Path:  instance, // if connecting to an instance instead of a port
+      RawQuery: query.Encode(),
+  }
 
-    This format allows characters like `;` within a value if the value is wrapped in `{}`. Leading and trailing whitespace is retained for wrapped values.
+  connectionString := u.String()
 
-    Example:
-
-    ```go
-    db, err := sql.Open("mssql", "odbc:server=localhost;user id=sa;password={foo;bar}") // password is "foo;bar"
-    db, err := sql.Open("mssql", "odbc:server=localhost;user id=sa;password={foo{bar}") // password is "foo{bar"
-    db, err := sql.Open("mssql", "odbc:server=localhost;user id=sa;password={foobar }") // password is "foobar "
-    ```
-
-    If the value is not wrapped in `{}`, then `{` or `}` characters are taken literally.
-
-    Example:
-
-    ```go
-    db, err := sql.Open("mssql", "odbc:server=localhost;user id=sa;password=foo{bar") // password is "foo{bar"
-    db, err := sql.Open("mssql", "odbc:server=localhost;user id=sa;password=foo}bar") // password is "foo}bar"
-    ```
-
-    If the value is wrapped in `{}` and needs to contain the `}` character, it can be escaped by doubling it.
-
-    Example:
-
-    ```go
-    db, err := sql.Open("mssql", "odbc:server=localhost;user id=sa;password={foo{bar}") // password is "foo{bar"
-    db, err := sql.Open("mssql", "odbc:server=localhost;user id=sa;password={foo}}bar}") // password is "foo}bar"
-    ```
-
-1. URL format with `sqlserver` scheme
-
-    * `sqlserver://username:password@host/instance?param1=value&param2=value`
-    * `sqlserver://username:password@host:port?param1=value&param2=value`
-
-    The username and password go in the user section of the URL. The hostname and port go in the hostname section. The instance name, if any, goes in the path section. All other parameters go in the query string.
-
-    Example:
-
-    ```go
-    db, err := sql.Open("mssql", "sqlserver://sa@localhost/SQLExpress?database=master&connection+timeout=30")
-    db, err := sql.Open("mssql", "sqlserver://sa:foobar@localhost?database=master&connection+timeout=30")
-    db, err := sql.Open("mssql", "sqlserver://sa:foobar@localhost:1234?database=master&connection+timeout=30")
-    ```
-
-    Parameters must be appropriately URL-encoded.
-
-    Example:
-
-    ```go
-    db, err := sql.Open("mssql", "sqlserver://sa:foo%7Bbar@somehost?connection+timeout=30") // password is "foo{bar"
-    ```
-
-    A string of this format can be constructed using the `URL` type in the `net/url` package.
-
-    Example:
-
-    ```go
-    query := url.Values{}
-    query.Add("connection timeout", fmt.Sprintf("%d", connectionTimeout))
-
-    u := &url.URL{
-        Scheme:   "sqlserver",
-        User:     url.UserPassword(username, password),
-        Host:     fmt.Sprintf("%s:%d", hostname, port),
-        // Path:  instance, // if connecting to an instance instead of a port
-        RawQuery: query.Encode(),
-    }
-
-    connectionString := u.String()
-
-    db, err := sql.Open("mssql", connectionString)
-    ```
+  db, err := sql.Open("sqlserver", connectionString)
+  // or
+  db, err := sql.Open("mssql", connectionString)
+  ```
 
 ## Statement Parameters
 
-In the SQL statement text, literals may be replaced by a parameter that matches one of the following:
+The `sqlserver` driver uses normal MS SQL Server syntax and expects parameters in
+the sql query to be in the form of either `@Name` or `@p1` to `@pN` (ordinal position).
+
+```go
+db.QueryContext(ctx, `select * from t where ID = @ID;`, sql.Named("ID", 6))
+```
+
+
+For the `mssql` driver, the SQL statement text will be processed and literals will
+be replaced by a parameter that matches one of the following:
 
 * ?
 * ?nnn
@@ -161,7 +119,6 @@ will expand to roughly
 SELECT * FROM t WHERE a = 'z', b = 'y', c = 'x'
 ```
 
-
 ## Features
 
 * Can be used with SQL Server 2005 or newer
@@ -174,6 +131,15 @@ SELECT * FROM t WHERE a = 'z', b = 'y', c = 'x'
 * Supports Single-Sign-On on Windows
 * Supports connections to AlwaysOn Availability Group listeners, including re-direction to read-only replicas.
 * Supports query notifications
+
+## Tests
+
+`go test` is used for testing. A running instance of MSSQL server is required.
+Environment variables are used to pass login information.
+
+Example:
+
+    env HOST=localhost SQLUSER=sa SQLPASSWORD=sa DATABASE=test go test
 
 ## Known Issues
 

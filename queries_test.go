@@ -2,16 +2,29 @@ package mssql
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"math"
+	"net"
 	"strings"
 	"testing"
 	"time"
-	"net"
-	"context"
-	"database/sql/driver"
 )
+
+func driverWithProcess(t *testing.T) *MssqlDriver {
+	return &MssqlDriver{
+		log:              optionalLogger{testLogger{t}},
+		processQueryText: true,
+	}
+}
+func driverNoProcess(t *testing.T) *MssqlDriver {
+	return &MssqlDriver{
+		log:              optionalLogger{testLogger{t}},
+		processQueryText: false,
+	}
+}
 
 func TestSelect(t *testing.T) {
 	conn := open(t)
@@ -155,9 +168,9 @@ func TestSelectDateTimeOffset(t *testing.T) {
 	}
 	values := []testStruct{
 		{"cast('2010-11-15T11:56:45.123+01:00' as datetimeoffset(3))",
-			time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.FixedZone("", 60*60)) },
+			time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.FixedZone("", 60*60))},
 		{"cast(cast('2010-11-15T11:56:45.123+10:00' as datetimeoffset(3)) as sql_variant)",
-			time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.FixedZone("", 10*60*60)) },
+			time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.FixedZone("", 10*60*60))},
 	}
 
 	conn := open(t)
@@ -347,9 +360,8 @@ func TestExec(t *testing.T) {
 }*/
 
 func TestShortTimeout(t *testing.T) {
-	if testing.Short() {
-		return
-	}
+	checkConnStr(t)
+	SetLogger(testLogger{t})
 	dsn := makeConnStr() + ";Connection Timeout=2"
 	conn, err := sql.Open("mssql", dsn)
 	if err != nil {
@@ -791,7 +803,8 @@ func TestIgnoreEmptyResults(t *testing.T) {
 }
 
 func TestMssqlStmt_SetQueryNotification(t *testing.T) {
-	mssqldriver := &MssqlDriver{}
+	checkConnStr(t)
+	mssqldriver := driverWithProcess(t)
 	cn, err := mssqldriver.Open(makeConnStr())
 	stmt, err := cn.Prepare("SELECT 1")
 	if err != nil {
@@ -815,7 +828,7 @@ func TestErrorInfo(t *testing.T) {
 
 	_, err := conn.Exec("select bad")
 	if sqlError, ok := err.(Error); ok {
-		if sqlError.SQLErrorNumber() != 207/*invalid column name*/ {
+		if sqlError.SQLErrorNumber() != 207 /*invalid column name*/ {
 			t.Errorf("Query failed with unexpected error number %d %s", sqlError.SQLErrorNumber(), sqlError.SQLErrorMessage())
 		}
 	} else {
@@ -865,7 +878,8 @@ func TestConnectionClosing(t *testing.T) {
 }
 
 func TestBeginTranError(t *testing.T) {
-	drv := &MssqlDriver{}
+	checkConnStr(t)
+	drv := driverWithProcess(t)
 	conn, err := drv.open(makeConnStr())
 	if err != nil {
 		t.Fatalf("Open failed with error %v", err)
@@ -903,7 +917,8 @@ func TestBeginTranError(t *testing.T) {
 }
 
 func TestCommitTranError(t *testing.T) {
-	drv := &MssqlDriver{}
+	checkConnStr(t)
+	drv := driverWithProcess(t)
 	conn, err := drv.open(makeConnStr())
 	if err != nil {
 		t.Fatalf("Open failed with error %v", err)
@@ -956,7 +971,8 @@ func TestCommitTranError(t *testing.T) {
 }
 
 func TestRollbackTranError(t *testing.T) {
-	drv := &MssqlDriver{}
+	checkConnStr(t)
+	drv := driverWithProcess(t)
 	conn, err := drv.open(makeConnStr())
 	if err != nil {
 		t.Fatalf("Open failed with error %v", err)
@@ -1009,7 +1025,8 @@ func TestRollbackTranError(t *testing.T) {
 }
 
 func TestSendQueryErrors(t *testing.T) {
-	drv := &MssqlDriver{}
+	checkConnStr(t)
+	drv := driverWithProcess(t)
 	conn, err := drv.open(makeConnStr())
 	if err != nil {
 		t.FailNow()
@@ -1048,7 +1065,8 @@ func TestSendQueryErrors(t *testing.T) {
 }
 
 func TestProcessQueryErrors(t *testing.T) {
-	drv := &MssqlDriver{}
+	checkConnStr(t)
+	drv := driverWithProcess(t)
 	conn, err := drv.open(makeConnStr())
 	if err != nil {
 		t.Fatal("open expected to succeed, but it failed with", err)
@@ -1074,7 +1092,8 @@ func TestProcessQueryErrors(t *testing.T) {
 }
 
 func TestSendExecErrors(t *testing.T) {
-	drv := &MssqlDriver{}
+	checkConnStr(t)
+	drv := driverWithProcess(t)
 	conn, err := drv.open(makeConnStr())
 	if err != nil {
 		t.FailNow()
