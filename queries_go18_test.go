@@ -7,8 +7,10 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
+	"net"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -421,18 +423,18 @@ func TestQueryCancelLowLevel(t *testing.T) {
 	drv := driverWithProcess(t)
 	conn, err := drv.open(makeConnStr())
 	if err != nil {
-		t.Errorf("Open failed with error %v", err)
+		t.Fatalf("Open failed with error %v", err)
 	}
 
 	defer conn.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	stmt, err := conn.prepareContext(ctx, "waitfor delay '00:00:03'")
 	if err != nil {
-		t.Errorf("Prepare failed with error %v", err)
+		t.Fatalf("Prepare failed with error %v", err)
 	}
 	err = stmt.sendQuery([]namedValue{})
 	if err != nil {
-		t.Errorf("sendQuery failed with error %v", err)
+		t.Fatalf("sendQuery failed with error %v", err)
 	}
 
 	cancel()
@@ -445,17 +447,17 @@ func TestQueryCancelLowLevel(t *testing.T) {
 	// same connection should be usable again after it was cancelled
 	stmt, err = conn.prepareContext(context.Background(), "select 1")
 	if err != nil {
-		t.Errorf("Prepare failed with error %v", err)
+		t.Fatalf("Prepare failed with error %v", err)
 	}
 	rows, err := stmt.Query([]driver.Value{})
 	if err != nil {
-		t.Errorf("Query failed with error %v", err)
+		t.Fatalf("Query failed with error %v", err)
 	}
 
 	values := []driver.Value{nil}
 	err = rows.Next(values)
 	if err != nil {
-		t.Errorf("Next failed with error %v", err)
+		t.Fatalf("Next failed with error %v", err)
 	}
 }
 
@@ -465,7 +467,7 @@ func TestQueryCancelHighLevel(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		time.Sleep(1 * time.Second)
+		time.Sleep(200 * time.Millisecond)
 		cancel()
 	}()
 	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:03'")
@@ -485,7 +487,7 @@ func TestQueryCancelHighLevel(t *testing.T) {
 func TestQueryTimeout(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:03'")
 	if err != context.DeadlineExceeded {
@@ -584,5 +586,209 @@ func TestDriverParams(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+type connInterrupt struct {
+	net.Conn
+
+	mu           sync.Mutex
+	disruptRead  bool
+	disruptWrite bool
+}
+
+func (c *connInterrupt) Interrupt(write bool) {
+	c.mu.Lock()
+	if write {
+		c.disruptWrite = true
+	} else {
+		c.disruptRead = true
+	}
+	c.mu.Unlock()
+}
+
+func (c *connInterrupt) Read(b []byte) (n int, err error) {
+	c.mu.Lock()
+	dis := c.disruptRead
+	c.mu.Unlock()
+	if dis {
+		return 0, disconnectError{}
+	}
+	return c.Conn.Read(b)
+}
+
+func (c *connInterrupt) Write(b []byte) (n int, err error) {
+	c.mu.Lock()
+	dis := c.disruptWrite
+	c.mu.Unlock()
+	if dis {
+		return 0, disconnectError{}
+	}
+	return c.Conn.Write(b)
+}
+
+type dialerInterrupt struct {
+	nd tcpDialer
+
+	mu   sync.Mutex
+	list []*connInterrupt
+}
+
+func (d *dialerInterrupt) Dial(addr string) (net.Conn, error) {
+	conn, err := d.nd.Dial(addr)
+	if err != nil {
+		return nil, err
+	}
+	ci := &connInterrupt{Conn: conn}
+	d.mu.Lock()
+	d.list = append(d.list, ci)
+	d.mu.Unlock()
+	return ci, err
+}
+
+func (d *dialerInterrupt) Interrupt(write bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	for _, ci := range d.list {
+		ci.Interrupt(write)
+	}
+}
+
+var _ net.Error = disconnectError{}
+
+type disconnectError struct{}
+
+func (disconnectError) Error() string {
+	return "disconnect"
+}
+
+func (disconnectError) Timeout() bool {
+	return true
+}
+
+func (disconnectError) Temporary() bool {
+	return true
+}
+
+// TestDisconnect1 ensures errors and states are handled correctly if
+// the server is disconnected mid-query.
+func TestDisconnect1(t *testing.T) {
+	if testing.Short() {
+		t.Skip("short")
+	}
+	checkConnStr(t)
+	SetLogger(testLogger{t})
+
+	// Revert to the normal dialer after the test is done.
+	normalCreateDialer := createDialer
+	defer func() {
+		createDialer = normalCreateDialer
+	}()
+
+	waitDisrupt := make(chan struct{})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+
+	createDialer = func(p *connectParams) dialer {
+		nd := tcpDialer{&net.Dialer{Timeout: p.dial_timeout, KeepAlive: p.keepAlive}}
+		di := &dialerInterrupt{nd: nd}
+		go func() {
+			<-waitDisrupt
+			di.Interrupt(true)
+			di.Interrupt(false)
+		}()
+		return di
+	}
+	db, err := sql.Open("sqlserver", makeConnStr())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := db.PingContext(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	_, err = db.ExecContext(ctx, `SET LOCK_TIMEOUT 1800;`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	go func() {
+		time.Sleep(time.Second * 1)
+		close(waitDisrupt)
+	}()
+	t.Log("prepare for query")
+	_, err = db.ExecContext(ctx, `waitfor delay '00:00:3';`)
+	if err != nil {
+		t.Log("expected error after disconnect", err)
+		return
+	}
+	t.Fatal("wanted error after Exec")
+}
+
+// TestDisconnect2 tests a read error so the query is started
+// but results cannot be read.
+func TestDisconnect2(t *testing.T) {
+	if testing.Short() {
+		t.Skip("short")
+	}
+	checkConnStr(t)
+	SetLogger(testLogger{t})
+
+	// Revert to the normal dialer after the test is done.
+	normalCreateDialer := createDialer
+	defer func() {
+		createDialer = normalCreateDialer
+	}()
+
+	end := make(chan error)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		waitDisrupt := make(chan struct{})
+		ctx, cancel = context.WithTimeout(ctx, time.Second*2)
+		defer cancel()
+
+		createDialer = func(p *connectParams) dialer {
+			nd := tcpDialer{&net.Dialer{Timeout: p.dial_timeout, KeepAlive: p.keepAlive}}
+			di := &dialerInterrupt{nd: nd}
+			go func() {
+				<-waitDisrupt
+				di.Interrupt(false)
+			}()
+			return di
+		}
+		db, err := sql.Open("sqlserver", makeConnStr())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := db.PingContext(ctx); err != nil {
+			t.Fatal(err)
+		}
+		defer db.Close()
+
+		_, err = db.ExecContext(ctx, `SET LOCK_TIMEOUT 1800;`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		close(waitDisrupt)
+
+		_, err = db.ExecContext(ctx, `waitfor delay '00:00:3';`)
+		end <- err
+	}()
+
+	timeout := time.After(10 * time.Second)
+	select {
+	case err := <-end:
+		if err == nil {
+			t.Fatal("test err")
+		}
+	case <-timeout:
+		t.Fatal("timeout")
 	}
 }
