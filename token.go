@@ -2,12 +2,13 @@ package mssql
 
 import (
 	"encoding/binary"
+	"errors"
 	"io"
+	"net"
 	"strconv"
 	"strings"
+
 	"golang.org/x/net/context"
-	"net"
-	"errors"
 )
 
 // token ids
@@ -90,7 +91,7 @@ func (d doneStruct) isError() bool {
 
 func (d doneStruct) getError() Error {
 	if len(d.errors) > 0 {
-		return d.errors[len(d.errors) - 1]
+		return d.errors[len(d.errors)-1]
 	} else {
 		return Error{Message: "Request failed but didn't provide reason"}
 	}
@@ -617,7 +618,7 @@ func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct)
 		tokChan := make(chan tokenStruct)
 		go processSingleResponse(sess, tokChan)
 		// loop over multiple tokens in response
-		tokensLoop:
+	tokensLoop:
 		for {
 			select {
 			case tok, ok := <-tokChan:
@@ -636,6 +637,9 @@ func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct)
 								}
 								return
 							}
+							//case error:
+							//	ch <- tok
+							//	return
 						}
 					} else {
 						if err, ok := tok.(net.Error); ok && err.Timeout() {

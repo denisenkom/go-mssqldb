@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"reflect"
 	"strings"
 	"time"
@@ -20,6 +21,21 @@ var driverInstanceNoProcess = &MssqlDriver{processQueryText: false}
 func init() {
 	sql.Register("mssql", driverInstance)
 	sql.Register("sqlserver", driverInstanceNoProcess)
+}
+
+// Abstract the dialer for testing and for non-TCP based connections.
+type dialer interface {
+	Dial(addr string) (net.Conn, error)
+}
+
+var createDialer func(p *connectParams) dialer
+
+type tcpDialer struct {
+	nd *net.Dialer
+}
+
+func (d tcpDialer) Dial(addr string) (net.Conn, error) {
+	return d.nd.Dial("tcp", addr)
 }
 
 type MssqlDriver struct {
