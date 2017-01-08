@@ -636,6 +636,9 @@ func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct)
 								}
 								return
 							}
+						case error:
+							ch <- tok
+							return
 						}
 					} else {
 						if err, ok := tok.(net.Error); ok && err.Timeout() {
