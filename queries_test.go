@@ -342,23 +342,6 @@ func TestExec(t *testing.T) {
 	_ = res
 }
 
-/*func TestDefaultTimeout(t *testing.T) {
-	if testing.Short() {
-		return
-	}
-	conn := open(t)
-	defer conn.Close()
-
-	res, err := conn.Exec("waitfor delay '00:31'")
-	if err == nil {
-		t.Fatal("Exec should fail with timeout")
-	}
-	if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
-		t.Fatal("Exec should fail with timeout, failed with", err)
-	}
-	_ = res
-}*/
-
 func TestShortTimeout(t *testing.T) {
 	checkConnStr(t)
 	SetLogger(testLogger{t})
@@ -371,10 +354,10 @@ func TestShortTimeout(t *testing.T) {
 
 	_, err = conn.Exec("waitfor delay '00:00:15'")
 	if err == nil {
-		t.Fatal("Exec should fail with timeout, but failed with", err)
+		t.Fatal("Exec should fail with timeout, but no failure occurred")
 	}
 	if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
-		t.Fatal("Exec should fail with timeout, failed with", err)
+		t.Fatal("failure not a timeout, failed with", err)
 	}
 
 	// connection should be usable after timeout

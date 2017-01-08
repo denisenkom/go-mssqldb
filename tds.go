@@ -1093,9 +1093,9 @@ func dialConnection(p connectParams) (conn net.Conn, err error) {
 		ips = []net.IP{ip}
 	}
 	if len(ips) == 1 {
-		d := createDialer(p)
+		d := createDialer(&p)
 		addr := net.JoinHostPort(ips[0].String(), strconv.Itoa(int(p.port)))
-		conn, err = d.Dial("tcp", addr)
+		conn, err = d.Dial(addr)
 
 	} else {
 		//Try Dials in parallel to avoid waiting for timeouts.
@@ -1104,9 +1104,9 @@ func dialConnection(p connectParams) (conn net.Conn, err error) {
 		portStr := strconv.Itoa(int(p.port))
 		for _, ip := range ips {
 			go func(ip net.IP) {
-				d := createDialer(p)
+				d := createDialer(&p)
 				addr := net.JoinHostPort(ip.String(), portStr)
-				conn, err := d.Dial("tcp", addr)
+				conn, err := d.Dial(addr)
 				if err == nil {
 					connChan <- conn
 				} else {

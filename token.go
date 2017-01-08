@@ -2,12 +2,13 @@ package mssql
 
 import (
 	"encoding/binary"
+	"errors"
 	"io"
+	"net"
 	"strconv"
 	"strings"
+
 	"golang.org/x/net/context"
-	"net"
-	"errors"
 )
 
 // token ids
@@ -90,7 +91,7 @@ func (d doneStruct) isError() bool {
 
 func (d doneStruct) getError() Error {
 	if len(d.errors) > 0 {
-		return d.errors[len(d.errors) - 1]
+		return d.errors[len(d.errors)-1]
 	} else {
 		return Error{Message: "Request failed but didn't provide reason"}
 	}
@@ -503,7 +504,7 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct) {
 	defer func() {
 		if err := recover(); err != nil {
 			if sess.logFlags&logErrors != 0 {
-				sess.log.Printf("ERROR: Intercepted panick %v", err)
+				sess.log.Printf("ERROR: Intercepted panic %v", err)
 			}
 			ch <- err
 		}
@@ -600,14 +601,111 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct) {
 	}
 }
 
+type parseRespIter byte
+
+const (
+	parseRespIterContinue parseRespIter = iota
+	parseRespIterNext
+	parseRespIterDone
+)
+
+type parseRespState struct {
+	doneChan           <-chan struct{}
+	cancelInProgress   bool
+	cancelledByContext bool
+	cancelError        error
+}
+
+func (ts *parseRespState) sendAttention(sess *tdsSession, ch chan tokenStruct) parseRespIter {
+	err := sendAttention(sess.buf)
+	if err != nil {
+		if sess.logFlags&logErrors != 0 {
+			sess.log.Printf("failed to send attention signal %v", err)
+		}
+		ch <- err
+		return parseRespIterDone
+	}
+	ts.doneChan = nil
+	ts.cancelInProgress = true
+	ts.cancelledByContext = true
+	return parseRespIterContinue
+}
+
+func (ts *parseRespState) iter(ctx context.Context, sess *tdsSession, ch chan tokenStruct, tokChan chan tokenStruct) parseRespIter {
+	select {
+	case tok, ok := <-tokChan:
+		if !ok {
+			// response finished
+			if ts.cancelInProgress {
+				if sess.logFlags&logDebug != 0 {
+					sess.log.Println("response finished but waiting for attention ack")
+				}
+				return parseRespIterNext
+			}
+			if sess.logFlags&logDebug != 0 {
+				sess.log.Println("response finished")
+			}
+			return parseRespIterDone
+		}
+		if ts.cancelInProgress {
+			switch tok := tok.(type) {
+			case doneStruct:
+				if tok.Status&doneAttn != 0 {
+					if sess.logFlags&logDebug != 0 {
+						sess.log.Println("got cancellation confirmation from server")
+					}
+					if ts.cancelledByContext {
+						ch <- ctx.Err()
+					} else {
+						ch <- ts.cancelError
+						ts.cancelError = nil
+					}
+					return parseRespIterDone
+				}
+
+			// If an error happens during cancel, pass it along and just stop.
+			// We are uncertain to receive more tokens.
+			case error:
+				ch <- tok
+				return parseRespIterDone
+			}
+			return parseRespIterContinue
+		}
+		if err, ok := tok.(net.Error); ok && err.Timeout() {
+			ts.cancelError = err
+			if sess.logFlags&logDebug != 0 {
+				sess.log.Println("got timeout error, sending attention signal to server")
+			}
+			return ts.sendAttention(sess, ch)
+		}
+		// The token channel is still passing tokens in,
+		// There is no cancel in progress.
+		// There is no network error.
+		// Pass the token along.
+		ch <- tok
+		return parseRespIterContinue
+
+	case <-ts.doneChan:
+		if sess.logFlags&logDebug != 0 {
+			sess.log.Println("got cancel message, sending attention signal to server")
+		}
+		return ts.sendAttention(sess, ch)
+	}
+}
+
 func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct) {
+	ts := &parseRespState{
+		doneChan: ctx.Done(),
+	}
 	defer func() {
+		// Ensure any remaining error is piped through
+		// or the query may look like it executed when it actually failed.
+		if ts.cancelError != nil {
+			ch <- ts.cancelError
+			ts.cancelError = nil
+		}
 		close(ch)
 	}()
-	doneChan := ctx.Done()
-	cancelInProgress := false
-	cancelledByContext := false
-	var cancelError error
 
 	// loop over multiple responses
 	for {
@@ -617,76 +715,15 @@ func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct)
 		tokChan := make(chan tokenStruct)
 		go processSingleResponse(sess, tokChan)
 		// loop over multiple tokens in response
-		tokensLoop:
+	tokensLoop:
 		for {
-			select {
-			case tok, ok := <-tokChan:
-				if ok {
-					if cancelInProgress {
-						switch tok := tok.(type) {
-						case doneStruct:
-							if tok.Status&doneAttn != 0 {
-								if sess.logFlags&logDebug != 0 {
-									sess.log.Println("got cancellation confirmation from server")
-								}
-								if cancelledByContext {
-									ch <- ctx.Err()
-								} else {
-									ch <- cancelError
-								}
-								return
-							}
-						}
-					} else {
-						if err, ok := tok.(net.Error); ok && err.Timeout() {
-							cancelError = err
-							if sess.logFlags&logDebug != 0 {
-								sess.log.Println("got timeout error, sending attention signal to server")
-							}
-							err := sendAttention(sess.buf)
-							if err != nil {
-								if sess.logFlags&logErrors != 0 {
-									sess.log.Println("Failed to send attention signal %v", err)
-								}
-								ch <- err
-								return
-							}
-							doneChan = nil
-							cancelInProgress = true
-							cancelledByContext = false
-						} else {
-							ch <- tok
-						}
-					}
-				} else {
-					// response finished
-					if cancelInProgress {
-						if sess.logFlags&logDebug != 0 {
-							sess.log.Println("response finished but waiting for attention ack")
-						}
-						break tokensLoop
-					} else {
-						if sess.logFlags&logDebug != 0 {
-							sess.log.Println("response finished")
-						}
-						return
-					}
-				}
-			case <-doneChan:
-				if sess.logFlags&logDebug != 0 {
-					sess.log.Println("got cancel message, sending attention signal to server")
-				}
-				err := sendAttention(sess.buf)
-				if err != nil {
-					if sess.logFlags&logErrors != 0 {
-						sess.log.Println("Failed to send attention signal %v", err)
-					}
-					ch <- err
-					return
-				}
-				doneChan = nil
-				cancelInProgress = true
-				cancelledByContext = true
+			switch ts.iter(ctx, sess, ch, tokChan) {
+			case parseRespIterContinue:
+				// Nothing
+			case parseRespIterNext:
+				break tokensLoop
+			case parseRespIterDone:
+				return
 			}
 		}
 	}
