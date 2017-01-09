@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"log"
+	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -16,19 +17,42 @@ func TestBulkcopy(t *testing.T) {
 		colname string
 		val     interface{}
 	}
-
+	tableName := "#table_test"
 	geom, _ := hex.DecodeString("E6100000010C00000000000034400000000000004440")
 	testValues := []testValue{
+
 		{"test_nvarchar", "ab©ĎéⒻghïjklmnopqЯ☀tuvwxyz"},
 		{"test_varchar", "abcdefg"},
+		{"test_char", "abcdefg   "},
+		{"test_nchar", "abcdefg   "},
+		{"test_text", "abcdefg"},
+		{"test_ntext", "abcdefg"},
 		{"test_float", 1234.56},
-		{"test_smalldatetime", time.Date(2010, 11, 12, 13, 14, 0, 0, time.UTC)},
-		{"test_datetime", time.Date(2010, 11, 12, 13, 14, 15, 120000000, time.UTC)},
-		{"test_datetime2_3", time.Date(2010, 11, 12, 13, 14, 15, 123000000, time.UTC)},
-		{"test_smallint", 234},
-		{"test_bigint", 123123123},
+		{"test_floatn", 1234.56},
+		{"test_real", 1234.56},
+		{"test_realn", 1234.56},
 		{"test_bit", true},
+		{"test_bitn", nil},
+		{"test_smalldatetime", time.Date(2010, 11, 12, 13, 14, 0, 0, time.UTC)},
+		{"test_smalldatetimen", time.Date(2010, 11, 12, 13, 14, 0, 0, time.UTC)},
+		{"test_datetime", time.Date(2010, 11, 12, 13, 14, 15, 120000000, time.UTC)},
+		{"test_datetimen", time.Date(2010, 11, 12, 13, 14, 15, 120000000, time.UTC)},
+		{"test_datetime2_1", time.Date(2010, 11, 12, 13, 14, 15, 0, time.UTC)},
+		{"test_datetime2_3", time.Date(2010, 11, 12, 13, 14, 15, 123000000, time.UTC)},
+		{"test_datetime2_7", time.Date(2010, 11, 12, 13, 14, 15, 123000000, time.UTC)},
+		{"test_date", time.Date(2010, 11, 12, 00, 00, 00, 0, time.UTC)},
+		{"test_tinyint", 255},
+		{"test_smallint", 32767},
+		{"test_smallintn", nil},
+		{"test_int", 2147483647},
+		{"test_bigint", 9223372036854775807},
+		{"test_bigintn", nil},
 		{"test_geom", geom},
+		//{"test_smallmoney", nil},
+		//{"test_money", nil},
+		//{"test_decimal_18_0", nil},
+		//{"test_decimal_9_2", nil},
+		//{"test_decimal_18_0", nil},
 	}
 
 	columns := make([]string, len(testValues))
@@ -44,9 +68,9 @@ func TestBulkcopy(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
 
-	setupTable(conn)
+	setupTable(conn, tableName)
 
-	stmt, err := conn.Prepare(CopyIn("#table_test", MssqlBulkOptions{}, columns...))
+	stmt, err := conn.Prepare(CopyIn(tableName, MssqlBulkOptions{}, columns...))
 
 	for i := 0; i < 10; i++ {
 		_, err = stmt.Exec(values...)
@@ -68,14 +92,14 @@ func TestBulkcopy(t *testing.T) {
 
 	//check that all rows are present
 	var rowCount int
-	err = conn.QueryRow("select count(*) c from #table_test").Scan(&rowCount)
+	err = conn.QueryRow("select count(*) c from " + tableName).Scan(&rowCount)
 
 	if rowCount != 10 {
 		t.Errorf("unexpected row count %d", rowCount)
 	}
 
 	//data verification
-	rows, err := conn.Query("select " + strings.Join(columns, ",") + " from #table_test")
+	rows, err := conn.Query("select " + strings.Join(columns, ",") + " from " + tableName)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -109,13 +133,15 @@ func compareValue(a interface{}, expected interface{}) bool {
 		return int64(expected) == a
 	case int64:
 		return int64(expected) == a
+	case float64:
+		return math.Abs(expected-a.(float64)) < 0.0001
 	default:
 		return reflect.DeepEqual(expected, a)
 	}
 }
-func setupTable(conn *sql.DB) {
+func setupTable(conn *sql.DB, tableName string) {
 
-	tablesql := `CREATE TABLE #table_test(
+	tablesql := `CREATE TABLE ` + tableName + ` (
 	[id] [int] IDENTITY(1,1) NOT NULL,
 	[test_nvarchar] [nvarchar](50) NULL,
 	[test_varchar] [varchar](50) NULL,
@@ -152,7 +178,7 @@ func setupTable(conn *sql.DB) {
 	[test_decimal_18_0] [decimal](18, 0) NULL,
 	[test_decimal_9_2] [decimal](9, 2) NULL,
 	[test_decimal_20_0] [decimal](20, 0) NULL,
- CONSTRAINT [PK_table_test_id2] PRIMARY KEY CLUSTERED 
+ CONSTRAINT [PK_` + tableName + `_id] PRIMARY KEY CLUSTERED 
 (
 	[id] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
