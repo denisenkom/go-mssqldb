@@ -1,17 +1,17 @@
 package main
 
-import "github.com/denisenkom/go-mssqldb"
+import "github.com/gaspardle/go-mssqldb"
 import "database/sql"
 import "log"
 import "fmt"
 import "flag"
 
 var debug = flag.Bool("debug", true, "enable debugging")
-var password = flag.String("password", "", "the database password")
+var password = flag.String("password", "osmtest", "the database password")
 var port *int = flag.Int("port", 1433, "the database port")
 var server = flag.String("server", "localhost", "the database server")
-var user = flag.String("user", "", "the database user")
-var database = flag.String("database", "dbtest", "the database name")
+var user = flag.String("user", "osmtest", "the database user")
+var database = flag.String("database", "bulktest", "the database name")
 
 /**
 	CREATE TABLE test_table(

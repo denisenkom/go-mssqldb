@@ -366,7 +366,7 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 
 		res.buffer = make([]byte, res.ti.Size)
 		if col.ti.Size == 1 {
-			binary.PutUvarint(res.buffer, uint64(intvalue))
+			res.buffer[0] = byte(intvalue)
 		} else if col.ti.Size == 2 {
 			binary.LittleEndian.PutUint16(res.buffer, uint16(intvalue))
 		} else if col.ti.Size == 4 {
