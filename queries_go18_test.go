@@ -590,12 +590,21 @@ func TestDriverParams(t *testing.T) {
 	}
 }
 
+type timeoutError struct{}
+
+func (e *timeoutError) Error() string   { return "i/o timeout" }
+func (e *timeoutError) Timeout() bool   { return true }
+func (e *timeoutError) Temporary() bool { return true }
+
 type connInterrupt struct {
 	net.Conn
 
 	mu           sync.Mutex
 	disruptRead  bool
 	disruptWrite bool
+	blockRead    bool
+	blockReadM   sync.RWMutex
+	isClose      bool
 }
 
 func (c *connInterrupt) Interrupt(write bool) {
@@ -609,17 +618,40 @@ func (c *connInterrupt) Interrupt(write bool) {
 }
 
 func (c *connInterrupt) Read(b []byte) (n int, err error) {
+
 	c.mu.Lock()
 	dis := c.disruptRead
+	isClose := c.isClose
 	c.mu.Unlock()
-	if dis {
-		time.Sleep(time.Second * 60)
-		return 0, io.EOF
+	if isClose {
+		return 0, fmt.Errorf("use of closed network connection")
 	}
-	return c.Conn.Read(b)
+
+	if dis {
+		time.Sleep(time.Second * 1)
+		return 0, &timeoutError{}
+	}
+	n, err = c.Conn.Read(b)
+
+	c.mu.Lock()
+	dis = c.disruptRead
+	isClose = c.isClose
+	c.mu.Unlock()
+
+	if isClose {
+		return 0, fmt.Errorf("use of closed network connection")
+	}
+
+	if dis {
+		time.Sleep(time.Second * 1)
+		return 0, &timeoutError{}
+	}
+	return
 }
 
 func (c *connInterrupt) Write(b []byte) (n int, err error) {
+	n, err = c.Conn.Write(b)
+
 	c.mu.Lock()
 	dis := c.disruptWrite
 	c.mu.Unlock()
@@ -627,7 +659,21 @@ func (c *connInterrupt) Write(b []byte) (n int, err error) {
 		time.Sleep(time.Second * 60)
 		return 0, io.EOF
 	}
-	return c.Conn.Write(b)
+
+	c.mu.Lock()
+	if c.isClose {
+		return 0, fmt.Errorf("use of closed network connection")
+	}
+	defer c.mu.Unlock()
+
+	return
+}
+
+func (c*connInterrupt) Close() error {
+	c.mu.Lock()
+	c.isClose = true
+	c.mu.Unlock()
+	return c.Conn.Close()
 }
 
 type dialerInterrupt struct {
@@ -637,7 +683,7 @@ type dialerInterrupt struct {
 	list []*connInterrupt
 }
 
-func (d dialerInterrupt) Dial(addr string) (net.Conn, error) {
+func (d *dialerInterrupt) Dial(addr string) (net.Conn, error) {
 	conn, err := d.nd.Dial(addr)
 	if err != nil {
 		return nil, err
@@ -649,12 +695,21 @@ func (d dialerInterrupt) Dial(addr string) (net.Conn, error) {
 	return ci, err
 }
 
-func (d dialerInterrupt) Interrupt(write bool) {
+func (d *dialerInterrupt) Interrupt(write bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	for _, ci := range d.list {
 		ci.Interrupt(write)
+	}
+}
+
+func (d *dialerInterrupt) Close() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	for _, ci := range d.list {
+		ci.Close()
 	}
 }
 
@@ -668,55 +723,59 @@ func TestDisconnect(t *testing.T) {
 		createDialer = normalCreateDialer
 	}()
 
-	list := []struct {
-		name  string
-		write bool
-	}{
-		{name: "disconnect-both", write: true},
-	}
+	endChan:=make(chan error,2)
 
-	for _, item := range list {
-		t.Run(item.name, func(t *testing.T) {
-			waitDisrupt := make(chan struct{})
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*40)
-			defer cancel()
+	go func() {
+		waitDisrupt := make(chan struct{})
 
-			createDialer = func(p *connectParams) dialer {
-				nd := tcpDialer{&net.Dialer{Timeout: p.dial_timeout, KeepAlive: p.keepAlive}}
-				di := &dialerInterrupt{nd: nd}
-				go func() {
-					<-waitDisrupt
-					di.Interrupt(true)
-					di.Interrupt(false)
-				}()
-				return di
-			}
-			db, err := sql.Open("sqlserver", makeConnStr())
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			if err := db.Ping(); err != nil {
-				t.Fatal(err)
-			}
-			defer db.Close()
-
-			_, err = db.ExecContext(ctx, `SET LOCK_TIMEOUT 1800;`)
-			if err != nil {
-				t.Fatal(err)
-			}
-
+		createDialer = func(p *connectParams) dialer {
+			nd := tcpDialer{&net.Dialer{Timeout: p.dial_timeout, KeepAlive: p.keepAlive}}
+			di := &dialerInterrupt{nd: nd}
 			go func() {
-				time.Sleep(time.Second * 1)
-				close(waitDisrupt)
+				<-waitDisrupt
+				// The simulation go where the server to the mssql server network connection suddenly interrupted.
+				// First not to any data, more than a certain time after the operating system to report the connection is closed.
+				di.Interrupt(false)
+				time.Sleep(20 * time.Second)
+				di.Close()
+				fmt.Println("cpu:100%")
 			}()
-			t.Log("prepare for query")
-			_, err = db.Exec(`waitfor delay '00:00:30';`)
-			if err != nil {
-				t.Log("expected error after disconnect", err)
-				return
-			}
-			t.Fatal("wanted error after Exec")
-		})
+			return di
+		}
+
+		db, err := sql.Open("sqlserver", makeConnStr())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer db.Close()
+
+		if err := db.Ping(); err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = db.Exec(`SET LOCK_TIMEOUT 1800;`)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		close(waitDisrupt)
+		time.Sleep(1 * time.Second)
+
+		t.Log("prepare for query")
+		_, err = db.Exec(`waitfor delay '00:00:10';`)
+
+		endChan<-err
+	}()
+
+	timeoutChan:=time.After(120*time.Second)
+
+	select {
+	case err:=<-endChan:
+		if err!=nil{
+			t.Fatal(err)
+		}
+	case <-timeoutChan:
+		t.Fatal("timeout")
 	}
 }
+
