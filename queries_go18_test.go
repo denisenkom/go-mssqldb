@@ -684,44 +684,53 @@ func TestDisconnect(t *testing.T) {
 		createDialer = normalCreateDialer
 	}()
 
-	waitDisrupt := make(chan struct{})
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
-	defer cancel()
-
-	createDialer = func(p *connectParams) dialer {
-		nd := tcpDialer{&net.Dialer{Timeout: p.dial_timeout, KeepAlive: p.keepAlive}}
-		di := &dialerInterrupt{nd: nd}
-		go func() {
-			<-waitDisrupt
-			di.Interrupt(true)
-			di.Interrupt(false)
-		}()
-		return di
-	}
-	db, err := sql.Open("sqlserver", makeConnStr())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := db.Ping(); err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
-	_, err = db.ExecContext(ctx, `SET LOCK_TIMEOUT 1800;`)
-	if err != nil {
-		t.Fatal(err)
-	}
+	endChan:=make(chan error)
 
 	go func() {
-		time.Sleep(time.Second * 1)
+		waitDisrupt := make(chan struct{})
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+		defer cancel()
+
+		createDialer = func(p *connectParams) dialer {
+			nd := tcpDialer{&net.Dialer{Timeout: p.dial_timeout, KeepAlive: p.keepAlive}}
+			di := &dialerInterrupt{nd: nd}
+			go func() {
+				<-waitDisrupt
+				di.Interrupt(false)
+			}()
+			return di
+		}
+		db, err := sql.Open("sqlserver", makeConnStr())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := db.Ping(); err != nil {
+			t.Fatal(err)
+		}
+		defer db.Close()
+
+		_, err = db.ExecContext(ctx, `SET LOCK_TIMEOUT 1800;`)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		close(waitDisrupt)
+
+		t.Log("prepare for query")
+		_, err = db.ExecContext(ctx, `waitfor delay '00:00:3';`)
+
+		endChan<-err
 	}()
-	t.Log("prepare for query")
-	_, err = db.ExecContext(ctx, `waitfor delay '00:00:3';`)
-	if err != nil {
-		t.Log("expected error after disconnect", err)
-		return
+
+	timeoutChan:=time.After(10*time.Second)
+
+	select {
+	case err:=<-endChan:
+	if err==nil{
+		t.Fatal("test err")
 	}
-	t.Fatal("wanted error after Exec")
+	case <-timeoutChan:
+		t.Fatal("timeout")
+	}
 }
