@@ -500,7 +500,7 @@ func parseInfo(r *tdsBuffer) (res Error) {
 	return
 }
 
-func processSingleResponse(sess *tdsSession, ch chan tokenStruct) {
+func processSingleResponse(sess *tdsSession, ch chan tokenStruct, attn chan struct{}) {
 	defer func() {
 		if err := recover(); err != nil {
 			if sess.logFlags&logErrors != 0 {
@@ -525,6 +525,18 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct) {
 	var columns []columnStruct
 	errs := make([]Error, 0, 5)
 	for {
+		select {
+		default:
+		case <-attn:
+			err = sendAttention(sess.buf)
+			if err != nil {
+				if sess.logFlags&logDebug != 0 {
+					sess.log.Printf("failed to send attention signal %v", err)
+				}
+				ch <- err
+				return
+			}
+		}
 		token := sess.buf.byte()
 		if sess.logFlags&logDebug != 0 {
 			sess.log.Printf("got token id %d", token)
@@ -619,18 +631,20 @@ const (
 
 type parseResp struct {
 	sess        *tdsSession
+	attn        chan struct{}
 	ctxDone     <-chan struct{}
 	state       parseRespState
 	cancelError error
 }
 
 func (ts *parseResp) sendAttention(ch chan tokenStruct) parseRespIter {
-	err := sendAttention(ts.sess.buf)
-	if err != nil {
-		ts.dlogf("failed to send attention signal %v", err)
-		ch <- err
-		return parseRespIterDone
-	}
+	//	err := sendAttention(ts.sess.buf)
+	//	if err != nil {
+	//		ts.dlogf("failed to send attention signal %v", err)
+	//		ch <- err
+	//		return parseRespIterDone
+	//	}
+	close(ts.attn)
 	ts.state = parseRespStateCancel
 	return parseRespIterContinue
 }
@@ -719,8 +733,9 @@ func (ts *parseResp) iter(ctx context.Context, ch chan tokenStruct, tokChan chan
 
 func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct) {
 	ts := &parseResp{
-		ctxDone: ctx.Done(),
 		sess:    sess,
+		ctxDone: ctx.Done(),
+		attn:    make(chan struct{}),
 	}
 	defer func() {
 		// Ensure any remaining error is piped through
@@ -736,8 +751,8 @@ func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct)
 	for {
 		ts.dlog("initiating resonse reading")
 
-		tokChan := make(chan tokenStruct)
-		go processSingleResponse(sess, tokChan)
+		tokChan := make(chan tokenStruct, 1)
+		go processSingleResponse(sess, tokChan, ts.attn)
 
 		// Loop over multiple tokens in response.
 	tokensLoop:
