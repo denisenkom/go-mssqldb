@@ -113,6 +113,10 @@ loop:
 		}
 	}
 
+	if len(lastRow) == 0 {
+		t.Fatal("expected row but no row set")
+	}
+
 	switch value := lastRow[0].(type) {
 	case int32:
 		if value != 1 {
