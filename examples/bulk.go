@@ -1,6 +1,6 @@
 package main
 
-import "github.com/gaspardle/go-mssqldb"
+import "github.com/denisenkom/go-mssqldb"
 import "database/sql"
 import "log"
 import "fmt"
