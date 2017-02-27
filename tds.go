@@ -1297,6 +1297,10 @@ continue_login:
 			sess.loginAck = token
 		case error:
 			return nil, fmt.Errorf("Login error: %s", token.Error())
+		case doneStruct:
+			if token.isError(){
+				return nil, fmt.Errorf("Login error: %s", token.getError())
+			}
 		}
 	}
 	if sspi_msg != nil {
