@@ -122,7 +122,7 @@ func (b *MssqlBulk) sendBulkCommand() error {
 
 	stmt, err := b.cn.Prepare(query)
 	if err != nil {
-		log.Fatal("Prepare failed:", err.Error())
+		return fmt.Errorf("Prepare failed: %s", err.Error())
 	}
 
 	if b.Debug {
@@ -191,7 +191,7 @@ func (b *MssqlBulk) makeRowData(row []interface{}) ([]byte, error) {
 		}
 
 		if col.ti.Writer == nil {
-			log.Fatalf("no writer for column: %s, TypeId: %#x", col.ColName, col.ti.TypeId)
+			return nil, fmt.Errorf("no writer for column: %s, TypeId: %#x", col.ColName, col.ti.TypeId)
 		}
 		err = col.ti.Writer(buf, param.ti, param.buffer)
 		if err != nil {
