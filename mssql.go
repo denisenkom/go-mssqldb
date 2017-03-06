@@ -327,9 +327,9 @@ func (s *MssqlStmt) processQueryResponse(ctx context.Context) (res driver.Rows, 
 loop:
 	for tok := range tokchan {
 		switch token := tok.(type) {
-		// by ignoring DONE token we effectively
-		// skip empty result-sets
-		// this improves results in queryes like that:
+		// By ignoring DONE token we effectively
+		// skip empty result-sets.
+		// This improves results in queries like that:
 		// set nocount on; select 1
 		// see TestIgnoreEmptyResults test
 		//case doneStruct:

@@ -11,7 +11,7 @@ import (
 
 var _ driver.Pinger = &MssqlConn{}
 
-// Ping is used to check if the remote server is avaiable and satisfies the Pinger interface.
+// Ping is used to check if the remote server is available and satisfies the Pinger interface.
 func (c *MssqlConn) Ping(ctx context.Context) error {
 	stmt := &MssqlStmt{c, `select 1;`, 0, nil}
 	_, err := stmt.ExecContext(ctx, nil)
