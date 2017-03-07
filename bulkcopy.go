@@ -42,9 +42,9 @@ func (cn *MssqlConn) CreateBulk(table string, columns []string) (_ *MssqlBulk) {
 	return &b
 }
 
-func (b *MssqlBulk) sendBulkCommand() error {
+func (b *MssqlBulk) sendBulkCommand() (err error) {
 	//get table columns info
-	err := b.getMetadata()
+	err = b.getMetadata()
 	if err != nil {
 		return err
 	}
@@ -132,9 +132,9 @@ func (b *MssqlBulk) sendBulkCommand() error {
 
 	// send the columns metadata
 	columnMetadata := b.createColMetadata()
-	buf.Write(columnMetadata)
+	_, err = buf.Write(columnMetadata)
 
-	return nil
+	return
 }
 
 // AddRow immediately writes the row to the destination table.
@@ -153,19 +153,16 @@ func (b *MssqlBulk) AddRow(row []interface{}) (err error) {
 	}
 
 	bytes, err := b.makeRowData(row)
-	b.cn.sess.buf.Write(bytes)
+	if err != nil {
+		return
+	}
+
+	_, err = b.cn.sess.buf.Write(bytes)
+	if err != nil {
+		return
+	}
 
 	b.numRows = b.numRows + 1
-	return err
-}
-
-func (b *MssqlBulk) AddRows(rows [][]interface{}) (err error) {
-	for _, row := range rows {
-		err = b.AddRow(row)
-		if err != nil {
-			return
-		}
-	}
 	return
 }
 
@@ -227,6 +224,9 @@ func (b *MssqlBulk) Done() (rowcount int64, err error) {
 		case doneStruct:
 			if token.Status&doneCount != 0 {
 				rowCount = int64(token.RowCount)
+			}
+			if token.isError() {
+				return 0, token.getError()
 			}
 		case error:
 			return 0, token
