@@ -5,11 +5,11 @@ import (
 	_ "database/sql/driver"
 	"encoding/binary"
 	"fmt"
+	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 	"math"
 	"reflect"
 	"strings"
 	"time"
-	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 )
 
 type MssqlBulk struct {
@@ -168,7 +168,7 @@ func (b *MssqlBulk) AddRow(row []interface{}) (err error) {
 
 func (b *MssqlBulk) makeRowData(row []interface{}) ([]byte, error) {
 	buf := new(bytes.Buffer)
-	buf.WriteByte(tokenRow)
+	buf.WriteByte(byte(tokenRow))
 
 	var logcol bytes.Buffer
 	for i, col := range b.bulkColumns {
@@ -202,7 +202,7 @@ func (b *MssqlBulk) Done() (rowcount int64, err error) {
 		return 0, nil
 	}
 	var buf = b.cn.sess.buf
-	buf.WriteByte(tokenDone)
+	buf.WriteByte(byte(tokenDone))
 
 	binary.Write(buf, binary.LittleEndian, uint16(doneFinal))
 	binary.Write(buf, binary.LittleEndian, uint16(0)) //     curcmd
@@ -237,7 +237,7 @@ func (b *MssqlBulk) Done() (rowcount int64, err error) {
 
 func (b *MssqlBulk) createColMetadata() []byte {
 	buf := new(bytes.Buffer)
-	buf.WriteByte(tokenColMetadata)                                    // token
+	buf.WriteByte(byte(tokenColMetadata))                              // token
 	binary.Write(buf, binary.LittleEndian, uint16(len(b.bulkColumns))) // column count
 
 	for i, col := range b.bulkColumns {
