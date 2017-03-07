@@ -77,12 +77,12 @@ func (b *MssqlBulk) sendBulkCommand() error {
 	//create the bulk command
 
 	//columns definitions
-	var col_defs string
+	var col_defs bytes.Buffer
 	for i, col := range b.bulkColumns {
 		if i != 0 {
-			col_defs += ", "
+			col_defs.WriteString(", ")
 		}
-		col_defs += "[" + col.ColName + "] " + makeDecl(col.ti)
+		col_defs.WriteString("[" + col.ColName + "] " + makeDecl(col.ti))
 	}
 
 	//options
@@ -173,11 +173,11 @@ func (b *MssqlBulk) makeRowData(row []interface{}) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(tokenRow)
 
-	logcol := ""
+	var logcol bytes.Buffer
 	for i, col := range b.bulkColumns {
 
 		if b.Debug {
-			logcol = logcol + fmt.Sprintf(" col[%d]='%v' ", i, row[i])
+			logcol.WriteString(fmt.Sprintf(" col[%d]='%v' ", i, row[i]))
 		}
 		param, err := b.makeParam(row[i], col)
 		if err != nil {
