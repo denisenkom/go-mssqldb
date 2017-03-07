@@ -206,6 +206,10 @@ type queryNotifSub struct {
 }
 
 func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
+	if len(query) > 10 && strings.EqualFold(query[:10], "INSERTBULK") {
+		return c.prepareCopyIn(query)
+	}
+
 	return c.prepareContext(context.Background(), query)
 }
 
