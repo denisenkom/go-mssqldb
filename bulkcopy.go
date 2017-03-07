@@ -54,7 +54,7 @@ func (b *MssqlBulk) sendBulkCommand() (err error) {
 		var bulkCol *columnStruct
 
 		for _, m := range b.metadata {
-			if strings.EqualFold(m.ColName, colname) {
+			if m.ColName == colname {
 				bulkCol = &m
 				break
 			}
