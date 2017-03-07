@@ -615,12 +615,6 @@ func readPLPType(ti *typeInfo, r *tdsBuffer) (interface{}) {
 }
 
 func writePLPType(w io.Writer, ti typeInfo, buf []byte) (err error) {
-
-	if len(buf) == 0 {
-		err = binary.Write(w, binary.LittleEndian, uint64(PLP_NULL))
-		return
-	}
-
 	if err = binary.Write(w, binary.LittleEndian, uint64(UNKNOWN_PLP_LEN)); err != nil {
 		return
 	}
