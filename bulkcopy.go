@@ -5,7 +5,6 @@ import (
 	_ "database/sql/driver"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"math"
 	"reflect"
 	"strings"
@@ -51,9 +50,8 @@ func (b *MssqlBulk) sendBulkCommand() error {
 		return err
 	}
 	//match the columns
-	if b.Debug {
-		log.Printf("columnsName: %s", b.columnsName)
-	}
+	b.dlogf("columnsName: %s", b.columnsName)
+
 	for _, colname := range b.columnsName {
 		var bulkCol *columnStruct
 
@@ -70,9 +68,7 @@ func (b *MssqlBulk) sendBulkCommand() error {
 				bulkCol.ti.TypeId = typeBigVarBin
 			}
 			b.bulkColumns = append(b.bulkColumns, *bulkCol)
-			if b.Debug {
-				log.Printf("Adding column %s %s %#x", colname, bulkCol.ColName, bulkCol.ti.TypeId)
-			}
+			b.dlogf("Adding column %s %s %#x", colname, bulkCol.ColName, bulkCol.ti.TypeId)
 		} else {
 			return fmt.Errorf("Column %s does not exist in destination table %s", colname, b.tablename)
 		}
@@ -124,10 +120,8 @@ func (b *MssqlBulk) sendBulkCommand() error {
 	if err != nil {
 		return fmt.Errorf("Prepare failed: %s", err.Error())
 	}
+	b.dlogf(query)
 
-	if b.Debug {
-		log.Println(query)
-	}
 	_, err = stmt.Exec(nil)
 	if err != nil {
 		return err
@@ -198,12 +192,10 @@ func (b *MssqlBulk) makeRowData(row []interface{}) ([]byte, error) {
 			return nil, fmt.Errorf("bulkcopy: %s", err.Error())
 		}
 	}
-	if b.Debug {
-		log.Printf("row[%d] %s\n", b.numRows, logcol)
-	}
+
+	b.dlogf("row[%d] %s\n", b.numRows, logcol)
 
 	return buf.Bytes(), nil
-
 }
 
 func (b *MssqlBulk) Done() (rowcount int64, err error) {
@@ -301,7 +293,7 @@ func (b *MssqlBulk) getMetadata() (err error) {
 
 	if b.Debug {
 		for _, col := range b.metadata {
-			log.Printf("col: %s typeId: %#x size: %d scale: %d prec: %d flags: %d collation: %#x\n", col.ColName, col.ti.TypeId, col.ti.Size, col.ti.Scale, col.ti.Prec, col.Flags, col.ti.Collation.lcidAndFlags)
+			b.dlogf("col: %s typeId: %#x size: %d scale: %d prec: %d flags: %d collation: %#x\n", col.ColName, col.ti.TypeId, col.ti.Size, col.ti.Scale, col.ti.Prec, col.Flags, col.ti.Collation.lcidAndFlags)
 		}
 	}
 
@@ -573,4 +565,10 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 	}
 	return
 
+}
+
+func (b *MssqlBulk) dlogf(format string, v ...interface{}) {
+	if b.Debug {
+		b.cn.sess.log.Printf(format, v...)
+	}
 }
