@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"strings"
 )
 
 var _ driver.Pinger = &MssqlConn{}
@@ -51,6 +52,9 @@ func (c *MssqlConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.
 }
 
 func (c *MssqlConn) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
+	if len(query) > 10 && strings.EqualFold(query[:10], "INSERTBULK") {		
+		return c.prepareCopyIn(query)
+	}
 	return c.prepareContext(ctx, query)
 }
 
