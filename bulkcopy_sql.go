@@ -4,7 +4,6 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
-	"strings"
 )
 
 type copyin struct {
@@ -90,8 +89,4 @@ func (ci *copyin) Exec(v []driver.Value) (r driver.Result, err error) {
 
 func (ci *copyin) Close() (err error) {
 	return nil
-}
-
-func isBulkInsert(query string) bool {
-	return len(query) > 10 && strings.EqualFold(query[:10], "INSERTBULK")
 }
