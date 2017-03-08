@@ -557,18 +557,15 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 		}
 
 		ub := dec.UnscaledBytes()
-		if len(ub) > int(length) {
+		l := len(ub)
+		if l > int(length) {
 			err = fmt.Errorf("decimal out of range: %s", dec)
 			return res, err
 		}
-
 		// reverse the bytes
-		l := len(ub)
-		reverse := make([]byte, l)
-		for i, j := 0, l-1; i < l; i, j = i+1, j-1 {
-			reverse[i] = ub[j]
+		for i, j := 1, l-1; j >= 0; i, j = i+1, j-1 {
+			buf[i] = ub[j]
 		}
-		copy(buf[1:], reverse)
 		res.buffer = buf
 	case typeBigVarBin:
 		switch val := val.(type) {
