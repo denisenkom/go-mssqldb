@@ -5,11 +5,12 @@ import (
 	_ "database/sql/driver"
 	"encoding/binary"
 	"fmt"
-	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 	"math"
 	"reflect"
 	"strings"
 	"time"
+
+	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 )
 
 type MssqlBulk struct {
@@ -514,35 +515,56 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 			err = fmt.Errorf("mssql: invalid type for datetime column", val)
 		}
 
-	/*
-		case typeDecimal, typeDecimalN:
-			switch val := val.(type) {
-			case float64:
-				dec, err := Float64ToDecimal(val)
-				if err != nil {
-					return res, err
-				}
-				dec.scale = col.ti.Scale
-				dec.prec = col.ti.Prec
-				//res.buffer = make([]byte, 3)
-				res.buffer = dec.Bytes()
-				res.ti.Size = len(res.buffer)
-			default:
-				err = fmt.Errorf("mssql: invalid type for decimal column", val)
-				return
-			}
-		case typeMoney, typeMoney4, typeMoneyN:
-			if col.ti.Size == 4 {
-				res.ti.Size = 4
-				res.buffer = make([]byte, 4)
-			} else if col.ti.Size == 8 {
-				res.ti.Size = 8
-				res.buffer = make([]byte, 8)
+	// case typeMoney, typeMoney4, typeMoneyN:
+	case typeDecimal, typeDecimalN:
+		var value float64
+		if v, ok := val.(float64); ok {
+			value = v
+		} else {
+			value = float64(value)
+		}
 
-			} else {
-				err = fmt.Errorf("mssql: invalid size of money column")
-			}
-	*/
+		perc := col.ti.Prec
+		scale := col.ti.Scale
+		dec, err := Float64ToDecimalScale(value, scale)
+		if err != nil {
+			return res, err
+		}
+		dec.prec = perc
+		dec.scale = scale
+
+		var length byte
+		switch {
+		case perc <= 9:
+			length = 4
+		case perc <= 19:
+			length = 8
+		case perc <= 28:
+			length = 12
+		default:
+			length = 16
+		}
+
+		buf := make([]byte, length+1)
+		res.ti.Size = int(length) + 1
+		// second byte sign
+		if value < 0 {
+			buf[0] = 0
+		} else {
+			buf[0] = 1
+		}
+
+		ub := dec.UnscaledBytes()
+		if len(ub) > int(length)-2 {
+			err = fmt.Errorf("decimal out of range: %s", dec)
+		}
+		l := len(ub)
+		reverse := make([]byte, l)
+		for i, j := 0, l-1; i < l; i, j = i+1, j-1 {
+			reverse[i] = ub[j]
+		}
+		copy(buf[1:], reverse)
+		res.buffer = buf
 	case typeBigVarBin:
 		switch val := val.(type) {
 		case []byte:

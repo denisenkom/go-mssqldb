@@ -33,6 +33,10 @@ func (d Decimal) ToFloat64() float64 {
 }
 
 func Float64ToDecimal(f float64) (Decimal, error) {
+	return Float64ToDecimalScale(f, 20)
+}
+
+func Float64ToDecimalScale(f float64, scale uint8) (Decimal, error) {
 	var dec Decimal
 	if math.IsNaN(f) {
 		return dec, errors.New("NaN")
@@ -49,7 +53,7 @@ func Float64ToDecimal(f float64) (Decimal, error) {
 	}
 	dec.prec = 20
 	var integer float64
-	for dec.scale = 0; dec.scale <= 20; dec.scale++ {
+	for dec.scale = 0; dec.scale <= scale; dec.scale++ {
 		integer = f * scaletblflt64[dec.scale]
 		_, frac := math.Modf(integer)
 		if frac == 0 {
@@ -73,7 +77,7 @@ func init() {
 	}
 }
 
-func (d Decimal) Bytes() []byte {
+func (d Decimal) BigInt() big.Int {
 	bytes := make([]byte, 16)
 	binary.BigEndian.PutUint32(bytes[0:4], d.integer[3])
 	binary.BigEndian.PutUint32(bytes[4:8], d.integer[2])
@@ -84,7 +88,17 @@ func (d Decimal) Bytes() []byte {
 	if !d.positive {
 		x.Neg(&x)
 	}
+	return x
+}
+
+func (d Decimal) Bytes() []byte {
+	x := d.BigInt()
 	return scaleBytes(x.String(), d.scale)
+}
+
+func (d Decimal) UnscaledBytes() []byte {
+	x := d.BigInt()
+	return x.Bytes()
 }
 
 func scaleBytes(s string, scale uint8) []byte {
