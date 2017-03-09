@@ -32,8 +32,10 @@ func (d Decimal) ToFloat64() float64 {
 	return val
 }
 
+const autoScale = 100
+
 func Float64ToDecimal(f float64) (Decimal, error) {
-	return Float64ToDecimalScale(f, 20)
+	return Float64ToDecimalScale(f, autoScale)
 }
 
 func Float64ToDecimalScale(f float64, scale uint8) (Decimal, error) {
@@ -56,7 +58,7 @@ func Float64ToDecimalScale(f float64, scale uint8) (Decimal, error) {
 	for dec.scale = 0; dec.scale <= scale; dec.scale++ {
 		integer = f * scaletblflt64[dec.scale]
 		_, frac := math.Modf(integer)
-		if frac == 0 {
+		if frac == 0 && scale == autoScale {
 			break
 		}
 	}

@@ -53,6 +53,7 @@ func TestBulkcopy(t *testing.T) {
 		{"test_decimal_18_0", 1234.0001},
 		{"test_decimal_9_2", 1234.560001},
 		{"test_decimal_20_0", 1234.0001},
+		{"test_numeric_30_10", 1234567.1234567},
 	}
 
 	columns := make([]string, len(testValues))
@@ -183,6 +184,7 @@ func setupTable(conn *sql.DB, tableName string) {
 	[test_decimal_18_0] [decimal](18, 0) NULL,
 	[test_decimal_9_2] [decimal](9, 2) NULL,
 	[test_decimal_20_0] [decimal](20, 0) NULL,
+	[test_numeric_30_10] [decimal](30, 10) NULL,
  CONSTRAINT [PK_` + tableName + `_id] PRIMARY KEY CLUSTERED 
 (
 	[id] ASC

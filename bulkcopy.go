@@ -516,7 +516,7 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 		}
 
 	// case typeMoney, typeMoney4, typeMoneyN:
-	case typeDecimal, typeDecimalN:
+	case typeDecimal, typeDecimalN, typeNumeric, typeNumericN:
 		var value float64
 		if v, ok := val.(float64); ok {
 			value = v
@@ -532,7 +532,6 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 			return res, err
 		}
 		dec.prec = perc
-		dec.scale = scale
 
 		var length byte
 		switch {
