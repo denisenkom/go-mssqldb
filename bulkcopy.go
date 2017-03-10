@@ -2,7 +2,6 @@ package mssql
 
 import (
 	"bytes"
-	_ "database/sql/driver"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -141,7 +140,7 @@ func (b *MssqlBulk) sendBulkCommand() (err error) {
 // AddRow immediately writes the row to the destination table.
 // The arguments are the row values in the order they were specified.
 func (b *MssqlBulk) AddRow(row []interface{}) (err error) {
-	if b.headerSent == false {
+	if !b.headerSent {
 		err = b.sendBulkCommand()
 		if err != nil {
 			return
