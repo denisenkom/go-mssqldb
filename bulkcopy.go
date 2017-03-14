@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"strconv"
+
 	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 )
 
@@ -517,10 +519,27 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 	// case typeMoney, typeMoney4, typeMoneyN:
 	case typeDecimal, typeDecimalN, typeNumeric, typeNumericN:
 		var value float64
-		if v, ok := val.(float64); ok {
+		switch v := val.(type) {
+		case int:
+			value = float64(v)
+		case int8:
+			value = float64(v)
+		case int16:
+			value = float64(v)
+		case int32:
+			value = float64(v)
+		case int64:
+			value = float64(v)
+		case float32:
+			value = float64(v)
+		case float64:
 			value = v
-		} else {
-			value = float64(value)
+		case string:
+			if value, err = strconv.ParseFloat(v, 64); err != nil {
+				return res, fmt.Errorf("bulk: unable to convert string to float: %v", err)
+			}
+		default:
+			return res, fmt.Errorf("unknown value for decimal: %#v", v)
 		}
 
 		perc := col.ti.Prec
