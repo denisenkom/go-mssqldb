@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 	"io"
 	"io/ioutil"
 	"net"
@@ -18,7 +19,6 @@ import (
 	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
-	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 )
 
 func parseInstances(msg []byte) map[string]map[string]string {
@@ -498,6 +498,11 @@ func readBVarChar(r io.Reader) (res string, err error) {
 	err = binary.Read(r, binary.LittleEndian, &numchars)
 	if err != nil {
 		return "", err
+	}
+
+	// A zero length could be returned, return an empty string
+	if numchars == 0 {
+		return "", nil
 	}
 	return readUcs2(r, int(numchars))
 }
@@ -1298,7 +1303,7 @@ continue_login:
 		case error:
 			return nil, fmt.Errorf("Login error: %s", token.Error())
 		case doneStruct:
-			if token.isError(){
+			if token.isError() {
 				return nil, fmt.Errorf("Login error: %s", token.getError())
 			}
 		}
