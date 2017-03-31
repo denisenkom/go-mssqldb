@@ -18,6 +18,7 @@ import (
 	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
+
 	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 )
 
@@ -133,13 +134,13 @@ type tdsSession struct {
 }
 
 const (
-	logErrors      = 1
-	logMessages    = 2
-	logRows        = 4
-	logSQL         = 8
-	logParams      = 16
-	logTransaction = 32
-	logDebug       = 64
+	logErrors = 1 << iota
+	logMessages
+	logRows
+	logSQL
+	logParams
+	logTransaction
+	logDebug
 )
 
 type columnStruct struct {
@@ -234,11 +235,14 @@ func readPrelogin(r *tdsBuffer) (map[uint8][]byte, error) {
 // OptionFlags2
 // http://msdn.microsoft.com/en-us/library/dd304019.aspx
 const (
-	fLanguageFatal = 1
-	fODBC          = 2
-	fTransBoundary = 4
-	fCacheConnect  = 8
-	fIntSecurity   = 0x80
+	fLanguageFatal = 1 << iota
+	fODBC
+	fTransBoundary
+	fCacheConnect
+	fUserType = 7 << iota
+	_         // bits used by fUserType
+	_
+	fIntSecurity = 1 << iota
 )
 
 // TypeFlags
@@ -1298,7 +1302,7 @@ continue_login:
 		case error:
 			return nil, fmt.Errorf("Login error: %s", token.Error())
 		case doneStruct:
-			if token.isError(){
+			if token.isError() {
 				return nil, fmt.Errorf("Login error: %s", token.getError())
 			}
 		}
