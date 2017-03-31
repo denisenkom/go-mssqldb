@@ -33,10 +33,12 @@ func MakeProcId(name string) (res ProcId) {
 	return res
 }
 
+// OptionFlags
+// https://msdn.microsoft.com/en-us/library/dd357576.aspx
 const (
-	fWithRecomp    = 1
-	fNoMetaData    = 2
-	fReuseMetaData = 4
+	fWithRecomp = 1 << iota
+	fNoMetaData
+	fReuseMetaData
 )
 
 var (
