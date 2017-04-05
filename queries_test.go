@@ -1116,3 +1116,90 @@ func TestSendExecErrors(t *testing.T) {
 		t.Fail()
 	}
 }
+
+func TestIdentityScopeWithTransaction(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+
+	tx, err := conn.Begin()
+	if err != nil {
+		t.Fatal("Begin tran failed", err)
+	}
+	defer tx.Rollback()
+	
+	res, err := tx.Exec("if object_id('foo') is not null drop table foo; if object_id('footoo') is not null drop table footoo;")
+	if err != nil {
+		t.Fatal("pre-drop failed")
+	}	
+
+	res, err = tx.Exec("create table foo (bar int identity(1,1), baz int)")
+	if err != nil {
+		t.Fatal("create table foo failed")
+	}
+
+	res, err = tx.Exec("create table footoo (bar int identity(100,1), baz int)")
+	if err != nil {
+		t.Fatal("create table footoo failed")
+	}
+	
+	res, err = tx.Exec("create trigger dbo.tr_foo_i on  dbo.foo  after insert as begin set nocount on; insert footoo (baz) select baz from inserted; end")
+	if err != nil {
+		t.Fatal("create trigger failed")
+	}
+	
+	res, err = tx.Exec("insert into foo (baz) values (1)")
+	if err != nil {
+		t.Fatal("insert failed")
+	}
+	n, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal("last insert id failed")
+	}
+	if n != 1 {
+		t.Error("Expected 1 for identity, got ", n)
+	}	
+	
+	//no need to drop tables - they will be rolled back with the transaction
+}
+
+func TestIdentityScopeWithoutTransaction(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+
+	res, err := conn.Exec("if object_id('foo') is not null drop table foo; if object_id('footoo') is not null drop table footoo;")
+	if err != nil {
+		t.Fatal("pre-drop failed")
+	}
+
+	res, err = conn.Exec("create table foo (bar int identity(1,1), baz int)")
+	if err != nil {
+		t.Fatal("create table foo failed")
+	}
+
+	res, err = conn.Exec("create table footoo (bar int identity(100,1), baz int)")
+	if err != nil {
+		t.Fatal("create table footoo failed")
+	}
+	
+	res, err = conn.Exec("create trigger dbo.tr_foo_i on  dbo.foo  after insert as begin set nocount on; insert footoo (baz) select baz from inserted; end")
+	if err != nil {
+		t.Fatal("create trigger failed")
+	}
+	
+	res, err = conn.Exec("insert into foo (baz) values (1)")
+	if err != nil {
+		t.Fatal("insert failed")
+	}
+	n, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal("last insert id failed")
+	}
+	if n != 1 {
+		t.Error("Expected 1 for identity, got ", n)
+	}	
+	
+	res, err = conn.Exec("if object_id('foo') is not null drop table foo; if object_id('footoo') is not null drop table footoo;")
+	if err != nil {
+		t.Fatal("post-drop failed")
+	}	
+}
