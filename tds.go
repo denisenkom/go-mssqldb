@@ -675,6 +675,7 @@ type connectParams struct {
 	typeFlags              uint8
 	failOverPartner        string
 	failOverPort           uint64
+	packetSize             uint64
 }
 
 func splitConnectionString(dsn string) (res map[string]string) {
@@ -965,6 +966,21 @@ func parseConnectParams(dsn string) (connectParams, error) {
 		}
 	}
 
+	// Default packet size remains at 4096 bytes
+	p.packetSize = 4096
+	strpsize, ok := params["packet size"]
+	if ok {
+		var err error
+		p.packetSize, err = strconv.ParseUint(strpsize, 0, 16)
+		if err != nil {
+			f := "Invalid packet size '%v': %v"
+			return p, fmt.Errorf(f, strpsize, err.Error())
+		}
+		if p.packetSize == 0 {
+			p.packetSize = 32767
+		}
+	}
+
 	// https://msdn.microsoft.com/en-us/library/dd341108.aspx
 	p.dial_timeout = 15 * time.Second
 	p.conn_timeout = 30 * time.Second
@@ -1180,7 +1196,7 @@ initiate_connection:
 
 	toconn := NewTimeoutConn(conn, p.conn_timeout)
 
-	outbuf := newTdsBuffer(4096, toconn)
+	outbuf := newTdsBuffer(p.packetSize, toconn)
 	sess := tdsSession{
 		buf:      outbuf,
 		log:      log,
