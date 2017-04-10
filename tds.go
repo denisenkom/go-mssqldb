@@ -675,7 +675,7 @@ type connectParams struct {
 	typeFlags              uint8
 	failOverPartner        string
 	failOverPort           uint64
-	packetSize             uint64
+	packetSize             uint16
 }
 
 func splitConnectionString(dsn string) (res map[string]string) {
@@ -971,13 +971,16 @@ func parseConnectParams(dsn string) (connectParams, error) {
 	strpsize, ok := params["packet size"]
 	if ok {
 		var err error
-		p.packetSize, err = strconv.ParseUint(strpsize, 0, 16)
+		psize, err := strconv.ParseUint(strpsize, 0, 16)
 		if err != nil {
 			f := "Invalid packet size '%v': %v"
 			return p, fmt.Errorf(f, strpsize, err.Error())
 		}
+		p.packetSize = uint16(psize)
 		if p.packetSize == 0 {
 			p.packetSize = 32767
+		} else if p.packetSize < 512 {
+			p.packetSize = 512
 		}
 	}
 

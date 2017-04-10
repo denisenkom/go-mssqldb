@@ -13,7 +13,7 @@ func (closableBuffer) Close() error {
 	return nil
 }
 
-func makeBuf(bufSize uint64, testData []byte) *tdsBuffer {
+func makeBuf(bufSize uint16, testData []byte) *tdsBuffer {
 	buffer := closableBuffer{bytes.NewBuffer(testData)}
 	return newTdsBuffer(bufSize, &buffer)
 }

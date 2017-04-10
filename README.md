@@ -16,6 +16,7 @@
 * "connection timeout" - in seconds (default is 30)
 * "dial timeout" - in seconds (default is 5)
 * "keepAlive" - in seconds; 0 to disable (default is 0)
+* "packet size" - in bytes; 512 to 32767 (default is 4096)
 * "log" - logging flags (default 0/no logging, 63 for full logging)
   *  1 log errors
   *  2 log messages
