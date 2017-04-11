@@ -966,6 +966,9 @@ func parseConnectParams(dsn string) (connectParams, error) {
 		}
 	}
 
+	// https://msdn.microsoft.com/en-us/library/dd304019.aspx
+	// https://msdn.microsoft.com/en-us/library/system.data.sqlclient.sqlconnection.connectionstring.aspx
+	// https://docs.microsoft.com/en-us/sql/database-engine/configure-windows/configure-the-network-packet-size-server-configuration-option
 	// Default packet size remains at 4096 bytes
 	p.packetSize = 4096
 	strpsize, ok := params["packet size"]
@@ -977,10 +980,10 @@ func parseConnectParams(dsn string) (connectParams, error) {
 			return p, fmt.Errorf(f, strpsize, err.Error())
 		}
 		p.packetSize = uint16(psize)
-		if p.packetSize == 0 {
-			p.packetSize = 32767
-		} else if p.packetSize < 512 {
+		if p.packetSize < 512 {
 			p.packetSize = 512
+		} else if p.packetSize > 32767 {
+			p.packetSize = 32767
 		}
 	}
 
