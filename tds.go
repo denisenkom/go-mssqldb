@@ -656,9 +656,9 @@ func sendAttention(buf *tdsBuffer) error {
 type connectParams struct {
 	logFlags               uint64
 	protocol               Protocol
-	port                   uint64
 	host                   string
-	instance               string
+	port                   uint64 // Used only if protocol == TCP
+	instance               string // Not used if protocol == NAMED_PIPE
 	database               string
 	user                   string
 	password               string
@@ -957,13 +957,17 @@ func parseConnectParams(dsn string) (connectParams, error) {
 		}
 	}
 
-	parts := strings.SplitN(server, "\\", 2)
-	p.host = parts[0]
-	if p.host == "." || strings.ToUpper(p.host) == "(LOCAL)" || p.host == "" {
-		p.host = "localhost"
-	}
-	if len(parts) > 1 {
-		p.instance = parts[1]
+	if p.protocol == NAMED_PIPE {
+		p.host = server
+	} else {
+		parts := strings.SplitN(server, "\\", 2)
+		p.host = parts[0]
+		if p.host == "." || strings.ToUpper(p.host) == "(LOCAL)" || p.host == "" {
+			p.host = "localhost"
+		}
+		if len(parts) > 1 {
+			p.instance = parts[1]
+		}
 	}
 	p.database = params["database"]
 	p.user = params["user id"]
