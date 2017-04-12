@@ -655,6 +655,7 @@ func sendAttention(buf *tdsBuffer) error {
 
 type connectParams struct {
 	logFlags               uint64
+	protocol               Protocol
 	port                   uint64
 	host                   string
 	instance               string
@@ -943,6 +944,19 @@ func parseConnectParams(dsn string) (connectParams, error) {
 		}
 	}
 	server := params["server"]
+
+	// Try to parse protocol from the server string. Omitting the protocol will
+	// defaults to TCP.
+	p.protocol = TCP
+	for _, prot := range [...]Protocol{TCP, NAMED_PIPE, SHARED_MEMORY} {
+		prefix := string(prot)
+		if strings.HasPrefix(server, prefix) {
+			server = server[len(prefix):]
+			p.protocol = prot
+			break
+		}
+	}
+
 	parts := strings.SplitN(server, "\\", 2)
 	p.host = parts[0]
 	if p.host == "." || strings.ToUpper(p.host) == "(LOCAL)" || p.host == "" {
