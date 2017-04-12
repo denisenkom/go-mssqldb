@@ -1,8 +1,8 @@
 package mssql
 
 import (
-	"testing"
 	"bytes"
+	"testing"
 )
 
 type closableBuffer struct {
@@ -13,11 +13,10 @@ func (closableBuffer) Close() error {
 	return nil
 }
 
-func makeBuf(bufSize int, testData []byte) *tdsBuffer {
+func makeBuf(bufSize uint16, testData []byte) *tdsBuffer {
 	buffer := closableBuffer{bytes.NewBuffer(testData)}
 	return newTdsBuffer(bufSize, &buffer)
 }
-
 
 func TestStreamShorterThanHeader(t *testing.T) {
 	//buffer := closableBuffer{*bytes.NewBuffer([]byte{0xFF, 0xFF})}
@@ -63,7 +62,7 @@ func TestInvalidLengthInHeaderLongerThanIncomingBuffer(t *testing.T) {
 }
 
 func TestBeginReadSucceeds(t *testing.T) {
-	buffer := makeBuf(9, []byte{0x01/*id*/, 0xFF/*status*/, 0x0, 0x9/*size*/, 0xff, 0xff, 0xff, 0xff, 0x02/*test byte*/})
+	buffer := makeBuf(9, []byte{0x01 /*id*/, 0xFF /*status*/, 0x0, 0x9 /*size*/, 0xff, 0xff, 0xff, 0xff, 0x02 /*test byte*/})
 
 	id, err := buffer.BeginRead()
 	if err != nil {
@@ -101,8 +100,8 @@ func TestBeginReadSucceeds(t *testing.T) {
 
 func TestReadByteFailsOnSecondPacket(t *testing.T) {
 	buffer := makeBuf(9, []byte{
-		0x01/*id*/, 0x0/*not final*/, 0x0, 0x9/*size*/, 0xff, 0xff, 0xff, 0xff, 0x02/*test byte*/,
-		0x01/*next id, this packet is invalid, it is too short*/})
+		0x01 /*id*/, 0x0 /*not final*/, 0x0, 0x9 /*size*/, 0xff, 0xff, 0xff, 0xff, 0x02, /*test byte*/
+		0x01 /*next id, this packet is invalid, it is too short*/})
 
 	_, err := buffer.BeginRead()
 	if err != nil {
@@ -124,8 +123,8 @@ func TestReadByteFailsOnSecondPacket(t *testing.T) {
 
 func TestReadFailsOnSecondPacket(t *testing.T) {
 	buffer := makeBuf(9, []byte{
-		0x01/*id*/, 0x0/*not final*/, 0x0, 0x9/*size*/, 0xff, 0xff, 0xff, 0xff, 0x02/*test byte*/,
-		0x01/*next id, this packet is invalid, it is too short*/})
+		0x01 /*id*/, 0x0 /*not final*/, 0x0, 0x9 /*size*/, 0xff, 0xff, 0xff, 0xff, 0x02, /*test byte*/
+		0x01 /*next id, this packet is invalid, it is too short*/})
 
 	_, err := buffer.BeginRead()
 	if err != nil {

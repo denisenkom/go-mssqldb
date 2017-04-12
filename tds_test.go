@@ -364,6 +364,7 @@ func TestInvalidConnectionString(t *testing.T) {
 	connStrings := []string{
 		"log=invalid",
 		"port=invalid",
+		"packet size=invalid",
 		"connection timeout=invalid",
 		"dial timeout=invalid",
 		"keepalive=invalid",
@@ -412,7 +413,13 @@ func TestValidConnectionString(t *testing.T) {
 		{"connection timeout=3;dial timeout=4;keepalive=5", func(p connectParams) bool {
 			return p.conn_timeout == 3*time.Second && p.dial_timeout == 4*time.Second && p.keepAlive == 5*time.Second
 		}},
+		{"log=63", func(p connectParams) bool { return p.logFlags == 63 && p.port == 1433 }},
 		{"log=63;port=1000", func(p connectParams) bool { return p.logFlags == 63 && p.port == 1000 }},
+		{"log=64", func(p connectParams) bool { return p.logFlags == 64 && p.packetSize == 4096 }},
+		{"log=64;packet size=0", func(p connectParams) bool { return p.logFlags == 64 && p.packetSize == 512 }},
+		{"log=64;packet size=300", func(p connectParams) bool { return p.logFlags == 64 && p.packetSize == 512 }},
+		{"log=64;packet size=8192", func(p connectParams) bool { return p.logFlags == 64 && p.packetSize == 8192 }},
+		{"log=64;packet size=48000", func(p connectParams) bool { return p.logFlags == 64 && p.packetSize == 32767 }},
 
 		// those are supported currently, but maybe should not be
 		{"someparam", func(p connectParams) bool { return true }},
