@@ -966,8 +966,6 @@ func parseConnectParams(dsn string) (connectParams, error) {
 		}
 	}
 
-	// https://msdn.microsoft.com/en-us/library/dd304019.aspx
-	// https://msdn.microsoft.com/en-us/library/system.data.sqlclient.sqlconnection.connectionstring.aspx
 	// https://docs.microsoft.com/en-us/sql/database-engine/configure-windows/configure-the-network-packet-size-server-configuration-option
 	// Default packet size remains at 4096 bytes
 	p.packetSize = 4096
@@ -979,6 +977,11 @@ func parseConnectParams(dsn string) (connectParams, error) {
 			f := "Invalid packet size '%v': %v"
 			return p, fmt.Errorf(f, strpsize, err.Error())
 		}
+
+		// Ensure packet size falls within the TDS protocol range of 512 to 32767 bytes
+		// NOTE: Encrypted connections have a maximum size of 16383 bytes.  If you request
+		// a higher packet size, the server will respond with an ENVCHANGE request to
+		// alter the packet size to 16383 bytes.
 		p.packetSize = uint16(psize)
 		if p.packetSize < 512 {
 			p.packetSize = 512
