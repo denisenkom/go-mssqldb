@@ -1132,7 +1132,7 @@ func dialConnection(p connectParams) (conn net.Conn, err error) {
 	case TCP:
 		return dialConnectionUsingTCP(p)
 	case NAMED_PIPE:
-		return nil, fmt.Errorf("Named pipe protocol (\"%s\") is not implemented yet", p.protocol)
+		return dialConnectionUsingNamedPipe(p)
 	case SHARED_MEMORY:
 		return nil, fmt.Errorf("Shared memory protocol (\"%s\") is not implemented yet", p.protocol)
 	default:
