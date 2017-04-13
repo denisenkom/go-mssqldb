@@ -1127,10 +1127,23 @@ type Auth interface {
 	Free()
 }
 
+func dialConnection(p connectParams) (conn net.Conn, err error) {
+	switch p.protocol {
+	case TCP:
+		return dialConnectionUsingTCP(p)
+	case NAMED_PIPE:
+		return nil, fmt.Errorf("Named pipe protocol (\"%s\") is not implemented yet", p.protocol)
+	case SHARED_MEMORY:
+		return nil, fmt.Errorf("Shared memory protocol (\"%s\") is not implemented yet", p.protocol)
+	default:
+		return nil, fmt.Errorf("Invalid value '%+v' for Protocol type", p.protocol)
+	}
+}
+
 // SQL Server AlwaysOn Availability Group Listeners are bound by DNS to a
 // list of IP addresses.  So if there is more than one, try them all and
 // use the first one that allows a connection.
-func dialConnection(p connectParams) (conn net.Conn, err error) {
+func dialConnectionUsingTCP(p connectParams) (conn net.Conn, err error) {
 	var ips []net.IP
 	ips, err = net.LookupIP(p.host)
 	if err != nil {
