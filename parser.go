@@ -66,6 +66,11 @@ func parseNormal(p *parser) stateFunc {
 				p.write(ch)
 				return nil
 			}
+			if ch == ':' && ch2 == ':'{
+				p.write(':')
+				p.write(':')
+				continue
+			}
 			p.unread()
 			if ch2 >= '0' && ch2 <= '9' {
 				return parseOrdinalParameter
