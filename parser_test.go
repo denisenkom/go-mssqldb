@@ -46,6 +46,7 @@ func TestParseParams(t *testing.T) {
 		{"select /*", "select /*", 0},
 		{"select /**", "select /**", 0},
 		{"select /*/", "select /*/", 0},
+		{"output $action", "output $action", 0},
 	}
 
 	for _, v := range values {
