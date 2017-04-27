@@ -1,4 +1,4 @@
-﻿package mssql
+package mssql
 
 import (
 	"database/sql"
@@ -74,7 +74,7 @@ func TestBulkcopy(t *testing.T) {
 	defer conn.Close()
 
 	err := setupTable(conn, tableName)
-	if (err != nil) {
+	if err != nil {
 		t.Error("Setup table failed: ", err.Error())
 		return
 	}

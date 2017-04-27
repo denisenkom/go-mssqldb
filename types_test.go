@@ -1,8 +1,8 @@
 package mssql
 
 import (
-	"testing"
 	"reflect"
+	"testing"
 	"time"
 )
 

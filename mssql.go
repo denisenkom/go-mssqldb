@@ -6,13 +6,14 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 	"io"
 	"math"
 	"net"
 	"reflect"
 	"strings"
 	"time"
+
+	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 )
 
 var driverInstance = &MssqlDriver{processQueryText: true}
@@ -58,8 +59,9 @@ type MssqlConn struct {
 	transactionCtx context.Context
 
 	processQueryText bool
+	connectionGood   bool
 
-	connectionGood bool
+	outs map[string]interface{}
 }
 
 func (c *MssqlConn) checkBadConn(err error) error {
@@ -92,9 +94,14 @@ func (c *MssqlConn) checkBadConn(err error) error {
 	}
 }
 
+func (c *MssqlConn) clearOuts() {
+	c.outs = nil
+}
+
 func (c *MssqlConn) simpleProcessResp(ctx context.Context) error {
 	tokchan := make(chan tokenStruct, 5)
-	go processResponse(ctx, c.sess, tokchan)
+	go processResponse(ctx, c.sess, tokchan, c.outs)
+	c.clearOuts()
 	for tok := range tokchan {
 		switch token := tok.(type) {
 		case doneStruct:
@@ -228,7 +235,12 @@ func (d *MssqlDriver) open(dsn string) (*MssqlConn, error) {
 		}
 	}
 
-	conn := &MssqlConn{sess: sess, transactionCtx: context.Background(), processQueryText: d.processQueryText, connectionGood: true}
+	conn := &MssqlConn{
+		sess:             sess,
+		transactionCtx:   context.Background(),
+		processQueryText: d.processQueryText,
+		connectionGood:   true,
+	}
 	conn.sess.log = d.log
 	return conn, nil
 }
@@ -302,7 +314,11 @@ func (s *MssqlStmt) sendQuery(args []namedValue) (err error) {
 	}
 	if s.c.sess.logFlags&logParams != 0 && len(args) > 0 {
 		for i := 0; i < len(args); i++ {
-			s.c.sess.log.Printf("\t@p%d\t%v\n", i+1, args[i])
+			if len(args[i].Name) > 0 {
+				s.c.sess.log.Printf("\t@%s\t%v\n", args[i].Name, args[i].Value)
+			} else {
+				s.c.sess.log.Printf("\t@p%d\t%v\n", i+1, args[i].Value)
+			}
 		}
 
 	}
@@ -314,25 +330,21 @@ func (s *MssqlStmt) sendQuery(args []namedValue) (err error) {
 			return driver.ErrBadConn
 		}
 	} else {
-		params := make([]Param, len(args)+2)
-		decls := make([]string, len(args))
-		params[0] = makeStrParam(s.query)
-		for i, val := range args {
-			params[i+2], err = s.makeParam(val.Value)
+		proc := Sp_ExecuteSql
+		var params []Param
+		if isProc(s.query) {
+			proc.name = s.query
+			params, _, err = s.makeRPCParams(args, 0)
+		} else {
+			var decls []string
+			params, decls, err = s.makeRPCParams(args, 2)
 			if err != nil {
 				return
 			}
-			var name string
-			if len(val.Name) > 0 {
-				name = "@" + val.Name
-			} else {
-				name = fmt.Sprintf("@p%d", val.Ordinal)
-			}
-			params[i+2].Name = name
-			decls[i] = fmt.Sprintf("%s %s", name, makeDecl(params[i+2].ti))
+			params[0] = makeStrParam(s.query)
+			params[1] = makeStrParam(strings.Join(decls, ","))
 		}
-		params[1] = makeStrParam(strings.Join(decls, ","))
-		if err = sendRpc(s.c.sess.buf, headers, Sp_ExecuteSql, 0, params); err != nil {
+		if err = sendRpc(s.c.sess.buf, headers, proc, 0, params); err != nil {
 			if s.c.sess.logFlags&logErrors != 0 {
 				s.c.sess.log.Printf("Failed to send Rpc with %v", err)
 			}
@@ -340,6 +352,39 @@ func (s *MssqlStmt) sendQuery(args []namedValue) (err error) {
 		}
 	}
 	return
+}
+
+// isProc takes the query text in s and determines if it is a stored proc name
+// or SQL text.
+func isProc(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	if s[0] == '[' && s[len(s)-1] == ']' && strings.ContainsAny(s, "\n\r") == false {
+		return true
+	}
+	return !strings.ContainsAny(s, " \t\n\r;")
+}
+
+func (s *MssqlStmt) makeRPCParams(args []namedValue, offset int) ([]Param, []string, error) {
+	var err error
+	params := make([]Param, len(args)+offset)
+	decls := make([]string, len(args))
+	for i, val := range args {
+		params[i+offset], err = s.makeParam(val.Value)
+		if err != nil {
+			return nil, nil, err
+		}
+		var name string
+		if len(val.Name) > 0 {
+			name = "@" + val.Name
+		} else {
+			name = fmt.Sprintf("@p%d", val.Ordinal)
+		}
+		params[i+offset].Name = name
+		decls[i] = fmt.Sprintf("%s %s", name, makeDecl(params[i+offset].ti))
+	}
+	return params, decls, nil
 }
 
 type namedValue struct {
@@ -376,7 +421,8 @@ func (s *MssqlStmt) queryContext(ctx context.Context, args []namedValue) (rows d
 func (s *MssqlStmt) processQueryResponse(ctx context.Context) (res driver.Rows, err error) {
 	tokchan := make(chan tokenStruct, 5)
 	ctx, cancel := context.WithCancel(ctx)
-	go processResponse(ctx, s.c.sess, tokchan)
+	go processResponse(ctx, s.c.sess, tokchan, s.c.outs)
+	s.c.clearOuts()
 	// process metadata
 	var cols []columnStruct
 loop:
@@ -423,7 +469,8 @@ func (s *MssqlStmt) exec(ctx context.Context, args []namedValue) (res driver.Res
 
 func (s *MssqlStmt) processExec(ctx context.Context) (res driver.Result, err error) {
 	tokchan := make(chan tokenStruct, 5)
-	go processResponse(ctx, s.c.sess, tokchan)
+	go processResponse(ctx, s.c.sess, tokchan, s.c.outs)
+	s.c.clearOuts()
 	var rowCount int64
 	for token := range tokchan {
 		switch token := token.(type) {
@@ -634,8 +681,7 @@ func (s *MssqlStmt) makeParam(val driver.Value) (res Param, err error) {
 			binary.LittleEndian.PutUint32(res.buffer[4:8], uint32(tm))
 		}
 	default:
-		err = fmt.Errorf("mssql: unknown type for %T", val)
-		return
+		return s.makeParamExtra(val)
 	}
 	return
 }
