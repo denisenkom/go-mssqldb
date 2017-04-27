@@ -6,10 +6,9 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
-
-	"strconv"
 
 	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 )
@@ -218,7 +217,7 @@ func (b *MssqlBulk) Done() (rowcount int64, err error) {
 	buf.FinishPacket()
 
 	tokchan := make(chan tokenStruct, 5)
-	go processResponse(context.Background(), b.cn.sess, tokchan)
+	go processResponse(context.Background(), b.cn.sess, tokchan, nil)
 
 	var rowCount int64
 	for token := range tokchan {
@@ -309,7 +308,8 @@ func (s *MssqlStmt) QueryMeta() (cols []columnStruct, err error) {
 		return
 	}
 	tokchan := make(chan tokenStruct, 5)
-	go processResponse(context.Background(), s.c.sess, tokchan)
+	go processResponse(context.Background(), s.c.sess, tokchan, s.c.outs)
+	s.c.clearOuts()
 loop:
 	for tok := range tokchan {
 		switch token := tok.(type) {

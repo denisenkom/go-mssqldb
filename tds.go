@@ -1313,7 +1313,7 @@ initiate_connection:
 	var sspi_msg []byte
 continue_login:
 	tokchan := make(chan tokenStruct, 5)
-	go processResponse(context.Background(), &sess, tokchan)
+	go processResponse(context.Background(), &sess, tokchan, nil)
 	success := false
 	for tok := range tokchan {
 		switch token := tok.(type) {

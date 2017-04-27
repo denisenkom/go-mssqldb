@@ -97,7 +97,7 @@ func TestSendSqlBatch(t *testing.T) {
 	}
 
 	ch := make(chan tokenStruct, 5)
-	go processResponse(context.Background(), conn, ch)
+	go processResponse(context.Background(), conn, ch, nil)
 
 	var lastRow []interface{}
 loop:

@@ -315,11 +315,11 @@ func TestNull(t *testing.T) {
 		"sql_variant",
 	}
 	for _, typ := range types {
-		row := conn.QueryRow("declare @x " + typ + " = ?; select @x", nil)
+		row := conn.QueryRow("declare @x "+typ+" = ?; select @x", nil)
 		var retval interface{}
 		err := row.Scan(&retval)
 		if err != nil {
-			t.Error("Scan failed for type " + typ, err.Error())
+			t.Error("Scan failed for type "+typ, err.Error())
 			return
 		}
 		if retval != nil {
