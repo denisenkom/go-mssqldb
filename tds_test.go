@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -72,7 +73,7 @@ func TestSendLogin(t *testing.T) {
 
 func TestSendSqlBatch(t *testing.T) {
 	checkConnStr(t)
-	p, err := parseConnectParams(makeConnStr())
+	p, err := parseConnectParams(makeConnStr(t).String())
 	if err != nil {
 		t.Error("parseConnectParams failed:", err.Error())
 		return
@@ -127,21 +128,39 @@ loop:
 }
 
 func checkConnStr(t *testing.T) {
+	if len(os.Getenv("SQLSERVER_DSN")) > 0 {
+		return
+	}
 	if len(os.Getenv("HOST")) > 0 && len(os.Getenv("DATABASE")) > 0 {
 		return
 	}
 	t.Skip("no database connection string")
 }
 
-func makeConnStr() string {
-	addr := os.Getenv("HOST")
-	instance := os.Getenv("INSTANCE")
-	user := os.Getenv("SQLUSER")
-	password := os.Getenv("SQLPASSWORD")
-	database := os.Getenv("DATABASE")
-	return fmt.Sprintf(
-		"Server=%s\\%s;User Id=%s;Password=%s;Database=%s;log=127",
-		addr, instance, user, password, database)
+// makeConnStr returns a URL struct so it may be modified by various
+// tests before used as a DSN.
+func makeConnStr(t *testing.T) *url.URL {
+	dsn := os.Getenv("SQLSERVER_DSN")
+	if len(dsn) > 0 {
+		parsed, err := url.Parse(dsn)
+		if err != nil {
+			t.Fatal("unable to parse SQLSERVER_DSN as URL", err)
+		}
+		values := parsed.Query()
+		values.Set("log", "127")
+		parsed.RawQuery = values.Encode()
+		return parsed
+	}
+	values := url.Values{}
+	values.Set("log", "127")
+	values.Set("database", os.Getenv("DATABASE"))
+	return &url.URL{
+		Scheme:   "sqlserver",
+		Host:     os.Getenv("HOST"),
+		Path:     os.Getenv("INSTANCE"),
+		User:     url.UserPassword(os.Getenv("SQLUSER"), os.Getenv("SQLPASSWORD")),
+		RawQuery: values.Encode(),
+	}
 }
 
 type testLogger struct {
@@ -159,7 +178,7 @@ func (l testLogger) Println(v ...interface{}) {
 func open(t *testing.T) *sql.DB {
 	checkConnStr(t)
 	SetLogger(testLogger{t})
-	conn, err := sql.Open("mssql", makeConnStr())
+	conn, err := sql.Open("mssql", makeConnStr(t).String())
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
 		return nil
@@ -171,7 +190,7 @@ func open(t *testing.T) *sql.DB {
 func TestConnect(t *testing.T) {
 	checkConnStr(t)
 	SetLogger(testLogger{t})
-	conn, err := sql.Open("mssql", makeConnStr())
+	conn, err := sql.Open("mssql", makeConnStr(t).String())
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
 		return
@@ -180,13 +199,22 @@ func TestConnect(t *testing.T) {
 }
 
 func TestBadConnect(t *testing.T) {
-	badDsns := []string{
-		//"Server=badhost",
-		fmt.Sprintf("Server=%s\\%s;User ID=baduser;Password=badpwd",
-			os.Getenv("HOST"), os.Getenv("INSTANCE")),
+	var badDSNs []string
+
+	if parsed, err := url.Parse(os.Getenv("SQLSERVER_DSN")); err == nil {
+		parsed.User = url.UserPassword("baduser", "badpwd")
+		badDSNs = append(badDSNs, parsed.String())
+	}
+	if len(os.Getenv("HOST")) > 0 && len(os.Getenv("INSTANCE")) > 0 {
+		badDSNs = append(badDSNs,
+			fmt.Sprintf(
+				"Server=%s\\%s;User ID=baduser;Password=badpwd",
+				os.Getenv("HOST"), os.Getenv("INSTANCE"),
+			),
+		)
 	}
 	SetLogger(testLogger{t})
-	for _, badDsn := range badDsns {
+	for _, badDsn := range badDSNs {
 		conn, err := sql.Open("mssql", badDsn)
 		if err != nil {
 			t.Error("Open connection failed:", err.Error())
@@ -321,8 +349,15 @@ func TestPing(t *testing.T) {
 func TestSecureWithInvalidHostName(t *testing.T) {
 	checkConnStr(t)
 	SetLogger(testLogger{t})
-	dsn := makeConnStr() + ";Encrypt=true;TrustServerCertificate=false;hostNameInCertificate=foo.bar"
-	conn, err := sql.Open("mssql", dsn)
+
+	dsn := makeConnStr(t)
+	dsnParams := dsn.Query()
+	dsnParams.Set("encrypt", "true")
+	dsnParams.Set("TrustServerCertificate", "false")
+	dsnParams.Set("hostNameInCertificate", "foo.bar")
+	dsn.RawQuery = dsnParams.Encode()
+
+	conn, err := sql.Open("mssql", dsn.String())
 	if err != nil {
 		t.Fatal("Open connection failed:", err.Error())
 	}
@@ -336,8 +371,14 @@ func TestSecureWithInvalidHostName(t *testing.T) {
 func TestSecureConnection(t *testing.T) {
 	checkConnStr(t)
 	SetLogger(testLogger{t})
-	dsn := makeConnStr() + ";Encrypt=true;TrustServerCertificate=true"
-	conn, err := sql.Open("mssql", dsn)
+
+	dsn := makeConnStr(t)
+	dsnParams := dsn.Query()
+	dsnParams.Set("encrypt", "true")
+	dsnParams.Set("TrustServerCertificate", "true")
+	dsn.RawQuery = dsnParams.Encode()
+
+	conn, err := sql.Open("mssql", dsn.String())
 	if err != nil {
 		t.Fatal("Open connection failed:", err.Error())
 	}
