@@ -1,19 +1,24 @@
 package main
 
-import _ "github.com/denisenkom/go-mssqldb"
-import "database/sql"
-import "log"
-import "fmt"
-import "flag"
+import (
+	"database/sql"
+	"flag"
+	"fmt"
+	"log"
 
-var debug = flag.Bool("debug", false, "enable debugging")
-var password = flag.String("password", "", "the database password")
-var port *int = flag.Int("port", 1433, "the database port")
-var server = flag.String("server", "", "the database server")
-var user = flag.String("user", "", "the database user")
+	_ "github.com/denisenkom/go-mssqldb"
+)
 
-func simplemain() {
-	flag.Parse() // parse the command line args
+var (
+	debug         = flag.Bool("debug", false, "enable debugging")
+	password      = flag.String("password", "", "the database password")
+	port     *int = flag.Int("port", 1433, "the database port")
+	server        = flag.String("server", "", "the database server")
+	user          = flag.String("user", "", "the database user")
+)
+
+func main() {
+	flag.Parse()
 
 	if *debug {
 		fmt.Printf(" password:%s\n", *password)
@@ -49,5 +54,4 @@ func simplemain() {
 	fmt.Printf("somechars:%s\n", somechars)
 
 	fmt.Printf("bye\n")
-
 }

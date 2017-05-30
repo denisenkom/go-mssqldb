@@ -1,19 +1,24 @@
 package main
 
-import "github.com/denisenkom/go-mssqldb"
-import "database/sql"
-import "log"
-import "fmt"
-import "flag"
+import (
+	"database/sql"
+	"flag"
+	"fmt"
+	"log"
 
-var debug = flag.Bool("debug", true, "enable debugging")
-var password = flag.String("password", "osmtest", "the database password")
-var port *int = flag.Int("port", 1433, "the database port")
-var server = flag.String("server", "localhost", "the database server")
-var user = flag.String("user", "osmtest", "the database user")
-var database = flag.String("database", "bulktest", "the database name")
+	"github.com/denisenkom/go-mssqldb"
+)
 
-/**
+var (
+	debug         = flag.Bool("debug", true, "enable debugging")
+	password      = flag.String("password", "osmtest", "the database password")
+	port     *int = flag.Int("port", 1433, "the database port")
+	server        = flag.String("server", "localhost", "the database server")
+	user          = flag.String("user", "osmtest", "the database user")
+	database      = flag.String("database", "bulktest", "the database name")
+)
+
+/*
 	CREATE TABLE test_table(
 		[id] [int] IDENTITY(1,1) NOT NULL,
 		[test_nvarchar] [nvarchar](50) NULL,
@@ -27,10 +32,10 @@ var database = flag.String("database", "bulktest", "the database name")
 	(
 		[id] ASC
 	) ON [PRIMARY]);
-**/
+*/
 
 func main() {
-	flag.Parse() // parse the command line args
+	flag.Parse()
 
 	if *debug {
 		fmt.Printf(" password:%s\n", *password)
