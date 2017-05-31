@@ -70,7 +70,7 @@ func parseNormal(p *parser) stateFunc {
 			if ch2 >= '0' && ch2 <= '9' {
 				return parseOrdinalParameter
 			} else if 'a' <= ch2 && ch2 <= 'z' || 'A' <= ch2 && ch2 <= 'Z' {
-				return parseNamedParameter
+				return parseMaybeNamedParameter(ch)
 			}
 		}
 		p.write(ch)
@@ -119,28 +119,39 @@ func parseOrdinalParameter(p *parser) stateFunc {
 	return parseNormal
 }
 
-func parseNamedParameter(p *parser) stateFunc {
-	var paramName string
-	var ok bool
-	for {
-		var ch rune
-		ch, ok = p.next()
-		if ok && (ch >= '0' && ch <= '9' || 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z') {
-			paramName = paramName + string(ch)
-		} else {
-			break
+func parseMaybeNamedParameter(prefix rune) func(*parser) stateFunc {
+	return func(p *parser) stateFunc {
+		var paramName string
+		var ok bool
+		for {
+			var ch rune
+			ch, ok = p.next()
+			if ok && (ch >= '0' && ch <= '9' || 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z') {
+				paramName = paramName + string(ch)
+			} else {
+				break
+			}
 		}
+		if ok {
+			p.unread()
+		}
+		// $action is a legitimate SQL name, only in MERGE statements
+		// https://docs.microsoft.com/en-us/sql/t-sql/queries/output-clause-transact-sql#arguments
+		if prefix == '$' {
+			switch paramName {
+			case "action":
+				p.w.WriteString("$action")
+				return parseNormal
+			}
+		}
+		p.namedParams[paramName] = true
+		p.w.WriteString("@")
+		p.w.WriteString(paramName)
+		if !ok {
+			return nil
+		}
+		return parseNormal
 	}
-	if ok {
-		p.unread()
-	}
-	p.namedParams[paramName] = true
-	p.w.WriteString("@")
-	p.w.WriteString(paramName)
-	if !ok {
-		return nil
-	}
-	return parseNormal
 }
 
 func parseQuote(p *parser) stateFunc {
