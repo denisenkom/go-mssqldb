@@ -590,7 +590,7 @@ func (r *MssqlResult) RowsAffected() (int64, error) {
 }
 
 func (r *MssqlResult) LastInsertId() (int64, error) {
-	s, err := r.c.Prepare("select cast(@@identity as bigint)")
+	s, err := r.c.Prepare("select cast(SCOPE_IDENTITY() as bigint)")
 	if err != nil {
 		return 0, err
 	}
