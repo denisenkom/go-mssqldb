@@ -6,13 +6,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 	"io"
 	"math"
 	"net"
 	"reflect"
 	"strings"
 	"time"
-	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 )
 
 var driverInstance = &MssqlDriver{processQueryText: true}
@@ -53,6 +53,19 @@ func (d *MssqlDriver) SetLogger(logger Logger) {
 	d.log = optionalLogger{logger}
 }
 
+func CheckBadConn(err error) error {
+	if err == io.EOF {
+		return driver.ErrBadConn
+	}
+
+	switch err.(type) {
+	case net.Error:
+		return driver.ErrBadConn
+	default:
+		return err
+	}
+}
+
 type MssqlConn struct {
 	sess           *tdsSession
 	transactionCtx context.Context
@@ -67,10 +80,10 @@ func (c *MssqlConn) simpleProcessResp(ctx context.Context) error {
 		switch token := tok.(type) {
 		case doneStruct:
 			if token.isError() {
-				return token.getError()
+				return CheckBadConn(token.getError())
 			}
 		case error:
-			return token
+			return CheckBadConn(token)
 		}
 	}
 	return nil
@@ -343,10 +356,10 @@ loop:
 			break loop
 		case doneStruct:
 			if token.isError() {
-				return nil, token.getError()
+				return nil, CheckBadConn(token.getError())
 			}
 		case error:
-			return nil, token
+			return nil, CheckBadConn(token)
 		}
 	}
 	res = &MssqlRows{sess: s.c.sess, tokchan: tokchan, cols: cols, cancel: cancel}
@@ -379,10 +392,10 @@ func (s *MssqlStmt) processExec(ctx context.Context) (res driver.Result, err err
 				rowCount += int64(token.RowCount)
 			}
 			if token.isError() {
-				return nil, token.getError()
+				return nil, CheckBadConn(token.getError())
 			}
 		case error:
-			return nil, token
+			return nil, CheckBadConn(token)
 		}
 	}
 	return &MssqlResult{s.c, rowCount}, nil

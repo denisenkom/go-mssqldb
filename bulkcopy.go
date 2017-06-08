@@ -226,10 +226,10 @@ func (b *MssqlBulk) Done() (rowcount int64, err error) {
 				rowCount = int64(token.RowCount)
 			}
 			if token.isError() {
-				return 0, token.getError()
+				return 0, CheckBadConn(token.getError())
 			}
 		case error:
-			return 0, token
+			return 0, CheckBadConn(token)
 		}
 	}
 	return rowCount, nil
@@ -317,7 +317,7 @@ loop:
 			cols = token
 			break loop
 		case error:
-			return nil, token
+			return nil, CheckBadConn(token)
 		}
 	}
 	return cols, nil
