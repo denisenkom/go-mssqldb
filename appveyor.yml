@@ -48,5 +48,5 @@ before_test:
  
 
 test_script:
-  - go test -v -race -coverprovile=coverage.txt -covermode=atomic
+  - go test -v -race -coverprofile=coverage.txt -covermode=atomic
   - codecov
