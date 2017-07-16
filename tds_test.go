@@ -199,7 +199,6 @@ func TestConnect(t *testing.T) {
 }
 
 func TestBadConnect(t *testing.T) {
-	t.Skip("TODO: fix this test")
 	var badDSNs []string
 
 	if parsed, err := url.Parse(os.Getenv("SQLSERVER_DSN")); err == nil {
