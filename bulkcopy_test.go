@@ -71,7 +71,11 @@ func TestBulkcopy(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
 
-	setupTable(conn, tableName)
+	err := setupTable(conn, tableName)
+	if (err != nil) {
+		t.Error("Setup table failed: ", err.Error())
+		return
+	}
 
 	stmt, err := conn.Prepare(CopyIn(tableName, MssqlBulkOptions{}, columns...))
 
@@ -142,8 +146,8 @@ func compareValue(a interface{}, expected interface{}) bool {
 		return reflect.DeepEqual(expected, a)
 	}
 }
-func setupTable(conn *sql.DB, tableName string) {
 
+func setupTable(conn *sql.DB, tableName string) (err error) {
 	tablesql := `CREATE TABLE ` + tableName + ` (
 	[id] [int] IDENTITY(1,1) NOT NULL,
 	[test_nvarchar] [nvarchar](50) NULL,
@@ -186,9 +190,9 @@ func setupTable(conn *sql.DB, tableName string) {
 	[id] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY];`
-	_, err := conn.Exec(tablesql)
+	_, err = conn.Exec(tablesql)
 	if err != nil {
 		log.Fatal("tablesql failed:", err)
 	}
-
+	return
 }
