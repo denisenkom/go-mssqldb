@@ -250,22 +250,15 @@ type queryNotifSub struct {
 	timeout uint32
 }
 
-func (c *MssqlConn) Prepare(query string) (stmt driver.Stmt, err error) {
+func (c *MssqlConn) Prepare(query string) (driver.Stmt, error) {
 	if !c.connectionGood {
 		return nil, driver.ErrBadConn
 	}
 	if len(query) > 10 && strings.EqualFold(query[:10], "INSERTBULK") {
-		stmt, err = c.prepareCopyIn(query)
-		if err != nil {
-			return nil, c.checkBadConn(err)
-		}
+		return c.prepareCopyIn(query)
 	}
 
-	stmt, err = c.prepareContext(context.Background(), query)
-	if err != nil {
-		return nil, c.checkBadConn(err)
-	}
-	return
+	return c.prepareContext(context.Background(), query)
 }
 
 func (c *MssqlConn) prepareContext(ctx context.Context, query string) (*MssqlStmt, error) {

@@ -77,9 +77,12 @@ func TestBulkcopy(t *testing.T) {
 		return
 	}
 
+	log.Println("Preparing copyin statement")
+
 	stmt, err := conn.Prepare(CopyIn(tableName, MssqlBulkOptions{}, columns...))
 
 	for i := 0; i < 10; i++ {
+		log.Printf("Executing copy in statement %d time with %d values", i+1, len(values))
 		_, err = stmt.Exec(values...)
 		if err != nil {
 			t.Error("AddRow failed: ", err.Error())
