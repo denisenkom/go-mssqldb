@@ -343,7 +343,6 @@ func TestExec(t *testing.T) {
 }
 
 func TestShortTimeout(t *testing.T) {
-	t.Skip("TODO: fix this test")
 	if testing.Short() {
 		t.Skip("short")
 	}
@@ -841,7 +840,6 @@ func TestConnectionClosing(t *testing.T) {
 }
 
 func TestBeginTranError(t *testing.T) {
-	t.Skip("TODO: fix this test")
 	checkConnStr(t)
 	drv := driverWithProcess(t)
 	conn, err := drv.open(makeConnStr(t).String())
@@ -878,10 +876,13 @@ func TestBeginTranError(t *testing.T) {
 	case driver.ErrBadConn:
 		t.Error("processBeginResponse should fail with error different from ErrBadConn but it did")
 	}
+
+	if conn.connectionGood {
+		t.Fatal("Connection should be in a bad state")
+	}
 }
 
 func TestCommitTranError(t *testing.T) {
-	t.Skip("TODO: fix this test")
 	checkConnStr(t)
 	drv := driverWithProcess(t)
 	conn, err := drv.open(makeConnStr(t).String())
@@ -919,6 +920,10 @@ func TestCommitTranError(t *testing.T) {
 		t.Error("simpleProcessResp should fail with error different from ErrBadConn but it did")
 	}
 
+	if conn.connectionGood {
+		t.Fatal("Connection should be in a bad state")
+	}
+
 	// reopen connection
 	conn, err = drv.open(makeConnStr(t).String())
 	defer conn.Close()
@@ -936,7 +941,6 @@ func TestCommitTranError(t *testing.T) {
 }
 
 func TestRollbackTranError(t *testing.T) {
-	t.Skip("TODO: fix this test")
 	checkConnStr(t)
 	drv := driverWithProcess(t)
 	conn, err := drv.open(makeConnStr(t).String())
@@ -972,6 +976,10 @@ func TestRollbackTranError(t *testing.T) {
 		t.Error("simpleProcessResp should fail but it succeeded")
 	case driver.ErrBadConn:
 		t.Error("simpleProcessResp should fail with error different from ErrBadConn but it did")
+	}
+
+	if conn.connectionGood {
+		t.Fatal("Connection should be in a bad state")
 	}
 
 	// reopen connection
@@ -1031,7 +1039,6 @@ func TestSendQueryErrors(t *testing.T) {
 }
 
 func TestProcessQueryErrors(t *testing.T) {
-	t.Skip("TODO: fix this test")
 	checkConnStr(t)
 	drv := driverWithProcess(t)
 	conn, err := drv.open(makeConnStr(t).String())
@@ -1055,6 +1062,10 @@ func TestProcessQueryErrors(t *testing.T) {
 	// should not fail with ErrBadConn because query was successfully sent to server
 	if err == driver.ErrBadConn {
 		t.Error("processQueryResponse expected to fail with error other than ErrBadConn but it failed with it")
+	}
+
+	if conn.connectionGood {
+		t.Fatal("Connection should be in a bad state")
 	}
 }
 
