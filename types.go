@@ -969,6 +969,10 @@ func makeGoLangScanType(ti typeInfo) reflect.Type {
 
 func makeDecl(ti typeInfo) string {
 	switch ti.TypeId {
+	case typeNull:
+		// maybe we should use something else here
+		// this is tested in TestNull
+		return "nvarchar(1)"
 	case typeInt1:
 		return "tinyint"
 	case typeInt2:
