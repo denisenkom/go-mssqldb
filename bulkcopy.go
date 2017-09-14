@@ -486,7 +486,7 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 				res.ti.Size = 4
 				res.buffer = make([]byte, 4)
 
-				ref := time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
+				ref := time.Date(1900, 1, 1, 0, 0, 0, 0, Location)
 				dur := val.Sub(ref)
 				days := dur / (24 * time.Hour)
 				if days < 0 {
@@ -501,7 +501,7 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 				res.ti.Size = 8
 				res.buffer = make([]byte, 8)
 
-				ref := time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
+				ref := time.Date(1900, 1, 1, 0, 0, 0, 0, Location)
 				dur := val.Sub(ref)
 				days := math.Floor(float64(dur) / float64(24*time.Hour))
 				tm := (val.Hour()*60*60+val.Minute()*60+val.Second())*300 + int(val.Nanosecond()/10000000*3)
