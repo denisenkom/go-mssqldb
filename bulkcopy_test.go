@@ -59,9 +59,10 @@ func TestBulkcopy(t *testing.T) {
 		{"test_bigint", 9223372036854775807},
 		{"test_bigintn", nil},
 		{"test_geom", geom},
-		//{"test_decimal_18_0", nil},
-		//{"test_decimal_9_2", nil},
-		//{"test_decimal_18_0", nil},
+		{"test_decimal_18_0", 1234.0001},
+		{"test_decimal_9_2", 1234.560001},
+		{"test_decimal_20_0", 1234.0001},
+		{"test_numeric_30_10", 1234567.1234567},
 	}
 
 	columns := make([]string, len(testValues))
@@ -132,7 +133,7 @@ func TestBulkcopy(t *testing.T) {
 		}
 		for i, c := range testValues {
 			if !compareValue(container[i], c.val) {
-				t.Errorf("columns %s : %s != %s\n", c.colname, container[i], c.val)
+				t.Errorf("columns %s : %s != %v\n", c.colname, container[i], c.val)
 			}
 		}
 	}
@@ -150,10 +151,10 @@ func compareValue(a interface{}, expected interface{}) bool {
 	case int64:
 		return int64(expected) == a
 	case float64:
-		switch b := a.(type) {
-		case []uint8: // case for smallmonye and money
-			s := fmt.Sprintf("%s", b)
-			a, _ = strconv.ParseFloat(s, 64)
+		if got, ok := a.([]uint8); ok {
+			var nf sql.NullFloat64
+			nf.Scan(got)
+			a = nf.Float64
 		}
 		return math.Abs(expected-a.(float64)) < 0.0001
 	default:
@@ -200,6 +201,7 @@ func setupTable(conn *sql.DB, tableName string) (err error) {
 	[test_decimal_18_0] [decimal](18, 0) NULL,
 	[test_decimal_9_2] [decimal](9, 2) NULL,
 	[test_decimal_20_0] [decimal](20, 0) NULL,
+	[test_numeric_30_10] [decimal](30, 10) NULL,
  CONSTRAINT [PK_` + tableName + `_id] PRIMARY KEY CLUSTERED 
 (
 	[id] ASC

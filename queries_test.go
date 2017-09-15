@@ -284,6 +284,51 @@ func TestTrans(t *testing.T) {
 	}
 }
 
+func TestNull(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+
+	types := []string{
+		"tinyint",
+		"smallint",
+		"int",
+		"bigint",
+		"real",
+		"float",
+		"smallmoney",
+		"money",
+		"decimal",
+		//"varbinary(15)",
+		//"binary(15)",
+		"nvarchar(15)",
+		"nchar(15)",
+		"varchar(15)",
+		"char(15)",
+		"bit",
+		"smalldatetime",
+		"date",
+		"time",
+		"datetime",
+		"datetime2",
+		"datetimeoffset",
+		"uniqueidentifier",
+		"sql_variant",
+	}
+	for _, typ := range types {
+		row := conn.QueryRow("declare @x " + typ + " = ?; select @x", nil)
+		var retval interface{}
+		err := row.Scan(&retval)
+		if err != nil {
+			t.Error("Scan failed for type " + typ, err.Error())
+			return
+		}
+		if retval != nil {
+			t.Error("Value should be nil, but it is ", retval)
+			return
+		}
+	}
+}
+
 func TestParams(t *testing.T) {
 	longstr := strings.Repeat("x", 10000)
 	longbytes := make([]byte, 10000)
