@@ -1,4 +1,4 @@
-package mssql
+﻿package mssql
 
 import (
 	"database/sql"
@@ -40,6 +40,7 @@ func TestBulkcopy(t *testing.T) {
 		{"test_smalldatetimen", time.Date(2010, 11, 12, 13, 14, 0, 0, time.UTC)},
 		{"test_datetime", time.Date(2010, 11, 12, 13, 14, 15, 120000000, time.UTC)},
 		{"test_datetimen", time.Date(2010, 11, 12, 13, 14, 15, 120000000, time.UTC)},
+		{"test_datetimen_1", time.Date(4010, 11, 12, 13, 14, 15, 120000000, time.UTC)},
 		{"test_datetime2_1", time.Date(2010, 11, 12, 13, 14, 15, 0, time.UTC)},
 		{"test_datetime2_3", time.Date(2010, 11, 12, 13, 14, 15, 123000000, time.UTC)},
 		{"test_datetime2_7", time.Date(2010, 11, 12, 13, 14, 15, 123000000, time.UTC)},
@@ -175,6 +176,7 @@ func setupTable(conn *sql.DB, tableName string) (err error) {
 	[test_smalldatetimen] [smalldatetime] NULL,
 	[test_datetime] [datetime] NOT NULL,
 	[test_datetimen] [datetime] NULL,
+	[test_datetimen_1] [datetime] NULL,
 	[test_datetime2_1] [datetime2](1) NULL,
 	[test_datetime2_3] [datetime2](3) NULL,
 	[test_datetime2_7] [datetime2](7) NULL,
