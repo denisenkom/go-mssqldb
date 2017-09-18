@@ -8,9 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"time"
-
 	"strconv"
-
 	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 )
 
@@ -515,8 +513,6 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 		default:
 			err = fmt.Errorf("mssql: invalid type for datetime column: %s", val)
 		}
-
-	// case typeMoney, typeMoney4, typeMoneyN:
 	case typeDecimal, typeDecimalN, typeNumeric, typeNumericN:
 		var value float64
 		switch v := val.(type) {
@@ -584,6 +580,49 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 			buf[i] = ub[j]
 		}
 		res.buffer = buf
+	case typeMoney, typeMoney4, typeMoneyN:
+		var floatValue float64
+
+		switch val := val.(type) {
+		case float32:
+			floatValue = float64(val)
+		case float64:
+			floatValue = val
+		case int:
+			floatValue = float64(val)
+		case int64:
+			floatValue = float64(val)
+		case string:
+			floatValue, err = strconv.ParseFloat(val, 64)
+			if err != nil {
+				err = fmt.Errorf("mssql: invalid string for money column", val)
+				return
+			}
+		default:
+			err = fmt.Errorf("mssql: invalid type for money column", val)
+			return
+		}
+
+		if col.ti.Size == 4 {
+			res.ti.Size = 4
+			res.buffer = make([]byte, 4)
+
+			intValue := int64((floatValue + 0.000000000000001) * 10000)
+			i32 := uint32(intValue)
+			binary.LittleEndian.PutUint32(res.buffer, i32)
+		} else if col.ti.Size == 8 {
+			res.ti.Size = 8
+			res.buffer = make([]byte, 8)
+
+			intValue := int64((floatValue + 0.000000000000001) * 10000)
+			high := uint32(intValue >> 32)
+			low := uint32(intValue - int64(high))
+
+			binary.LittleEndian.PutUint32(res.buffer[0:4], high)
+			binary.LittleEndian.PutUint32(res.buffer[4:8], low)
+		} else {
+			err = fmt.Errorf("mssql: invalid size of money column")
+		}
 	case typeBigVarBin:
 		switch val := val.(type) {
 		case []byte:

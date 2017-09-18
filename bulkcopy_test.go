@@ -9,10 +9,16 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"fmt"
+	"strconv"
 )
 
 func TestBulkcopy(t *testing.T) {
 	// TDS level Bulk Insert is not supported on Azure SQL Server.
+	//os.Setenv("HOST", "HOST")
+	//os.Setenv("DATABASE", "DATABASE")
+	//os.Setenv("SQLUSER", "SQLUSER")
+	//os.Setenv("SQLPASSWORD", "SQLPASSWORD")
 	if dsn := makeConnStr(t); strings.HasSuffix(strings.Split(dsn.Host, ":")[0], ".database.windows.net") {
 		t.Skip("TDS level bulk copy is not supported on Azure SQL Server")
 	}
@@ -20,7 +26,7 @@ func TestBulkcopy(t *testing.T) {
 		colname string
 		val     interface{}
 	}
-	tableName := "#table_test"
+	tableName := "table_test"
 	geom, _ := hex.DecodeString("E6100000010C00000000000034400000000000004440")
 	testValues := []testValue{
 
@@ -45,6 +51,8 @@ func TestBulkcopy(t *testing.T) {
 		{"test_datetime2_3", time.Date(2010, 11, 12, 13, 14, 15, 123000000, time.UTC)},
 		{"test_datetime2_7", time.Date(2010, 11, 12, 13, 14, 15, 123000000, time.UTC)},
 		{"test_date", time.Date(2010, 11, 12, 00, 00, 00, 0, time.UTC)},
+		{"test_smallmoney", 1234.56},
+		{"test_money", 1234.56},
 		{"test_tinyint", 255},
 		{"test_smallint", 32767},
 		{"test_smallintn", nil},
@@ -52,8 +60,6 @@ func TestBulkcopy(t *testing.T) {
 		{"test_bigint", 9223372036854775807},
 		{"test_bigintn", nil},
 		{"test_geom", geom},
-		// {"test_smallmoney", 1234.56},
-		// {"test_money", 1234.56},
 		{"test_decimal_18_0", 1234.0001},
 		{"test_decimal_9_2", 1234.560001},
 		{"test_decimal_20_0", 1234.0001},
@@ -158,7 +164,8 @@ func compareValue(a interface{}, expected interface{}) bool {
 }
 
 func setupTable(conn *sql.DB, tableName string) (err error) {
-	tablesql := `CREATE TABLE ` + tableName + ` (
+	tablesql := `if exists (select 1 from  sysobjects  where  id = object_id('` + tableName + `') and   type = 'U')   drop table ` + tableName + `
+	CREATE TABLE ` + tableName + ` (
 	[id] [int] IDENTITY(1,1) NOT NULL,
 	[test_nvarchar] [nvarchar](50) NULL,
 	[test_varchar] [varchar](50) NULL,
