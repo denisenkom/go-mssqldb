@@ -154,6 +154,15 @@ func compareValue(a interface{}, expected interface{}) bool {
 			a = nf.Float64
 		}
 		return math.Abs(expected-a.(float64)) < 0.0001
+	case string:
+		switch a := a.(type) {
+		case string:
+			return expected == a
+		case []byte:
+			return expected == string(a)
+		default:
+			return reflect.DeepEqual(expected, a)
+		}
 	default:
 		return reflect.DeepEqual(expected, a)
 	}
