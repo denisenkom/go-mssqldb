@@ -53,6 +53,32 @@ func TestToFloat64(t *testing.T) {
 	}
 }
 
+func TestFromString(t *testing.T) {
+	values := []struct {
+		num string
+		prec uint8
+		scale uint8
+	}{
+		{"123123", 6,0 },
+		{"123123.123", 9,3 },
+		{"0.123123", 6,6 },
+		{"999999999.999999999", 18,9 },
+		{"0", 1,0 },
+		{"1", 1,0 },
+		{"-1", 1,0 },
+	}
+	for _, v := range values {
+		dec, err := StringToDecimal(v.num)
+		if err == nil {
+			if dec.String() != v.num || dec.prec != v.prec || dec.scale != v.scale{
+				t.Error("StringToDecimal values don't match ", dec.String(), v.num)
+			}
+		} else {
+			t.Error("StringToDecimal failed with error:", err.Error())
+		}
+	}
+}
+
 func TestFromFloat64(t *testing.T) {
 	values := []struct {
 		dec Decimal
