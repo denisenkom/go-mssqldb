@@ -40,7 +40,7 @@ func Float64ToDecimal(f float64) (Decimal, error) {
 	return Float64ToDecimalScale(f, autoScale)
 }
 
-func StringToDecimal(s string) (Decimal, error) {
+func StringToDecimal(s string, dscale uint8) (Decimal, error) {
 	var dec Decimal
 	var intString string
 	var scale int
@@ -73,13 +73,17 @@ func StringToDecimal(s string) (Decimal, error) {
 
 	//https://docs.microsoft.com/en-us/sql/t-sql/data-types/decimal-and-numeric-transact-sql
 	//38 is max precision
-	if prec > 38 {
+	if prec > 38 || scale > int(dscale) {
 		return dec, fmt.Errorf("Decimal value %s too large", s)
 	}
 
+	var i, e = big.NewInt(10), big.NewInt(int64(dscale)-int64(scale))
+	i.Exp(i, e, nil)
+	bigInt.Mul(bigInt, i)
+
 	dec.positive = bigInt.Sign() >= 0
 	dec.prec = uint8(prec)
-	dec.scale = uint8(scale)
+	dec.scale = uint8(dscale)
 
 	bytes := bigInt.Bytes()
 	for i, j := 0, len(bytes)-1; i < j; i, j = i+1, j-1 {
