@@ -57,6 +57,8 @@ func TestBulkcopy(t *testing.T) {
 		{"test_decimal_18_0", 1234.0001},
 		{"test_decimal_9_2", 1234.560001},
 		{"test_decimal_20_0", 1234.0001},
+		{"test_numeric_18_6", "99999999999.999999"},
+		{"test_numeric_18_6_2", "-99999999999.999999"},
 		{"test_numeric_30_10", 1234567.1234567},
 	}
 
@@ -152,6 +154,15 @@ func compareValue(a interface{}, expected interface{}) bool {
 			a = nf.Float64
 		}
 		return math.Abs(expected-a.(float64)) < 0.0001
+	case string:
+		switch a := a.(type) {
+		case string:
+			return expected == a
+		case []byte:
+			return expected == string(a)
+		default:
+			return reflect.DeepEqual(expected, a)
+		}
 	default:
 		return reflect.DeepEqual(expected, a)
 	}
@@ -196,6 +207,8 @@ func setupTable(conn *sql.DB, tableName string) (err error) {
 	[test_decimal_18_0] [decimal](18, 0) NULL,
 	[test_decimal_9_2] [decimal](9, 2) NULL,
 	[test_decimal_20_0] [decimal](20, 0) NULL,
+	[test_numeric_18_6] [decimal](18, 6) NULL,
+	[test_numeric_18_6_2] [decimal](18, 6) NULL,
 	[test_numeric_30_10] [decimal](30, 10) NULL,
  CONSTRAINT [PK_` + tableName + `_id] PRIMARY KEY CLUSTERED 
 (

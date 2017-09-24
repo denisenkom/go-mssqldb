@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -519,6 +518,12 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 	// case typeMoney, typeMoney4, typeMoneyN:
 	case typeDecimal, typeDecimalN, typeNumeric, typeNumericN:
 		var value float64
+		var dec Decimal
+		isFloat := true
+
+		perc := col.ti.Prec
+		scale := col.ti.Scale
+
 		switch v := val.(type) {
 		case int:
 			value = float64(v)
@@ -535,29 +540,32 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 		case float64:
 			value = v
 		case string:
-			if value, err = strconv.ParseFloat(v, 64); err != nil {
-				return res, fmt.Errorf("bulk: unable to convert string to float: %v", err)
+			dec, err = StringToDecimal(v, scale)
+			if err != nil {
+				return res, err
 			}
+			if dec.prec > perc || dec.scale > scale{
+				return res, fmt.Errorf("mssql: decimal %s is out of range", val)
+			}
+			isFloat = false
 		default:
 			return res, fmt.Errorf("unknown value for decimal: %#v", v)
 		}
 
-		perc := col.ti.Prec
-		scale := col.ti.Scale
-		var dec Decimal
-		dec, err = Float64ToDecimalScale(value, scale)
-		if err != nil {
-			return res, err
+		if isFloat {
+			dec, err = Float64ToDecimalScale(value, scale)
+			if err != nil {
+				return res, err
+			}
 		}
-		dec.prec = perc
 
 		var length byte
 		switch {
-		case perc <= 9:
+		case dec.prec <= 9:
 			length = 4
-		case perc <= 19:
+		case dec.prec <= 19:
 			length = 8
-		case perc <= 28:
+		case dec.prec <= 28:
 			length = 12
 		default:
 			length = 16
@@ -567,10 +575,10 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 		// first byte length written by typeInfo.writer
 		res.ti.Size = int(length) + 1
 		// second byte sign
-		if value < 0 {
-			buf[0] = 0
-		} else {
+		if dec.positive{
 			buf[0] = 1
+		} else {
+			buf[0] = 0
 		}
 
 		ub := dec.UnscaledBytes()
@@ -583,6 +591,7 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 		for i, j := 1, l-1; j >= 0; i, j = i+1, j-1 {
 			buf[i] = ub[j]
 		}
+
 		res.buffer = buf
 	case typeBigVarBin:
 		switch val := val.(type) {
@@ -598,7 +607,6 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 		err = fmt.Errorf("mssql: type %x not implemented", col.ti.TypeId)
 	}
 	return
-
 }
 
 func (b *MssqlBulk) dlogf(format string, v ...interface{}) {
