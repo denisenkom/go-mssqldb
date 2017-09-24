@@ -539,7 +539,7 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 		case float64:
 			value = v
 		case string:
-			dec, err = StringToDecimal(v)
+			dec, err = StringToDecimal(v, scale)
 			if err != nil {
 				return res, err
 			}
@@ -558,15 +558,13 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 			}
 		}
 
-		dec.prec = perc
-
 		var length byte
 		switch {
-		case perc <= 9:
+		case dec.prec <= 9:
 			length = 4
-		case perc <= 19:
+		case dec.prec <= 19:
 			length = 8
-		case perc <= 28:
+		case dec.prec <= 28:
 			length = 12
 		default:
 			length = 16
@@ -592,6 +590,7 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 		for i, j := 1, l-1; j >= 0; i, j = i+1, j-1 {
 			buf[i] = ub[j]
 		}
+
 		res.buffer = buf
 	case typeBigVarBin:
 		switch val := val.(type) {
