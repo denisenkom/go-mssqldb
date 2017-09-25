@@ -75,11 +75,17 @@ func (c *MssqlConn) checkBadConn(err error) error {
 	// it might be possible to revise this hack after
 	// https://github.com/golang/go/issues/20807
 	// is implemented
-	if err == nil {
+	switch err {
+	case nil:
 		return nil
-	}
-	if err == io.EOF {
+	case io.EOF:
 		return driver.ErrBadConn
+	case driver.ErrBadConn:
+		// It is an internal programming error if driver.ErrBadConn
+		// is ever passed to this function. driver.ErrBadConn should
+		// only ever be returned in response to a *MssqlConn.connectionGood == false
+		// check in the external facing API.
+		panic("driver.ErrBadConn in checkBadConn. This should not happen.")
 	}
 
 	switch err.(type) {
@@ -134,7 +140,8 @@ func (c *MssqlConn) sendCommitRequest() error {
 		if c.sess.logFlags&logErrors != 0 {
 			c.sess.log.Printf("Failed to send CommitXact with %v", err)
 		}
-		return driver.ErrBadConn
+		c.connectionGood = false
+		return fmt.Errorf("Faild to send CommitXact: %v", err)
 	}
 	return nil
 }
@@ -158,7 +165,8 @@ func (c *MssqlConn) sendRollbackRequest() error {
 		if c.sess.logFlags&logErrors != 0 {
 			c.sess.log.Printf("Failed to send RollbackXact with %v", err)
 		}
-		return driver.ErrBadConn
+		c.connectionGood = false
+		return fmt.Errorf("Failed to send RollbackXact: %v", err)
 	}
 	return nil
 }
@@ -192,7 +200,8 @@ func (c *MssqlConn) sendBeginRequest(ctx context.Context, tdsIsolation isoLevel)
 		if c.sess.logFlags&logErrors != 0 {
 			c.sess.log.Printf("Failed to send BeginXact with %v", err)
 		}
-		return driver.ErrBadConn
+		c.connectionGood = false
+		return fmt.Errorf("Failed to send BiginXant: %v", err)
 	}
 	return nil
 }
@@ -327,7 +336,8 @@ func (s *MssqlStmt) sendQuery(args []namedValue) (err error) {
 			if s.c.sess.logFlags&logErrors != 0 {
 				s.c.sess.log.Printf("Failed to send SqlBatch with %v", err)
 			}
-			return driver.ErrBadConn
+			s.c.connectionGood = false
+			return fmt.Errorf("failed to send SQL Batch: %v", err)
 		}
 	} else {
 		proc := Sp_ExecuteSql
@@ -348,7 +358,8 @@ func (s *MssqlStmt) sendQuery(args []namedValue) (err error) {
 			if s.c.sess.logFlags&logErrors != 0 {
 				s.c.sess.log.Printf("Failed to send Rpc with %v", err)
 			}
-			return driver.ErrBadConn
+			s.c.connectionGood = false
+			return fmt.Errorf("Failed to send RPC: %v", err)
 		}
 	}
 	return

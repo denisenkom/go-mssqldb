@@ -898,8 +898,8 @@ func TestBeginTranError(t *testing.T) {
 
 	ctx := context.Background()
 	_, err = conn.begin(ctx, isolationSnapshot)
-	if err != driver.ErrBadConn {
-		t.Errorf("begin should fail with ErrBadConn but it returned %v", err)
+	if err == nil || conn.connectionGood == true {
+		t.Errorf("begin should fail as a bad connection, err=%v", err)
 	}
 
 	// reopen connection
@@ -941,8 +941,8 @@ func TestCommitTranError(t *testing.T) {
 
 	ctx := context.Background()
 	err = conn.Commit()
-	if err != driver.ErrBadConn {
-		t.Errorf("begin should fail with ErrBadConn but it returned %v", err)
+	if err == nil || conn.connectionGood {
+		t.Errorf("begin should fail and set the connection to bad, but it returned %v", err)
 	}
 
 	// reopen connection
@@ -999,8 +999,8 @@ func TestRollbackTranError(t *testing.T) {
 
 	ctx := context.Background()
 	err = conn.Rollback()
-	if err != driver.ErrBadConn {
-		t.Errorf("Rollback should fail with ErrBadConn but it returned %v", err)
+	if err == nil || conn.connectionGood {
+		t.Errorf("Rollback should fail and set connection to bad but it returned %v", err)
 	}
 
 	// reopen connection
@@ -1068,7 +1068,7 @@ func TestSendQueryErrors(t *testing.T) {
 
 	// should fail because connection is closed
 	_, err = stmt.Query([]driver.Value{})
-	if err != driver.ErrBadConn {
+	if err == nil || stmt.c.connectionGood {
 		t.Fail()
 	}
 
@@ -1078,7 +1078,7 @@ func TestSendQueryErrors(t *testing.T) {
 	}
 	// should fail because connection is closed
 	_, err = stmt.Query([]driver.Value{int64(1)})
-	if err != driver.ErrBadConn {
+	if err == nil || stmt.c.connectionGood {
 		t.Fail()
 	}
 }
@@ -1139,7 +1139,7 @@ func TestSendExecErrors(t *testing.T) {
 
 	// should fail because connection is closed
 	_, err = stmt.Exec([]driver.Value{})
-	if err != driver.ErrBadConn {
+	if err == nil || stmt.c.connectionGood {
 		t.Fail()
 	}
 
@@ -1149,7 +1149,7 @@ func TestSendExecErrors(t *testing.T) {
 	}
 	// should fail because connection is closed
 	_, err = stmt.Exec([]driver.Value{int64(1)})
-	if err != driver.ErrBadConn {
+	if err == nil || stmt.c.connectionGood {
 		t.Fail()
 	}
 }
