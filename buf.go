@@ -69,15 +69,15 @@ func (w *tdsBuffer) PackageSize() uint32 {
 }
 
 func (w *tdsBuffer) flush() (err error) {
-	// writing packet size
+	// Write packet size.
 	binary.BigEndian.PutUint16(w.wbuf[2:], w.wpos)
 
-	// writing packet into underlying transport
+	// Write packet into underlying transport.
 	if _, err = w.transport.Write(w.wbuf[:w.wpos]); err != nil {
 		return err
 	}
 
-	// execute afterFirst hook if it is set
+	// Execute afterFirst hook if it is set.
 	if w.afterFirst != nil {
 		w.afterFirst()
 		w.afterFirst = nil

@@ -799,7 +799,7 @@ func TestAzureDatabase(t *testing.T) {
 	t.Skip("currently failing")
 
 	query := `
-;with
+with
     config_cte (config) as (
             select *
                     from ( values
@@ -1008,16 +1008,20 @@ func TestAzureDatabase(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	rows, err := db.QueryContext(ctx, query)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rows.Close()
-	var s string
-	for rows.Next() {
-		err = rows.Scan(&s)
-		if err != nil {
-			t.Fatal(err)
+	var rows *sql.Rows
+	var err error
+
+	for x := 0; x < 30; x++ {
+		for i := 0; i < x; i++ {
+			if err := db.PingContext(ctx); err != nil {
+				t.Fatal("failed to ping server", err)
+			}
 		}
+
+		rows, err = db.QueryContext(ctx, query)
+		if err != nil {
+			t.Fatal("QueryContext", len(query), err)
+		}
+		rows.Close()
 	}
 }

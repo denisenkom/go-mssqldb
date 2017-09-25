@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"database/sql/driver"
-
 	"golang.org/x/net/context"
 )
 
@@ -563,7 +561,7 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs map[strin
 		return
 	}
 	if packet_type != packReply {
-		badStreamPanic(driver.ErrBadConn)
+		badStreamPanic(fmt.Errorf("unexpected packet type in reply: got %v, expected %v", packet_type, packReply))
 	}
 	var columns []columnStruct
 	errs := make([]Error, 0, 5)
@@ -651,7 +649,7 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs map[strin
 				}
 			}
 		default:
-			badStreamPanic(driver.ErrBadConn)
+			badStreamPanic(fmt.Errorf("unknown token type returned: %v", token))
 		}
 	}
 }
