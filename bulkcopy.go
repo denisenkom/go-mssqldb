@@ -230,7 +230,7 @@ func (b *MssqlBulk) Done() (rowcount int64, err error) {
 				return 0, token.getError()
 			}
 		case error:
-			return 0, token
+			return 0, b.cn.checkBadConn(token)
 		}
 	}
 	return rowCount, nil
@@ -319,7 +319,7 @@ loop:
 			cols = token
 			break loop
 		case error:
-			return nil, token
+			return nil, s.c.checkBadConn(token)
 		}
 	}
 	return cols, nil

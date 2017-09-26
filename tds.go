@@ -1027,7 +1027,7 @@ func parseConnectParams(dsn string) (connectParams, error) {
 	}
 	encrypt, ok := params["encrypt"]
 	if ok {
-		if strings.ToUpper(encrypt) == "DISABLE" {
+		if strings.EqualFold(encrypt, "DISABLE") {
 			p.disableEncryption = true
 		} else {
 			var err error
@@ -1103,7 +1103,7 @@ func parseConnectParams(dsn string) (connectParams, error) {
 	return p, nil
 }
 
-type Auth interface {
+type auth interface {
 	InitialBytes() ([]byte, error)
 	NextBytes([]byte) ([]byte, error)
 	Free()
@@ -1171,7 +1171,6 @@ func dialConnection(p connectParams) (conn net.Conn, err error) {
 		f := "Unable to open tcp connection with host '%v:%v': %v"
 		return nil, fmt.Errorf(f, p.host, p.port, err.Error())
 	}
-
 	return conn, err
 }
 
