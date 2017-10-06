@@ -313,8 +313,15 @@ func (s *MssqlStmt) sendQuery(args []namedValue) (err error) {
 	}
 
 	if s.notifSub != nil {
-		headers = append(headers, headerStruct{hdrtype: dataStmHdrQueryNotif,
-			data: queryNotifHdr{s.notifSub.msgText, s.notifSub.options, s.notifSub.timeout}.pack()})
+		headers = append(headers,
+			headerStruct{
+				hdrtype: dataStmHdrQueryNotif,
+				data: queryNotifHdr{
+					s.notifSub.msgText,
+					s.notifSub.options,
+					s.notifSub.timeout,
+				}.pack(),
+			})
 	}
 
 	// no need to check number of parameters here, it is checked by database/sql

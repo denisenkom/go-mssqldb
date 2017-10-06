@@ -631,9 +631,7 @@ func writeAllHeaders(w io.Writer, headers []headerStruct) (err error) {
 	return nil
 }
 
-func sendSqlBatch72(buf *tdsBuffer,
-	sqltext string,
-	headers []headerStruct) (err error) {
+func sendSqlBatch72(buf *tdsBuffer, sqltext string, headers []headerStruct) (err error) {
 	buf.BeginPacket(packSQLBatch)
 
 	if err = writeAllHeaders(buf, headers); err != nil {
@@ -1282,7 +1280,7 @@ initiate_connection:
 
 	login := login{
 		TDSVersion:   verTDS74,
-		PacketSize:   outbuf.PackageSize(),
+		PacketSize:   uint32(outbuf.PackageSize()),
 		Database:     p.database,
 		OptionFlags2: fODBC, // to get unlimited TEXTSIZE
 		HostName:     p.workstation,
