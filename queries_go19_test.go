@@ -375,9 +375,9 @@ with
 				rows, err := r.conn.QueryContext(ctx, query)
 				if err != nil {
 					if r.pass {
-						t.Error("QueryContext", len(query), err)
+						t.Errorf("QueryContext: %+v", err)
 					} else {
-						t.Log("QueryContext", len(query), err)
+						t.Logf("QueryContext: %+v", err)
 					}
 					return
 				}
