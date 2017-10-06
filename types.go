@@ -968,6 +968,8 @@ func makeGoLangScanType(ti typeInfo) reflect.Type {
 		return reflect.TypeOf("")
 	case typeImage:
 		return reflect.TypeOf([]byte{})
+	case typeBigBinary:
+		return reflect.TypeOf([]byte{})
 	case typeVariant:
 		return reflect.TypeOf(nil)
 	default:
@@ -1186,6 +1188,8 @@ func makeGoLangTypeName(ti typeInfo) string {
 		return "IMAGE"
 	case typeVariant:
 		return "SQL_VARIANT"
+	case typeBigBinary:
+		return "BINARY"
 	default:
 		panic(fmt.Sprintf("not implemented makeDecl for type %d", ti.TypeId))
 	}
@@ -1307,6 +1311,8 @@ func makeGoLangTypeLength(ti typeInfo) (int64, bool) {
 		return 2147483647, true
 	case typeVariant:
 		return 0, false
+	case typeBigBinary:
+		return 0, false
 	default:
 		panic(fmt.Sprintf("not implemented makeDecl for type %d", ti.TypeId))
 	}
@@ -1415,6 +1421,8 @@ func makeGoLangTypePrecisionScale(ti typeInfo) (int64, int64, bool) {
 	case typeImage:
 		return 0, 0, false
 	case typeVariant:
+		return 0, 0, false
+	case typeBigBinary:
 		return 0, 0, false
 	default:
 		panic(fmt.Sprintf("not implemented makeDecl for type %d", ti.TypeId))
