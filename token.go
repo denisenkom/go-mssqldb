@@ -664,6 +664,14 @@ func scanIntoOut(fromServer, scanInto interface{}) error {
 			return fmt.Errorf("unsupported scan into type %[1]T for server type %[2]T", scanInto, fromServer)
 		}
 		return nil
+	case string:
+		switch si := scanInto.(type) {
+		case *string:
+			*si = fs
+		default:
+			return fmt.Errorf("unsupported scan into type %[1]T for server type %[2]T", scanInto, fromServer)
+		}
+		return nil
 	}
 	return fmt.Errorf("unsupported type from server %[1]T=%[1]v", fromServer)
 }
