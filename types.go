@@ -1143,6 +1143,10 @@ func makeGoLangTypeName(ti typeInfo) string {
 		default:
 			panic("invalid size of MONEYN")
 		}
+	case typeDateTim4:
+		return "SMALLDATETIME"
+	case typeDateTime:
+		return "DATETIME"
 	case typeDateTimeN:
 		switch ti.Size {
 		case 4:
@@ -1244,6 +1248,10 @@ func makeGoLangTypeLength(ti typeInfo) (int64, bool) {
 		default:
 			panic("invalid size of MONEYN")
 		}
+	case typeDateTim4:
+		return 0, false
+	case typeDateTime:
+		return 0, false
 	case typeDateTimeN:
 		switch ti.Size {
 		case 4:
@@ -1363,6 +1371,10 @@ func makeGoLangTypePrecisionScale(ti typeInfo) (int64, int64, bool) {
 		default:
 			panic("invalid size of MONEYN")
 		}
+	case typeDateTim4:
+		return 0, 0, false
+	case typeDateTime:
+		return 0, 0, false
 	case typeDateTimeN:
 		switch ti.Size {
 		case 4:
