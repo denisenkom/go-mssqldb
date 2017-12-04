@@ -14,10 +14,11 @@ func TestOutputParam(t *testing.T) {
 	sqltextcreate := `
 CREATE PROCEDURE abassign
    @aid INT,
-   @bid INT OUTPUT
+   @bid INT OUTPUT,
+   @cstr NVARCHAR(2000) OUTPUT
 AS
 BEGIN
-   SELECT @bid = @aid
+   SELECT @bid = @aid, @cstr = 'OK';
 END;
 `
 	sqltextdrop := `DROP PROCEDURE abassign;`
@@ -41,9 +42,11 @@ END;
 		t.Fatal(err)
 	}
 	var bout int64
+	var cout string
 	_, err = db.ExecContext(ctx, sqltextrun,
 		sql.Named("aid", 5),
 		sql.Named("bid", sql.Out{Dest: &bout}),
+		sql.Named("cstr", sql.Out{Dest: &cout}),
 	)
 	defer db.ExecContext(ctx, sqltextdrop)
 	if err != nil {
@@ -53,16 +56,21 @@ END;
 	if bout != 5 {
 		t.Errorf("expected 5, got %d", bout)
 	}
+
+	if cout != "OK" {
+		t.Errorf("expected OK, got %s", cout)
+	}
 }
 
 func TestOutputINOUTParam(t *testing.T) {
 	sqltextcreate := `
 CREATE PROCEDURE abinout
    @aid INT,
-   @bid INT OUTPUT
+   @bid INT OUTPUT,
+   @cstr NVARCHAR(2000) OUTPUT
 AS
 BEGIN
-   SELECT @bid = @aid + @bid;
+   SELECT @bid = @aid + @bid, @cstr = 'OK';
 END;
 `
 	sqltextdrop := `DROP PROCEDURE abinout;`
@@ -86,9 +94,11 @@ END;
 		t.Fatal(err)
 	}
 	var bout int64 = 3
+	var cout string
 	_, err = db.ExecContext(ctx, sqltextrun,
 		sql.Named("aid", 5),
 		sql.Named("bid", sql.Out{Dest: &bout}),
+		sql.Named("cstr", sql.Out{Dest: &cout}),
 	)
 	defer db.ExecContext(ctx, sqltextdrop)
 	if err != nil {
@@ -97,6 +107,10 @@ END;
 
 	if bout != 8 {
 		t.Errorf("expected 8, got %d", bout)
+	}
+
+	if cout != "OK" {
+		t.Errorf("expected OK, got %s", cout)
 	}
 }
 
