@@ -329,6 +329,7 @@ with
                     ) X(a))
     select * from config_cte
 	`
+	t.Logf("query len (utf16 bytes)=%d, len/4096=%f\n", len(query)*2, float64(len(query)*2)/4096)
 
 	db := open(t)
 	defer db.Close()

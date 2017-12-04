@@ -813,6 +813,9 @@ func TestMssqlStmt_SetQueryNotification(t *testing.T) {
 	checkConnStr(t)
 	mssqldriver := driverWithProcess(t)
 	cn, err := mssqldriver.Open(makeConnStr(t).String())
+	if err != nil {
+		t.Fatalf("failed to open connection: %v", err)
+	}
 	stmt, err := cn.Prepare("SELECT 1")
 	if err != nil {
 		t.Error("Connection failed", err)
@@ -872,13 +875,13 @@ func TestConnectionClosing(t *testing.T) {
 
 		stmt, err := conn.Query("select 1")
 		if err != nil {
-			t.Errorf("Query failed with unexpected error %s", err)
+			t.Fatalf("Query failed with unexpected error %s", err)
 		}
 		for stmt.Next() {
 			var val interface{}
 			err := stmt.Scan(&val)
 			if err != nil {
-				t.Errorf("Query failed with unexpected error %s", err)
+				t.Fatalf("Query failed with unexpected error %s", err)
 			}
 		}
 	}

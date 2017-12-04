@@ -117,11 +117,11 @@ func TestColumnTypeIntrospection(t *testing.T) {
 	for _, tt := range tests {
 		rows, err := conn.Query("select " + tt.expr)
 		if err != nil {
-			t.Errorf("Query failed with unexpected error %s", err)
+			t.Fatalf("Query failed with unexpected error %s", err)
 		}
 		ct, err := rows.ColumnTypes()
 		if err != nil {
-			t.Errorf("Query failed with unexpected error %s", err)
+			t.Fatalf("Query failed with unexpected error %s", err)
 		}
 		if ct[0].DatabaseTypeName() != tt.typeName {
 			t.Errorf("Expected type %s but returned %s", tt.typeName, ct[0].DatabaseTypeName())
@@ -181,12 +181,12 @@ func TestColumnIntrospection(t *testing.T) {
 	exprJoined := strings.Join(exprs, ",")
 	rows, err := conn.Query(fmt.Sprintf("declare @tbl table(%s); select * from @tbl", exprJoined))
 	if err != nil {
-		t.Errorf("Query failed with unexpected error %s", err)
+		t.Fatalf("Query failed with unexpected error %s", err)
 	}
 
 	ct, err := rows.ColumnTypes()
 	if err != nil {
-		t.Errorf("ColumnTypes failed with unexpected error %s", err)
+		t.Fatalf("ColumnTypes failed with unexpected error %s", err)
 	}
 	for i, test := range tests {
 		if ct[i].Name() != test.fieldName {
@@ -561,12 +561,12 @@ func TestDriverParams(t *testing.T) {
 
 			columns, err := rows.Columns()
 			if err != nil {
-				t.Fatal("failed to get column schema %v", err)
+				t.Fatalf("failed to get column schema %v", err)
 			}
 			clen := len(columns)
 
 			if clen != len(cmd.Expect) {
-				t.Fatal("query column has %d, expect %d columns", clen, len(cmd.Expect))
+				t.Fatalf("query column has %d, expect %d columns", clen, len(cmd.Expect))
 			}
 
 			values := make([]interface{}, clen)
@@ -581,7 +581,7 @@ func TestDriverParams(t *testing.T) {
 				}
 				for i := range cmd.Expect {
 					if values[i] != cmd.Expect[i] {
-						t.Fatal("expected value in index %d %v != actual value %v", i, cmd.Expect[i], values[i])
+						t.Fatalf("expected value in index %d %v != actual value %v", i, cmd.Expect[i], values[i])
 					}
 				}
 			}
