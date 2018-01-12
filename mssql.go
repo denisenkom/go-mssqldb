@@ -1,6 +1,7 @@
 package mssql
 
 import (
+	"context"
 	"database/sql"
 	"database/sql/driver"
 	"encoding/binary"
@@ -12,8 +13,6 @@ import (
 	"reflect"
 	"strings"
 	"time"
-
-	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 )
 
 var driverInstance = &MssqlDriver{processQueryText: true}

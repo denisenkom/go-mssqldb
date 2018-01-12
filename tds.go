@@ -1,6 +1,7 @@
 package mssql
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
@@ -18,8 +19,6 @@ import (
 	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
-
-	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 )
 
 func parseInstances(msg []byte) map[string]map[string]string {

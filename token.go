@@ -1,6 +1,7 @@
 package mssql
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -8,8 +9,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-
-	"golang.org/x/net/context"
 )
 
 //go:generate stringer -type token
