@@ -5,8 +5,11 @@
 [![codecov](https://codecov.io/gh/denisenkom/go-mssqldb/branch/master/graph/badge.svg)](https://codecov.io/gh/denisenkom/go-mssqldb)
 
 ## Install
+### Requirements
 
-    go get github.com/denisenkom/go-mssqldb
+* Go 1.7 or above
+
+`go get github.com/denisenkom/go-mssqldb`
 
 ## Connection Parameters and DSN
 

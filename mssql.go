@@ -21,6 +21,9 @@ var driverInstanceNoProcess = &MssqlDriver{processQueryText: false}
 func init() {
 	sql.Register("mssql", driverInstance)
 	sql.Register("sqlserver", driverInstanceNoProcess)
+	createDialer = func(p *connectParams) dialer {
+		return tcpDialer{&net.Dialer{Timeout: p.dial_timeout, KeepAlive: p.keepAlive}}
+	}
 }
 
 // Abstract the dialer for testing and for non-TCP based connections.
