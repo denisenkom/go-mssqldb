@@ -362,7 +362,7 @@ with
 	// Use separate Conns from the connection pool to ensure separation.
 	runs := []*run{
 		{name: "rev", pings: []int{4, 1}, pass: true},
-		{name: "forward", pings: []int{1}, pass: false},
+		{name: "forward", pings: []int{1}, pass: true},
 	}
 	for _, r := range runs {
 		var err error
