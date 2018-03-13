@@ -922,7 +922,7 @@ func makeGoLangScanType(ti typeInfo) reflect.Type {
 		return reflect.TypeOf(true)
 	case typeDecimalN, typeNumericN:
 		return reflect.TypeOf([]byte{})
-	case typeMoneyN:
+	case typeMoney, typeMoney4, typeMoneyN:
 		switch ti.Size {
 		case 4:
 			return reflect.TypeOf([]byte{})
@@ -1140,7 +1140,7 @@ func makeGoLangTypeName(ti typeInfo) string {
 		return "BIT"
 	case typeDecimalN, typeNumericN:
 		return "DECIMAL"
-	case typeMoneyN:
+	case typeMoney, typeMoney4, typeMoneyN:
 		switch ti.Size {
 		case 4:
 			return "SMALLMONEY"
@@ -1247,7 +1247,7 @@ func makeGoLangTypeLength(ti typeInfo) (int64, bool) {
 		return 0, false
 	case typeDecimalN, typeNumericN:
 		return 0, false
-	case typeMoneyN:
+	case typeMoney, typeMoney4, typeMoneyN:
 		switch ti.Size {
 		case 4:
 			return 0, false
@@ -1370,7 +1370,7 @@ func makeGoLangTypePrecisionScale(ti typeInfo) (int64, int64, bool) {
 		return 0, 0, false
 	case typeDecimalN, typeNumericN:
 		return int64(ti.Prec), int64(ti.Scale), true
-	case typeMoneyN:
+	case typeMoney, typeMoney4, typeMoneyN:
 		switch ti.Size {
 		case 4:
 			return 0, 0, false

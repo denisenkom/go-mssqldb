@@ -37,6 +37,9 @@ func TestMakeGoLangScanType(t *testing.T) {
 	if (reflect.TypeOf(int64(0)) != makeGoLangScanType(typeInfo{TypeId: typeIntN, Size: 4})) {
 		t.Errorf("invalid type returned for typeIntN")
 	}
+	if (reflect.TypeOf([]byte{}) != makeGoLangScanType(typeInfo{TypeId: typeMoney, Size: 8})) {
+		t.Errorf("invalid type returned for typeIntN")
+	}
 }
 
 func TestMakeGoLangTypeName(t *testing.T) {
