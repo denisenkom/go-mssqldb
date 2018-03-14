@@ -5,57 +5,95 @@
 [![codecov](https://codecov.io/gh/denisenkom/go-mssqldb/branch/master/graph/badge.svg)](https://codecov.io/gh/denisenkom/go-mssqldb)
 
 ## Install
-### Requirements
 
-* Go 1.7 or above
+Requires Go 1.8 or above.
 
-`go get github.com/denisenkom/go-mssqldb`
+Install with `go get github.com/denisenkom/go-mssqldb` .
 
 ## Connection Parameters and DSN
 
-* "server" - host or host\instance (default localhost)
-* "port" - used only when there is no instance in server (default 1433)
-* "failoverpartner" - host or host\instance (default is no partner). 
-* "failoverport" - used only when there is no instance in failoverpartner (default 1433)
-* "user id" - enter the SQL Server Authentication user id or the Windows Authentication user id in the DOMAIN\User format. On Windows, if user id is empty or missing Single-Sign-On is used.
-* "password"
-* "database"
-* "connection timeout" - in seconds (default is 30)
-* "dial timeout" - in seconds (default is 5)
-* "keepAlive" - in seconds; 0 to disable (default is 0)
-* "packet size" - in bytes; 512 to 32767 (default is 4096)
+The recommended connection string uses a URL format:
+`sqlserver://username:password@host/instance?param1=value&param2=value`
+Other supported formats are listed below.
+
+### Common parameters:
+
+* `user id` - enter the SQL Server Authentication user id or the Windows Authentication user id in the DOMAIN\User format. On Windows, if user id is empty or missing Single-Sign-On is used.
+* `password`
+* `database`
+* `connection timeout` - in seconds (default is 30)
+* `dial timeout` - in seconds (default is 5)
+* `encrypt`
+  * `disable` - Data send between client and server is not encrypted.
+  * `false` - Data sent between client and server is not encrypted beyond the login packet. (Default)
+  * `true` - Data sent between client and server is encrypted.
+* `keepAlive` - in seconds; 0 to disable (default is 30)
+* `app name` - The application name (default is go-mssqldb)
+
+### Connection parameters for ODBC and ADO style connection strings:
+
+* `server` - host or host\instance (default localhost)
+* `port` - used only when there is no instance in server (default 1433)
+
+### Less common parameters:
+
+* `failoverpartner` - host or host\instance (default is no partner). 
+* `failoverport` - used only when there is no instance in failoverpartner (default 1433)
+* `packet size` - in bytes; 512 to 32767 (default is 4096)
   * Encrypted connections have a maximum packet size of 16383 bytes
   * Further information on usage: https://docs.microsoft.com/en-us/sql/database-engine/configure-windows/configure-the-network-packet-size-server-configuration-option
-* "log" - logging flags (default 0/no logging, 63 for full logging)
+* `log` - logging flags (default 0/no logging, 63 for full logging)
   *  1 log errors
   *  2 log messages
   *  4 log rows affected
   *  8 trace sql statements
   * 16 log statement parameters
   * 32 log transaction begin/end
-* "encrypt"
-  * disable - Data send between client and server is not encrypted.
-  * false - Data sent between client and server is not encrypted beyond the login packet. (Default)
-  * true - Data sent between client and server is encrypted.
-* "TrustServerCertificate"
+* `TrustServerCertificate`
   * false - Server certificate is checked. Default is false if encypt is specified.
   * true - Server certificate is not checked. Default is true if encrypt is not specified. If trust server certificate is true, driver accepts any certificate presented by the server and any host name in that certificate. In this mode, TLS is susceptible to man-in-the-middle attacks. This should be used only for testing.
-* "certificate" - The file that contains the public key certificate of the CA that signed the SQL Server certificate. The specified certificate overrides the go platform specific CA certificates.
-* "hostNameInCertificate" - Specifies the Common Name (CN) in the server certificate. Default value is the server host.
-* "ServerSPN" - The kerberos SPN (Service Principal Name) for the server. Default is MSSQLSvc/host:port.
-* "Workstation ID" - The workstation name (default is the host name)
-* "app name" - The application name (default is go-mssqldb)
-* "ApplicationIntent" - Can be given the value "ReadOnly" to initiate a read-only connection to an Availability Group listener.
+* `certificate` - The file that contains the public key certificate of the CA that signed the SQL Server certificate. The specified certificate overrides the go platform specific CA certificates.
+* `hostNameInCertificate` - Specifies the Common Name (CN) in the server certificate. Default value is the server host.
+* `ServerSPN` - The kerberos SPN (Service Principal Name) for the server. Default is MSSQLSvc/host:port.
+* `Workstation ID` - The workstation name (default is the host name)
+* `ApplicationIntent` - Can be given the value `ReadOnly` to initiate a read-only connection to an Availability Group listener.
 
-The connection string can be specified in one of three formats:
+### The connection string can be specified in one of three formats:
 
-1. ADO: `key=value` pairs separated by `;`. Values may not contain `;`, leading and trailing whitespace is ignored.
+
+1. URL: with `sqlserver` scheme. username and password appears before the host. Any instance appears as
+    the first segment in the path. All other options are query parameters. Examples:
+
+  * `sqlserver://username:password@host/instance?param1=value&param2=value`
+  * `sqlserver://username:password@host:port?param1=value&param2=value`
+  * `sqlserver://sa@localhost/SQLExpress?database=master&connection+timeout=30` // `SQLExpress instance.
+  * `sqlserver://sa:mypass@localhost?database=master&connection+timeout=30`     // username=sa, password=mypass.
+  * `sqlserver://sa:mypass@localhost:1234?database=master&connection+timeout=30"` // port 1234 on localhost.
+  * `sqlserver://sa:my%7Bpass@somehost?connection+timeout=30` // password is "my{pass"
+
+  A string of this format can be constructed using the `URL` type in the `net/url` package.
+
+```go
+  query := url.Values{}
+  query.Add("connection timeout", "30")
+
+  u := &url.URL{
+      Scheme:   "sqlserver",
+      User:     url.UserPassword(username, password),
+      Host:     fmt.Sprintf("%s:%d", hostname, port),
+      // Path:  instance, // if connecting to an instance instead of a port
+      RawQuery: query.Encode(),
+  }
+  db, err := sql.Open("sqlserver", u.String())
+```
+
+2. ADO: `key=value` pairs separated by `;`. Values may not contain `;`, leading and trailing whitespace is ignored.
      Examples:
 	
   * `server=localhost\\SQLExpress;user id=sa;database=master;connection timeout=30`
   * `server=localhost;user id=sa;database=master;connection timeout=30`
 
-2. ODBC: Prefix with `odbc`, `key=value` pairs separated by `;`. Allow `;` by wrapping
+3. ODBC: Prefix with `odbc`, `key=value` pairs separated by `;`. Allow `;` by wrapping
     values in `{}`. Examples:
 	
   * `odbc:server=localhost\\SQLExpress;user id=sa;database=master;connection timeout=30`
@@ -68,36 +106,16 @@ The connection string can be specified in one of three formats:
   * `odbc:server=localhost;user id=sa;password={foo{bar}` // Literal `{`, password is "foo{bar"
   * `odbc:server=localhost;user id=sa;password={foo}}bar}` // Escaped `} with `}}`, password is "foo}bar"
 
-3. URL: with `sqlserver` scheme. username and password appears before the host. Any instance appears as
-    the first segment in the path. All other options are query parameters. Examples:
+## Executing Stored Procedures
 
-  * `sqlserver://username:password@host/instance?param1=value&param2=value`
-  * `sqlserver://username:password@host:port?param1=value&param2=value`
-  * `sqlserver://sa@localhost/SQLExpress?database=master&connection+timeout=30` // `SQLExpress instance.
-  * `sqlserver://sa:mypass@localhost?database=master&connection+timeout=30`     // username=sa, password=mypass.
-  * `sqlserver://sa:mypass@localhost:1234?database=master&connection+timeout=30"` // port 1234 on localhost.
-  * `sqlserver://sa:my%7Bpass@somehost?connection+timeout=30` // password is "my{pass"
-
-  A string of this format can be constructed using the `URL` type in the `net/url` package.
-
-  ```go
-  query := url.Values{}
-  query.Add("connection timeout", fmt.Sprintf("%d", connectionTimeout))
-
-  u := &url.URL{
-      Scheme:   "sqlserver",
-      User:     url.UserPassword(username, password),
-      Host:     fmt.Sprintf("%s:%d", hostname, port),
-      // Path:  instance, // if connecting to an instance instead of a port
-      RawQuery: query.Encode(),
-  }
-
-  connectionString := u.String()
-
-  db, err := sql.Open("sqlserver", connectionString)
-  // or
-  db, err := sql.Open("mssql", connectionString)
-  ```
+To run a stored procedure, set the query text to the procedure name:
+```go
+var account = "abc"
+_, err := db.ExecContext(ctx, "sp_RunMe",
+	sql.Named("ID", 123),
+	sql.Out{Dest{sql.Named("Account", &account)}
+)
+```
 
 ## Statement Parameters
 
@@ -105,28 +123,7 @@ The `sqlserver` driver uses normal MS SQL Server syntax and expects parameters i
 the sql query to be in the form of either `@Name` or `@p1` to `@pN` (ordinal position).
 
 ```go
-db.QueryContext(ctx, `select * from t where ID = @ID;`, sql.Named("ID", 6))
-```
-
-
-For the `mssql` driver, the SQL statement text will be processed and literals will
-be replaced by a parameter that matches one of the following:
-
-* ?
-* ?nnn
-* :nnn
-* $nnn
-
-where nnn represents an integer that specifies a 1-indexed positional parameter. Ex:
-
-```go
-db.Query("SELECT * FROM t WHERE a = ?3, b = ?2, c = ?1", "x", "y", "z")
-```
-
-will expand to roughly
-
-```sql
-SELECT * FROM t WHERE a = 'z', b = 'y', c = 'x'
+db.QueryContext(ctx, `select * from t where ID = @ID and Name = @p2;`, sql.Named("ID", 6), "Bob")
 ```
 
 ## Features
@@ -149,7 +146,26 @@ Environment variables are used to pass login information.
 
 Example:
 
-    env HOST=localhost SQLUSER=sa SQLPASSWORD=sa DATABASE=test go test
+    env SQLSERVER_DSN=sqlserver://user:pass@hostname/instance?database=test1 go test
+
+## Deprecated
+
+These features still exist in the driver, but they are are deprecated.
+
+### Query Parameter Token Replace (driver "mssql")
+
+If you use the driver name "mssql" (rather then "sqlserver" the SQL text
+will be loosly parsed and an attempt to extract identifiers using one of
+
+* ?
+* ?nnn
+* :nnn
+* $nnn
+
+will be used. This is not recommended with SQL Server. 
+There is at least one existing `won't fix` issue with the query parsing.
+
+Use the native "@Name" parameters instead with the "sqlserver" driver name.
 
 ## Known Issues
 
