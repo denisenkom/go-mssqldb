@@ -1099,6 +1099,8 @@ func makeDecl(ti typeInfo) string {
 		return "ntext"
 	case typeUdt:
 		return ti.UdtInfo.TypeName
+	case typeGuid:
+		return "uniqueidentifier"
 	default:
 		panic(fmt.Sprintf("not implemented makeDecl for type %#x", ti.TypeId))
 	}

@@ -592,6 +592,15 @@ func (b *MssqlBulk) makeParam(val DataValue, col columnStruct) (res Param, err e
 			err = fmt.Errorf("mssql: invalid type for Binary column: %s", val)
 			return
 		}
+	case typeGuid:
+		switch val := val.(type) {
+		case []byte:
+			res.ti.Size = len(val)
+			res.buffer = val
+		default:
+			err = fmt.Errorf("mssql: invalid type for Guid column", val)
+			return
+		}
 
 	default:
 		err = fmt.Errorf("mssql: type %x not implemented", col.ti.TypeId)
