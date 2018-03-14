@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"strconv"
 	"time"
+
+	"github.com/denisenkom/go-mssqldb/internal/cp"
 )
 
 // fixed-length data types
@@ -79,7 +81,7 @@ type typeInfo struct {
 	Scale     uint8
 	Prec      uint8
 	Buffer    []byte
-	Collation collation
+	Collation cp.Collation
 	UdtInfo   udtInfo
 	XmlInfo   xmlInfo
 	Reader    func(ti *typeInfo, r *tdsBuffer) (res interface{})
@@ -487,6 +489,20 @@ func writeLongLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
 	return
 }
 
+func readCollation(r *tdsBuffer) (res cp.Collation) {
+	res.LcidAndFlags = r.uint32()
+	res.SortId = r.byte()
+	return
+}
+
+func writeCollation(w io.Writer, col cp.Collation) (err error) {
+	if err = binary.Write(w, binary.LittleEndian, col.LcidAndFlags); err != nil {
+		return
+	}
+	err = binary.Write(w, binary.LittleEndian, col.SortId)
+	return
+}
+
 // reads variant value
 // http://msdn.microsoft.com/en-us/library/dd303302.aspx
 func readVariantType(ti *typeInfo, r *tdsBuffer) interface{} {
@@ -848,8 +864,8 @@ func dateTime2(t time.Time) (days int32, ns int64) {
 	return
 }
 
-func decodeChar(col collation, buf []byte) string {
-	return charset2utf8(col, buf)
+func decodeChar(col cp.Collation, buf []byte) string {
+	return cp.CharsetToUTF8(col, buf)
 }
 
 func decodeUcs2(buf []byte) string {
