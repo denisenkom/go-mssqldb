@@ -53,6 +53,7 @@ func parseParams(query string) (string, int) {
 }
 
 func parseNormal(p *parser) stateFunc {
+	var ch0 rune
 	for {
 		ch, ok := p.next()
 		if !ok {
@@ -69,10 +70,11 @@ func parseNormal(p *parser) stateFunc {
 			p.unread()
 			if ch2 >= '0' && ch2 <= '9' {
 				return parseOrdinalParameter
-			} else if 'a' <= ch2 && ch2 <= 'z' || 'A' <= ch2 && ch2 <= 'Z' {
+			} else if ('a' <= ch2 && ch2 <= 'z' || 'A' <= ch2 && ch2 <= 'Z') && ch2 != ':' && ch0 != ':' {
 				return parseNamedParameter
 			}
 		}
+		ch0 = ch
 		p.write(ch)
 		switch ch {
 		case '\'':
