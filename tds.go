@@ -653,9 +653,10 @@ func sendAttention(buf *tdsBuffer) error {
 
 type connectParams struct {
 	logFlags               uint64
-	port                   uint64
+	protocol               Protocol
 	host                   string
-	instance               string
+	port                   uint64 // Used only if protocol == TCP
+	instance               string // Not used if protocol == NAMED_PIPE
 	database               string
 	user                   string
 	password               string
@@ -941,13 +942,30 @@ func parseConnectParams(dsn string) (connectParams, error) {
 		}
 	}
 	server := params["server"]
-	parts := strings.SplitN(server, "\\", 2)
-	p.host = parts[0]
-	if p.host == "." || strings.ToUpper(p.host) == "(LOCAL)" || p.host == "" {
-		p.host = "localhost"
+
+	// Try to parse protocol from the server string. Omitting the protocol will
+	// defaults to TCP.
+	p.protocol = TCP
+	for _, prot := range [...]Protocol{TCP, NAMED_PIPE, SHARED_MEMORY} {
+		prefix := string(prot)
+		if strings.HasPrefix(server, prefix) {
+			server = server[len(prefix):]
+			p.protocol = prot
+			break
+		}
 	}
-	if len(parts) > 1 {
-		p.instance = parts[1]
+
+	if p.protocol == NAMED_PIPE {
+		p.host = server
+	} else {
+		parts := strings.SplitN(server, "\\", 2)
+		p.host = parts[0]
+		if p.host == "." || strings.ToUpper(p.host) == "(LOCAL)" || p.host == "" {
+			p.host = "localhost"
+		}
+		if len(parts) > 1 {
+			p.instance = parts[1]
+		}
 	}
 	p.database = params["database"]
 	p.user = params["user id"]
@@ -1106,10 +1124,23 @@ type auth interface {
 	Free()
 }
 
+func dialConnection(p connectParams) (conn net.Conn, err error) {
+	switch p.protocol {
+	case TCP:
+		return dialConnectionUsingTCP(p)
+	case NAMED_PIPE:
+		return dialConnectionUsingNamedPipe(p)
+	case SHARED_MEMORY:
+		return nil, fmt.Errorf("Shared memory protocol (\"%s\") is not implemented yet", p.protocol)
+	default:
+		return nil, fmt.Errorf("Invalid value '%+v' for Protocol type", p.protocol)
+	}
+}
+
 // SQL Server AlwaysOn Availability Group Listeners are bound by DNS to a
 // list of IP addresses.  So if there is more than one, try them all and
 // use the first one that allows a connection.
-func dialConnection(p connectParams) (conn net.Conn, err error) {
+func dialConnectionUsingTCP(p connectParams) (conn net.Conn, err error) {
 	var ips []net.IP
 	ips, err = net.LookupIP(p.host)
 	if err != nil {
