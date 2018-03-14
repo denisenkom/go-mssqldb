@@ -294,7 +294,7 @@ func (b *MssqlBulk) getMetadata() (err error) {
 		for _, col := range b.metadata {
 			b.dlogf("col: %s typeId: %#x size: %d scale: %d prec: %d flags: %d lcid: %#x\n",
 				col.ColName, col.ti.TypeId, col.ti.Size, col.ti.Scale, col.ti.Prec,
-				col.Flags, col.ti.Collation.lcidAndFlags)
+				col.Flags, col.ti.Collation.LcidAndFlags)
 		}
 	}
 
