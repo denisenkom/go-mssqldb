@@ -63,26 +63,6 @@ func (d *Driver) Open(dsn string) (driver.Conn, error) {
 	return d.open(context.Background(), dsn)
 }
 
-// Connector holds the parsed DSN and is ready to make a new connection
-// at any time.
-//
-// In the future, settings that cannot be passed through a string DSN
-// may be set directly on the connector.
-type Connector struct {
-	params connectParams
-	driver *Driver
-}
-
-// Connect to the server and return a TDS connection.
-func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
-	return c.driver.connect(ctx, c.params)
-}
-
-// Driver underlying the Connector.
-func (c *Connector) Driver() driver.Driver {
-	return c.driver
-}
-
 func SetLogger(logger Logger) {
 	driverInstance.SetLogger(logger)
 	driverInstanceNoProcess.SetLogger(logger)
@@ -92,7 +72,37 @@ func (d *Driver) SetLogger(logger Logger) {
 	d.log = optionalLogger{logger}
 }
 
+// Connector holds the parsed DSN and is ready to make a new connection
+// at any time.
+//
+// In the future, settings that cannot be passed through a string DSN
+// may be set directly on the connector.
+type Connector struct {
+	params connectParams
+	driver *Driver
+
+	// ResetSQL is executed after marking a given connection to be reset.
+	// When not present, the next query will be reset to the database
+	// defaults.
+	// When present the connection will immediately mark the connection to
+	// be reset, then execute the ResetSQL text to setup the session
+	// that may be different from the base database defaults.
+	//
+	// For Example, the application relies on the following defaults
+	// but is not allowed to set them at the database system level.
+	//
+	//    SET XACT_ABORT ON;
+	//    SET TEXTSIZE -1;
+	//    SET ANSI_NULLS ON;
+	//    SET LOCK_TIMEOUT 10000;
+	//
+	// ResetSQL should not attempt to manually call sp_reset_connection.
+	// This will happen at the TDS layer.
+	ResetSQL string
+}
+
 type Conn struct {
+	connector      *Connector
 	sess           *tdsSession
 	transactionCtx context.Context
 	resetSession   bool
@@ -101,15 +111,6 @@ type Conn struct {
 	connectionGood   bool
 
 	outs map[string]interface{}
-}
-
-func (c *Conn) ResetSession(ctx context.Context) error {
-	if !c.connectionGood {
-		return driver.ErrBadConn
-	}
-	c.resetSession = true
-
-	return nil
 }
 
 func (c *Conn) checkBadConn(err error) error {
@@ -306,6 +307,7 @@ func (d *Driver) connect(ctx context.Context, params connectParams) (*Conn, erro
 		connectionGood:   true,
 	}
 	conn.sess.log = d.log
+
 	return conn, nil
 }
 

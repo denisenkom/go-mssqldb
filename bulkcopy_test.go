@@ -6,7 +6,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
-	"log"
 	"math"
 	"reflect"
 	"strings"
@@ -90,18 +89,18 @@ func TestBulkcopy(t *testing.T) {
 	}
 	defer conn.Close()
 
-	err = setupTable(ctx, conn, tableName)
+	err = setupTable(ctx, t, conn, tableName)
 	if err != nil {
 		t.Error("Setup table failed: ", err)
 		return
 	}
 
-	log.Println("Preparing copyin statement")
+	t.Log("Preparing copyin statement")
 
 	stmt, err := conn.PrepareContext(ctx, CopyIn(tableName, BulkOptions{}, columns...))
 
 	for i := 0; i < 10; i++ {
-		log.Printf("Executing copy in statement %d time with %d values", i+1, len(values))
+		t.Logf("Executing copy in statement %d time with %d values", i+1, len(values))
 		_, err = stmt.Exec(values...)
 		if err != nil {
 			t.Error("AddRow failed: ", err.Error())
@@ -130,7 +129,7 @@ func TestBulkcopy(t *testing.T) {
 	//data verification
 	rows, err := conn.QueryContext(ctx, "select "+strings.Join(columns, ",")+" from "+tableName)
 	if err != nil {
-		log.Fatal(err)
+		t.Fatal(err)
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -174,7 +173,7 @@ func compareValue(a interface{}, expected interface{}) bool {
 	}
 }
 
-func setupTable(ctx context.Context, conn *sql.Conn, tableName string) (err error) {
+func setupTable(ctx context.Context, t *testing.T, conn *sql.Conn, tableName string) (err error) {
 	tablesql := `CREATE TABLE ` + tableName + ` (
 	[id] [int] IDENTITY(1,1) NOT NULL,
 	[test_nvarchar] [nvarchar](50) NULL,
@@ -221,7 +220,7 @@ func setupTable(ctx context.Context, conn *sql.Conn, tableName string) (err erro
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY];`
 	_, err = conn.ExecContext(ctx, tablesql)
 	if err != nil {
-		log.Fatal("tablesql failed:", err)
+		t.Fatal("tablesql failed:", err)
 	}
 	return
 }
