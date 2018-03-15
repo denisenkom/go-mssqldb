@@ -421,7 +421,7 @@ func TestPinger(t *testing.T) {
 func TestQueryCancelLowLevel(t *testing.T) {
 	checkConnStr(t)
 	drv := driverWithProcess(t)
-	conn, err := drv.open(makeConnStr(t).String())
+	conn, err := drv.open(context.Background(), makeConnStr(t).String())
 	if err != nil {
 		t.Fatalf("Open failed with error %v", err)
 	}
@@ -634,8 +634,8 @@ type dialerInterrupt struct {
 	list []*connInterrupt
 }
 
-func (d *dialerInterrupt) Dial(addr string) (net.Conn, error) {
-	conn, err := d.nd.Dial(addr)
+func (d *dialerInterrupt) Dial(ctx context.Context, addr string) (net.Conn, error) {
+	conn, err := d.nd.Dial(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
