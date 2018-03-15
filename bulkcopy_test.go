@@ -1,6 +1,9 @@
+// +build go1.9
+
 package mssql
 
 import (
+	"context"
 	"database/sql"
 	"encoding/hex"
 	"log"
@@ -20,6 +23,7 @@ func TestBulkcopy(t *testing.T) {
 		colname string
 		val     interface{}
 	}
+
 	tableName := "#table_test"
 	geom, _ := hex.DecodeString("E6100000010C00000000000034400000000000004440")
 	testValues := []testValue{
@@ -71,18 +75,30 @@ func TestBulkcopy(t *testing.T) {
 		values[i] = val.val
 	}
 
-	conn := open(t)
+	pool := open(t)
+	defer pool.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Now that session resetting is supported, the use of the per session
+	// temp table requires the use of a dedicated connection from the connection
+	// pool.
+	conn, err := pool.Conn(ctx)
+	if err != nil {
+		t.Error("failed to pull connection from pool", err)
+	}
 	defer conn.Close()
 
-	err := setupTable(conn, tableName)
+	err = setupTable(ctx, conn, tableName)
 	if err != nil {
-		t.Error("Setup table failed: ", err.Error())
+		t.Error("Setup table failed: ", err)
 		return
 	}
 
 	log.Println("Preparing copyin statement")
 
-	stmt, err := conn.Prepare(CopyIn(tableName, BulkOptions{}, columns...))
+	stmt, err := conn.PrepareContext(ctx, CopyIn(tableName, BulkOptions{}, columns...))
 
 	for i := 0; i < 10; i++ {
 		log.Printf("Executing copy in statement %d time with %d values", i+1, len(values))
@@ -105,14 +121,14 @@ func TestBulkcopy(t *testing.T) {
 
 	//check that all rows are present
 	var rowCount int
-	err = conn.QueryRow("select count(*) c from " + tableName).Scan(&rowCount)
+	err = conn.QueryRowContext(ctx, "select count(*) c from "+tableName).Scan(&rowCount)
 
 	if rowCount != 10 {
 		t.Errorf("unexpected row count %d", rowCount)
 	}
 
 	//data verification
-	rows, err := conn.Query("select " + strings.Join(columns, ",") + " from " + tableName)
+	rows, err := conn.QueryContext(ctx, "select "+strings.Join(columns, ",")+" from "+tableName)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -158,7 +174,7 @@ func compareValue(a interface{}, expected interface{}) bool {
 	}
 }
 
-func setupTable(conn *sql.DB, tableName string) (err error) {
+func setupTable(ctx context.Context, conn *sql.Conn, tableName string) (err error) {
 	tablesql := `CREATE TABLE ` + tableName + ` (
 	[id] [int] IDENTITY(1,1) NOT NULL,
 	[test_nvarchar] [nvarchar](50) NULL,
@@ -203,7 +219,7 @@ func setupTable(conn *sql.DB, tableName string) (err error) {
 	[id] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY];`
-	_, err = conn.Exec(tablesql)
+	_, err = conn.ExecContext(ctx, tablesql)
 	if err != nil {
 		log.Fatal("tablesql failed:", err)
 	}
