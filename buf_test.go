@@ -151,7 +151,7 @@ func TestReadFailsOnSecondPacket(t *testing.T) {
 func TestWrite(t *testing.T) {
 	memBuf := bytes.NewBuffer([]byte{})
 	buf := newTdsBuffer(11, closableBuffer{memBuf})
-	buf.BeginPacket(1)
+	buf.BeginPacket(1, false)
 	err := buf.WriteByte(2)
 	if err != nil {
 		t.Fatal("WriteByte failed:", err.Error())
@@ -172,7 +172,7 @@ func TestWrite(t *testing.T) {
 		t.Fatalf("Written buffer has invalid content: %v", memBuf.Bytes())
 	}
 
-	buf.BeginPacket(2)
+	buf.BeginPacket(2, false)
 	wrote, err = buf.Write([]byte{3, 4, 5, 6})
 	if err != nil {
 		t.Fatal("Write failed:", err.Error())
