@@ -82,7 +82,7 @@ func TestBulkcopy(t *testing.T) {
 
 	log.Println("Preparing copyin statement")
 
-	stmt, err := conn.Prepare(CopyIn(tableName, MssqlBulkOptions{}, columns...))
+	stmt, err := conn.Prepare(CopyIn(tableName, BulkOptions{}, columns...))
 
 	for i := 0; i < 10; i++ {
 		log.Printf("Executing copy in statement %d time with %d values", i+1, len(values))

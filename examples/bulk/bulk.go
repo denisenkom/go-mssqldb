@@ -60,7 +60,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	stmt, err := txn.Prepare(mssql.CopyIn("test_table", mssql.MssqlBulkOptions{}, "test_varchar", "test_nvarchar", "test_float", "test_bigint"))
+	stmt, err := txn.Prepare(mssql.CopyIn("test_table", mssql.BulkOptions{}, "test_varchar", "test_nvarchar", "test_float", "test_bigint"))
 	if err != nil {
 		log.Fatal(err.Error())
 	}

@@ -288,7 +288,7 @@ func TestBeginTxtReadOnlyNotSupported(t *testing.T) {
 	}
 }
 
-func TestMssqlConn_BeginTx(t *testing.T) {
+func TestConn_BeginTx(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
 	_, err := conn.Exec("create table test (f int)")
