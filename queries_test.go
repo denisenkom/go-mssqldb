@@ -890,7 +890,7 @@ func TestConnectionClosing(t *testing.T) {
 func TestBeginTranError(t *testing.T) {
 	checkConnStr(t)
 	drv := driverWithProcess(t)
-	conn, err := drv.open(makeConnStr(t).String())
+	conn, err := drv.open(context.Background(), makeConnStr(t).String())
 	if err != nil {
 		t.Fatalf("Open failed with error %v", err)
 	}
@@ -906,7 +906,7 @@ func TestBeginTranError(t *testing.T) {
 	}
 
 	// reopen connection
-	conn, err = drv.open(makeConnStr(t).String())
+	conn, err = drv.open(context.Background(), makeConnStr(t).String())
 	if err != nil {
 		t.Fatalf("Open failed with error %v", err)
 	}
@@ -933,7 +933,7 @@ func TestBeginTranError(t *testing.T) {
 func TestCommitTranError(t *testing.T) {
 	checkConnStr(t)
 	drv := driverWithProcess(t)
-	conn, err := drv.open(makeConnStr(t).String())
+	conn, err := drv.open(context.Background(), makeConnStr(t).String())
 	if err != nil {
 		t.Fatalf("Open failed with error %v", err)
 	}
@@ -949,7 +949,7 @@ func TestCommitTranError(t *testing.T) {
 	}
 
 	// reopen connection
-	conn, err = drv.open(makeConnStr(t).String())
+	conn, err = drv.open(context.Background(), makeConnStr(t).String())
 	if err != nil {
 		t.Fatalf("Open failed with error %v", err)
 	}
@@ -973,7 +973,7 @@ func TestCommitTranError(t *testing.T) {
 	}
 
 	// reopen connection
-	conn, err = drv.open(makeConnStr(t).String())
+	conn, err = drv.open(context.Background(), makeConnStr(t).String())
 	defer conn.Close()
 	if err != nil {
 		t.Fatalf("Open failed with error %v", err)
@@ -991,7 +991,7 @@ func TestCommitTranError(t *testing.T) {
 func TestRollbackTranError(t *testing.T) {
 	checkConnStr(t)
 	drv := driverWithProcess(t)
-	conn, err := drv.open(makeConnStr(t).String())
+	conn, err := drv.open(context.Background(), makeConnStr(t).String())
 	if err != nil {
 		t.Fatalf("Open failed with error %v", err)
 	}
@@ -1007,7 +1007,7 @@ func TestRollbackTranError(t *testing.T) {
 	}
 
 	// reopen connection
-	conn, err = drv.open(makeConnStr(t).String())
+	conn, err = drv.open(context.Background(), makeConnStr(t).String())
 	if err != nil {
 		t.Fatalf("Open failed with error %v", err)
 	}
@@ -1031,7 +1031,7 @@ func TestRollbackTranError(t *testing.T) {
 	}
 
 	// reopen connection
-	conn, err = drv.open(makeConnStr(t).String())
+	conn, err = drv.open(context.Background(), makeConnStr(t).String())
 	defer conn.Close()
 	if err != nil {
 		t.Fatalf("Open failed with error %v", err)
@@ -1049,7 +1049,7 @@ func TestRollbackTranError(t *testing.T) {
 func TestSendQueryErrors(t *testing.T) {
 	checkConnStr(t)
 	drv := driverWithProcess(t)
-	conn, err := drv.open(makeConnStr(t).String())
+	conn, err := drv.open(context.Background(), makeConnStr(t).String())
 	if err != nil {
 		t.FailNow()
 	}
@@ -1089,7 +1089,7 @@ func TestSendQueryErrors(t *testing.T) {
 func TestProcessQueryErrors(t *testing.T) {
 	checkConnStr(t)
 	drv := driverWithProcess(t)
-	conn, err := drv.open(makeConnStr(t).String())
+	conn, err := drv.open(context.Background(), makeConnStr(t).String())
 	if err != nil {
 		t.Fatal("open expected to succeed, but it failed with", err)
 	}
@@ -1120,7 +1120,7 @@ func TestProcessQueryErrors(t *testing.T) {
 func TestSendExecErrors(t *testing.T) {
 	checkConnStr(t)
 	drv := driverWithProcess(t)
-	conn, err := drv.open(makeConnStr(t).String())
+	conn, err := drv.open(context.Background(), makeConnStr(t).String())
 	if err != nil {
 		t.FailNow()
 	}

@@ -1,10 +1,13 @@
 package mssql
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestBadOpen(t *testing.T) {
 	drv := driverWithProcess(t)
-	_, err := drv.open("port=bad")
+	_, err := drv.open(context.Background(), "port=bad")
 	if err == nil {
 		t.Fail()
 	}
