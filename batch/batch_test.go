@@ -114,7 +114,7 @@ func TestHasPrefixFold(t *testing.T) {
 	for _, item := range list {
 		is := hasPrefixFold(item.s, item.pre)
 		if is != item.is {
-			t.Error("want (%q, %q)=%t got %t", item.s, item.pre, item.is, is)
+			t.Errorf("want (%q, %q)=%t got %t", item.s, item.pre, item.is, is)
 		}
 	}
 }
