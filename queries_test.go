@@ -13,14 +13,14 @@ import (
 	"time"
 )
 
-func driverWithProcess(t *testing.T) *MssqlDriver {
-	return &MssqlDriver{
+func driverWithProcess(t *testing.T) *Driver {
+	return &Driver{
 		log:              optionalLogger{testLogger{t}},
 		processQueryText: true,
 	}
 }
-func driverNoProcess(t *testing.T) *MssqlDriver {
-	return &MssqlDriver{
+func driverNoProcess(t *testing.T) *Driver {
+	return &Driver{
 		log:              optionalLogger{testLogger{t}},
 		processQueryText: false,
 	}
@@ -809,7 +809,7 @@ func TestIgnoreEmptyResults(t *testing.T) {
 	}
 }
 
-func TestMssqlStmt_SetQueryNotification(t *testing.T) {
+func TestStmt_SetQueryNotification(t *testing.T) {
 	checkConnStr(t)
 	mssqldriver := driverWithProcess(t)
 	cn, err := mssqldriver.Open(makeConnStr(t).String())
@@ -821,7 +821,7 @@ func TestMssqlStmt_SetQueryNotification(t *testing.T) {
 		t.Error("Connection failed", err)
 	}
 
-	sqlstmt := stmt.(*MssqlStmt)
+	sqlstmt := stmt.(*Stmt)
 	sqlstmt.SetQueryNotification("ABC", "service=WebCacheNotifications", time.Hour)
 
 	rows, err := sqlstmt.Query(nil)
