@@ -333,9 +333,8 @@ func (c *Conn) Prepare(query string) (driver.Stmt, error) {
 		return nil, driver.ErrBadConn
 	}
 	if len(query) > 10 && strings.EqualFold(query[:10], "INSERTBULK") {
-		return c.prepareCopyIn(query)
+		return c.prepareCopyIn(context.Background(), query)
 	}
-
 	return c.prepareContext(context.Background(), query)
 }
 
