@@ -95,7 +95,7 @@ func TestBulkcopy(t *testing.T) {
 		return
 	}
 
-	t.Log("Preparing copyin statement")
+	t.Log("Preparing copy in statement")
 
 	stmt, err := conn.PrepareContext(ctx, CopyIn(tableName, BulkOptions{}, columns...))
 
