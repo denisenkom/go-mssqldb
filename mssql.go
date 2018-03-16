@@ -22,7 +22,7 @@ func init() {
 	sql.Register("mssql", driverInstance)
 	sql.Register("sqlserver", driverInstanceNoProcess)
 	createDialer = func(p *connectParams) dialer {
-		return tcpDialer{&net.Dialer{Timeout: p.dial_timeout, KeepAlive: p.keepAlive}}
+		return tcpDialer{&net.Dialer{KeepAlive: p.keepAlive}}
 	}
 }
 

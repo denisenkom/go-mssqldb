@@ -1156,3 +1156,47 @@ func TestSendExecErrors(t *testing.T) {
 		t.Fail()
 	}
 }
+
+func TestLongConnection(t *testing.T) {
+	checkConnStr(t)
+
+	list := []struct {
+		connTimeout  string
+		queryTimeout string
+		ctxTimeout   time.Duration
+		wantFail     bool
+	}{
+		{"1", "00:00:02", 6 * time.Second, true},
+		{"2", "00:00:01", 6 * time.Second, false},
+
+		// Check no connection timeout.
+		{"0", "00:00:01", 2 * time.Second, false},
+		// {"0", "00:00:45", 60 * time.Second, false}, // Skip for normal testing to limit time.
+	}
+
+	for i, item := range list {
+		t.Run(fmt.Sprintf("item-index-%d,want-fail=%t", i, item.wantFail), func(t *testing.T) {
+			dsn := makeConnStr(t)
+			dsnParams := dsn.Query()
+			dsnParams.Set("connection timeout", item.connTimeout)
+			dsn.RawQuery = dsnParams.Encode()
+
+			db, err := sql.Open("sqlserver", dsn.String())
+			if err != nil {
+				t.Fatalf("failed to open driver sqlserver")
+			}
+			defer db.Close()
+
+			ctx, cancel := context.WithTimeout(context.Background(), item.ctxTimeout)
+			defer cancel()
+
+			_, err = db.ExecContext(ctx, "WAITFOR DELAY '"+item.queryTimeout+"';")
+			if item.wantFail && err == nil {
+				t.Fatal("exec no error")
+			}
+			if !item.wantFail && err != nil {
+				t.Fatal("exec error", err)
+			}
+		})
+	}
+}

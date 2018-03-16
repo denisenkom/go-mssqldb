@@ -21,13 +21,12 @@ Other supported formats are listed below.
 * `user id` - enter the SQL Server Authentication user id or the Windows Authentication user id in the DOMAIN\User format. On Windows, if user id is empty or missing Single-Sign-On is used.
 * `password`
 * `database`
-* `connection timeout` - in seconds (default is 30)
-* `dial timeout` - in seconds (default is 5)
+* `connection timeout` - in seconds (default is 30), set to 0 for no timeout. Recommended to set to 0 and use context to manage query and connection timeouts.
+* `dial timeout` - in seconds (default is 15), set to 0 for no timeout
 * `encrypt`
   * `disable` - Data send between client and server is not encrypted.
   * `false` - Data sent between client and server is not encrypted beyond the login packet. (Default)
   * `true` - Data sent between client and server is encrypted.
-* `keepAlive` - in seconds; 0 to disable (default is 30)
 * `app name` - The application name (default is go-mssqldb)
 
 ### Connection parameters for ODBC and ADO style connection strings:
@@ -37,6 +36,7 @@ Other supported formats are listed below.
 
 ### Less common parameters:
 
+* `keepAlive` - in seconds; 0 to disable (default is 30)
 * `failoverpartner` - host or host\instance (default is no partner). 
 * `failoverport` - used only when there is no instance in failoverpartner (default 1433)
 * `packet size` - in bytes; 512 to 32767 (default is 4096)
