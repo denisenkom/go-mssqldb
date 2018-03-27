@@ -21,7 +21,7 @@ Other supported formats are listed below.
 * `user id` - enter the SQL Server Authentication user id or the Windows Authentication user id in the DOMAIN\User format. On Windows, if user id is empty or missing Single-Sign-On is used.
 * `password`
 * `database`
-* `connection timeout` - in seconds (default is 30), set to 0 for no timeout. Recommended to set to 0 and use context to manage query and connection timeouts.
+* `connection timeout` - in seconds (default is 0 for no timeout), set to 0 for no timeout. Recommended to set to 0 and use context to manage query and connection timeouts.
 * `dial timeout` - in seconds (default is 15), set to 0 for no timeout
 * `encrypt`
   * `disable` - Data send between client and server is not encrypted.
@@ -75,7 +75,7 @@ Other supported formats are listed below.
 
 ```go
   query := url.Values{}
-  query.Add("connection timeout", "30")
+  query.Add("app name", "MyAppName")
 
   u := &url.URL{
       Scheme:   "sqlserver",
@@ -90,14 +90,14 @@ Other supported formats are listed below.
 2. ADO: `key=value` pairs separated by `;`. Values may not contain `;`, leading and trailing whitespace is ignored.
      Examples:
 	
-  * `server=localhost\\SQLExpress;user id=sa;database=master;connection timeout=30`
-  * `server=localhost;user id=sa;database=master;connection timeout=30`
+  * `server=localhost\\SQLExpress;user id=sa;database=master;app name=MyAppName`
+  * `server=localhost;user id=sa;database=master;app name=MyAppName`
 
 3. ODBC: Prefix with `odbc`, `key=value` pairs separated by `;`. Allow `;` by wrapping
     values in `{}`. Examples:
 	
-  * `odbc:server=localhost\\SQLExpress;user id=sa;database=master;connection timeout=30`
-  * `odbc:server=localhost;user id=sa;database=master;connection timeout=30`
+  * `odbc:server=localhost\\SQLExpress;user id=sa;database=master;app name=MyAppName`
+  * `odbc:server=localhost;user id=sa;database=master;app name=MyAppName`
   * `odbc:server=localhost;user id=sa;password={foo;bar}` // Value marked with `{}`, password is "foo;bar"
   * `odbc:server=localhost;user id=sa;password={foo{bar}` // Value marked with `{}`, password is "foo{bar"
   * `odbc:server=localhost;user id=sa;password={foobar }` // Value marked with `{}`, password is "foobar "
