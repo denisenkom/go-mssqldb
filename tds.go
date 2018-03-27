@@ -993,10 +993,10 @@ func parseConnectParams(dsn string) (connectParams, error) {
 	}
 
 	// https://msdn.microsoft.com/en-us/library/dd341108.aspx
-	p.dial_timeout = 15 * time.Second
-	p.conn_timeout = 30 * time.Second
-	strconntimeout, ok := params["connection timeout"]
-	if ok {
+	//
+	// Do not set a connection timeout. Use Context to manage such things.
+	// Default to zero, but still allow it to be set.
+	if strconntimeout, ok := params["connection timeout"]; ok {
 		timeout, err := strconv.ParseUint(strconntimeout, 10, 64)
 		if err != nil {
 			f := "Invalid connection timeout '%v': %v"
@@ -1004,8 +1004,8 @@ func parseConnectParams(dsn string) (connectParams, error) {
 		}
 		p.conn_timeout = time.Duration(timeout) * time.Second
 	}
-	strdialtimeout, ok := params["dial timeout"]
-	if ok {
+	p.dial_timeout = 15 * time.Second
+	if strdialtimeout, ok := params["dial timeout"]; ok {
 		timeout, err := strconv.ParseUint(strdialtimeout, 10, 64)
 		if err != nil {
 			f := "Invalid dial timeout '%v': %v"
@@ -1017,7 +1017,6 @@ func parseConnectParams(dsn string) (connectParams, error) {
 	// default keep alive should be 30 seconds according to spec:
 	// https://msdn.microsoft.com/en-us/library/dd341108.aspx
 	p.keepAlive = 30 * time.Second
-
 	if keepAlive, ok := params["keepalive"]; ok {
 		timeout, err := strconv.ParseUint(keepAlive, 10, 64)
 		if err != nil {
