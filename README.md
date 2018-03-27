@@ -68,7 +68,7 @@ Other supported formats are listed below.
   * `sqlserver://username:password@host:port?param1=value&param2=value`
   * `sqlserver://sa@localhost/SQLExpress?database=master&connection+timeout=30` // `SQLExpress instance.
   * `sqlserver://sa:mypass@localhost?database=master&connection+timeout=30`     // username=sa, password=mypass.
-  * `sqlserver://sa:mypass@localhost:1234?database=master&connection+timeout=30"` // port 1234 on localhost.
+  * `sqlserver://sa:mypass@localhost:1234?database=master&connection+timeout=30` // port 1234 on localhost.
   * `sqlserver://sa:my%7Bpass@somehost?connection+timeout=30` // password is "my{pass"
 
   A string of this format can be constructed using the `URL` type in the `net/url` package.
@@ -125,6 +125,21 @@ the sql query to be in the form of either `@Name` or `@p1` to `@pN` (ordinal pos
 ```go
 db.QueryContext(ctx, `select * from t where ID = @ID and Name = @p2;`, sql.Named("ID", 6), "Bob")
 ```
+
+## Important Notes
+
+ * [LastInsertId](https://golang.org/pkg/database/sql/#Result.LastInsertId) should
+    not be used with this driver (or SQL Server) due to how the TDS protocol
+	works. Please use the [OUTPUT Clause](https://docs.microsoft.com/en-us/sql/t-sql/queries/output-clause-transact-sql)
+	or add a `select ID = convert(bigint, SCOPE_IDENTITY());` to the end of your
+	query (ref [SCOPE_IDENTITY](https://docs.microsoft.com/en-us/sql/t-sql/functions/scope-identity-transact-sql)).
+	This will ensure you are getting the correct ID and will prevent a network round trip.
+ * [NewConnector](https://godoc.org/github.com/denisenkom/go-mssqldb#NewConnector)
+    may be used with [OpenDB](https://golang.org/pkg/database/sql/#OpenDB).
+ * [Connector.SessionInitSQL](https://godoc.org/github.com/denisenkom/go-mssqldb#Connector.SessionInitSQL)
+	may be set to set any driver specific session settings after the session
+	has been reset. If empty the session will still be reset but use the database
+	defaults in Go1.10+.
 
 ## Features
 

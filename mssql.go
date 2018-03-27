@@ -72,6 +72,20 @@ func (d *Driver) SetLogger(logger Logger) {
 	d.log = optionalLogger{logger}
 }
 
+// NewConnector creates a new connector from a DSN.
+// The returned connector may be used with sql.OpenDB.
+func NewConnector(dsn string) (*Connector, error) {
+	params, err := parseConnectParams(dsn)
+	if err != nil {
+		return nil, err
+	}
+	c := &Connector{
+		params: params,
+		driver: driverInstanceNoProcess,
+	}
+	return c, nil
+}
+
 // Connector holds the parsed DSN and is ready to make a new connection
 // at any time.
 //
@@ -81,11 +95,12 @@ type Connector struct {
 	params connectParams
 	driver *Driver
 
-	// ResetSQL is executed after marking a given connection to be reset.
-	// When not present, the next query will be reset to the database
-	// defaults.
-	// When present the connection will immediately mark the connection to
-	// be reset, then execute the ResetSQL text to setup the session
+	// SessionInitSQL is executed after marking a given session to be reset.
+	// When not present, the next query will still reset the session to the
+	// database defaults.
+	//
+	// When present the connection will immediately mark the session to
+	// be reset, then execute the SessionInitSQL text to setup the session
 	// that may be different from the base database defaults.
 	//
 	// For Example, the application relies on the following defaults
@@ -96,9 +111,12 @@ type Connector struct {
 	//    SET ANSI_NULLS ON;
 	//    SET LOCK_TIMEOUT 10000;
 	//
-	// ResetSQL should not attempt to manually call sp_reset_connection.
+	// SessionInitSQL should not attempt to manually call sp_reset_connection.
 	// This will happen at the TDS layer.
-	ResetSQL string
+	//
+	// SessionInitSQL is optional. The session will be reset even if
+	// SessionInitSQL is empty.
+	SessionInitSQL string
 }
 
 type Conn struct {
