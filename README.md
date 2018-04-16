@@ -169,7 +169,7 @@ These features still exist in the driver, but they are are deprecated.
 
 ### Query Parameter Token Replace (driver "mssql")
 
-If you use the driver name "mssql" (rather then "sqlserver" the SQL text
+If you use the driver name "mssql" (rather then "sqlserver") the SQL text
 will be loosly parsed and an attempt to extract identifiers using one of
 
 * ?
