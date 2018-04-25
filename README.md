@@ -113,7 +113,7 @@ To run a stored procedure, set the query text to the procedure name:
 var account = "abc"
 _, err := db.ExecContext(ctx, "sp_RunMe",
 	sql.Named("ID", 123),
-	sql.Out{Dest{sql.Named("Account", &account)}
+	sql.Named("Account", sql.Out{Dest: &account}),
 )
 ```
 
