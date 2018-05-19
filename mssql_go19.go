@@ -45,6 +45,8 @@ func (c *Conn) CheckNamedValue(nv *driver.NamedValue) error {
 		}
 		nv.Value = sql.Out{Dest: lnv.Value}
 		return nil
+	case VarChar:
+		return nil
 	// case *apd.Decimal:
 	// 	return nil
 	default:

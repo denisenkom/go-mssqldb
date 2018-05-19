@@ -85,7 +85,7 @@ func TestBulkcopy(t *testing.T) {
 	// pool.
 	conn, err := pool.Conn(ctx)
 	if err != nil {
-		t.Error("failed to pull connection from pool", err)
+		t.Fatal("failed to pull connection from pool", err)
 	}
 	defer conn.Close()
 

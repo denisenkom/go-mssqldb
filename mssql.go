@@ -713,6 +713,9 @@ func makeStrParam(val string) (res Param) {
 	return
 }
 
+// VarChar parameter types.
+type VarChar string
+
 func (s *Stmt) makeParam(val driver.Value) (res Param, err error) {
 	if val == nil {
 		res.ti.TypeId = typeNull
@@ -737,6 +740,10 @@ func (s *Stmt) makeParam(val driver.Value) (res Param, err error) {
 		res.buffer = val
 	case string:
 		res = makeStrParam(val)
+	case VarChar:
+		res.ti.TypeId = typeBigVarChar
+		res.buffer = []byte(val)
+		res.ti.Size = len(res.buffer)
 	case bool:
 		res.ti.TypeId = typeBitN
 		res.ti.Size = 1
