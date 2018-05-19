@@ -153,11 +153,11 @@ type columnStruct struct {
 	ti       typeInfo
 }
 
-type KeySlice []uint8
+type keySlice []uint8
 
-func (p KeySlice) Len() int           { return len(p) }
-func (p KeySlice) Less(i, j int) bool { return p[i] < p[j] }
-func (p KeySlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p keySlice) Len() int           { return len(p) }
+func (p keySlice) Less(i, j int) bool { return p[i] < p[j] }
+func (p keySlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 // http://msdn.microsoft.com/en-us/library/dd357559.aspx
 func writePrelogin(w *tdsBuffer, fields map[uint8][]byte) error {
@@ -165,7 +165,7 @@ func writePrelogin(w *tdsBuffer, fields map[uint8][]byte) error {
 
 	w.BeginPacket(packPrelogin, false)
 	offset := uint16(5*len(fields) + 1)
-	keys := make(KeySlice, 0, len(fields))
+	keys := make(keySlice, 0, len(fields))
 	for k, _ := range fields {
 		keys = append(keys, k)
 	}

@@ -47,3 +47,31 @@ select Options = @@OPTIONS;
 		t.Fatal("incorrect session settings", opt)
 	}
 }
+
+func TestParameterTypes(t *testing.T) {
+	pool, err := sql.Open("sqlserver", makeConnStr(t).String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+
+	var nvbase, vbase string
+	err = pool.QueryRow(`
+select
+	nvbase = SQL_VARIANT_PROPERTY(@nv,'BaseType'),
+	vbase = SQL_VARIANT_PROPERTY(@v,'BaseType')
+;
+	`,
+		sql.Named("nv", "base type nvarchar"),
+		sql.Named("v", VarChar("base type varchar")),
+	).Scan(&nvbase, &vbase)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nvbase != "nvarchar" {
+		t.Errorf(`want "nvarchar" got %q`, nvbase)
+	}
+	if vbase != "varchar" {
+		t.Errorf(`want "varchar" got %q`, vbase)
+	}
+}

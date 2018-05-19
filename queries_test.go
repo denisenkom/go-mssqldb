@@ -865,15 +865,15 @@ func TestSetLanguage(t *testing.T) {
 }
 
 func TestConnectionClosing(t *testing.T) {
-	conn := open(t)
-	defer conn.Close()
+	pool := open(t)
+	defer pool.Close()
 	for i := 1; i <= 100; i++ {
-		if conn.Stats().OpenConnections > 1 {
-			t.Errorf("Open connections is expected to stay <= 1, but it is %d", conn.Stats().OpenConnections)
+		if pool.Stats().OpenConnections > 1 {
+			t.Errorf("Open connections is expected to stay <= 1, but it is %d", pool.Stats().OpenConnections)
 			return
 		}
 
-		stmt, err := conn.Query("select 1")
+		stmt, err := pool.Query("select 1")
 		if err != nil {
 			t.Fatalf("Query failed with unexpected error %s", err)
 		}
