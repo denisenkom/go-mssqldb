@@ -117,7 +117,7 @@ _, err := db.ExecContext(ctx, "sp_RunMe",
 )
 ```
 
-## Statement Parameters
+## Parameters
 
 The `sqlserver` driver uses normal MS SQL Server syntax and expects parameters in
 the sql query to be in the form of either `@Name` or `@p1` to `@pN` (ordinal position).
@@ -125,6 +125,21 @@ the sql query to be in the form of either `@Name` or `@p1` to `@pN` (ordinal pos
 ```go
 db.QueryContext(ctx, `select * from t where ID = @ID and Name = @p2;`, sql.Named("ID", 6), "Bob")
 ```
+
+### Parameter Types
+
+To pass specific types to the query parameters, say `varchar` or `date` types,
+you must convert the types to the type before passing in. The following types
+are supported:
+
+ * string -> nvarchar
+ * mssql.VarChar -> varchar
+ * time.Time -> datetimeoffset or datetime (TDS version dependent)
+ * mssql.DateTime1 -> datetime
+ * mssql.DateTimeOffset -> datetimeoffset
+ * "cloud.google.com/go/civil".Date -> date
+ * "cloud.google.com/go/civil".DateTime -> datetime2
+ * "cloud.google.com/go/civil".Time -> time
 
 ## Important Notes
 

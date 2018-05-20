@@ -989,7 +989,7 @@ func makeGoLangScanType(ti typeInfo) reflect.Type {
 	case typeVariant:
 		return reflect.TypeOf(nil)
 	default:
-		panic(fmt.Sprintf("not implemented makeDecl for type %d", ti.TypeId))
+		panic(fmt.Sprintf("not implemented makeGoLangScanType for type %d", ti.TypeId))
 	}
 }
 
@@ -1089,6 +1089,8 @@ func makeDecl(ti typeInfo) string {
 		default:
 			panic("invalid size of DATETIMNTYPE")
 		}
+	case typeTimeN:
+		return "time"
 	case typeDateTime2N:
 		return fmt.Sprintf("datetime2(%d)", ti.Scale)
 	case typeDateTimeOffsetN:
@@ -1209,7 +1211,7 @@ func makeGoLangTypeName(ti typeInfo) string {
 	case typeBigBinary:
 		return "BINARY"
 	default:
-		panic(fmt.Sprintf("not implemented makeDecl for type %d", ti.TypeId))
+		panic(fmt.Sprintf("not implemented makeGoLangTypeName for type %d", ti.TypeId))
 	}
 }
 
@@ -1332,7 +1334,7 @@ func makeGoLangTypeLength(ti typeInfo) (int64, bool) {
 	case typeBigBinary:
 		return 0, false
 	default:
-		panic(fmt.Sprintf("not implemented makeDecl for type %d", ti.TypeId))
+		panic(fmt.Sprintf("not implemented makeGoLangTypeLength for type %d", ti.TypeId))
 	}
 }
 
@@ -1443,6 +1445,6 @@ func makeGoLangTypePrecisionScale(ti typeInfo) (int64, int64, bool) {
 	case typeBigBinary:
 		return 0, 0, false
 	default:
-		panic(fmt.Sprintf("not implemented makeDecl for type %d", ti.TypeId))
+		panic(fmt.Sprintf("not implemented makeGoLangTypePrecisionScale for type %d", ti.TypeId))
 	}
 }
