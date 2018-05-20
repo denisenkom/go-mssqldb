@@ -1207,7 +1207,7 @@ initiate_connection:
 		return nil, err
 	}
 
-	toconn := NewTimeoutConn(conn, p.conn_timeout)
+	toconn := newTimeoutConn(conn, p.conn_timeout)
 
 	outbuf := newTdsBuffer(p.packetSize, toconn)
 	sess := tdsSession{

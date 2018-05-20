@@ -425,8 +425,8 @@ func (s *Stmt) sendQuery(args []namedValue) (err error) {
 			return fmt.Errorf("failed to send SQL Batch: %v", err)
 		}
 	} else {
-		proc := Sp_ExecuteSql
-		var params []Param
+		proc := sp_ExecuteSql
+		var params []param
 		if isProc(s.query) {
 			proc.name = s.query
 			params, _, err = s.makeRPCParams(args, 0)
@@ -462,9 +462,9 @@ func isProc(s string) bool {
 	return !strings.ContainsAny(s, " \t\n\r;")
 }
 
-func (s *Stmt) makeRPCParams(args []namedValue, offset int) ([]Param, []string, error) {
+func (s *Stmt) makeRPCParams(args []namedValue, offset int) ([]param, []string, error) {
 	var err error
-	params := make([]Param, len(args)+offset)
+	params := make([]param, len(args)+offset)
 	decls := make([]string, len(args))
 	for i, val := range args {
 		params[i+offset], err = s.makeParam(val.Value)
@@ -706,7 +706,7 @@ func (r *Rows) ColumnTypeNullable(index int) (nullable, ok bool) {
 	return
 }
 
-func makeStrParam(val string) (res Param) {
+func makeStrParam(val string) (res param) {
 	res.ti.TypeId = typeNVarChar
 	res.buffer = str2ucs2(val)
 	res.ti.Size = len(res.buffer)
@@ -716,7 +716,7 @@ func makeStrParam(val string) (res Param) {
 // VarChar parameter types.
 type VarChar string
 
-func (s *Stmt) makeParam(val driver.Value) (res Param, err error) {
+func (s *Stmt) makeParam(val driver.Value) (res param, err error) {
 	if val == nil {
 		res.ti.TypeId = typeNull
 		res.buffer = nil
