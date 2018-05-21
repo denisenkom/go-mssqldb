@@ -275,7 +275,7 @@ func (c *Conn) sendBeginRequest(ctx context.Context, tdsIsolation isoLevel) erro
 			c.sess.log.Printf("Failed to send BeginXact with %v", err)
 		}
 		c.connectionGood = false
-		return fmt.Errorf("Failed to send BiginXant: %v", err)
+		return fmt.Errorf("Failed to send BeginXact: %v", err)
 	}
 	return nil
 }
