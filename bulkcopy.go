@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/denisenkom/go-mssqldb/internal/mstype"
 )
 
 type Bulk struct {
@@ -72,13 +74,12 @@ func (b *Bulk) sendBulkCommand(ctx context.Context) (err error) {
 			}
 		}
 		if bulkCol != nil {
-
-			if bulkCol.ti.TypeId == typeUdt {
+			if bulkCol.ti.TypeID == mstype.Udt {
 				//send udt as binary
-				bulkCol.ti.TypeId = typeBigVarBin
+				bulkCol.ti.TypeID = mstype.BigVarBin
 			}
 			b.bulkColumns = append(b.bulkColumns, *bulkCol)
-			b.dlogf("Adding column %s %s %#x", colname, bulkCol.ColName, bulkCol.ti.TypeId)
+			b.dlogf("Adding column %s %s %#x", colname, bulkCol.ColName, bulkCol.ti.TypeID)
 		} else {
 			return fmt.Errorf("Column %s does not exist in destination table %s", colname, b.tablename)
 		}
@@ -195,7 +196,7 @@ func (b *Bulk) makeRowData(row []interface{}) ([]byte, error) {
 
 		if col.ti.Writer == nil {
 			return nil, fmt.Errorf("no writer for column: %s, TypeId: %#x",
-				col.ColName, col.ti.TypeId)
+				col.ColName, col.ti.TypeID)
 		}
 		err = col.ti.Writer(buf, param.ti, param.buffer)
 		if err != nil {
@@ -263,9 +264,9 @@ func (b *Bulk) createColMetadata() []byte {
 
 		writeTypeInfo(buf, &b.bulkColumns[i].ti)
 
-		if col.ti.TypeId == typeNText ||
-			col.ti.TypeId == typeText ||
-			col.ti.TypeId == typeImage {
+		if col.ti.TypeID == mstype.NText ||
+			col.ti.TypeID == mstype.Text ||
+			col.ti.TypeID == mstype.Image {
 
 			tablename_ucs2 := str2ucs2(b.tablename)
 			binary.Write(buf, binary.LittleEndian, uint16(len(tablename_ucs2)/2))
@@ -304,7 +305,7 @@ func (b *Bulk) getMetadata(ctx context.Context) (err error) {
 	if b.Debug {
 		for _, col := range b.metadata {
 			b.dlogf("col: %s typeId: %#x size: %d scale: %d prec: %d flags: %d lcid: %#x\n",
-				col.ColName, col.ti.TypeId, col.ti.Size, col.ti.Scale, col.ti.Prec,
+				col.ColName, col.ti.TypeID, col.ti.Size, col.ti.Scale, col.ti.Prec,
 				col.Flags, col.ti.Collation.LcidAndFlags)
 		}
 	}
@@ -314,16 +315,16 @@ func (b *Bulk) getMetadata(ctx context.Context) (err error) {
 
 func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error) {
 	res.ti.Size = col.ti.Size
-	res.ti.TypeId = col.ti.TypeId
+	res.ti.TypeID = col.ti.TypeID
 
 	if val == nil {
 		res.ti.Size = 0
 		return
 	}
 
-	switch col.ti.TypeId {
+	switch col.ti.TypeID {
 
-	case typeInt1, typeInt2, typeInt4, typeInt8, typeIntN:
+	case mstype.Int1, mstype.Int2, mstype.Int4, mstype.Int8, mstype.IntN:
 		var intvalue int64
 
 		switch val := val.(type) {
@@ -348,7 +349,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 		} else if col.ti.Size == 8 {
 			binary.LittleEndian.PutUint64(res.buffer, uint64(intvalue))
 		}
-	case typeFlt4, typeFlt8, typeFltN:
+	case mstype.Flt4, mstype.Flt8, mstype.FltN:
 		var floatvalue float64
 
 		switch val := val.(type) {
@@ -372,7 +373,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 			res.buffer = make([]byte, 8)
 			binary.LittleEndian.PutUint64(res.buffer, math.Float64bits(floatvalue))
 		}
-	case typeNVarChar, typeNText, typeNChar:
+	case mstype.NVarChar, mstype.NText, mstype.NChar:
 
 		switch val := val.(type) {
 		case string:
@@ -385,7 +386,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 		}
 		res.ti.Size = len(res.buffer)
 
-	case typeVarChar, typeBigVarChar, typeText, typeChar, typeBigChar:
+	case mstype.VarChar, mstype.BigVarChar, mstype.Text, mstype.Char, mstype.BigChar:
 		switch val := val.(type) {
 		case string:
 			res.buffer = []byte(val)
@@ -397,18 +398,18 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 		}
 		res.ti.Size = len(res.buffer)
 
-	case typeBit, typeBitN:
+	case mstype.Bit, mstype.BitN:
 		if reflect.TypeOf(val).Kind() != reflect.Bool {
 			err = fmt.Errorf("mssql: invalid type for bit column: %s", val)
 			return
 		}
-		res.ti.TypeId = typeBitN
+		res.ti.TypeID = mstype.BitN
 		res.ti.Size = 1
 		res.buffer = make([]byte, 1)
 		if val.(bool) {
 			res.buffer[0] = 1
 		}
-	case typeDateTime2N:
+	case mstype.DateTime2N:
 		switch val := val.(type) {
 		case time.Time:
 			res.buffer = encodeDateTime2(val, int(col.ti.Scale))
@@ -417,7 +418,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 			err = fmt.Errorf("mssql: invalid type for datetime2 column: %s", val)
 			return
 		}
-	case typeDateTimeOffsetN:
+	case mstype.DateTimeOffsetN:
 		switch val := val.(type) {
 		case time.Time:
 			res.buffer = encodeDateTimeOffset(val, int(res.ti.Scale))
@@ -427,7 +428,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 			err = fmt.Errorf("mssql: invalid type for datetimeoffset column: %s", val)
 			return
 		}
-	case typeDateN:
+	case mstype.DateN:
 		switch val := val.(type) {
 		case time.Time:
 			res.buffer = encodeDate(val)
@@ -436,7 +437,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 			err = fmt.Errorf("mssql: invalid type for date column: %s", val)
 			return
 		}
-	case typeDateTime, typeDateTimeN, typeDateTim4:
+	case mstype.DateTime, mstype.DateTimeN, mstype.DateTim4:
 		switch val := val.(type) {
 		case time.Time:
 			if col.ti.Size == 4 {
@@ -453,8 +454,8 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 			err = fmt.Errorf("mssql: invalid type for datetime column: %s", val)
 		}
 
-	// case typeMoney, typeMoney4, typeMoneyN:
-	case typeDecimal, typeDecimalN, typeNumeric, typeNumericN:
+	// case mstype.Money, mstype.Money4, mstype.MoneyN:
+	case mstype.Decimal, mstype.DecimalN, mstype.Numeric, mstype.NumericN:
 		var value float64
 		switch v := val.(type) {
 		case int:
@@ -521,7 +522,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 			buf[i] = ub[j]
 		}
 		res.buffer = buf
-	case typeBigVarBin:
+	case mstype.BigVarBin:
 		switch val := val.(type) {
 		case []byte:
 			res.ti.Size = len(val)
@@ -530,7 +531,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 			err = fmt.Errorf("mssql: invalid type for Binary column: %s", val)
 			return
 		}
-	case typeGuid:
+	case mstype.Guid:
 		switch val := val.(type) {
 		case []byte:
 			res.ti.Size = len(val)
@@ -541,7 +542,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 		}
 
 	default:
-		err = fmt.Errorf("mssql: type %x not implemented", col.ti.TypeId)
+		err = fmt.Errorf("mssql: type %x not implemented", col.ti.TypeID)
 	}
 	return
 

@@ -10,8 +10,7 @@ import (
 	"reflect"
 	"time"
 
-	// "github.com/cockroachdb/apd"
-	"cloud.google.com/go/civil"
+	"github.com/denisenkom/go-mssqldb/internal/mstype"
 )
 
 // Type alias provided for compatibility.
@@ -69,15 +68,14 @@ func (c *Conn) CheckNamedValue(nv *driver.NamedValue) error {
 		return nil
 	case DateTimeOffset:
 		return nil
-	case civil.Date:
-		return nil
-	case civil.DateTime:
-		return nil
-	case civil.Time:
-		return nil
-	// case *apd.Decimal:
-	// 	return nil
 	default:
+		if c.connector != nil {
+			for _, et := range c.connector.extendedTypes {
+				if err := et.CheckNamedValue(nv); err != driver.ErrSkip {
+					return err
+				}
+			}
+		}
 		conv_val, err := driver.DefaultParameterConverter.ConvertValue(v)
 		nv.Value = conv_val
 		return err
@@ -87,37 +85,46 @@ func (c *Conn) CheckNamedValue(nv *driver.NamedValue) error {
 func (s *Stmt) makeParamExtra(val driver.Value) (res param, err error) {
 	switch val := val.(type) {
 	case VarChar:
-		res.ti.TypeId = typeBigVarChar
+		res.ti.TypeID = mstype.BigVarChar
 		res.buffer = []byte(val)
 		res.ti.Size = len(res.buffer)
 	case DateTime1:
 		t := time.Time(val)
-		res.ti.TypeId = typeDateTimeN
+		res.ti.TypeID = mstype.DateTimeN
 		res.buffer = encodeDateTime(t)
 		res.ti.Size = len(res.buffer)
 	case DateTimeOffset:
-		res.ti.TypeId = typeDateTimeOffsetN
+		res.ti.TypeID = mstype.DateTimeOffsetN
 		res.ti.Scale = 7
 		res.buffer = encodeDateTimeOffset(time.Time(val), int(res.ti.Scale))
 		res.ti.Size = len(res.buffer)
-	case civil.Date:
-		res.ti.TypeId = typeDateN
-		res.buffer = encodeDate(val.In(time.UTC))
-		res.ti.Size = len(res.buffer)
-	case civil.DateTime:
-		res.ti.TypeId = typeDateTime2N
-		res.ti.Scale = 7
-		res.buffer = encodeDateTime2(val.In(time.UTC), int(res.ti.Scale))
-		res.ti.Size = len(res.buffer)
-	case civil.Time:
-		res.ti.TypeId = typeTimeN
-		res.ti.Scale = 7
-		res.buffer = encodeTime(val.Hour, val.Minute, val.Second, val.Nanosecond, int(res.ti.Scale))
-		res.ti.Size = len(res.buffer)
+	/*
+		case civil.Date:
+			res.ti.TypeID = mstype.DateN
+			res.buffer = encodeDate(val.In(time.UTC))
+			res.ti.Size = len(res.buffer)
+		case civil.DateTime:
+			res.ti.TypeID = mstype.DateTime2N
+			res.ti.Scale = 7
+			res.buffer = encodeDateTime2(val.In(time.UTC), int(res.ti.Scale))
+			res.ti.Size = len(res.buffer)
+		case civil.Time:
+			res.ti.TypeID = mstype.TimeN
+			res.ti.Scale = 7
+			res.buffer = encodeTime(val.Hour, val.Minute, val.Second, val.Nanosecond, int(res.ti.Scale))
+			res.ti.Size = len(res.buffer)
+	*/
 	case sql.Out:
 		res, err = s.makeParam(val.Dest)
 		res.Flags = fByRevValue
 	default:
+		if s.c.connector != nil {
+			for _, et := range s.c.connector.extendedTypes {
+				if err := et.MakeParam(val, &res); err != driver.ErrSkip {
+					return res, err
+				}
+			}
+		}
 		err = fmt.Errorf("mssql: unknown type for %T", val)
 	}
 	return

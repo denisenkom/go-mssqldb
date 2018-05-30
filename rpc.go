@@ -2,6 +2,8 @@ package mssql
 
 import (
 	"encoding/binary"
+
+	"github.com/denisenkom/go-mssqldb/internal/mstype"
 )
 
 type procId struct {
@@ -20,6 +22,15 @@ type param struct {
 	Flags  uint8
 	ti     typeInfo
 	buffer []byte
+}
+
+func (p *param) SetValue(tp mstype.ID, scale uint8, size int) []byte {
+	p.ti.TypeID = tp
+	p.ti.Scale = scale
+	p.ti.Size = size
+	buf := make([]byte, size)
+	p.buffer = buf
+	return buf
 }
 
 func makeProcId(name string) (res procId) {
