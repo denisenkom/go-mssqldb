@@ -6,7 +6,9 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	// "github.com/cockroachdb/apd"
@@ -176,4 +178,45 @@ func (s *Stmt) makeParamExtra(val driver.Value) (res param, err error) {
 		err = fmt.Errorf("mssql: unknown type for %T", val)
 	}
 	return
+}
+
+func scanIntoOut(name string, fromServer, scanInto interface{}) error {
+	switch fs := fromServer.(type) {
+	case int64:
+		switch si := scanInto.(type) {
+		case *int64:
+			*si = fs
+			return nil
+		}
+	case string:
+		switch si := scanInto.(type) {
+		case *string:
+			*si = fs
+			return nil
+		case *VarChar:
+			*si = VarChar(fs)
+			return nil
+		}
+	}
+
+	dpv := reflect.ValueOf(scanInto)
+	if dpv.Kind() != reflect.Ptr {
+		return errors.New("destination not a pointer")
+	}
+	if dpv.IsNil() {
+		return errors.New("destination is a nil pointer")
+	}
+	sv := reflect.ValueOf(fromServer)
+
+	dv := reflect.Indirect(dpv)
+	if sv.IsValid() && sv.Type().AssignableTo(dv.Type()) {
+		dv.Set(sv)
+		return nil
+	}
+
+	if sv.Type().ConvertibleTo(dv.Type()) {
+		dv.Set(sv.Convert(dv.Type()))
+		return nil
+	}
+	return fmt.Errorf("unsupported type for parameter %[3]q from server %[1]T=%[1]v into %[2]T=%[2]v ", fromServer, scanInto, name)
 }

@@ -67,10 +67,15 @@ func TestOutputINOUTParam(t *testing.T) {
 CREATE PROCEDURE abinout
    @aid INT,
    @bid INT OUTPUT,
-   @cstr NVARCHAR(2000) OUTPUT
+   @cstr NVARCHAR(2000) OUTPUT,
+   @vout VARCHAR(2000) OUTPUT
 AS
 BEGIN
-   SELECT @bid = @aid + @bid, @cstr = 'OK';
+   SELECT
+		@bid = @aid + @bid,
+		@cstr = 'OK',
+		@Vout = 'DREAM'
+	;
 END;
 `
 	sqltextdrop := `DROP PROCEDURE abinout;`
@@ -95,10 +100,12 @@ END;
 	}
 	var bout int64 = 3
 	var cout string
+	var vout VarChar
 	_, err = db.ExecContext(ctx, sqltextrun,
 		sql.Named("aid", 5),
 		sql.Named("bid", sql.Out{Dest: &bout}),
 		sql.Named("cstr", sql.Out{Dest: &cout}),
+		sql.Named("vout", sql.Out{Dest: &vout}),
 	)
 	defer db.ExecContext(ctx, sqltextdrop)
 	if err != nil {
@@ -111,6 +118,9 @@ END;
 
 	if cout != "OK" {
 		t.Errorf("expected OK, got %s", cout)
+	}
+	if string(vout) != "DREAM" {
+		t.Errorf("expected DREAM, got %s", vout)
 	}
 }
 
