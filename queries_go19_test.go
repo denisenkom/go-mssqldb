@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"testing"
 	"time"
+	"regexp"
 )
 
 func TestOutputParam(t *testing.T) {
@@ -111,19 +112,42 @@ END;
 		}
 	})
 
-	// generates invalid TDS, should be fixed
-	//t.Run("destination is a nil pointer", func(t *testing.T) {
-	//	var str_out string
-	//	// test when destination is nil pointer
-	//	_, actual := db.ExecContext(ctx, sqltextrun,
-	//		sql.Named("bid", sql.Out{Dest: nil}),
-	//		sql.Named("cstr", sql.Out{Dest: &str_out}),
-	//	)
-	//	expected := "destination is a nil pointer"
-	//	if actual.Error() != expected {
-	//		t.Errorf("Error actual = %v, expected = %v.", actual, expected)
-	//	}
-	//})
+	t.Run("should fail if destination has invalid type", func(t *testing.T) {
+		// Error type should not be supported
+		var err_out Error
+		_, err := db.ExecContext(ctx, sqltextrun,
+			sql.Named("bid", sql.Out{Dest: &err_out}),
+		)
+		if err == nil {
+			t.Error("Expected to fail but it didn't")
+		}
+
+		// double inderection should not work
+		var out_out = sql.Out{Dest: &err_out}
+		_, err = db.ExecContext(ctx, sqltextrun,
+			sql.Named("bid", sql.Out{Dest: out_out}),
+		)
+		if err == nil {
+			t.Error("Expected to fail but it didn't")
+		}
+	})
+
+	t.Run("destination is a nil pointer", func(t *testing.T) {
+		var str_out string
+		// test when destination is nil pointer
+		_, actual := db.ExecContext(ctx, sqltextrun,
+			sql.Named("bid", sql.Out{Dest: nil}),
+			sql.Named("cstr", sql.Out{Dest: &str_out}),
+		)
+		pattern := ".*destination is a nil pointer.*"
+		match, err := regexp.MatchString(pattern, actual.Error())
+		if err != nil {
+			t.Error(err)
+		}
+		if !match {
+			t.Errorf("Error  '%v', does not match pattern '%v'.", actual, pattern)
+		}
+	})
 }
 
 func TestOutputINOUTParam(t *testing.T) {

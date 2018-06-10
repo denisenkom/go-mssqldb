@@ -44,6 +44,10 @@ func (c *Conn) CheckNamedValue(nv *driver.NamedValue) error {
 		}
 		c.outs[nv.Name] = v.Dest
 
+		if v.Dest == nil {
+			return errors.New("destination is a nil pointer")
+		}
+
 		// Unwrap the Out value and check the inner value.
 		lnv := *nv
 		lnv.Value = v.Dest
