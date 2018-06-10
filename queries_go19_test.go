@@ -13,7 +13,7 @@ import (
 func TestOutputParam(t *testing.T) {
 	sqltextcreate := `
 CREATE PROCEDURE abassign
-   @aid INT,
+   @aid INT = 5,
    @bid INT OUTPUT,
    @cstr NVARCHAR(2000) OUTPUT
 AS
@@ -41,25 +41,89 @@ END;
 	if err != nil {
 		t.Fatal(err)
 	}
-	var bout int64
-	var cout string
-	_, err = db.ExecContext(ctx, sqltextrun,
-		sql.Named("aid", 5),
-		sql.Named("bid", sql.Out{Dest: &bout}),
-		sql.Named("cstr", sql.Out{Dest: &cout}),
-	)
 	defer db.ExecContext(ctx, sqltextdrop)
 	if err != nil {
 		t.Error(err)
 	}
 
-	if bout != 5 {
-		t.Errorf("expected 5, got %d", bout)
-	}
+	t.Run("should work", func(t *testing.T) {
+		var bout int64
+		var cout string
+		_, err = db.ExecContext(ctx, sqltextrun,
+			sql.Named("aid", 5),
+			sql.Named("bid", sql.Out{Dest: &bout}),
+			sql.Named("cstr", sql.Out{Dest: &cout}),
+		)
 
-	if cout != "OK" {
-		t.Errorf("expected OK, got %s", cout)
-	}
+		if bout != 5 {
+			t.Errorf("expected 5, got %d", bout)
+		}
+
+		if cout != "OK" {
+			t.Errorf("expected OK, got %s", cout)
+		}
+	})
+
+	t.Run("should work if aid is not passed", func(t *testing.T) {
+		var bout int64
+		var cout string
+		_, err = db.ExecContext(ctx, sqltextrun,
+			sql.Named("bid", sql.Out{Dest: &bout}),
+			sql.Named("cstr", sql.Out{Dest: &cout}),
+		)
+
+		if bout != 5 {
+			t.Errorf("expected 5, got %d", bout)
+		}
+
+		if cout != "OK" {
+			t.Errorf("expected OK, got %s", cout)
+		}
+	})
+
+	t.Run("destination is not a pointer", func(t *testing.T) {
+		var int_out int64
+		var str_out string
+		// test when destination is not a pointer
+		_, actual := db.ExecContext(ctx, sqltextrun,
+			sql.Named("bid", sql.Out{Dest: int_out}),
+			sql.Named("cstr", sql.Out{Dest: &str_out}),
+		)
+		expected := "destination not a pointer"
+		if actual.Error() != expected {
+			t.Errorf("Error actual = %v, expected = %v.", actual, expected)
+		}
+	})
+
+	t.Run("should convert int64 to int", func(t *testing.T) {
+		var bout int
+		var cout string
+		_, err := db.ExecContext(ctx, sqltextrun,
+			sql.Named("bid", sql.Out{Dest: &bout}),
+			sql.Named("cstr", sql.Out{Dest: &cout}),
+		)
+		if err != nil {
+			t.Error(err)
+		}
+
+		if bout != 5 {
+			t.Errorf("expected 5, got %d", bout)
+		}
+	})
+
+	// generates invalid TDS, should be fixed
+	//t.Run("destination is a nil pointer", func(t *testing.T) {
+	//	var str_out string
+	//	// test when destination is nil pointer
+	//	_, actual := db.ExecContext(ctx, sqltextrun,
+	//		sql.Named("bid", sql.Out{Dest: nil}),
+	//		sql.Named("cstr", sql.Out{Dest: &str_out}),
+	//	)
+	//	expected := "destination is a nil pointer"
+	//	if actual.Error() != expected {
+	//		t.Errorf("Error actual = %v, expected = %v.", actual, expected)
+	//	}
+	//})
 }
 
 func TestOutputINOUTParam(t *testing.T) {

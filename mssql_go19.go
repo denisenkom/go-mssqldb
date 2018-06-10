@@ -15,7 +15,7 @@ import (
 	"cloud.google.com/go/civil"
 )
 
-// Type alias provided for compibility.
+// Type alias provided for compatibility.
 
 type MssqlDriver = Driver           // Deprecated: users should transition to the new name when possible.
 type MssqlBulk = Bulk               // Deprecated: users should transition to the new name when possible.
