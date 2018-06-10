@@ -15,11 +15,12 @@ func TestOutputParam(t *testing.T) {
 	sqltextcreate := `
 CREATE PROCEDURE abassign
    @aid INT = 5,
-   @bid INT OUTPUT,
-   @cstr NVARCHAR(2000) OUTPUT
+   @bid INT = NULL OUTPUT,
+   @cstr NVARCHAR(2000) = NULL OUTPUT,
+   @datetime datetime = NULL OUTPUT
 AS
 BEGIN
-   SELECT @bid = @aid, @cstr = 'OK';
+   SELECT @bid = @aid, @cstr = 'OK', @datetime = '2010-01-01T00:00:00';
 END;
 `
 	sqltextdrop := `DROP PROCEDURE abassign;`
@@ -55,6 +56,9 @@ END;
 			sql.Named("bid", sql.Out{Dest: &bout}),
 			sql.Named("cstr", sql.Out{Dest: &cout}),
 		)
+		if err != nil {
+			t.Error(err)
+		}
 
 		if bout != 5 {
 			t.Errorf("expected 5, got %d", bout)
@@ -72,6 +76,9 @@ END;
 			sql.Named("bid", sql.Out{Dest: &bout}),
 			sql.Named("cstr", sql.Out{Dest: &cout}),
 		)
+		if err != nil {
+			t.Error(err)
+		}
 
 		if bout != 5 {
 			t.Errorf("expected 5, got %d", bout)
@@ -79,6 +86,29 @@ END;
 
 		if cout != "OK" {
 			t.Errorf("expected OK, got %s", cout)
+		}
+	})
+
+	t.Run("should work for DateTime1 parameter", func(t *testing.T) {
+		tin, err := time.Parse(time.RFC3339, "2006-01-02T22:04:05-07:00")
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected, err := time.Parse(time.RFC3339, "2010-01-01T00:00:00-00:00")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var datetime_param DateTime1
+		datetime_param = DateTime1(tin)
+		_, err = db.ExecContext(ctx, sqltextrun,
+			sql.Named("datetime", sql.Out{Dest: &datetime_param}),
+		)
+		if err != nil {
+			t.Error(err)
+		}
+		if time.Time(datetime_param).UTC() != expected.UTC() {
+			t.Errorf("Datetime returned '%v' does not match expected value '%v'",
+				time.Time(datetime_param).UTC(), expected.UTC())
 		}
 	})
 
@@ -90,9 +120,13 @@ END;
 			sql.Named("bid", sql.Out{Dest: int_out}),
 			sql.Named("cstr", sql.Out{Dest: &str_out}),
 		)
-		expected := "destination not a pointer"
-		if actual.Error() != expected {
-			t.Errorf("Error actual = %v, expected = %v.", actual, expected)
+		pattern := ".*destination not a pointer.*"
+		match, err := regexp.MatchString(pattern, actual.Error())
+		if err != nil {
+			t.Error(err)
+		}
+		if !match {
+			t.Errorf("Error  '%v', does not match pattern '%v'.", actual, pattern)
 		}
 	})
 
@@ -127,6 +161,15 @@ END;
 		_, err = db.ExecContext(ctx, sqltextrun,
 			sql.Named("bid", sql.Out{Dest: out_out}),
 		)
+		if err == nil {
+			t.Error("Expected to fail but it didn't")
+		}
+	})
+
+	t.Run("should fail if parameter has invalid type", func(t *testing.T) {
+		// passing invalid parameter type
+		var err_val Error
+		_, err = db.ExecContext(ctx, sqltextrun, err_val)
 		if err == nil {
 			t.Error("Expected to fail but it didn't")
 		}

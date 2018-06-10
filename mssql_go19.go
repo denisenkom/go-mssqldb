@@ -48,18 +48,19 @@ func (c *Conn) CheckNamedValue(nv *driver.NamedValue) error {
 			return errors.New("destination is a nil pointer")
 		}
 
+		dest_info := reflect.ValueOf(v.Dest)
+		if dest_info.Kind() != reflect.Ptr {
+			return errors.New("destination not a pointer")
+		}
+
+		pointed_value := reflect.Indirect(dest_info)
+
 		// Unwrap the Out value and check the inner value.
 		lnv := *nv
-		lnv.Value = v.Dest
+		lnv.Value = pointed_value.Interface()
 		err := c.CheckNamedValue(&lnv)
 		if err != nil {
-			if err != driver.ErrSkip {
-				return err
-			}
-			lnv.Value, err = driver.DefaultParameterConverter.ConvertValue(lnv.Value)
-			if err != nil {
-				return err
-			}
+			return err
 		}
 		nv.Value = sql.Out{Dest: lnv.Value}
 		return nil
@@ -78,7 +79,9 @@ func (c *Conn) CheckNamedValue(nv *driver.NamedValue) error {
 	// case *apd.Decimal:
 	// 	return nil
 	default:
-		return driver.ErrSkip
+		conv_val, err := driver.DefaultParameterConverter.ConvertValue(v)
+		nv.Value = conv_val
+		return err
 	}
 }
 
