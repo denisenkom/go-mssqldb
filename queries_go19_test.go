@@ -236,7 +236,7 @@ END;
 // config may help with that, but wireshark wasn't decrypting TDS based TLS streams
 // even when using that.
 //
-// Issue https://github.com/denisenkom/go-mssqldb/issues/166
+// Issue https://github.com/covrom/go-mssqldb/issues/166
 func TestTLSServerReadClose(t *testing.T) {
 	query := `
 with
