@@ -12,8 +12,6 @@ environment:
   DATABASE: test  
   GOVERSION: 110
   matrix:
-    - GOVERSION: 17
-      SQLINSTANCE: SQL2016
     - GOVERSION: 18
       SQLINSTANCE: SQL2016
     - GOVERSION: 19
