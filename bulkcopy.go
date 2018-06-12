@@ -480,7 +480,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 					err = fmt.Errorf("mssql: Date %s is out of range", val)
 					return
 				}
-				mins := val.Hour()*60 + val.Minute()
+				mins := dur % (24 * time.Hour) / time.Minute //val.Hour()*60 + val.Minute()
 
 				binary.LittleEndian.PutUint16(res.buffer[0:2], uint16(days))
 				binary.LittleEndian.PutUint16(res.buffer[2:4], uint16(mins))
@@ -488,13 +488,20 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 				res.ti.Size = 8
 				res.buffer = make([]byte, 8)
 
-				days := divFloor(val.Unix(), 24*60*60)
-				//25567 - number of days since Jan 1 1900 UTC to Jan 1 1970
-				days = days + 25567
-				tm := (val.Hour()*60*60+val.Minute()*60+val.Second())*300 + int(val.Nanosecond()/10000000*3)
-
+				ref := time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
+				dur := val.Sub(ref)
+				days := dur / (24 * time.Hour)
+				tm := (300 * (dur % (24 * time.Hour))) / time.Second
 				binary.LittleEndian.PutUint32(res.buffer[0:4], uint32(days))
 				binary.LittleEndian.PutUint32(res.buffer[4:8], uint32(tm))
+
+				// days := divFloor(val.Unix(), 24*60*60)
+				// //25567 - number of days since Jan 1 1900 UTC to Jan 1 1970
+				// days = days + 25567
+				// tm := (val.Hour()*60*60+val.Minute()*60+val.Second())*300 + int(val.Nanosecond()/10000000*3)
+
+				// binary.LittleEndian.PutUint32(res.buffer[0:4], uint32(days))
+				// binary.LittleEndian.PutUint32(res.buffer[4:8], uint32(tm))
 			} else {
 				err = fmt.Errorf("mssql: invalid size of column")
 			}
