@@ -332,6 +332,10 @@ func TestNull(t *testing.T) {
 func TestParams(t *testing.T) {
 	longstr := strings.Repeat("x", 10000)
 	longbytes := make([]byte, 10000)
+	testdate, err := time.Parse(time.RFC3339, "2010-01-01T00:00:00-00:00")
+	if err != nil {
+		t.Fatal(err)
+	}
 	values := []interface{}{
 		int64(5),
 		"hello",
@@ -344,35 +348,40 @@ func TestParams(t *testing.T) {
 		nil,
 		longstr,
 		longbytes,
+		testdate.UTC(),
 	}
 
 	conn := open(t)
 	defer conn.Close()
 
 	for _, val := range values {
-		row := conn.QueryRow("select ?", val)
-		var retval interface{}
-		err := row.Scan(&retval)
-		if err != nil {
-			t.Error("Scan failed", err.Error())
-			return
-		}
-		var same bool
-		switch decodedval := retval.(type) {
-		case []byte:
-			switch decodedvaltest := val.(type) {
-			case []byte:
-				same = bytes.Equal(decodedval, decodedvaltest)
-			default:
-				same = false
+		t.Run(fmt.Sprintf("%T:%#v", val, val), func(t *testing.T){
+			row := conn.QueryRow("select ?", val)
+			var retval interface{}
+			err := row.Scan(&retval)
+			if err != nil {
+				t.Error("Scan failed", err.Error())
+				return
 			}
-		default:
-			same = retval == val
-		}
-		if !same {
-			t.Error("Value don't match", retval, val)
-			return
-		}
+			var same bool
+			switch decodedval := retval.(type) {
+			case []byte:
+				switch decodedvaltest := val.(type) {
+				case []byte:
+					same = bytes.Equal(decodedval, decodedvaltest)
+				default:
+					same = false
+				}
+			case time.Time:
+				same = decodedval.UTC() == val
+			default:
+				same = retval == val
+			}
+			if !same {
+				t.Error("Value don't match", retval, val)
+				return
+			}
+		})
 	}
 }
 
