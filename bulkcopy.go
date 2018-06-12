@@ -473,7 +473,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 				res.ti.Size = 4
 				res.buffer = make([]byte, 4)
 
-				ref := time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
+				ref := time.Date(1900, 1, 1, 0, 0, 0, 0, val.Location())
 				dur := val.Sub(ref)
 				days := dur / (24 * time.Hour)
 				if days < 0 {
@@ -488,7 +488,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 				res.ti.Size = 8
 				res.buffer = make([]byte, 8)
 
-				ref := time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
+				ref := time.Date(1900, 1, 1, 0, 0, 0, 0, val.Location())
 				dur := val.Sub(ref)
 				days := dur / (24 * time.Hour)
 				tm := (300 * (dur % (24 * time.Hour))) / time.Second

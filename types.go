@@ -242,7 +242,7 @@ func decodeDateTim4(buf []byte) time.Time {
 	days := binary.LittleEndian.Uint16(buf)
 	mins := binary.LittleEndian.Uint16(buf[2:])
 	return time.Date(1900, 1, 1+int(days),
-		0, int(mins), 0, 0, time.UTC)
+		0, int(mins), 0, 0, time.Local)
 }
 
 func decodeDateTime(buf []byte) time.Time {
@@ -251,7 +251,7 @@ func decodeDateTime(buf []byte) time.Time {
 	ns := int(math.Trunc(float64(tm%300)/0.3+0.5)) * 1000000
 	secs := int(tm / 300)
 	return time.Date(1900, 1, 1+int(days),
-		0, 0, secs, ns, time.UTC)
+		0, 0, secs, ns, time.Local)
 }
 
 func readFixedType(ti *typeInfo, r *tdsBuffer) interface{} {
@@ -802,7 +802,7 @@ func decodeDateInt(buf []byte) (days int) {
 }
 
 func decodeDate(buf []byte) time.Time {
-	return time.Date(1, 1, 1+decodeDateInt(buf), 0, 0, 0, 0, time.UTC)
+	return time.Date(1, 1, 1+decodeDateInt(buf), 0, 0, 0, 0, time.Local)
 }
 
 func decodeTimeInt(scale uint8, buf []byte) (sec int, ns int) {
@@ -822,14 +822,14 @@ func decodeTimeInt(scale uint8, buf []byte) (sec int, ns int) {
 
 func decodeTime(scale uint8, buf []byte) time.Time {
 	sec, ns := decodeTimeInt(scale, buf)
-	return time.Date(1, 1, 1, 0, 0, sec, ns, time.UTC)
+	return time.Date(1, 1, 1, 0, 0, sec, ns, time.Local)
 }
 
 func decodeDateTime2(scale uint8, buf []byte) time.Time {
 	timesize := len(buf) - 3
 	sec, ns := decodeTimeInt(scale, buf[:timesize])
 	days := decodeDateInt(buf[timesize:])
-	return time.Date(1, 1, 1+days, 0, 0, sec, ns, time.UTC)
+	return time.Date(1, 1, 1+days, 0, 0, sec, ns, time.Local)
 }
 
 func decodeDateTimeOffset(scale uint8, buf []byte) time.Time {
