@@ -854,13 +854,19 @@ func divFloor(x int64, y int64) int64 {
 
 func dateTime2(t time.Time) (days int32, ns int64) {
 	// number of days since Jan 1 1970 UTC
-	days64 := divFloor(t.Unix(), 24*60*60)
-	// number of days since Jan 1 1 UTC
+	ref := time.Date(1970, 1, 1, 0, 0, 0, 0, t.Location())
+	dur := t.Sub(ref)
+	days64 := dur / (24 * time.Hour)
 	days = int32(days64) + 1969*365 + 1969/4 - 1969/100 + 1969/400
-	// number of seconds within day
-	secs := t.Unix() - days64*24*60*60
-	// number of nanoseconds within day
-	ns = secs*1e9 + int64(t.Nanosecond())
+	ns = int64(dur % (24 * time.Hour))
+
+	// days64 := divFloor(t.Unix(), 24*60*60)
+	// // number of days since Jan 1 1 UTC
+	// days = int32(days64) + 1969*365 + 1969/4 - 1969/100 + 1969/400
+	// // number of seconds within day
+	// secs := t.Unix() - days64*24*60*60
+	// // number of nanoseconds within day
+	// ns = secs*1e9 + int64(t.Nanosecond())
 	return
 }
 
