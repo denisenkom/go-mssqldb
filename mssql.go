@@ -430,6 +430,9 @@ func (s *Stmt) sendQuery(args []namedValue) (err error) {
 		if isProc(s.query) {
 			proc.name = s.query
 			params, _, err = s.makeRPCParams(args, 0)
+			if err != nil {
+				return
+			}
 		} else {
 			var decls []string
 			params, decls, err = s.makeRPCParams(args, 2)
