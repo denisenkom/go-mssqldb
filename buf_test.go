@@ -193,3 +193,27 @@ func TestWrite(t *testing.T) {
 		t.Fatalf("Written buffer has invalid content:\n got: %v\nwant: %v", memBuf.Bytes(), expectedBuf)
 	}
 }
+
+func TestWrite_BufferBounds(t *testing.T) {
+	memBuf := bytes.NewBuffer([]byte{})
+	buf := newTdsBuffer(11, closableBuffer{memBuf})
+
+	buf.BeginPacket(1, false)
+	// write bytes enough to complete a package
+	_, err := buf.Write([]byte{1,1,1})
+	if err != nil {
+		t.Fatal("Write failed:", err.Error())
+	}
+	err = buf.WriteByte(1)
+	if err != nil {
+		t.Fatal("WriteByte failed:", err.Error())
+	}
+	_,err = buf.Write([]byte{1,1,1})
+	if err != nil {
+		t.Fatal("Write failed:", err.Error())
+	}
+	err = buf.FinishPacket()
+	if err != nil {
+		t.Fatal("FinishPacket failed:", err.Error())
+	}
+}

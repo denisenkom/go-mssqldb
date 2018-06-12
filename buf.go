@@ -105,7 +105,7 @@ func (w *tdsBuffer) Write(p []byte) (total int, err error) {
 }
 
 func (w *tdsBuffer) WriteByte(b byte) error {
-	if int(w.wpos) == len(w.wbuf) {
+	if int(w.wpos) == len(w.wbuf) || w.wpos == w.packetSize {
 		if err := w.flush(); err != nil {
 			return err
 		}
