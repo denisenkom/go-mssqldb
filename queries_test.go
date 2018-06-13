@@ -906,6 +906,32 @@ func TestErrorInfo(t *testing.T) {
 		if sqlError.SQLErrorNumber() != 207 /*invalid column name*/ {
 			t.Errorf("Query failed with unexpected error number %d %s", sqlError.SQLErrorNumber(), sqlError.SQLErrorMessage())
 		}
+		if sqlError.SQLErrorLineNo() != 1 {
+			t.Errorf("Unexpected line number returned %v, expected %v", sqlError.SQLErrorLineNo(), 1)
+		}
+	} else {
+		t.Error("Failed to convert error to SQLErorr", err)
+	}
+	_, err = conn.Exec("RAISERROR('test message', 18, 111)")
+	if sqlError, ok := err.(Error); ok {
+		if sqlError.SQLErrorNumber() != 50000 {
+			t.Errorf("Query failed with unexpected error number %d %s", sqlError.SQLErrorNumber(), sqlError.SQLErrorMessage())
+		}
+		if sqlError.SQLErrorMessage() != "test message" {
+			t.Fail()
+		}
+		if sqlError.SQLErrorClass() != 18 {
+			t.Fail()
+		}
+		if sqlError.SQLErrorState() != 111 {
+			t.Fail()
+		}
+		if sqlError.SQLErrorLineNo() != 1 {
+			t.Errorf("Unexpected line number returned %v, expected %v", sqlError.SQLErrorLineNo(), 1)
+		}
+		// just call those methods to make sure we have some coverage for them
+		sqlError.SQLErrorServerName()
+		sqlError.SQLErrorProcName()
 	} else {
 		t.Error("Failed to convert error to SQLErorr", err)
 	}
