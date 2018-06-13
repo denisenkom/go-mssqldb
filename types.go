@@ -265,12 +265,21 @@ func encodeDateTim4(val time.Time) (buf []byte) {
 // encodes datetime value
 // type identifier is typeDateTimeN
 func encodeDateTime(t time.Time) (res []byte) {
+	// base date in days since Jan 1st 1900
+	basedays := gregorianDays(1900, 1)
 	// days since Jan 1st 1900 (same TZ as t)
-	days := gregorianDays(t.Year(), t.YearDay()) - gregorianDays(1900, 1)
+	days := gregorianDays(t.Year(), t.YearDay()) - basedays
 	tm := 300*(t.Second() + t.Minute()*60 + t.Hour()*60*60) + t.Nanosecond()*300/1e9
-	if days < 0 {
-		days = 0
+	// minimum and maximum possible
+	mindays := gregorianDays(1753, 1) - basedays
+	maxdays := gregorianDays(9999, 365) - basedays
+	if days < mindays {
+		days = mindays
 		tm = 0
+	}
+	if days > maxdays {
+		days = maxdays
+		tm = (23*60*60 + 59*60 + 59)*300 + 299
 	}
 	res = make([]byte, 8)
 	binary.LittleEndian.PutUint32(res[0:4], uint32(days))

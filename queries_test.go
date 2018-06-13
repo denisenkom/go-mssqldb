@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"log"
 )
 
 func driverWithProcess(t *testing.T) *Driver {
@@ -708,6 +709,14 @@ func TestIdentity(t *testing.T) {
 	}
 }
 
+func queryParamRoundTrip(db *sql.DB, param interface{}, dest interface{}) {
+	err := db.QueryRow("select ?", param).Scan(dest)
+	if err != nil {
+		log.Panicf("select / scan failed", err.Error())
+	}
+}
+
+
 func TestDateTimeParam(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
@@ -732,11 +741,7 @@ func TestDateTimeParam(t *testing.T) {
 	for _, test := range values {
 		t.Run(fmt.Sprintf("Test for %v", test.t), func (t *testing.T) {
 			var t2 time.Time
-			err := conn.QueryRow("select ?", test.t).Scan(&t2)
-			if err != nil {
-				t.Error("select / scan failed", err.Error())
-				return
-			}
+			queryParamRoundTrip(conn, test.t, &t2)
 			expected := test.t
 			// clip value
 			if test.t.Before(mindate) {
@@ -748,6 +753,34 @@ func TestDateTimeParam(t *testing.T) {
 
 			if expected.Sub(t2) != 0 {
 				t.Errorf("expected: '%s', got: '%s' delta: %d", expected, t2, expected.Sub(t2))
+			}
+		})
+	}
+
+	mindate1 := time.Date(1753, 1, 1, 0, 0, 0, 0, time.UTC)
+	maxdate1 := time.Date(9999, 12, 31, 23, 59, 59, 997000000, time.UTC)
+	testdates1 := []DateTime1{
+		DateTime1(mindate1),
+		DateTime1(maxdate1),
+		DateTime1(time.Date(1752, 12, 31, 23, 59, 59, 997000000, time.UTC)), // just a little below minimum date
+		DateTime1(time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)), // just a little over maximum date
+		DateTime1(emptydate),
+	}
+
+	for _, test := range testdates1 {
+		t.Run(fmt.Sprintf("Test datetime for %v", test), func (t *testing.T) {
+			var res time.Time
+			expected := time.Time(test)
+			queryParamRoundTrip(conn, test, &res)
+			// clip value
+			if expected.Before(mindate1) {
+				expected = mindate1
+			}
+			if expected.After(maxdate1) {
+				expected = maxdate1
+			}
+			if expected.Sub(res) != 0 {
+				t.Errorf("expected: '%s', got: '%s' delta: %d", expected, res, expected.Sub(res))
 			}
 		})
 	}
