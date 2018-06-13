@@ -144,7 +144,7 @@ func TestBulkcopy(t *testing.T) {
 		}
 		for i, c := range testValues {
 			if !compareValue(container[i], c.val) {
-				t.Errorf("columns %s : %s != %v\n", c.colname, container[i], c.val)
+				t.Errorf("columns %s : expected: %v, got: %v\n", c.colname, c.val, container[i])
 			}
 		}
 	}

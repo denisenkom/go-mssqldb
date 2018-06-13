@@ -5,7 +5,6 @@ package mssql
 import (
 	"database/sql"
 	"database/sql/driver"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"reflect"
@@ -94,90 +93,27 @@ func (s *Stmt) makeParamExtra(val driver.Value) (res param, err error) {
 	case DateTime1:
 		t := time.Time(val)
 		res.ti.TypeId = typeDateTimeN
-		res.ti.Size = 8
-		res.buffer = make([]byte, 8)
-		ref := time.Date(1900, 1, 1, 0, 0, 0, 0, t.Location())
-		dur := t.Sub(ref)
-		days := dur / (24 * time.Hour)
-		tm := (300 * (dur % (24 * time.Hour))) / time.Second
-		binary.LittleEndian.PutUint32(res.buffer[0:4], uint32(days))
-		binary.LittleEndian.PutUint32(res.buffer[4:8], uint32(tm))
+		res.buffer = encodeDateTime(t)
+		res.ti.Size = len(res.buffer)
 	case DateTimeOffset:
-		t := time.Time(val)
 		res.ti.TypeId = typeDateTimeOffsetN
 		res.ti.Scale = 7
-		res.ti.Size = 10
-		buf := make([]byte, 10)
-		res.buffer = buf
-		days, ns := dateTime2(t)
-		ns /= 100
-		buf[0] = byte(ns)
-		buf[1] = byte(ns >> 8)
-		buf[2] = byte(ns >> 16)
-		buf[3] = byte(ns >> 24)
-		buf[4] = byte(ns >> 32)
-		buf[5] = byte(days)
-		buf[6] = byte(days >> 8)
-		buf[7] = byte(days >> 16)
-		_, offset := t.Zone()
-		offset /= 60
-		buf[8] = byte(offset)
-		buf[9] = byte(offset >> 8)
+		res.buffer = encodeDateTimeOffset(time.Time(val), int(res.ti.Scale))
+		res.ti.Size = len(res.buffer)
 	case civil.Date:
 		res.ti.TypeId = typeDateN
-		res.ti.Size = 3
-		res.buffer = make([]byte, 3)
-		buf := res.buffer
-		days := val.DaysSince(civil.Date{Year: 1970, Month: time.January, Day: 1})
-		// number of days since Jan 1 1 UTC
-		days = days + 1969*365 + 1969/4 - 1969/100 + 1969/400
-		buf[0] = byte(days)
-		buf[1] = byte(days >> 8)
-		buf[2] = byte(days >> 16)
+		res.buffer = encodeDate(val.In(time.UTC))
+		res.ti.Size = len(res.buffer)
 	case civil.DateTime:
 		res.ti.TypeId = typeDateTime2N
 		res.ti.Scale = 7
-		res.ti.Size = 8
-		res.buffer = make([]byte, 8)
-		buf := res.buffer
-
-		dur := time.Hour*time.Duration(val.Time.Hour) +
-			time.Minute*time.Duration(val.Time.Minute) +
-			time.Second*time.Duration(val.Time.Second) +
-			time.Duration(val.Time.Nanosecond)
-
-		ns := int64(dur)
-		ns /= 100
-		buf[0] = byte(ns)
-		buf[1] = byte(ns >> 8)
-		buf[2] = byte(ns >> 16)
-		buf[3] = byte(ns >> 24)
-		buf[4] = byte(ns >> 32)
-
-		days := val.Date.DaysSince(civil.Date{Year: 1970, Month: time.January, Day: 1})
-		// number of days since Jan 1 1 UTC
-		days = days + 1969*365 + 1969/4 - 1969/100 + 1969/400
-		buf[5] = byte(days)
-		buf[6] = byte(days >> 8)
-		buf[7] = byte(days >> 16)
+		res.buffer = encodeDateTime2(val.In(time.UTC), int(res.ti.Scale))
+		res.ti.Size = len(res.buffer)
 	case civil.Time:
 		res.ti.TypeId = typeTimeN
 		res.ti.Scale = 7
-		res.ti.Size = 5
-		res.buffer = make([]byte, 5)
-		buf := res.buffer
-		dur := time.Hour*time.Duration(val.Hour) +
-			time.Minute*time.Duration(val.Minute) +
-			time.Second*time.Duration(val.Second) +
-			time.Duration(val.Nanosecond)
-
-		ns := int64(dur)
-		ns /= 100
-		buf[0] = byte(ns)
-		buf[1] = byte(ns >> 8)
-		buf[2] = byte(ns >> 16)
-		buf[3] = byte(ns >> 24)
-		buf[4] = byte(ns >> 32)
+		res.buffer = encodeTime(val.Hour, val.Minute, val.Second, val.Nanosecond, int(res.ti.Scale))
+		res.ti.Size = len(res.buffer)
 	case sql.Out:
 		res, err = s.makeParam(val.Dest)
 		res.Flags = fByRevValue
