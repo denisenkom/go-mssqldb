@@ -712,7 +712,7 @@ func TestIdentity(t *testing.T) {
 func queryParamRoundTrip(db *sql.DB, param interface{}, dest interface{}) {
 	err := db.QueryRow("select ?", param).Scan(dest)
 	if err != nil {
-		log.Panicf("select / scan failed", err.Error())
+		log.Panicf("select / scan failed: %v", err.Error())
 	}
 }
 

@@ -29,9 +29,6 @@ var _ driver.NamedValueChecker = &Conn{}
 // VarChar parameter types.
 type VarChar string
 
-// DateTime1 encodes parameters to original DateTime SQL types.
-type DateTime1 time.Time
-
 // DateTimeOffset encodes parameters to DateTimeOffset, preserving the UTC offset.
 type DateTimeOffset time.Time
 
@@ -89,11 +86,6 @@ func (s *Stmt) makeParamExtra(val driver.Value) (res param, err error) {
 	case VarChar:
 		res.ti.TypeId = typeBigVarChar
 		res.buffer = []byte(val)
-		res.ti.Size = len(res.buffer)
-	case DateTime1:
-		t := time.Time(val)
-		res.ti.TypeId = typeDateTimeN
-		res.buffer = encodeDateTime(t)
 		res.ti.Size = len(res.buffer)
 	case DateTimeOffset:
 		res.ti.TypeId = typeDateTimeOffsetN
