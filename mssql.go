@@ -15,9 +15,6 @@ import (
 	"time"
 )
 
-// DateTime1 encodes parameters to original DateTime SQL types.
-type DateTime1 time.Time
-
 var driverInstance = &Driver{processQueryText: true}
 var driverInstanceNoProcess = &Driver{processQueryText: false}
 
@@ -761,11 +758,6 @@ func (s *Stmt) makeParam(val driver.Value) (res param, err error) {
 			res.buffer = encodeDateTime(val)
 			res.ti.Size = len(res.buffer)
 		}
-	case DateTime1:
-		t := time.Time(val)
-		res.ti.TypeId = typeDateTimeN
-		res.buffer = encodeDateTime(t)
-		res.ti.Size = len(res.buffer)
 	default:
 		return s.makeParamExtra(val)
 	}
