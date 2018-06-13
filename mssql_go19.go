@@ -109,7 +109,7 @@ func (s *Stmt) makeParamExtra(val driver.Value) (res param, err error) {
 		res.ti.Size = 10
 		buf := make([]byte, 10)
 		res.buffer = buf
-		days, ns := dateTime2(t)
+		days, ns := dateTime2UTC(t)
 		ns /= 100
 		buf[0] = byte(ns)
 		buf[1] = byte(ns >> 8)

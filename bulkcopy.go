@@ -408,8 +408,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 		if val.(bool) {
 			res.buffer[0] = 1
 		}
-
-	case typeDateTime2N, typeDateTimeOffsetN:
+	case typeDateTime2N:
 		switch val := val.(type) {
 		case time.Time:
 			days, ns := dateTime2(val)
@@ -438,13 +437,47 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 			buf[res.ti.Size-2] = byte(days >> 8)
 			buf[res.ti.Size-1] = byte(days >> 16)
 
-			if col.ti.TypeId == typeDateTimeOffsetN {
-				_, offset := val.Zone()
-				var offsetMinute = uint16(offset / 60)
-				buf = append(buf, byte(offsetMinute))
-				buf = append(buf, byte(offsetMinute>>8))
-				res.ti.Size = res.ti.Size + 2
+			res.buffer = buf
+
+		default:
+			err = fmt.Errorf("mssql: invalid type for datetime2 column: %s", val)
+			return
+		}
+
+	case typeDateTimeOffsetN:
+		switch val := val.(type) {
+		case time.Time:
+			days, ns := dateTime2UTC(val)
+			ns /= int64(math.Pow10(int(col.ti.Scale)*-1) * 1000000000)
+
+			var data = make([]byte, 5)
+
+			data[0] = byte(ns)
+			data[1] = byte(ns >> 8)
+			data[2] = byte(ns >> 16)
+			data[3] = byte(ns >> 24)
+			data[4] = byte(ns >> 32)
+
+			if col.ti.Scale <= 2 {
+				res.ti.Size = 6
+			} else if col.ti.Scale <= 4 {
+				res.ti.Size = 7
+			} else {
+				res.ti.Size = 8
 			}
+			var buf []byte
+			buf = make([]byte, res.ti.Size)
+			copy(buf, data[0:res.ti.Size-3])
+
+			buf[res.ti.Size-3] = byte(days)
+			buf[res.ti.Size-2] = byte(days >> 8)
+			buf[res.ti.Size-1] = byte(days >> 16)
+
+			_, offset := val.Zone()
+			var offsetMinute = uint16(offset / 60)
+			buf = append(buf, byte(offsetMinute))
+			buf = append(buf, byte(offsetMinute>>8))
+			res.ti.Size = res.ti.Size + 2
 
 			res.buffer = buf
 
@@ -473,14 +506,14 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 				res.ti.Size = 4
 				res.buffer = make([]byte, 4)
 
-				ref := time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
+				ref := time.Date(1900, 1, 1, 0, 0, 0, 0, val.Location())
 				dur := val.Sub(ref)
 				days := dur / (24 * time.Hour)
 				if days < 0 {
 					err = fmt.Errorf("mssql: Date %s is out of range", val)
 					return
 				}
-				mins := val.Hour()*60 + val.Minute()
+				mins := dur % (24 * time.Hour) / time.Minute //val.Hour()*60 + val.Minute()
 
 				binary.LittleEndian.PutUint16(res.buffer[0:2], uint16(days))
 				binary.LittleEndian.PutUint16(res.buffer[2:4], uint16(mins))
@@ -488,13 +521,20 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 				res.ti.Size = 8
 				res.buffer = make([]byte, 8)
 
-				days := divFloor(val.Unix(), 24*60*60)
-				//25567 - number of days since Jan 1 1900 UTC to Jan 1 1970
-				days = days + 25567
-				tm := (val.Hour()*60*60+val.Minute()*60+val.Second())*300 + int(val.Nanosecond()/10000000*3)
-
+				ref := time.Date(1900, 1, 1, 0, 0, 0, 0, val.Location())
+				dur := val.Sub(ref)
+				days := dur / (24 * time.Hour)
+				tm := (300 * (dur % (24 * time.Hour))) / time.Second
 				binary.LittleEndian.PutUint32(res.buffer[0:4], uint32(days))
 				binary.LittleEndian.PutUint32(res.buffer[4:8], uint32(tm))
+
+				// days := divFloor(val.Unix(), 24*60*60)
+				// //25567 - number of days since Jan 1 1900 UTC to Jan 1 1970
+				// days = days + 25567
+				// tm := (val.Hour()*60*60+val.Minute()*60+val.Second())*300 + int(val.Nanosecond()/10000000*3)
+
+				// binary.LittleEndian.PutUint32(res.buffer[0:4], uint32(days))
+				// binary.LittleEndian.PutUint32(res.buffer[4:8], uint32(tm))
 			} else {
 				err = fmt.Errorf("mssql: invalid size of column")
 			}
