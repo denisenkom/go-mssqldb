@@ -66,13 +66,20 @@ func TestSelect(t *testing.T) {
 		{"N'abc'", string("abc")},
 		{"cast(null as nvarchar(3))", nil},
 		{"NULL", nil},
+		{"cast('1753-01-01' as datetime)", time.Date(1753, 1, 1, 0, 0, 0, 0, time.UTC)},
 		{"cast('2000-01-01' as datetime)", time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
 		{"cast('2000-01-01T12:13:14.12' as datetime)",
 			time.Date(2000, 1, 1, 12, 13, 14, 120000000, time.UTC)},
 		{"cast('2014-06-26 11:08:09.673' as datetime)", time.Date(2014, 06, 26, 11, 8, 9, 673000000, time.UTC)},
+		{"cast('9999-12-31T23:59:59.997' as datetime)", time.Date(9999, 12, 31, 23, 59, 59, 997000000, time.UTC)},
 		{"cast(NULL as datetime)", nil},
+		{"cast('1900-01-01T00:00:00' as smalldatetime)",
+			time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)},
 		{"cast('2000-01-01T12:13:00' as smalldatetime)",
 			time.Date(2000, 1, 1, 12, 13, 0, 0, time.UTC)},
+		{"cast('2079-06-06T23:59:00' as smalldatetime)",
+			time.Date(2079, 6, 6, 23, 59, 0, 0, time.UTC)},
+		{"cast(NULL as smalldatetime)", nil},
 		{"cast(0x6F9619FF8B86D011B42D00C04FC964FF as uniqueidentifier)",
 			[]byte{0x6F, 0x96, 0x19, 0xFF, 0x8B, 0x86, 0xD0, 0x11, 0xB4, 0x2D, 0x00, 0xC0, 0x4F, 0xC9, 0x64, 0xFF}},
 		{"cast(NULL as uniqueidentifier)", nil},
@@ -128,36 +135,38 @@ func TestSelect(t *testing.T) {
 	}
 
 	for _, test := range values {
-		stmt, err := conn.Prepare("select " + test.sql)
-		if err != nil {
-			t.Error("Prepare failed:", test.sql, err.Error())
-			return
-		}
-		defer stmt.Close()
-
-		row := stmt.QueryRow()
-		var retval interface{}
-		err = row.Scan(&retval)
-		if err != nil {
-			t.Error("Scan failed:", test.sql, err.Error())
-			continue
-		}
-		var same bool
-		switch decodedval := retval.(type) {
-		case []byte:
-			switch decodedvaltest := test.val.(type) {
-			case []byte:
-				same = bytes.Equal(decodedval, decodedvaltest)
-			default:
-				same = false
+		t.Run(test.sql, func (t *testing.T){
+			stmt, err := conn.Prepare("select " + test.sql)
+			if err != nil {
+				t.Error("Prepare failed:", test.sql, err.Error())
+				return
 			}
-		default:
-			same = retval == test.val
-		}
-		if !same {
-			t.Errorf("Values don't match '%s' '%s' for test: %s", retval, test.val, test.sql)
-			continue
-		}
+			defer stmt.Close()
+
+			row := stmt.QueryRow()
+			var retval interface{}
+			err = row.Scan(&retval)
+			if err != nil {
+				t.Error("Scan failed:", test.sql, err.Error())
+				return
+			}
+			var same bool
+			switch decodedval := retval.(type) {
+			case []byte:
+				switch decodedvaltest := test.val.(type) {
+				case []byte:
+					same = bytes.Equal(decodedval, decodedvaltest)
+				default:
+					same = false
+				}
+			default:
+				same = retval == test.val
+			}
+			if !same {
+				t.Errorf("Values don't match '%s' '%s' for test: %s", retval, test.val, test.sql)
+				return
+			}
+		})
 	}
 }
 
@@ -167,10 +176,14 @@ func TestSelectDateTimeOffset(t *testing.T) {
 		val time.Time
 	}
 	values := []testStruct{
-		{"cast('2010-11-15T11:56:45.123+01:00' as datetimeoffset(3))",
-			time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.FixedZone("", 60*60))},
-		{"cast(cast('2010-11-15T11:56:45.123+10:00' as datetimeoffset(3)) as sql_variant)",
-			time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.FixedZone("", 10*60*60))},
+		{"cast('2010-11-15T11:56:45.123+14:00' as datetimeoffset(3))",
+			time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.FixedZone("", 14*60*60))},
+		{"cast(cast('2010-11-15T11:56:45.123-14:00' as datetimeoffset(3)) as sql_variant)",
+			time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.FixedZone("", -14*60*60))},
+		{"cast('0001-01-01T00:00:00.0000000+00:00' as datetimeoffset(7))",
+			time.Date(1, 1, 1, 0, 0, 0, 0, time.FixedZone("", 0))},
+		{"cast('9999-12-31T23:59:59.9999999+00:00' as datetimeoffset(7))",
+			time.Date(9999, 12, 31, 23, 59, 59, 999999900, time.FixedZone("", 0))},
 	}
 
 	conn := open(t)
@@ -218,15 +231,26 @@ func TestSelectNewTypes(t *testing.T) {
 		val interface{}
 	}
 	values := []testStruct{
+		{"cast('0001-01-01' as date)",
+			time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)},
 		{"cast('2000-01-01' as date)",
 			time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
+		{"cast('9999-12-31' as date)",
+			time.Date(9999, 12, 31, 0, 0, 0, 0, time.UTC)},
 		{"cast(NULL as date)", nil},
+		{"cast('00:00:00.0000000' as time(7))",
+			time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)},
 		{"cast('00:00:45.123' as time(3))",
 			time.Date(1, 1, 1, 00, 00, 45, 123000000, time.UTC)},
 		{"cast('11:56:45.123' as time(3))",
 			time.Date(1, 1, 1, 11, 56, 45, 123000000, time.UTC)},
 		{"cast('11:56:45' as time(0))",
 			time.Date(1, 1, 1, 11, 56, 45, 0, time.UTC)},
+		{"cast('23:59:59.9999999' as time(7))",
+			time.Date(1, 1, 1, 23, 59, 59, 999999900, time.UTC)},
+		{"cast(null as time(0))", nil},
+		{"cast('0001-01-01T00:00:00.0000000' as datetime2(7))",
+			time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)},
 		{"cast('2010-11-15T11:56:45.123' as datetime2(3))",
 			time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.UTC)},
 		{"cast('2010-11-15T11:56:45' as datetime2(0))",
@@ -237,6 +261,9 @@ func TestSelectNewTypes(t *testing.T) {
 			time.Date(1, 1, 1, 00, 00, 45, 123000000, time.UTC)},
 		{"cast(cast('2010-11-15T11:56:45.123' as datetime2(3)) as sql_variant)",
 			time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.UTC)},
+		{"cast('9999-12-31T23:59:59.9999999' as datetime2(7))",
+			time.Date(9999, 12, 31, 23, 59, 59, 999999900, time.UTC)},
+		{"cast(null as datetime2(3))", nil},
 	}
 	for _, test := range values {
 		stmt, err := conn.Prepare("select " + test.sql)
