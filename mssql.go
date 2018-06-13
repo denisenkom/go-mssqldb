@@ -751,33 +751,12 @@ func (s *Stmt) makeParam(val driver.Value) (res param, err error) {
 		if s.c.sess.loginAck.TDSVersion >= verTDS73 {
 			res.ti.TypeId = typeDateTimeOffsetN
 			res.ti.Scale = 7
-			res.ti.Size = 10
-			buf := make([]byte, 10)
-			res.buffer = buf
-			days, ns := dateTime2(val)
-			ns /= 100
-			buf[0] = byte(ns)
-			buf[1] = byte(ns >> 8)
-			buf[2] = byte(ns >> 16)
-			buf[3] = byte(ns >> 24)
-			buf[4] = byte(ns >> 32)
-			buf[5] = byte(days)
-			buf[6] = byte(days >> 8)
-			buf[7] = byte(days >> 16)
-			_, offset := val.Zone()
-			offset /= 60
-			buf[8] = byte(offset)
-			buf[9] = byte(offset >> 8)
+			res.buffer = encodeDateTimeOffset(val, int(res.ti.Scale))
+			res.ti.Size = len(res.buffer)
 		} else {
 			res.ti.TypeId = typeDateTimeN
-			res.ti.Size = 8
-			res.buffer = make([]byte, 8)
-			ref := time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
-			dur := val.Sub(ref)
-			days := dur / (24 * time.Hour)
-			tm := (300 * (dur % (24 * time.Hour))) / time.Second
-			binary.LittleEndian.PutUint32(res.buffer[0:4], uint32(days))
-			binary.LittleEndian.PutUint32(res.buffer[4:8], uint32(tm))
+			res.buffer = encodeDateTime(val)
+			res.ti.Size = len(res.buffer)
 		}
 	default:
 		return s.makeParamExtra(val)

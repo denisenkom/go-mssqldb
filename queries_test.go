@@ -687,22 +687,43 @@ func TestDateTimeParam(t *testing.T) {
 	type testStruct struct {
 		t time.Time
 	}
+	var emptydate time.Time
+	mindate := time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
+	maxdate := time.Date(9999, 12, 31, 23, 59, 59, 999999900, time.UTC)
 	values := []testStruct{
-		{time.Date(2004, 6, 3, 12, 13, 14, 150000000, time.UTC)},
-		{time.Date(4, 6, 3, 12, 13, 14, 150000000, time.UTC)},
+		{time.Date(2015, time.October, 12, 10, 22, 0, 0, time.FixedZone("PST", -8*60*60))}, // back to the future day
+		{time.Date(1961, time.April, 12, 9, 7, 0, 0, time.FixedZone("MSK", 3*60*60))}, // First man in space
+		{time.Date(1969, time.July, 20, 20, 18, 0, 0, time.UTC)}, // First man on the Moon
+		{time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)},  // UNIX date
+		{time.Date(1982, 1, 3, 12, 13, 14, 300, time.FixedZone("YAKT", 9*60*60))}, // some random date
+		{time.Date(4, 6, 3, 12, 13, 14, 150000000, time.UTC)}, // some random date
+		{mindate}, // minimal value
+		{maxdate}, // maximum value
+		{time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)}, // just over limit
+		{emptydate},
 	}
 	for _, test := range values {
-		var t2 time.Time
-		err := conn.QueryRow("select ?", test.t).Scan(&t2)
-		if err != nil {
-			t.Error("select / scan failed", err.Error())
-			continue
-		}
-		if test.t.Sub(t2) != 0 {
-			t.Errorf("datetime does not match: '%s' '%s' delta: %d", test.t, t2, test.t.Sub(t2))
-		}
-	}
+		t.Run(fmt.Sprintf("Test for %v", test.t), func (t *testing.T) {
+			var t2 time.Time
+			err := conn.QueryRow("select ?", test.t).Scan(&t2)
+			if err != nil {
+				t.Error("select / scan failed", err.Error())
+				return
+			}
+			expected := test.t
+			// clip value
+			if test.t.Before(mindate) {
+				expected = mindate
+			}
+			if test.t.After(maxdate) {
+				expected = maxdate
+			}
 
+			if expected.Sub(t2) != 0 {
+				t.Errorf("expected: '%s', got: '%s' delta: %d", expected, t2, expected.Sub(t2))
+			}
+		})
+	}
 }
 
 func TestUniqueIdentifierParam(t *testing.T) {
