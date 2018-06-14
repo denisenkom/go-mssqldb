@@ -829,7 +829,7 @@ func TestStmt_SetQueryNotification(t *testing.T) {
 		rows.Close()
 	}
 	// notifications are sent to Service Broker
-	// see for more info: https://github.com/covrom/go-mssqldb/pull/90
+	// see for more info: https://github.com/denisenkom/go-mssqldb/pull/90
 }
 
 func TestErrorInfo(t *testing.T) {

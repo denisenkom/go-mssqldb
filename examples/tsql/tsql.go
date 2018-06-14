@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	_ "github.com/covrom/go-mssqldb"
+	_ "github.com/denisenkom/go-mssqldb"
 )
 
 func main() {

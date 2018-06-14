@@ -1,14 +1,14 @@
 # A pure Go MSSQL driver for Go's database/sql package
 
-[![GoDoc](https://godoc.org/github.com/covrom/go-mssqldb?status.svg)](http://godoc.org/github.com/covrom/go-mssqldb)
-[![Build status](https://ci.appveyor.com/api/projects/status/jrln8cs62wj9i0a2?svg=true)](https://ci.appveyor.com/project/covrom/go-mssqldb)
-[![codecov](https://codecov.io/gh/covrom/go-mssqldb/branch/master/graph/badge.svg)](https://codecov.io/gh/covrom/go-mssqldb)
+[![GoDoc](https://godoc.org/github.com/denisenkom/go-mssqldb?status.svg)](http://godoc.org/github.com/denisenkom/go-mssqldb)
+[![Build status](https://ci.appveyor.com/api/projects/status/jrln8cs62wj9i0a2?svg=true)](https://ci.appveyor.com/project/denisenkom/go-mssqldb)
+[![codecov](https://codecov.io/gh/denisenkom/go-mssqldb/branch/master/graph/badge.svg)](https://codecov.io/gh/denisenkom/go-mssqldb)
 
 ## Install
 
 Requires Go 1.8 or above.
 
-Install with `go get github.com/covrom/go-mssqldb` .
+Install with `go get github.com/denisenkom/go-mssqldb` .
 
 ## Connection Parameters and DSN
 
@@ -149,9 +149,9 @@ are supported:
 	or add a `select ID = convert(bigint, SCOPE_IDENTITY());` to the end of your
 	query (ref [SCOPE_IDENTITY](https://docs.microsoft.com/en-us/sql/t-sql/functions/scope-identity-transact-sql)).
 	This will ensure you are getting the correct ID and will prevent a network round trip.
- * [NewConnector](https://godoc.org/github.com/covrom/go-mssqldb#NewConnector)
+ * [NewConnector](https://godoc.org/github.com/denisenkom/go-mssqldb#NewConnector)
     may be used with [OpenDB](https://golang.org/pkg/database/sql/#OpenDB).
- * [Connector.SessionInitSQL](https://godoc.org/github.com/covrom/go-mssqldb#Connector.SessionInitSQL)
+ * [Connector.SessionInitSQL](https://godoc.org/github.com/denisenkom/go-mssqldb#Connector.SessionInitSQL)
 	may be set to set any driver specific session settings after the session
 	has been reset. If empty the session will still be reset but use the database
 	defaults in Go1.10+.
