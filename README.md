@@ -141,6 +141,22 @@ are supported:
  * "cloud.google.com/go/civil".DateTime -> datetime2
  * "cloud.google.com/go/civil".Time -> time
 
+Any non-std lib types must be registered with the database connector first:
+```
+import "github.com/denisenkom/go-mssqldb/typecivil"
+
+func main() {
+	connector, err := mssql.NewConnector("sqlserver://user:pass@hostname")
+	if err != nil {
+		return err
+	}
+	connector.RegisterExtendedType(typecivil.Civil) // Register civil date and time types.
+	pool := sql.OpenDB(connector)
+}
+```
+
+Better Decimal type support will come in the future.
+
 ## Important Notes
 
  * [LastInsertId](https://golang.org/pkg/database/sql/#Result.LastInsertId) should

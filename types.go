@@ -11,64 +11,9 @@ import (
 	"time"
 
 	"github.com/denisenkom/go-mssqldb/internal/cp"
+	"github.com/denisenkom/go-mssqldb/internal/mstype"
 )
 
-// fixed-length data types
-// http://msdn.microsoft.com/en-us/library/dd341171.aspx
-const (
-	typeNull     = 0x1f
-	typeInt1     = 0x30
-	typeBit      = 0x32
-	typeInt2     = 0x34
-	typeInt4     = 0x38
-	typeDateTim4 = 0x3a
-	typeFlt4     = 0x3b
-	typeMoney    = 0x3c
-	typeDateTime = 0x3d
-	typeFlt8     = 0x3e
-	typeMoney4   = 0x7a
-	typeInt8     = 0x7f
-)
-
-// variable-length data types
-// http://msdn.microsoft.com/en-us/library/dd358341.aspx
-const (
-	// byte len types
-	typeGuid            = 0x24
-	typeIntN            = 0x26
-	typeDecimal         = 0x37 // legacy
-	typeNumeric         = 0x3f // legacy
-	typeBitN            = 0x68
-	typeDecimalN        = 0x6a
-	typeNumericN        = 0x6c
-	typeFltN            = 0x6d
-	typeMoneyN          = 0x6e
-	typeDateTimeN       = 0x6f
-	typeDateN           = 0x28
-	typeTimeN           = 0x29
-	typeDateTime2N      = 0x2a
-	typeDateTimeOffsetN = 0x2b
-	typeChar            = 0x2f // legacy
-	typeVarChar         = 0x27 // legacy
-	typeBinary          = 0x2d // legacy
-	typeVarBinary       = 0x25 // legacy
-
-	// short length types
-	typeBigVarBin  = 0xa5
-	typeBigVarChar = 0xa7
-	typeBigBinary  = 0xad
-	typeBigChar    = 0xaf
-	typeNVarChar   = 0xe7
-	typeNChar      = 0xef
-	typeXml        = 0xf1
-	typeUdt        = 0xf0
-
-	// long length types
-	typeText    = 0x23
-	typeImage   = 0x22
-	typeNText   = 0x63
-	typeVariant = 0x62
-)
 const _PLP_NULL = 0xFFFFFFFFFFFFFFFF
 const _UNKNOWN_PLP_LEN = 0xFFFFFFFFFFFFFFFE
 const _PLP_TERMINATOR = 0x00000000
@@ -76,7 +21,7 @@ const _PLP_TERMINATOR = 0x00000000
 // TYPE_INFO rule
 // http://msdn.microsoft.com/en-us/library/dd358284.aspx
 type typeInfo struct {
-	TypeId    uint8
+	TypeID    mstype.ID
 	Size      int
 	Scale     uint8
 	Prec      uint8
@@ -108,21 +53,21 @@ type xmlInfo struct {
 }
 
 func readTypeInfo(r *tdsBuffer) (res typeInfo) {
-	res.TypeId = r.byte()
-	switch res.TypeId {
-	case typeNull, typeInt1, typeBit, typeInt2, typeInt4, typeDateTim4,
-		typeFlt4, typeMoney, typeDateTime, typeFlt8, typeMoney4, typeInt8:
+	res.TypeID = mstype.ID(r.byte())
+	switch res.TypeID {
+	case mstype.Null, mstype.Int1, mstype.Bit, mstype.Int2, mstype.Int4, mstype.DateTim4,
+		mstype.Flt4, mstype.Money, mstype.DateTime, mstype.Flt8, mstype.Money4, mstype.Int8:
 		// those are fixed length types
-		switch res.TypeId {
-		case typeNull:
+		switch res.TypeID {
+		case mstype.Null:
 			res.Size = 0
-		case typeInt1, typeBit:
+		case mstype.Int1, mstype.Bit:
 			res.Size = 1
-		case typeInt2:
+		case mstype.Int2:
 			res.Size = 2
-		case typeInt4, typeDateTim4, typeFlt4, typeMoney4:
+		case mstype.Int4, mstype.DateTim4, mstype.Flt4, mstype.Money4:
 			res.Size = 4
-		case typeMoney, typeDateTime, typeFlt8, typeInt8:
+		case mstype.Money, mstype.DateTime, mstype.Flt8, mstype.Int8:
 			res.Size = 8
 		}
 		res.Reader = readFixedType
@@ -134,13 +79,13 @@ func readTypeInfo(r *tdsBuffer) (res typeInfo) {
 }
 
 func writeTypeInfo(w io.Writer, ti *typeInfo) (err error) {
-	err = binary.Write(w, binary.LittleEndian, ti.TypeId)
+	err = binary.Write(w, binary.LittleEndian, ti.TypeID)
 	if err != nil {
 		return
 	}
-	switch ti.TypeId {
-	case typeNull, typeInt1, typeBit, typeInt2, typeInt4, typeDateTim4,
-		typeFlt4, typeMoney, typeDateTime, typeFlt8, typeMoney4, typeInt8:
+	switch ti.TypeID {
+	case mstype.Null, mstype.Int1, mstype.Bit, mstype.Int2, mstype.Int4, mstype.DateTim4,
+		mstype.Flt4, mstype.Money, mstype.DateTime, mstype.Flt8, mstype.Money4, mstype.Int8:
 		// those are fixed length
 		ti.Writer = writeFixedType
 	default: // all others are VARLENTYPE
@@ -158,18 +103,18 @@ func writeFixedType(w io.Writer, ti typeInfo, buf []byte) (err error) {
 }
 
 func writeVarLen(w io.Writer, ti *typeInfo) (err error) {
-	switch ti.TypeId {
-	case typeDateN:
+	switch ti.TypeID {
+	case mstype.DateN:
 		ti.Writer = writeByteLenType
-	case typeTimeN, typeDateTime2N, typeDateTimeOffsetN:
+	case mstype.TimeN, mstype.DateTime2N, mstype.DateTimeOffsetN:
 		if err = binary.Write(w, binary.LittleEndian, ti.Scale); err != nil {
 			return
 		}
 		ti.Writer = writeByteLenType
-	case typeIntN, typeDecimal, typeNumeric,
-		typeBitN, typeDecimalN, typeNumericN, typeFltN,
-		typeMoneyN, typeDateTimeN, typeChar,
-		typeVarChar, typeBinary, typeVarBinary:
+	case mstype.IntN, mstype.Decimal, mstype.Numeric,
+		mstype.BitN, mstype.DecimalN, mstype.NumericN, mstype.FltN,
+		mstype.MoneyN, mstype.DateTimeN, mstype.Char,
+		mstype.VarChar, mstype.Binary, mstype.VarBinary:
 
 		// byle len types
 		if ti.Size > 0xff {
@@ -178,8 +123,8 @@ func writeVarLen(w io.Writer, ti *typeInfo) (err error) {
 		if err = binary.Write(w, binary.LittleEndian, uint8(ti.Size)); err != nil {
 			return
 		}
-		switch ti.TypeId {
-		case typeDecimal, typeNumeric, typeDecimalN, typeNumericN:
+		switch ti.TypeID {
+		case mstype.Decimal, mstype.Numeric, mstype.DecimalN, mstype.NumericN:
 			err = binary.Write(w, binary.LittleEndian, ti.Prec)
 			if err != nil {
 				return
@@ -190,7 +135,7 @@ func writeVarLen(w io.Writer, ti *typeInfo) (err error) {
 			}
 		}
 		ti.Writer = writeByteLenType
-	case typeGuid:
+	case mstype.Guid:
 		if !(ti.Size == 0x10 || ti.Size == 0x00) {
 			panic("Invalid size for BYLELEN_TYPE")
 		}
@@ -198,8 +143,8 @@ func writeVarLen(w io.Writer, ti *typeInfo) (err error) {
 			return
 		}
 		ti.Writer = writeByteLenType
-	case typeBigVarBin, typeBigVarChar, typeBigBinary, typeBigChar,
-		typeNVarChar, typeNChar, typeXml, typeUdt:
+	case mstype.BigVarBin, mstype.BigVarChar, mstype.BigBinary, mstype.BigChar,
+		mstype.NVarChar, mstype.NChar, mstype.Xml, mstype.Udt:
 		// short len types
 		if ti.Size > 8000 || ti.Size == 0 {
 			if err = binary.Write(w, binary.LittleEndian, uint16(0xffff)); err != nil {
@@ -212,17 +157,17 @@ func writeVarLen(w io.Writer, ti *typeInfo) (err error) {
 			}
 			ti.Writer = writeShortLenType
 		}
-		switch ti.TypeId {
-		case typeBigVarChar, typeBigChar, typeNVarChar, typeNChar:
+		switch ti.TypeID {
+		case mstype.BigVarChar, mstype.BigChar, mstype.NVarChar, mstype.NChar:
 			if err = writeCollation(w, ti.Collation); err != nil {
 				return
 			}
-		case typeXml:
+		case mstype.Xml:
 			if err = binary.Write(w, binary.LittleEndian, ti.XmlInfo.SchemaPresent); err != nil {
 				return
 			}
 		}
-	case typeText, typeImage, typeNText, typeVariant:
+	case mstype.Text, mstype.Image, mstype.NText, mstype.Variant:
 		// LONGLEN_TYPE
 		if err = binary.Write(w, binary.LittleEndian, uint32(ti.Size)); err != nil {
 			return
@@ -299,30 +244,30 @@ func decodeDateTime(buf []byte) time.Time {
 func readFixedType(ti *typeInfo, r *tdsBuffer) interface{} {
 	r.ReadFull(ti.Buffer)
 	buf := ti.Buffer
-	switch ti.TypeId {
-	case typeNull:
+	switch ti.TypeID {
+	case mstype.Null:
 		return nil
-	case typeInt1:
+	case mstype.Int1:
 		return int64(buf[0])
-	case typeBit:
+	case mstype.Bit:
 		return buf[0] != 0
-	case typeInt2:
+	case mstype.Int2:
 		return int64(int16(binary.LittleEndian.Uint16(buf)))
-	case typeInt4:
+	case mstype.Int4:
 		return int64(int32(binary.LittleEndian.Uint32(buf)))
-	case typeDateTim4:
+	case mstype.DateTim4:
 		return decodeDateTim4(buf)
-	case typeFlt4:
+	case mstype.Flt4:
 		return math.Float32frombits(binary.LittleEndian.Uint32(buf))
-	case typeMoney4:
+	case mstype.Money4:
 		return decodeMoney4(buf)
-	case typeMoney:
+	case mstype.Money:
 		return decodeMoney(buf)
-	case typeDateTime:
+	case mstype.DateTime:
 		return decodeDateTime(buf)
-	case typeFlt8:
+	case mstype.Flt8:
 		return math.Float64frombits(binary.LittleEndian.Uint64(buf))
-	case typeInt8:
+	case mstype.Int8:
 		return int64(binary.LittleEndian.Uint64(buf))
 	default:
 		badStreamPanicf("Invalid typeid")
@@ -337,21 +282,21 @@ func readByteLenType(ti *typeInfo, r *tdsBuffer) interface{} {
 	}
 	r.ReadFull(ti.Buffer[:size])
 	buf := ti.Buffer[:size]
-	switch ti.TypeId {
-	case typeDateN:
+	switch ti.TypeID {
+	case mstype.DateN:
 		if len(buf) != 3 {
 			badStreamPanicf("Invalid size for DATENTYPE")
 		}
 		return decodeDate(buf)
-	case typeTimeN:
+	case mstype.TimeN:
 		return decodeTime(ti.Scale, buf)
-	case typeDateTime2N:
+	case mstype.DateTime2N:
 		return decodeDateTime2(ti.Scale, buf)
-	case typeDateTimeOffsetN:
+	case mstype.DateTimeOffsetN:
 		return decodeDateTimeOffset(ti.Scale, buf)
-	case typeGuid:
+	case mstype.Guid:
 		return decodeGuid(buf)
-	case typeIntN:
+	case mstype.IntN:
 		switch len(buf) {
 		case 1:
 			return int64(buf[0])
@@ -364,14 +309,14 @@ func readByteLenType(ti *typeInfo, r *tdsBuffer) interface{} {
 		default:
 			badStreamPanicf("Invalid size for INTNTYPE")
 		}
-	case typeDecimal, typeNumeric, typeDecimalN, typeNumericN:
+	case mstype.Decimal, mstype.Numeric, mstype.DecimalN, mstype.NumericN:
 		return decodeDecimal(ti.Prec, ti.Scale, buf)
-	case typeBitN:
+	case mstype.BitN:
 		if len(buf) != 1 {
 			badStreamPanicf("Invalid size for BITNTYPE")
 		}
 		return buf[0] != 0
-	case typeFltN:
+	case mstype.FltN:
 		switch len(buf) {
 		case 4:
 			return float64(math.Float32frombits(binary.LittleEndian.Uint32(buf)))
@@ -380,7 +325,7 @@ func readByteLenType(ti *typeInfo, r *tdsBuffer) interface{} {
 		default:
 			badStreamPanicf("Invalid size for FLTNTYPE")
 		}
-	case typeMoneyN:
+	case mstype.MoneyN:
 		switch len(buf) {
 		case 4:
 			return decodeMoney4(buf)
@@ -389,11 +334,11 @@ func readByteLenType(ti *typeInfo, r *tdsBuffer) interface{} {
 		default:
 			badStreamPanicf("Invalid size for MONEYNTYPE")
 		}
-	case typeDateTim4:
+	case mstype.DateTim4:
 		return decodeDateTim4(buf)
-	case typeDateTime:
+	case mstype.DateTime:
 		return decodeDateTime(buf)
-	case typeDateTimeN:
+	case mstype.DateTimeN:
 		switch len(buf) {
 		case 4:
 			return decodeDateTim4(buf)
@@ -402,9 +347,9 @@ func readByteLenType(ti *typeInfo, r *tdsBuffer) interface{} {
 		default:
 			badStreamPanicf("Invalid size for DATETIMENTYPE")
 		}
-	case typeChar, typeVarChar:
+	case mstype.Char, mstype.VarChar:
 		return decodeChar(ti.Collation, buf)
-	case typeBinary, typeVarBinary:
+	case mstype.Binary, mstype.VarBinary:
 		// a copy, because the backing array for ti.Buffer is reused
 		// and can be overwritten by the next row while this row waits
 		// in a buffered chan
@@ -436,19 +381,19 @@ func readShortLenType(ti *typeInfo, r *tdsBuffer) interface{} {
 	}
 	r.ReadFull(ti.Buffer[:size])
 	buf := ti.Buffer[:size]
-	switch ti.TypeId {
-	case typeBigVarChar, typeBigChar:
+	switch ti.TypeID {
+	case mstype.BigVarChar, mstype.BigChar:
 		return decodeChar(ti.Collation, buf)
-	case typeBigVarBin, typeBigBinary:
+	case mstype.BigVarBin, mstype.BigBinary:
 		// a copy, because the backing array for ti.Buffer is reused
 		// and can be overwritten by the next row while this row waits
 		// in a buffered chan
 		cpy := make([]byte, len(buf))
 		copy(cpy, buf)
 		return cpy
-	case typeNVarChar, typeNChar:
+	case mstype.NVarChar, mstype.NChar:
 		return decodeNChar(buf)
-	case typeUdt:
+	case mstype.Udt:
 		return decodeUdt(*ti, buf)
 	default:
 		badStreamPanicf("Invalid typeid")
@@ -491,12 +436,12 @@ func readLongLenType(ti *typeInfo, r *tdsBuffer) interface{} {
 	}
 	buf := make([]byte, size)
 	r.ReadFull(buf)
-	switch ti.TypeId {
-	case typeText:
+	switch ti.TypeID {
+	case mstype.Text:
 		return decodeChar(ti.Collation, buf)
-	case typeImage:
+	case mstype.Image:
 		return buf
-	case typeNText:
+	case mstype.NText:
 		return decodeNChar(buf)
 	default:
 		badStreamPanicf("Invalid typeid")
@@ -552,80 +497,80 @@ func readVariantType(ti *typeInfo, r *tdsBuffer) interface{} {
 	if size == 0 {
 		return nil
 	}
-	vartype := r.byte()
+	vartype := mstype.ID(r.byte())
 	propbytes := int32(r.byte())
 	switch vartype {
-	case typeGuid:
+	case mstype.Guid:
 		buf := make([]byte, size-2-propbytes)
 		r.ReadFull(buf)
 		return buf
-	case typeBit:
+	case mstype.Bit:
 		return r.byte() != 0
-	case typeInt1:
+	case mstype.Int1:
 		return int64(r.byte())
-	case typeInt2:
+	case mstype.Int2:
 		return int64(int16(r.uint16()))
-	case typeInt4:
+	case mstype.Int4:
 		return int64(r.int32())
-	case typeInt8:
+	case mstype.Int8:
 		return int64(r.uint64())
-	case typeDateTime:
+	case mstype.DateTime:
 		buf := make([]byte, size-2-propbytes)
 		r.ReadFull(buf)
 		return decodeDateTime(buf)
-	case typeDateTim4:
+	case mstype.DateTim4:
 		buf := make([]byte, size-2-propbytes)
 		r.ReadFull(buf)
 		return decodeDateTim4(buf)
-	case typeFlt4:
+	case mstype.Flt4:
 		return float64(math.Float32frombits(r.uint32()))
-	case typeFlt8:
+	case mstype.Flt8:
 		return math.Float64frombits(r.uint64())
-	case typeMoney4:
+	case mstype.Money4:
 		buf := make([]byte, size-2-propbytes)
 		r.ReadFull(buf)
 		return decodeMoney4(buf)
-	case typeMoney:
+	case mstype.Money:
 		buf := make([]byte, size-2-propbytes)
 		r.ReadFull(buf)
 		return decodeMoney(buf)
-	case typeDateN:
+	case mstype.DateN:
 		buf := make([]byte, size-2-propbytes)
 		r.ReadFull(buf)
 		return decodeDate(buf)
-	case typeTimeN:
+	case mstype.TimeN:
 		scale := r.byte()
 		buf := make([]byte, size-2-propbytes)
 		r.ReadFull(buf)
 		return decodeTime(scale, buf)
-	case typeDateTime2N:
+	case mstype.DateTime2N:
 		scale := r.byte()
 		buf := make([]byte, size-2-propbytes)
 		r.ReadFull(buf)
 		return decodeDateTime2(scale, buf)
-	case typeDateTimeOffsetN:
+	case mstype.DateTimeOffsetN:
 		scale := r.byte()
 		buf := make([]byte, size-2-propbytes)
 		r.ReadFull(buf)
 		return decodeDateTimeOffset(scale, buf)
-	case typeBigVarBin, typeBigBinary:
+	case mstype.BigVarBin, mstype.BigBinary:
 		r.uint16() // max length, ignoring
 		buf := make([]byte, size-2-propbytes)
 		r.ReadFull(buf)
 		return buf
-	case typeDecimalN, typeNumericN:
+	case mstype.DecimalN, mstype.NumericN:
 		prec := r.byte()
 		scale := r.byte()
 		buf := make([]byte, size-2-propbytes)
 		r.ReadFull(buf)
 		return decodeDecimal(prec, scale, buf)
-	case typeBigVarChar, typeBigChar:
+	case mstype.BigVarChar, mstype.BigChar:
 		col := readCollation(r)
 		r.uint16() // max length, ignoring
 		buf := make([]byte, size-2-propbytes)
 		r.ReadFull(buf)
 		return decodeChar(col, buf)
-	case typeNVarChar, typeNChar:
+	case mstype.NVarChar, mstype.NChar:
 		_ = readCollation(r)
 		r.uint16() // max length, ignoring
 		buf := make([]byte, size-2-propbytes)
@@ -661,16 +606,16 @@ func readPLPType(ti *typeInfo, r *tdsBuffer) interface{} {
 			badStreamPanicf("Reading PLP type failed: %s", err.Error())
 		}
 	}
-	switch ti.TypeId {
-	case typeXml:
+	switch ti.TypeID {
+	case mstype.Xml:
 		return decodeXml(*ti, buf.Bytes())
-	case typeBigVarChar, typeBigChar, typeText:
+	case mstype.BigVarChar, mstype.BigChar, mstype.Text:
 		return decodeChar(ti.Collation, buf.Bytes())
-	case typeBigVarBin, typeBigBinary, typeImage:
+	case mstype.BigVarBin, mstype.BigBinary, mstype.Image:
 		return buf.Bytes()
-	case typeNVarChar, typeNChar, typeNText:
+	case mstype.NVarChar, mstype.NChar, mstype.NText:
 		return decodeNChar(buf.Bytes())
-	case typeUdt:
+	case mstype.Udt:
 		return decodeUdt(*ti, buf.Bytes())
 	}
 	panic("shoulnd't get here")
@@ -697,12 +642,12 @@ func writePLPType(w io.Writer, ti typeInfo, buf []byte) (err error) {
 }
 
 func readVarLen(ti *typeInfo, r *tdsBuffer) {
-	switch ti.TypeId {
-	case typeDateN:
+	switch ti.TypeID {
+	case mstype.DateN:
 		ti.Size = 3
 		ti.Reader = readByteLenType
 		ti.Buffer = make([]byte, ti.Size)
-	case typeTimeN, typeDateTime2N, typeDateTimeOffsetN:
+	case mstype.TimeN, mstype.DateTime2N, mstype.DateTimeOffsetN:
 		ti.Scale = r.byte()
 		switch ti.Scale {
 		case 0, 1, 2:
@@ -714,28 +659,28 @@ func readVarLen(ti *typeInfo, r *tdsBuffer) {
 		default:
 			badStreamPanicf("Invalid scale for TIME/DATETIME2/DATETIMEOFFSET type")
 		}
-		switch ti.TypeId {
-		case typeDateTime2N:
+		switch ti.TypeID {
+		case mstype.DateTime2N:
 			ti.Size += 3
-		case typeDateTimeOffsetN:
+		case mstype.DateTimeOffsetN:
 			ti.Size += 5
 		}
 		ti.Reader = readByteLenType
 		ti.Buffer = make([]byte, ti.Size)
-	case typeGuid, typeIntN, typeDecimal, typeNumeric,
-		typeBitN, typeDecimalN, typeNumericN, typeFltN,
-		typeMoneyN, typeDateTimeN, typeChar,
-		typeVarChar, typeBinary, typeVarBinary:
+	case mstype.Guid, mstype.IntN, mstype.Decimal, mstype.Numeric,
+		mstype.BitN, mstype.DecimalN, mstype.NumericN, mstype.FltN,
+		mstype.MoneyN, mstype.DateTimeN, mstype.Char,
+		mstype.VarChar, mstype.Binary, mstype.VarBinary:
 		// byle len types
 		ti.Size = int(r.byte())
 		ti.Buffer = make([]byte, ti.Size)
-		switch ti.TypeId {
-		case typeDecimal, typeNumeric, typeDecimalN, typeNumericN:
+		switch ti.TypeID {
+		case mstype.Decimal, mstype.Numeric, mstype.DecimalN, mstype.NumericN:
 			ti.Prec = r.byte()
 			ti.Scale = r.byte()
 		}
 		ti.Reader = readByteLenType
-	case typeXml:
+	case mstype.Xml:
 		ti.XmlInfo.SchemaPresent = r.byte()
 		if ti.XmlInfo.SchemaPresent != 0 {
 			// dbname
@@ -746,7 +691,7 @@ func readVarLen(ti *typeInfo, r *tdsBuffer) {
 			ti.XmlInfo.XmlSchemaCollection = r.UsVarChar()
 		}
 		ti.Reader = readPLPType
-	case typeUdt:
+	case mstype.Udt:
 		ti.Size = int(r.uint16())
 		ti.UdtInfo.DBName = r.BVarChar()
 		ti.UdtInfo.SchemaName = r.BVarChar()
@@ -755,12 +700,12 @@ func readVarLen(ti *typeInfo, r *tdsBuffer) {
 
 		ti.Buffer = make([]byte, ti.Size)
 		ti.Reader = readPLPType
-	case typeBigVarBin, typeBigVarChar, typeBigBinary, typeBigChar,
-		typeNVarChar, typeNChar:
+	case mstype.BigVarBin, mstype.BigVarChar, mstype.BigBinary, mstype.BigChar,
+		mstype.NVarChar, mstype.NChar:
 		// short len types
 		ti.Size = int(r.uint16())
-		switch ti.TypeId {
-		case typeBigVarChar, typeBigChar, typeNVarChar, typeNChar:
+		switch ti.TypeID {
+		case mstype.BigVarChar, mstype.BigChar, mstype.NVarChar, mstype.NChar:
 			ti.Collation = readCollation(r)
 		}
 		if ti.Size == 0xffff {
@@ -769,11 +714,11 @@ func readVarLen(ti *typeInfo, r *tdsBuffer) {
 			ti.Buffer = make([]byte, ti.Size)
 			ti.Reader = readShortLenType
 		}
-	case typeText, typeImage, typeNText, typeVariant:
+	case mstype.Text, mstype.Image, mstype.NText, mstype.Variant:
 		// LONGLEN_TYPE
 		ti.Size = int(r.int32())
-		switch ti.TypeId {
-		case typeText, typeNText:
+		switch ti.TypeID {
+		case mstype.Text, mstype.NText:
 			ti.Collation = readCollation(r)
 			// ignore tablenames
 			numparts := int(r.byte())
@@ -781,18 +726,18 @@ func readVarLen(ti *typeInfo, r *tdsBuffer) {
 				r.UsVarChar()
 			}
 			ti.Reader = readLongLenType
-		case typeImage:
+		case mstype.Image:
 			// ignore tablenames
 			numparts := int(r.byte())
 			for i := 0; i < numparts; i++ {
 				r.UsVarChar()
 			}
 			ti.Reader = readLongLenType
-		case typeVariant:
+		case mstype.Variant:
 			ti.Reader = readVariantType
 		}
 	default:
-		badStreamPanicf("Invalid type %d", ti.TypeId)
+		badStreamPanicf("Invalid type %d", ti.TypeID)
 	}
 	return
 }
@@ -1004,18 +949,18 @@ func decodeUdt(ti typeInfo, buf []byte) []byte {
 // the value type that can be used to scan types into. For example, the database
 // column type "bigint" this should return "reflect.TypeOf(int64(0))".
 func makeGoLangScanType(ti typeInfo) reflect.Type {
-	switch ti.TypeId {
-	case typeInt1:
+	switch ti.TypeID {
+	case mstype.Int1:
 		return reflect.TypeOf(int64(0))
-	case typeInt2:
+	case mstype.Int2:
 		return reflect.TypeOf(int64(0))
-	case typeInt4:
+	case mstype.Int4:
 		return reflect.TypeOf(int64(0))
-	case typeInt8:
+	case mstype.Int8:
 		return reflect.TypeOf(int64(0))
-	case typeFlt4:
+	case mstype.Flt4:
 		return reflect.TypeOf(float64(0))
-	case typeIntN:
+	case mstype.IntN:
 		switch ti.Size {
 		case 1:
 			return reflect.TypeOf(int64(0))
@@ -1028,9 +973,9 @@ func makeGoLangScanType(ti typeInfo) reflect.Type {
 		default:
 			panic("invalid size of INTNTYPE")
 		}
-	case typeFlt8:
+	case mstype.Flt8:
 		return reflect.TypeOf(float64(0))
-	case typeFltN:
+	case mstype.FltN:
 		switch ti.Size {
 		case 4:
 			return reflect.TypeOf(float64(0))
@@ -1039,17 +984,17 @@ func makeGoLangScanType(ti typeInfo) reflect.Type {
 		default:
 			panic("invalid size of FLNNTYPE")
 		}
-	case typeBigVarBin:
+	case mstype.BigVarBin:
 		return reflect.TypeOf([]byte{})
-	case typeVarChar:
+	case mstype.VarChar:
 		return reflect.TypeOf("")
-	case typeNVarChar:
+	case mstype.NVarChar:
 		return reflect.TypeOf("")
-	case typeBit, typeBitN:
+	case mstype.Bit, mstype.BitN:
 		return reflect.TypeOf(true)
-	case typeDecimalN, typeNumericN:
+	case mstype.DecimalN, mstype.NumericN:
 		return reflect.TypeOf([]byte{})
-	case typeMoney, typeMoney4, typeMoneyN:
+	case mstype.Money, mstype.Money4, mstype.MoneyN:
 		switch ti.Size {
 		case 4:
 			return reflect.TypeOf([]byte{})
@@ -1058,11 +1003,11 @@ func makeGoLangScanType(ti typeInfo) reflect.Type {
 		default:
 			panic("invalid size of MONEYN")
 		}
-	case typeDateTim4:
+	case mstype.DateTim4:
 		return reflect.TypeOf(time.Time{})
-	case typeDateTime:
+	case mstype.DateTime:
 		return reflect.TypeOf(time.Time{})
-	case typeDateTimeN:
+	case mstype.DateTimeN:
 		switch ti.Size {
 		case 4:
 			return reflect.TypeOf(time.Time{})
@@ -1071,56 +1016,56 @@ func makeGoLangScanType(ti typeInfo) reflect.Type {
 		default:
 			panic("invalid size of DATETIMEN")
 		}
-	case typeDateTime2N:
+	case mstype.DateTime2N:
 		return reflect.TypeOf(time.Time{})
-	case typeDateN:
+	case mstype.DateN:
 		return reflect.TypeOf(time.Time{})
-	case typeTimeN:
+	case mstype.TimeN:
 		return reflect.TypeOf(time.Time{})
-	case typeDateTimeOffsetN:
+	case mstype.DateTimeOffsetN:
 		return reflect.TypeOf(time.Time{})
-	case typeBigVarChar:
+	case mstype.BigVarChar:
 		return reflect.TypeOf("")
-	case typeBigChar:
+	case mstype.BigChar:
 		return reflect.TypeOf("")
-	case typeNChar:
+	case mstype.NChar:
 		return reflect.TypeOf("")
-	case typeGuid:
+	case mstype.Guid:
 		return reflect.TypeOf([]byte{})
-	case typeXml:
+	case mstype.Xml:
 		return reflect.TypeOf("")
-	case typeText:
+	case mstype.Text:
 		return reflect.TypeOf("")
-	case typeNText:
+	case mstype.NText:
 		return reflect.TypeOf("")
-	case typeImage:
+	case mstype.Image:
 		return reflect.TypeOf([]byte{})
-	case typeBigBinary:
+	case mstype.BigBinary:
 		return reflect.TypeOf([]byte{})
-	case typeVariant:
+	case mstype.Variant:
 		return reflect.TypeOf(nil)
 	default:
-		panic(fmt.Sprintf("not implemented makeGoLangScanType for type %d", ti.TypeId))
+		panic(fmt.Sprintf("not implemented makeGoLangScanType for type %d", ti.TypeID))
 	}
 }
 
 func makeDecl(ti typeInfo) string {
-	switch ti.TypeId {
-	case typeNull:
+	switch ti.TypeID {
+	case mstype.Null:
 		// maybe we should use something else here
 		// this is tested in TestNull
 		return "nvarchar(1)"
-	case typeInt1:
+	case mstype.Int1:
 		return "tinyint"
-	case typeInt2:
+	case mstype.Int2:
 		return "smallint"
-	case typeInt4:
+	case mstype.Int4:
 		return "int"
-	case typeInt8:
+	case mstype.Int8:
 		return "bigint"
-	case typeFlt4:
+	case mstype.Flt4:
 		return "real"
-	case typeIntN:
+	case mstype.IntN:
 		switch ti.Size {
 		case 1:
 			return "tinyint"
@@ -1133,9 +1078,9 @@ func makeDecl(ti typeInfo) string {
 		default:
 			panic("invalid size of INTNTYPE")
 		}
-	case typeFlt8:
+	case mstype.Flt8:
 		return "float"
-	case typeFltN:
+	case mstype.FltN:
 		switch ti.Size {
 		case 4:
 			return "real"
@@ -1144,15 +1089,15 @@ func makeDecl(ti typeInfo) string {
 		default:
 			panic("invalid size of FLNNTYPE")
 		}
-	case typeDecimal, typeDecimalN:
+	case mstype.Decimal, mstype.DecimalN:
 		return fmt.Sprintf("decimal(%d, %d)", ti.Prec, ti.Scale)
-	case typeNumeric, typeNumericN:
+	case mstype.Numeric, mstype.NumericN:
 		return fmt.Sprintf("numeric(%d, %d)", ti.Prec, ti.Scale)
-	case typeMoney4:
+	case mstype.Money4:
 		return "smallmoney"
-	case typeMoney:
+	case mstype.Money:
 		return "money"
-	case typeMoneyN:
+	case mstype.MoneyN:
 		switch ti.Size {
 		case 4:
 			return "smallmoney"
@@ -1161,37 +1106,37 @@ func makeDecl(ti typeInfo) string {
 		default:
 			panic("invalid size of MONEYNTYPE")
 		}
-	case typeBigVarBin:
+	case mstype.BigVarBin:
 		if ti.Size > 8000 || ti.Size == 0 {
 			return "varbinary(max)"
 		} else {
 			return fmt.Sprintf("varbinary(%d)", ti.Size)
 		}
-	case typeNChar:
+	case mstype.NChar:
 		return fmt.Sprintf("nchar(%d)", ti.Size/2)
-	case typeBigChar, typeChar:
+	case mstype.BigChar, mstype.Char:
 		return fmt.Sprintf("char(%d)", ti.Size)
-	case typeBigVarChar, typeVarChar:
+	case mstype.BigVarChar, mstype.VarChar:
 		if ti.Size > 4000 || ti.Size == 0 {
 			return fmt.Sprintf("varchar(max)")
 		} else {
 			return fmt.Sprintf("varchar(%d)", ti.Size)
 		}
-	case typeNVarChar:
+	case mstype.NVarChar:
 		if ti.Size > 8000 || ti.Size == 0 {
 			return "nvarchar(max)"
 		} else {
 			return fmt.Sprintf("nvarchar(%d)", ti.Size/2)
 		}
-	case typeBit, typeBitN:
+	case mstype.Bit, mstype.BitN:
 		return "bit"
-	case typeDateN:
+	case mstype.DateN:
 		return "date"
-	case typeDateTim4:
+	case mstype.DateTim4:
 		return "smalldatetime"
-	case typeDateTime:
+	case mstype.DateTime:
 		return "datetime"
-	case typeDateTimeN:
+	case mstype.DateTimeN:
 		switch ti.Size {
 		case 4:
 			return "smalldatetime"
@@ -1200,22 +1145,22 @@ func makeDecl(ti typeInfo) string {
 		default:
 			panic("invalid size of DATETIMNTYPE")
 		}
-	case typeTimeN:
+	case mstype.TimeN:
 		return "time"
-	case typeDateTime2N:
+	case mstype.DateTime2N:
 		return fmt.Sprintf("datetime2(%d)", ti.Scale)
-	case typeDateTimeOffsetN:
+	case mstype.DateTimeOffsetN:
 		return fmt.Sprintf("datetimeoffset(%d)", ti.Scale)
-	case typeText:
+	case mstype.Text:
 		return "text"
-	case typeNText:
+	case mstype.NText:
 		return "ntext"
-	case typeUdt:
+	case mstype.Udt:
 		return ti.UdtInfo.TypeName
-	case typeGuid:
+	case mstype.Guid:
 		return "uniqueidentifier"
 	default:
-		panic(fmt.Sprintf("not implemented makeDecl for type %#x", ti.TypeId))
+		panic(fmt.Sprintf("not implemented makeDecl for type %#x", ti.TypeID))
 	}
 }
 
@@ -1226,18 +1171,18 @@ func makeDecl(ti typeInfo) string {
 // "DECIMAL", "SMALLINT", "INT", "BIGINT", "BOOL", "[]BIGINT", "JSONB", "XML",
 // "TIMESTAMP".
 func makeGoLangTypeName(ti typeInfo) string {
-	switch ti.TypeId {
-	case typeInt1:
+	switch ti.TypeID {
+	case mstype.Int1:
 		return "TINYINT"
-	case typeInt2:
+	case mstype.Int2:
 		return "SMALLINT"
-	case typeInt4:
+	case mstype.Int4:
 		return "INT"
-	case typeInt8:
+	case mstype.Int8:
 		return "BIGINT"
-	case typeFlt4:
+	case mstype.Flt4:
 		return "REAL"
-	case typeIntN:
+	case mstype.IntN:
 		switch ti.Size {
 		case 1:
 			return "TINYINT"
@@ -1250,9 +1195,9 @@ func makeGoLangTypeName(ti typeInfo) string {
 		default:
 			panic("invalid size of INTNTYPE")
 		}
-	case typeFlt8:
+	case mstype.Flt8:
 		return "FLOAT"
-	case typeFltN:
+	case mstype.FltN:
 		switch ti.Size {
 		case 4:
 			return "REAL"
@@ -1261,17 +1206,17 @@ func makeGoLangTypeName(ti typeInfo) string {
 		default:
 			panic("invalid size of FLNNTYPE")
 		}
-	case typeBigVarBin:
+	case mstype.BigVarBin:
 		return "VARBINARY"
-	case typeVarChar:
+	case mstype.VarChar:
 		return "VARCHAR"
-	case typeNVarChar:
+	case mstype.NVarChar:
 		return "NVARCHAR"
-	case typeBit, typeBitN:
+	case mstype.Bit, mstype.BitN:
 		return "BIT"
-	case typeDecimalN, typeNumericN:
+	case mstype.DecimalN, mstype.NumericN:
 		return "DECIMAL"
-	case typeMoney, typeMoney4, typeMoneyN:
+	case mstype.Money, mstype.Money4, mstype.MoneyN:
 		switch ti.Size {
 		case 4:
 			return "SMALLMONEY"
@@ -1280,11 +1225,11 @@ func makeGoLangTypeName(ti typeInfo) string {
 		default:
 			panic("invalid size of MONEYN")
 		}
-	case typeDateTim4:
+	case mstype.DateTim4:
 		return "SMALLDATETIME"
-	case typeDateTime:
+	case mstype.DateTime:
 		return "DATETIME"
-	case typeDateTimeN:
+	case mstype.DateTimeN:
 		switch ti.Size {
 		case 4:
 			return "SMALLDATETIME"
@@ -1293,36 +1238,36 @@ func makeGoLangTypeName(ti typeInfo) string {
 		default:
 			panic("invalid size of DATETIMEN")
 		}
-	case typeDateTime2N:
+	case mstype.DateTime2N:
 		return "DATETIME2"
-	case typeDateN:
+	case mstype.DateN:
 		return "DATE"
-	case typeTimeN:
+	case mstype.TimeN:
 		return "TIME"
-	case typeDateTimeOffsetN:
+	case mstype.DateTimeOffsetN:
 		return "DATETIMEOFFSET"
-	case typeBigVarChar:
+	case mstype.BigVarChar:
 		return "VARCHAR"
-	case typeBigChar:
+	case mstype.BigChar:
 		return "CHAR"
-	case typeNChar:
+	case mstype.NChar:
 		return "NCHAR"
-	case typeGuid:
+	case mstype.Guid:
 		return "UNIQUEIDENTIFIER"
-	case typeXml:
+	case mstype.Xml:
 		return "XML"
-	case typeText:
+	case mstype.Text:
 		return "TEXT"
-	case typeNText:
+	case mstype.NText:
 		return "NTEXT"
-	case typeImage:
+	case mstype.Image:
 		return "IMAGE"
-	case typeVariant:
+	case mstype.Variant:
 		return "SQL_VARIANT"
-	case typeBigBinary:
+	case mstype.BigBinary:
 		return "BINARY"
 	default:
-		panic(fmt.Sprintf("not implemented makeGoLangTypeName for type %d", ti.TypeId))
+		panic(fmt.Sprintf("not implemented makeGoLangTypeName for type %d", ti.TypeID))
 	}
 }
 
@@ -1339,18 +1284,18 @@ func makeGoLangTypeName(ti typeInfo) string {
 //   int           (0, false)
 //   bytea(30)     (30, true)
 func makeGoLangTypeLength(ti typeInfo) (int64, bool) {
-	switch ti.TypeId {
-	case typeInt1:
+	switch ti.TypeID {
+	case mstype.Int1:
 		return 0, false
-	case typeInt2:
+	case mstype.Int2:
 		return 0, false
-	case typeInt4:
+	case mstype.Int4:
 		return 0, false
-	case typeInt8:
+	case mstype.Int8:
 		return 0, false
-	case typeFlt4:
+	case mstype.Flt4:
 		return 0, false
-	case typeIntN:
+	case mstype.IntN:
 		switch ti.Size {
 		case 1:
 			return 0, false
@@ -1363,9 +1308,9 @@ func makeGoLangTypeLength(ti typeInfo) (int64, bool) {
 		default:
 			panic("invalid size of INTNTYPE")
 		}
-	case typeFlt8:
+	case mstype.Flt8:
 		return 0, false
-	case typeFltN:
+	case mstype.FltN:
 		switch ti.Size {
 		case 4:
 			return 0, false
@@ -1374,11 +1319,11 @@ func makeGoLangTypeLength(ti typeInfo) (int64, bool) {
 		default:
 			panic("invalid size of FLNNTYPE")
 		}
-	case typeBit, typeBitN:
+	case mstype.Bit, mstype.BitN:
 		return 0, false
-	case typeDecimalN, typeNumericN:
+	case mstype.DecimalN, mstype.NumericN:
 		return 0, false
-	case typeMoney, typeMoney4, typeMoneyN:
+	case mstype.Money, mstype.Money4, mstype.MoneyN:
 		switch ti.Size {
 		case 4:
 			return 0, false
@@ -1387,9 +1332,9 @@ func makeGoLangTypeLength(ti typeInfo) (int64, bool) {
 		default:
 			panic("invalid size of MONEYN")
 		}
-	case typeDateTim4, typeDateTime:
+	case mstype.DateTim4, mstype.DateTime:
 		return 0, false
-	case typeDateTimeN:
+	case mstype.DateTimeN:
 		switch ti.Size {
 		case 4:
 			return 0, false
@@ -1398,54 +1343,54 @@ func makeGoLangTypeLength(ti typeInfo) (int64, bool) {
 		default:
 			panic("invalid size of DATETIMEN")
 		}
-	case typeDateTime2N:
+	case mstype.DateTime2N:
 		return 0, false
-	case typeDateN:
+	case mstype.DateN:
 		return 0, false
-	case typeTimeN:
+	case mstype.TimeN:
 		return 0, false
-	case typeDateTimeOffsetN:
+	case mstype.DateTimeOffsetN:
 		return 0, false
-	case typeBigVarBin:
+	case mstype.BigVarBin:
 		if ti.Size == 0xffff {
 			return 2147483645, true
 		} else {
 			return int64(ti.Size), true
 		}
-	case typeVarChar:
+	case mstype.VarChar:
 		return int64(ti.Size), true
-	case typeBigVarChar:
+	case mstype.BigVarChar:
 		if ti.Size == 0xffff {
 			return 2147483645, true
 		} else {
 			return int64(ti.Size), true
 		}
-	case typeBigChar:
+	case mstype.BigChar:
 		return int64(ti.Size), true
-	case typeNVarChar:
+	case mstype.NVarChar:
 		if ti.Size == 0xffff {
 			return 2147483645 / 2, true
 		} else {
 			return int64(ti.Size) / 2, true
 		}
-	case typeNChar:
+	case mstype.NChar:
 		return int64(ti.Size) / 2, true
-	case typeGuid:
+	case mstype.Guid:
 		return 0, false
-	case typeXml:
+	case mstype.Xml:
 		return 1073741822, true
-	case typeText:
+	case mstype.Text:
 		return 2147483647, true
-	case typeNText:
+	case mstype.NText:
 		return 1073741823, true
-	case typeImage:
+	case mstype.Image:
 		return 2147483647, true
-	case typeVariant:
+	case mstype.Variant:
 		return 0, false
-	case typeBigBinary:
+	case mstype.BigBinary:
 		return 0, false
 	default:
-		panic(fmt.Sprintf("not implemented makeGoLangTypeLength for type %d", ti.TypeId))
+		panic(fmt.Sprintf("not implemented makeGoLangTypeLength for type %d", ti.TypeID))
 	}
 }
 
@@ -1462,18 +1407,18 @@ func makeGoLangTypeLength(ti typeInfo) (int64, bool) {
 //   int           (0, false)
 //   bytea(30)     (30, true)
 func makeGoLangTypePrecisionScale(ti typeInfo) (int64, int64, bool) {
-	switch ti.TypeId {
-	case typeInt1:
+	switch ti.TypeID {
+	case mstype.Int1:
 		return 0, 0, false
-	case typeInt2:
+	case mstype.Int2:
 		return 0, 0, false
-	case typeInt4:
+	case mstype.Int4:
 		return 0, 0, false
-	case typeInt8:
+	case mstype.Int8:
 		return 0, 0, false
-	case typeFlt4:
+	case mstype.Flt4:
 		return 0, 0, false
-	case typeIntN:
+	case mstype.IntN:
 		switch ti.Size {
 		case 1:
 			return 0, 0, false
@@ -1486,9 +1431,9 @@ func makeGoLangTypePrecisionScale(ti typeInfo) (int64, int64, bool) {
 		default:
 			panic("invalid size of INTNTYPE")
 		}
-	case typeFlt8:
+	case mstype.Flt8:
 		return 0, 0, false
-	case typeFltN:
+	case mstype.FltN:
 		switch ti.Size {
 		case 4:
 			return 0, 0, false
@@ -1497,11 +1442,11 @@ func makeGoLangTypePrecisionScale(ti typeInfo) (int64, int64, bool) {
 		default:
 			panic("invalid size of FLNNTYPE")
 		}
-	case typeBit, typeBitN:
+	case mstype.Bit, mstype.BitN:
 		return 0, 0, false
-	case typeDecimalN, typeNumericN:
+	case mstype.DecimalN, mstype.NumericN:
 		return int64(ti.Prec), int64(ti.Scale), true
-	case typeMoney, typeMoney4, typeMoneyN:
+	case mstype.Money, mstype.Money4, mstype.MoneyN:
 		switch ti.Size {
 		case 4:
 			return 0, 0, false
@@ -1510,9 +1455,9 @@ func makeGoLangTypePrecisionScale(ti typeInfo) (int64, int64, bool) {
 		default:
 			panic("invalid size of MONEYN")
 		}
-	case typeDateTim4, typeDateTime:
+	case mstype.DateTim4, mstype.DateTime:
 		return 0, 0, false
-	case typeDateTimeN:
+	case mstype.DateTimeN:
 		switch ti.Size {
 		case 4:
 			return 0, 0, false
@@ -1521,41 +1466,41 @@ func makeGoLangTypePrecisionScale(ti typeInfo) (int64, int64, bool) {
 		default:
 			panic("invalid size of DATETIMEN")
 		}
-	case typeDateTime2N:
+	case mstype.DateTime2N:
 		return 0, 0, false
-	case typeDateN:
+	case mstype.DateN:
 		return 0, 0, false
-	case typeTimeN:
+	case mstype.TimeN:
 		return 0, 0, false
-	case typeDateTimeOffsetN:
+	case mstype.DateTimeOffsetN:
 		return 0, 0, false
-	case typeBigVarBin:
+	case mstype.BigVarBin:
 		return 0, 0, false
-	case typeVarChar:
+	case mstype.VarChar:
 		return 0, 0, false
-	case typeBigVarChar:
+	case mstype.BigVarChar:
 		return 0, 0, false
-	case typeBigChar:
+	case mstype.BigChar:
 		return 0, 0, false
-	case typeNVarChar:
+	case mstype.NVarChar:
 		return 0, 0, false
-	case typeNChar:
+	case mstype.NChar:
 		return 0, 0, false
-	case typeGuid:
+	case mstype.Guid:
 		return 0, 0, false
-	case typeXml:
+	case mstype.Xml:
 		return 0, 0, false
-	case typeText:
+	case mstype.Text:
 		return 0, 0, false
-	case typeNText:
+	case mstype.NText:
 		return 0, 0, false
-	case typeImage:
+	case mstype.Image:
 		return 0, 0, false
-	case typeVariant:
+	case mstype.Variant:
 		return 0, 0, false
-	case typeBigBinary:
+	case mstype.BigBinary:
 		return 0, 0, false
 	default:
-		panic(fmt.Sprintf("not implemented makeGoLangTypePrecisionScale for type %d", ti.TypeId))
+		panic(fmt.Sprintf("not implemented makeGoLangTypePrecisionScale for type %d", ti.TypeID))
 	}
 }
