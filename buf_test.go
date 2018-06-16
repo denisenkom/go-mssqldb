@@ -3,6 +3,7 @@ package mssql
 import (
 	"bytes"
 	"testing"
+	"errors"
 )
 
 type closableBuffer struct {
@@ -10,6 +11,21 @@ type closableBuffer struct {
 }
 
 func (closableBuffer) Close() error {
+	return nil
+}
+
+type failBuffer struct {
+}
+
+func (failBuffer) Read([]byte) (int, error) {
+	return 0, errors.New("read failed")
+}
+
+func (failBuffer) Write([]byte) (int, error) {
+	return 0, errors.New("write failed")
+}
+
+func (failBuffer) Close() error {
 	return nil
 }
 
@@ -37,7 +53,11 @@ func TestInvalidLengthInHeaderTooLong(t *testing.T) {
 	if err == nil {
 		t.Fatal("BeginRead was expected to return error but it didn't")
 	} else {
-		t.Log("BeginRead failed as expected with error:", err.Error())
+		if err.Error() != "Invalid packet size, it is longer than buffer size" {
+			t.Fatal("BeginRead failed with incorrect error", err)
+		} else {
+			t.Log("BeginRead failed as expected with error:", err.Error())
+		}
 	}
 }
 
@@ -57,7 +77,7 @@ func TestInvalidLengthInHeaderLongerThanIncomingBuffer(t *testing.T) {
 	if err == nil {
 		t.Fatal("BeginRead was expected to return error but it didn't")
 	} else {
-		t.Log("BeginRead failed as expected with error:", err.Error())
+     	t.Log("BeginRead failed as expected with error:", err.Error())
 	}
 }
 
@@ -119,6 +139,23 @@ func TestReadByteFailsOnSecondPacket(t *testing.T) {
 	} else {
 		t.Log("ReadByte failed as expected with error:", err.Error())
 	}
+
+	t.Run("test byte() panic", func(t *testing.T) {
+		defer func() {
+			recover()
+		}()
+		buffer.byte()
+		t.Fatal("byte() should panic, but it didn't")
+	})
+
+	t.Run("test ReadFull() panic", func(t *testing.T) {
+		defer func() {
+			recover()
+		}()
+		buf := make([]byte, 10)
+		buffer.ReadFull(buf)
+		t.Fatal("ReadFull() should panic, but it didn't")
+	})
 }
 
 func TestReadFailsOnSecondPacket(t *testing.T) {
@@ -191,6 +228,34 @@ func TestWrite(t *testing.T) {
 	}
 	if bytes.Compare(memBuf.Bytes(), expectedBuf) != 0 {
 		t.Fatalf("Written buffer has invalid content:\n got: %v\nwant: %v", memBuf.Bytes(), expectedBuf)
+	}
+}
+
+func TestWriteErrors(t *testing.T) {
+	// write should fail if underlying transport fails
+	buf := newTdsBuffer(uint16(headerSize) + 1, failBuffer{})
+	buf.BeginPacket(1, false)
+	wrote, err := buf.Write([]byte{0, 0})
+	// may change from error to panic in future
+	if err == nil {
+		t.Fatal("Write should fail but it didn't")
+	}
+	if wrote != 1 {
+		t.Fatal("Should write 1 byte but it wrote ", wrote)
+	}
+
+	// writebyte should fail if underlying transport fails
+	buf = newTdsBuffer(uint16(headerSize) + 1, failBuffer{})
+	buf.BeginPacket(1, false)
+	// first write should not fail because if fits in the buffer
+	err = buf.WriteByte(0)
+	if err != nil {
+		t.Fatal("First WriteByte should not fail because it should fit in the buffer, but it failed", err)
+	}
+	err = buf.WriteByte(0)
+	// may change from error to panic in future
+	if err == nil {
+		t.Fatal("Second WriteByte should fail but it didn't")
 	}
 }
 
