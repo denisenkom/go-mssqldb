@@ -796,7 +796,6 @@ func (r *Result) LastInsertId() (int64, error) {
 	return lastInsertId, nil
 }
 
-
 var _ driver.Pinger = &Conn{}
 
 // Ping is used to check if the remote server is available and satisfies the Pinger interface.
@@ -876,4 +875,3 @@ func (s *Stmt) ExecContext(ctx context.Context, args []driver.NamedValue) (drive
 	}
 	return s.exec(ctx, list)
 }
-

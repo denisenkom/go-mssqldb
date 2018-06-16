@@ -2,8 +2,8 @@ package mssql
 
 import (
 	"bytes"
-	"testing"
 	"errors"
+	"testing"
 )
 
 type closableBuffer struct {
@@ -77,7 +77,7 @@ func TestInvalidLengthInHeaderLongerThanIncomingBuffer(t *testing.T) {
 	if err == nil {
 		t.Fatal("BeginRead was expected to return error but it didn't")
 	} else {
-     	t.Log("BeginRead failed as expected with error:", err.Error())
+		t.Log("BeginRead failed as expected with error:", err.Error())
 	}
 }
 
@@ -233,7 +233,7 @@ func TestWrite(t *testing.T) {
 
 func TestWriteErrors(t *testing.T) {
 	// write should fail if underlying transport fails
-	buf := newTdsBuffer(uint16(headerSize) + 1, failBuffer{})
+	buf := newTdsBuffer(uint16(headerSize)+1, failBuffer{})
 	buf.BeginPacket(1, false)
 	wrote, err := buf.Write([]byte{0, 0})
 	// may change from error to panic in future
@@ -245,7 +245,7 @@ func TestWriteErrors(t *testing.T) {
 	}
 
 	// writebyte should fail if underlying transport fails
-	buf = newTdsBuffer(uint16(headerSize) + 1, failBuffer{})
+	buf = newTdsBuffer(uint16(headerSize)+1, failBuffer{})
 	buf.BeginPacket(1, false)
 	// first write should not fail because if fits in the buffer
 	err = buf.WriteByte(0)
@@ -265,7 +265,7 @@ func TestWrite_BufferBounds(t *testing.T) {
 
 	buf.BeginPacket(1, false)
 	// write bytes enough to complete a package
-	_, err := buf.Write([]byte{1,1,1})
+	_, err := buf.Write([]byte{1, 1, 1})
 	if err != nil {
 		t.Fatal("Write failed:", err.Error())
 	}
@@ -273,7 +273,7 @@ func TestWrite_BufferBounds(t *testing.T) {
 	if err != nil {
 		t.Fatal("WriteByte failed:", err.Error())
 	}
-	_,err = buf.Write([]byte{1,1,1})
+	_, err = buf.Write([]byte{1, 1, 1})
 	if err != nil {
 		t.Fatal("Write failed:", err.Error())
 	}

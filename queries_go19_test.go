@@ -6,9 +6,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
-	"regexp"
 )
 
 func TestOutputParam(t *testing.T) {
@@ -558,12 +558,12 @@ func TestDateTimeParam19(t *testing.T) {
 		DateTime1(mindate1),
 		DateTime1(maxdate1),
 		DateTime1(time.Date(1752, 12, 31, 23, 59, 59, 997000000, time.UTC)), // just a little below minimum date
-		DateTime1(time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)), // just a little over maximum date
+		DateTime1(time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)),             // just a little over maximum date
 		DateTime1(emptydate),
 	}
 
 	for _, test := range testdates1 {
-		t.Run(fmt.Sprintf("Test datetime for %v", test), func (t *testing.T) {
+		t.Run(fmt.Sprintf("Test datetime for %v", test), func(t *testing.T) {
 			var res time.Time
 			expected := time.Time(test)
 			queryParamRoundTrip(conn, test, &res)
