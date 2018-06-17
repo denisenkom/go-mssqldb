@@ -6,14 +6,14 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
+	"log"
 	"math"
 	"net"
+	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
-	"log"
-	"sync"
-	"reflect"
 )
 
 func driverWithProcess(t *testing.T) *Driver {
@@ -138,7 +138,7 @@ func TestSelect(t *testing.T) {
 	}
 
 	for _, test := range values {
-		t.Run(test.sql, func (t *testing.T){
+		t.Run(test.sql, func(t *testing.T) {
 			stmt, err := conn.Prepare("select " + test.sql)
 			if err != nil {
 				t.Error("Prepare failed:", test.sql, err.Error())
@@ -385,7 +385,7 @@ func TestParams(t *testing.T) {
 	defer conn.Close()
 
 	for _, val := range values {
-		t.Run(fmt.Sprintf("%T:%#v", val, val), func(t *testing.T){
+		t.Run(fmt.Sprintf("%T:%#v", val, val), func(t *testing.T) {
 			row := conn.QueryRow("select ?", val)
 			var retval interface{}
 			err := row.Scan(&retval)
@@ -718,7 +718,6 @@ func queryParamRoundTrip(db *sql.DB, param interface{}, dest interface{}) {
 	}
 }
 
-
 func TestDateTimeParam(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
@@ -730,18 +729,18 @@ func TestDateTimeParam(t *testing.T) {
 	maxdate := time.Date(9999, 12, 31, 23, 59, 59, 999999900, time.UTC)
 	values := []testStruct{
 		{time.Date(2015, time.October, 12, 10, 22, 0, 0, time.FixedZone("PST", -8*60*60))}, // back to the future day
-		{time.Date(1961, time.April, 12, 9, 7, 0, 0, time.FixedZone("MSK", 3*60*60))}, // First man in space
-		{time.Date(1969, time.July, 20, 20, 18, 0, 0, time.UTC)}, // First man on the Moon
-		{time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)},  // UNIX date
-		{time.Date(1982, 1, 3, 12, 13, 14, 300, time.FixedZone("YAKT", 9*60*60))}, // some random date
-		{time.Date(4, 6, 3, 12, 13, 14, 150000000, time.UTC)}, // some random date
+		{time.Date(1961, time.April, 12, 9, 7, 0, 0, time.FixedZone("MSK", 3*60*60))},      // First man in space
+		{time.Date(1969, time.July, 20, 20, 18, 0, 0, time.UTC)},                           // First man on the Moon
+		{time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)},                                      // UNIX date
+		{time.Date(1982, 1, 3, 12, 13, 14, 300, time.FixedZone("YAKT", 9*60*60))},          // some random date
+		{time.Date(4, 6, 3, 12, 13, 14, 150000000, time.UTC)},                              // some random date
 		{mindate}, // minimal value
 		{maxdate}, // maximum value
 		{time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)}, // just over limit
 		{emptydate},
 	}
 	for _, test := range values {
-		t.Run(fmt.Sprintf("Test for %v", test.t), func (t *testing.T) {
+		t.Run(fmt.Sprintf("Test for %v", test.t), func(t *testing.T) {
 			var t2 time.Time
 			queryParamRoundTrip(conn, test.t, &t2)
 			expected := test.t
@@ -1291,7 +1290,6 @@ func TestLongConnection(t *testing.T) {
 		})
 	}
 }
-
 
 func TestNextResultSet(t *testing.T) {
 	conn := open(t)
