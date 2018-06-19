@@ -54,6 +54,12 @@ func (c *Conn) CheckNamedValue(nv *driver.NamedValue) error {
 
 		pointed_value := reflect.Indirect(dest_info)
 
+		// don't allow pointer to a pointer, only pointer to a value can be handled
+		// correctly
+		if pointed_value.Kind() == reflect.Ptr {
+			return errors.New("destination is a pointer to a pointer")
+		}
+
 		// Unwrap the Out value and check the inner value.
 		lnv := *nv
 		lnv.Value = pointed_value.Interface()

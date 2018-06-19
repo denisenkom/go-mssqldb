@@ -191,6 +191,21 @@ END;
 			t.Errorf("Error  '%v', does not match pattern '%v'.", actual, pattern)
 		}
 	})
+
+	t.Run("pointer to a pointer", func(t *testing.T) {
+		var str_out *string
+		_, actual := db.ExecContext(ctx, sqltextrun,
+			sql.Named("cstr", sql.Out{Dest: &str_out}),
+		)
+		pattern := ".*destination is a pointer to a pointer.*"
+		match, err := regexp.MatchString(pattern, actual.Error())
+		if err != nil {
+			t.Error(err)
+		}
+		if !match {
+			t.Errorf("Error  '%v', does not match pattern '%v'.", actual, pattern)
+		}
+	})
 }
 
 func TestOutputINOUTParam(t *testing.T) {
