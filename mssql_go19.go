@@ -52,6 +52,10 @@ func (c *Conn) CheckNamedValue(nv *driver.NamedValue) error {
 			return errors.New("destination not a pointer")
 		}
 
+		if dest_info.IsNil() {
+			return errors.New("destination is a nil pointer")
+		}
+
 		pointed_value := reflect.Indirect(dest_info)
 
 		// don't allow pointer to a pointer, only pointer to a value can be handled
