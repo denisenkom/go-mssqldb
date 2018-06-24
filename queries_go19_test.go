@@ -376,7 +376,7 @@ END;
 			t.Error("expected non null value, but got null")
 		}
 		if nullfloat.Float64 != 1.5 {
-			t.Errorf("expected 1.5, got %d", nullfloat.Float64)
+			t.Errorf("expected 1.5, got %v", nullfloat.Float64)
 		}
 		if !nullstr.Valid {
 			t.Error("expected non null value, but got null")
