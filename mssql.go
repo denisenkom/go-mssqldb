@@ -729,17 +729,34 @@ func (s *Stmt) makeParam(val driver.Value) (res param, err error) {
 		res.buffer = make([]byte, 8)
 		res.ti.Size = 8
 		binary.LittleEndian.PutUint64(res.buffer, uint64(val))
+	case sql.NullInt64:
+		// only null values should be getting here
+		res.ti.TypeId = typeIntN
+		res.ti.Size = 8
+		res.buffer = []byte{}
+
 	case float64:
 		res.ti.TypeId = typeFltN
 		res.ti.Size = 8
 		res.buffer = make([]byte, 8)
 		binary.LittleEndian.PutUint64(res.buffer, math.Float64bits(val))
+	case sql.NullFloat64:
+		// only null values should be getting here
+		res.ti.TypeId = typeFltN
+		res.ti.Size = 8
+		res.buffer = []byte{}
+
 	case []byte:
 		res.ti.TypeId = typeBigVarBin
 		res.ti.Size = len(val)
 		res.buffer = val
 	case string:
 		res = makeStrParam(val)
+	case sql.NullString:
+		// only null values should be getting here
+		res.ti.TypeId = typeNVarChar
+		res.buffer = nil
+		res.ti.Size = 8000
 	case bool:
 		res.ti.TypeId = typeBitN
 		res.ti.Size = 1
@@ -747,6 +764,12 @@ func (s *Stmt) makeParam(val driver.Value) (res param, err error) {
 		if val {
 			res.buffer[0] = 1
 		}
+	case sql.NullBool:
+		// only null values should be getting here
+		res.ti.TypeId = typeBitN
+		res.ti.Size = 1
+		res.buffer = []byte{}
+
 	case time.Time:
 		if s.c.sess.loginAck.TDSVersion >= verTDS73 {
 			res.ti.TypeId = typeDateTimeOffsetN

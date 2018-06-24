@@ -3,6 +3,7 @@
 package mssql
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
@@ -226,10 +227,15 @@ END;
 func TestOutputINOUTParam(t *testing.T) {
 	sqltextcreate := `
 CREATE PROCEDURE abinout
-   @aid INT,
-   @bid INT OUTPUT,
-   @cstr NVARCHAR(2000) OUTPUT,
-   @vout VARCHAR(2000) OUTPUT
+   @aid INT = 1,
+   @bid INT = 2 OUTPUT,
+   @cstr NVARCHAR(2000) = NULL OUTPUT,
+   @vout VARCHAR(2000) = NULL OUTPUT,
+   @nullint INT = NULL OUTPUT,
+   @nullfloat FLOAT = NULL OUTPUT,
+   @nullstr NVARCHAR(10) = NULL OUTPUT,
+   @nullbit BIT = NULL OUTPUT,
+   @varbin VARBINARY(10) = NULL OUTPUT
 AS
 BEGIN
    SELECT
@@ -259,30 +265,168 @@ END;
 	if err != nil {
 		t.Fatal(err)
 	}
-	var bout int64 = 3
-	var cout string
-	var vout VarChar
-	_, err = db.ExecContext(ctx, sqltextrun,
-		sql.Named("aid", 5),
-		sql.Named("bid", sql.Out{Dest: &bout}),
-		sql.Named("cstr", sql.Out{Dest: &cout}),
-		sql.Named("vout", sql.Out{Dest: &vout}),
-	)
 	defer db.ExecContext(ctx, sqltextdrop)
-	if err != nil {
-		t.Error(err)
-	}
 
-	if bout != 8 {
-		t.Errorf("expected 8, got %d", bout)
-	}
+	t.Run("original test", func(t *testing.T) {
+		var bout int64 = 3
+		var cout string
+		var vout VarChar
+		_, err = db.ExecContext(ctx, sqltextrun,
+			sql.Named("aid", 5),
+			sql.Named("bid", sql.Out{Dest: &bout}),
+			sql.Named("cstr", sql.Out{Dest: &cout}),
+			sql.Named("vout", sql.Out{Dest: &vout}),
+		)
+		if err != nil {
+			t.Error(err)
+		}
 
-	if cout != "OK" {
-		t.Errorf("expected OK, got %s", cout)
-	}
-	if string(vout) != "DREAM" {
-		t.Errorf("expected DREAM, got %s", vout)
-	}
+		if bout != 8 {
+			t.Errorf("expected 8, got %d", bout)
+		}
+
+		if cout != "OK" {
+			t.Errorf("expected OK, got %s", cout)
+		}
+		if string(vout) != "DREAM" {
+			t.Errorf("expected DREAM, got %s", vout)
+		}
+	})
+
+	t.Run("test null values returned into nullable", func(t *testing.T) {
+		var nullint sql.NullInt64
+		var nullfloat sql.NullFloat64
+		var nullstr sql.NullString
+		var nullbit sql.NullBool
+		_, err = db.ExecContext(ctx, sqltextrun,
+			sql.Named("nullint", sql.Out{Dest: &nullint}),
+			sql.Named("nullfloat", sql.Out{Dest: &nullfloat}),
+			sql.Named("nullstr", sql.Out{Dest: &nullstr}),
+			sql.Named("nullbit", sql.Out{Dest: &nullbit}),
+		)
+		if err != nil {
+			t.Error(err)
+		}
+
+		if nullint.Valid {
+			t.Errorf("expected NULL, got %v", nullint)
+		}
+		if nullfloat.Valid {
+			t.Errorf("expected NULL, got %v", nullfloat)
+		}
+		if nullstr.Valid {
+			t.Errorf("expected NULL, got %v", nullstr)
+		}
+		if nullbit.Valid {
+			t.Errorf("expected NULL, got %v", nullbit)
+		}
+	})
+
+	// Not yet supported
+	//t.Run("test null values returned into pointers", func(t *testing.T) {
+	//	var nullint *int64
+	//	var nullfloat *float64
+	//	var nullstr *string
+	//	var nullbit *bool
+	//	_, err = db.ExecContext(ctx, sqltextrun,
+	//		sql.Named("nullint", sql.Out{Dest: &nullint}),
+	//		sql.Named("nullfloat", sql.Out{Dest: &nullfloat}),
+	//		sql.Named("nullstr", sql.Out{Dest: &nullstr}),
+	//		sql.Named("nullbit", sql.Out{Dest: &nullbit}),
+	//	)
+	//	if err != nil {
+	//		t.Error(err)
+	//	}
+
+	//	if nullint != nil {
+	//		t.Errorf("expected NULL, got %v", nullint)
+	//	}
+	//	if nullfloat != nil {
+	//		t.Errorf("expected NULL, got %v", nullfloat)
+	//	}
+	//	if nullstr != nil {
+	//		t.Errorf("expected NULL, got %v", nullstr)
+	//	}
+	//	if nullbit != nil {
+	//		t.Errorf("expected NULL, got %v", nullbit)
+	//	}
+	//})
+
+	t.Run("test non null values into nullable", func(t *testing.T) {
+		nullint := sql.NullInt64{10, true}
+		nullfloat := sql.NullFloat64{1.5, true}
+		nullstr := sql.NullString{"hello", true}
+		nullbit := sql.NullBool{true, true}
+		_, err = db.ExecContext(ctx, sqltextrun,
+			sql.Named("nullint", sql.Out{Dest: &nullint}),
+			sql.Named("nullfloat", sql.Out{Dest: &nullfloat}),
+			sql.Named("nullstr", sql.Out{Dest: &nullstr}),
+			sql.Named("nullbit", sql.Out{Dest: &nullbit}),
+		)
+		if err != nil {
+			t.Error(err)
+		}
+		if !nullint.Valid {
+			t.Error("expected non null value, but got null")
+		}
+		if nullint.Int64 != 10 {
+			t.Errorf("expected 10, got %d", nullint.Int64)
+		}
+		if !nullfloat.Valid {
+			t.Error("expected non null value, but got null")
+		}
+		if nullfloat.Float64 != 1.5 {
+			t.Errorf("expected 1.5, got %d", nullfloat.Float64)
+		}
+		if !nullstr.Valid {
+			t.Error("expected non null value, but got null")
+		}
+		if nullstr.String != "hello" {
+			t.Errorf("expected hello, got %s", nullstr.String)
+		}
+	})
+	t.Run("test return into byte[]", func(t *testing.T) {
+		cstr := []byte{1, 2, 3}
+		_, err = db.ExecContext(ctx, sqltextrun,
+			sql.Named("varbin", sql.Out{Dest: &cstr}),
+		)
+		if err != nil {
+			t.Error(err)
+		}
+		expected := []byte{1, 2, 3}
+		if bytes.Compare(cstr, expected) != 0 {
+			t.Errorf("expected [1,2,3], got %v", cstr)
+		}
+	})
+	t.Run("test int into string", func(t *testing.T) {
+		var str string
+		_, err = db.ExecContext(ctx, sqltextrun,
+			sql.Named("bid", sql.Out{Dest: &str}),
+		)
+		if err != nil {
+			t.Error(err)
+		}
+		if str != "1" {
+			t.Errorf("expected '1', got %v", str)
+		}
+	})
+	t.Run("typeless null for output parameter should return error", func(t *testing.T) {
+		var val interface{}
+		_, actual := db.ExecContext(ctx, sqltextrun,
+			sql.Named("bid", sql.Out{Dest: &val}),
+		)
+		if actual == nil {
+			t.Error("Expected to fail but didn't")
+		}
+		pattern := ".*MSSQL does not allow NULL value without type for OUTPUT parameters.*"
+		match, err := regexp.MatchString(pattern, actual.Error())
+		if err != nil {
+			t.Error(err)
+		}
+		if !match {
+			t.Errorf("Error  '%v', does not match pattern '%v'.", actual, pattern)
+		}
+	})
 }
 
 // TestTLSServerReadClose tests writing to an encrypted database connection.

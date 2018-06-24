@@ -133,6 +133,7 @@ func readTypeInfo(r *tdsBuffer) (res typeInfo) {
 	return
 }
 
+// https://msdn.microsoft.com/en-us/library/dd358284.aspx
 func writeTypeInfo(w io.Writer, ti *typeInfo) (err error) {
 	err = binary.Write(w, binary.LittleEndian, ti.TypeId)
 	if err != nil {
@@ -142,6 +143,7 @@ func writeTypeInfo(w io.Writer, ti *typeInfo) (err error) {
 	case typeNull, typeInt1, typeBit, typeInt2, typeInt4, typeDateTim4,
 		typeFlt4, typeMoney, typeDateTime, typeFlt8, typeMoney4, typeInt8:
 		// those are fixed length
+		// https://msdn.microsoft.com/en-us/library/dd341171.aspx
 		ti.Writer = writeFixedType
 	default: // all others are VARLENTYPE
 		err = writeVarLen(w, ti)
@@ -157,6 +159,7 @@ func writeFixedType(w io.Writer, ti typeInfo, buf []byte) (err error) {
 	return
 }
 
+// https://msdn.microsoft.com/en-us/library/dd358341.aspx
 func writeVarLen(w io.Writer, ti *typeInfo) (err error) {
 	switch ti.TypeId {
 	case typeDateN:
@@ -362,7 +365,7 @@ func readByteLenType(ti *typeInfo, r *tdsBuffer) interface{} {
 		case 8:
 			return int64(binary.LittleEndian.Uint64(buf))
 		default:
-			badStreamPanicf("Invalid size for INTNTYPE")
+			badStreamPanicf("Invalid size for INTNTYPE: %d", len(buf))
 		}
 	case typeDecimal, typeNumeric, typeDecimalN, typeNumericN:
 		return decodeDecimal(ti.Prec, ti.Scale, buf)
@@ -421,7 +424,7 @@ func writeByteLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
 	if ti.Size > 0xff {
 		panic("Invalid size for BYTELEN_TYPE")
 	}
-	err = binary.Write(w, binary.LittleEndian, uint8(ti.Size))
+	err = binary.Write(w, binary.LittleEndian, uint8(len(buf)))
 	if err != nil {
 		return
 	}

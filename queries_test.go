@@ -33,144 +33,172 @@ func TestSelect(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
 
-	type testStruct struct {
-		sql string
-		val interface{}
-	}
+	t.Run("scan into interface{}", func(t *testing.T) {
+		type testStruct struct {
+			sql string
+			val interface{}
+		}
 
-	longstr := strings.Repeat("x", 10000)
+		longstr := strings.Repeat("x", 10000)
 
-	values := []testStruct{
-		{"1", int64(1)},
-		{"-1", int64(-1)},
-		{"cast(1 as int)", int64(1)},
-		{"cast(-1 as int)", int64(-1)},
-		{"cast(1 as tinyint)", int64(1)},
-		{"cast(255 as tinyint)", int64(255)},
-		{"cast(1 as smallint)", int64(1)},
-		{"cast(-1 as smallint)", int64(-1)},
-		{"cast(1 as bigint)", int64(1)},
-		{"cast(-1 as bigint)", int64(-1)},
-		{"cast(1 as bit)", true},
-		{"cast(0 as bit)", false},
-		{"'abc'", string("abc")},
-		{"cast(0.5 as float)", float64(0.5)},
-		{"cast(0.5 as real)", float64(0.5)},
-		{"cast(1 as decimal)", []byte("1")},
-		{"cast(1.2345 as money)", []byte("1.2345")},
-		{"cast(-1.2345 as money)", []byte("-1.2345")},
-		{"cast(1.2345 as smallmoney)", []byte("1.2345")},
-		{"cast(-1.2345 as smallmoney)", []byte("-1.2345")},
-		{"cast(0.5 as decimal(18,1))", []byte("0.5")},
-		{"cast(-0.5 as decimal(18,1))", []byte("-0.5")},
-		{"cast(-0.5 as numeric(18,1))", []byte("-0.5")},
-		{"cast(4294967296 as numeric(20,0))", []byte("4294967296")},
-		{"cast(-0.5 as numeric(18,2))", []byte("-0.50")},
-		{"N'abc'", string("abc")},
-		{"cast(null as nvarchar(3))", nil},
-		{"NULL", nil},
-		{"cast('1753-01-01' as datetime)", time.Date(1753, 1, 1, 0, 0, 0, 0, time.UTC)},
-		{"cast('2000-01-01' as datetime)", time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
-		{"cast('2000-01-01T12:13:14.12' as datetime)",
-			time.Date(2000, 1, 1, 12, 13, 14, 120000000, time.UTC)},
-		{"cast('2014-06-26 11:08:09.673' as datetime)", time.Date(2014, 06, 26, 11, 8, 9, 673000000, time.UTC)},
-		{"cast('9999-12-31T23:59:59.997' as datetime)", time.Date(9999, 12, 31, 23, 59, 59, 997000000, time.UTC)},
-		{"cast(NULL as datetime)", nil},
-		{"cast('1900-01-01T00:00:00' as smalldatetime)",
-			time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)},
-		{"cast('2000-01-01T12:13:00' as smalldatetime)",
-			time.Date(2000, 1, 1, 12, 13, 0, 0, time.UTC)},
-		{"cast('2079-06-06T23:59:00' as smalldatetime)",
-			time.Date(2079, 6, 6, 23, 59, 0, 0, time.UTC)},
-		{"cast(NULL as smalldatetime)", nil},
-		{"cast(0x6F9619FF8B86D011B42D00C04FC964FF as uniqueidentifier)",
-			[]byte{0x6F, 0x96, 0x19, 0xFF, 0x8B, 0x86, 0xD0, 0x11, 0xB4, 0x2D, 0x00, 0xC0, 0x4F, 0xC9, 0x64, 0xFF}},
-		{"cast(NULL as uniqueidentifier)", nil},
-		{"cast(0x1234 as varbinary(2))", []byte{0x12, 0x34}},
-		{"cast(N'abc' as nvarchar(max))", "abc"},
-		{"cast(null as nvarchar(max))", nil},
-		{"cast('<root/>' as xml)", "<root/>"},
-		{"cast('abc' as text)", "abc"},
-		{"cast(null as text)", nil},
-		{"cast(N'abc' as ntext)", "abc"},
-		{"cast(0x1234 as image)", []byte{0x12, 0x34}},
-		{"cast('abc' as char(3))", "abc"},
-		{"cast('abc' as varchar(3))", "abc"},
-		{"cast(N'проверка' as nvarchar(max))", "проверка"},
-		{"cast(N'Δοκιμή' as nvarchar(max))", "Δοκιμή"},
-		{"cast(cast(N'สวัสดี' as nvarchar(max)) collate Thai_CI_AI as varchar(max))", "สวัสดี"},                // cp874
-		{"cast(cast(N'你好' as nvarchar(max)) collate Chinese_PRC_CI_AI as varchar(max))", "你好"},                 // cp936
-		{"cast(cast(N'こんにちは' as nvarchar(max)) collate Japanese_CI_AI as varchar(max))", "こんにちは"},              // cp939
-		{"cast(cast(N'안녕하세요.' as nvarchar(max)) collate Korean_90_CI_AI as varchar(max))", "안녕하세요."},           // cp949
-		{"cast(cast(N'你好' as nvarchar(max)) collate Chinese_Hong_Kong_Stroke_90_CI_AI as varchar(max))", "你好"}, // cp950
-		{"cast(cast(N'cześć' as nvarchar(max)) collate Polish_CI_AI as varchar(max))", "cześć"},                // cp1250
-		{"cast(cast(N'Алло' as nvarchar(max)) collate Cyrillic_General_CI_AI as varchar(max))", "Алло"},        // cp1251
-		{"cast(cast(N'Bonjour' as nvarchar(max)) collate French_CI_AI as varchar(max))", "Bonjour"},            // cp1252
-		{"cast(cast(N'Γεια σας' as nvarchar(max)) collate Greek_CI_AI as varchar(max))", "Γεια σας"},           // cp1253
-		{"cast(cast(N'Merhaba' as nvarchar(max)) collate Turkish_CI_AI as varchar(max))", "Merhaba"},           // cp1254
-		{"cast(cast(N'שלום' as nvarchar(max)) collate Hebrew_CI_AI as varchar(max))", "שלום"},                  // cp1255
-		{"cast(cast(N'مرحبا' as nvarchar(max)) collate Arabic_CI_AI as varchar(max))", "مرحبا"},                // cp1256
-		{"cast(cast(N'Sveiki' as nvarchar(max)) collate Lithuanian_CI_AI as varchar(max))", "Sveiki"},          // cp1257
-		{"cast(cast(N'chào' as nvarchar(max)) collate Vietnamese_CI_AI as varchar(max))", "chào"},              // cp1258
-		{fmt.Sprintf("cast(N'%s' as nvarchar(max))", longstr), longstr},
-		{"cast(NULL as sql_variant)", nil},
-		{"cast(cast(0x6F9619FF8B86D011B42D00C04FC964FF as uniqueidentifier) as sql_variant)",
-			[]byte{0x6F, 0x96, 0x19, 0xFF, 0x8B, 0x86, 0xD0, 0x11, 0xB4, 0x2D, 0x00, 0xC0, 0x4F, 0xC9, 0x64, 0xFF}},
-		{"cast(cast(1 as bit) as sql_variant)", true},
-		{"cast(cast(10 as tinyint) as sql_variant)", int64(10)},
-		{"cast(cast(-10 as smallint) as sql_variant)", int64(-10)},
-		{"cast(cast(-20 as int) as sql_variant)", int64(-20)},
-		{"cast(cast(-20 as bigint) as sql_variant)", int64(-20)},
-		{"cast(cast('2000-01-01' as datetime) as sql_variant)", time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
-		{"cast(cast('2000-01-01T12:13:00' as smalldatetime) as sql_variant)",
-			time.Date(2000, 1, 1, 12, 13, 0, 0, time.UTC)},
-		{"cast(cast(0.125 as real) as sql_variant)", float64(0.125)},
-		{"cast(cast(0.125 as float) as sql_variant)", float64(0.125)},
-		{"cast(cast(1.2345 as smallmoney) as sql_variant)", []byte("1.2345")},
-		{"cast(cast(1.2345 as money) as sql_variant)", []byte("1.2345")},
-		{"cast(cast(0x1234 as varbinary(2)) as sql_variant)", []byte{0x12, 0x34}},
-		{"cast(cast(0x1234 as binary(2)) as sql_variant)", []byte{0x12, 0x34}},
-		{"cast(cast(-0.5 as decimal(18,1)) as sql_variant)", []byte("-0.5")},
-		{"cast(cast(-0.5 as numeric(18,1)) as sql_variant)", []byte("-0.5")},
-		{"cast(cast('abc' as varchar(3)) as sql_variant)", "abc"},
-		{"cast(cast('abc' as char(3)) as sql_variant)", "abc"},
-		{"cast(N'abc' as sql_variant)", "abc"},
-	}
+		values := []testStruct{
+			{"1", int64(1)},
+			{"-1", int64(-1)},
+			{"cast(1 as int)", int64(1)},
+			{"cast(-1 as int)", int64(-1)},
+			{"cast(1 as tinyint)", int64(1)},
+			{"cast(255 as tinyint)", int64(255)},
+			{"cast(1 as smallint)", int64(1)},
+			{"cast(-1 as smallint)", int64(-1)},
+			{"cast(1 as bigint)", int64(1)},
+			{"cast(-1 as bigint)", int64(-1)},
+			{"cast(1 as bit)", true},
+			{"cast(0 as bit)", false},
+			{"'abc'", string("abc")},
+			{"cast(0.5 as float)", float64(0.5)},
+			{"cast(0.5 as real)", float64(0.5)},
+			{"cast(1 as decimal)", []byte("1")},
+			{"cast(1.2345 as money)", []byte("1.2345")},
+			{"cast(-1.2345 as money)", []byte("-1.2345")},
+			{"cast(1.2345 as smallmoney)", []byte("1.2345")},
+			{"cast(-1.2345 as smallmoney)", []byte("-1.2345")},
+			{"cast(0.5 as decimal(18,1))", []byte("0.5")},
+			{"cast(-0.5 as decimal(18,1))", []byte("-0.5")},
+			{"cast(-0.5 as numeric(18,1))", []byte("-0.5")},
+			{"cast(4294967296 as numeric(20,0))", []byte("4294967296")},
+			{"cast(-0.5 as numeric(18,2))", []byte("-0.50")},
+			{"N'abc'", string("abc")},
+			{"cast(null as nvarchar(3))", nil},
+			{"NULL", nil},
+			{"cast('1753-01-01' as datetime)", time.Date(1753, 1, 1, 0, 0, 0, 0, time.UTC)},
+			{"cast('2000-01-01' as datetime)", time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
+			{"cast('2000-01-01T12:13:14.12' as datetime)",
+				time.Date(2000, 1, 1, 12, 13, 14, 120000000, time.UTC)},
+			{"cast('2014-06-26 11:08:09.673' as datetime)", time.Date(2014, 06, 26, 11, 8, 9, 673000000, time.UTC)},
+			{"cast('9999-12-31T23:59:59.997' as datetime)", time.Date(9999, 12, 31, 23, 59, 59, 997000000, time.UTC)},
+			{"cast(NULL as datetime)", nil},
+			{"cast('1900-01-01T00:00:00' as smalldatetime)",
+				time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)},
+			{"cast('2000-01-01T12:13:00' as smalldatetime)",
+				time.Date(2000, 1, 1, 12, 13, 0, 0, time.UTC)},
+			{"cast('2079-06-06T23:59:00' as smalldatetime)",
+				time.Date(2079, 6, 6, 23, 59, 0, 0, time.UTC)},
+			{"cast(NULL as smalldatetime)", nil},
+			{"cast(0x6F9619FF8B86D011B42D00C04FC964FF as uniqueidentifier)",
+				[]byte{0x6F, 0x96, 0x19, 0xFF, 0x8B, 0x86, 0xD0, 0x11, 0xB4, 0x2D, 0x00, 0xC0, 0x4F, 0xC9, 0x64, 0xFF}},
+			{"cast(NULL as uniqueidentifier)", nil},
+			{"cast(0x1234 as varbinary(2))", []byte{0x12, 0x34}},
+			{"cast(N'abc' as nvarchar(max))", "abc"},
+			{"cast(null as nvarchar(max))", nil},
+			{"cast('<root/>' as xml)", "<root/>"},
+			{"cast('abc' as text)", "abc"},
+			{"cast(null as text)", nil},
+			{"cast(N'abc' as ntext)", "abc"},
+			{"cast(0x1234 as image)", []byte{0x12, 0x34}},
+			{"cast('abc' as char(3))", "abc"},
+			{"cast('abc' as varchar(3))", "abc"},
+			{"cast(N'проверка' as nvarchar(max))", "проверка"},
+			{"cast(N'Δοκιμή' as nvarchar(max))", "Δοκιμή"},
+			{"cast(cast(N'สวัสดี' as nvarchar(max)) collate Thai_CI_AI as varchar(max))", "สวัสดี"},                // cp874
+			{"cast(cast(N'你好' as nvarchar(max)) collate Chinese_PRC_CI_AI as varchar(max))", "你好"},                 // cp936
+			{"cast(cast(N'こんにちは' as nvarchar(max)) collate Japanese_CI_AI as varchar(max))", "こんにちは"},              // cp939
+			{"cast(cast(N'안녕하세요.' as nvarchar(max)) collate Korean_90_CI_AI as varchar(max))", "안녕하세요."},           // cp949
+			{"cast(cast(N'你好' as nvarchar(max)) collate Chinese_Hong_Kong_Stroke_90_CI_AI as varchar(max))", "你好"}, // cp950
+			{"cast(cast(N'cześć' as nvarchar(max)) collate Polish_CI_AI as varchar(max))", "cześć"},                // cp1250
+			{"cast(cast(N'Алло' as nvarchar(max)) collate Cyrillic_General_CI_AI as varchar(max))", "Алло"},        // cp1251
+			{"cast(cast(N'Bonjour' as nvarchar(max)) collate French_CI_AI as varchar(max))", "Bonjour"},            // cp1252
+			{"cast(cast(N'Γεια σας' as nvarchar(max)) collate Greek_CI_AI as varchar(max))", "Γεια σας"},           // cp1253
+			{"cast(cast(N'Merhaba' as nvarchar(max)) collate Turkish_CI_AI as varchar(max))", "Merhaba"},           // cp1254
+			{"cast(cast(N'שלום' as nvarchar(max)) collate Hebrew_CI_AI as varchar(max))", "שלום"},                  // cp1255
+			{"cast(cast(N'مرحبا' as nvarchar(max)) collate Arabic_CI_AI as varchar(max))", "مرحبا"},                // cp1256
+			{"cast(cast(N'Sveiki' as nvarchar(max)) collate Lithuanian_CI_AI as varchar(max))", "Sveiki"},          // cp1257
+			{"cast(cast(N'chào' as nvarchar(max)) collate Vietnamese_CI_AI as varchar(max))", "chào"},              // cp1258
+			{fmt.Sprintf("cast(N'%s' as nvarchar(max))", longstr), longstr},
+			{"cast(NULL as sql_variant)", nil},
+			{"cast(cast(0x6F9619FF8B86D011B42D00C04FC964FF as uniqueidentifier) as sql_variant)",
+				[]byte{0x6F, 0x96, 0x19, 0xFF, 0x8B, 0x86, 0xD0, 0x11, 0xB4, 0x2D, 0x00, 0xC0, 0x4F, 0xC9, 0x64, 0xFF}},
+			{"cast(cast(1 as bit) as sql_variant)", true},
+			{"cast(cast(10 as tinyint) as sql_variant)", int64(10)},
+			{"cast(cast(-10 as smallint) as sql_variant)", int64(-10)},
+			{"cast(cast(-20 as int) as sql_variant)", int64(-20)},
+			{"cast(cast(-20 as bigint) as sql_variant)", int64(-20)},
+			{"cast(cast('2000-01-01' as datetime) as sql_variant)", time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
+			{"cast(cast('2000-01-01T12:13:00' as smalldatetime) as sql_variant)",
+				time.Date(2000, 1, 1, 12, 13, 0, 0, time.UTC)},
+			{"cast(cast(0.125 as real) as sql_variant)", float64(0.125)},
+			{"cast(cast(0.125 as float) as sql_variant)", float64(0.125)},
+			{"cast(cast(1.2345 as smallmoney) as sql_variant)", []byte("1.2345")},
+			{"cast(cast(1.2345 as money) as sql_variant)", []byte("1.2345")},
+			{"cast(cast(0x1234 as varbinary(2)) as sql_variant)", []byte{0x12, 0x34}},
+			{"cast(cast(0x1234 as binary(2)) as sql_variant)", []byte{0x12, 0x34}},
+			{"cast(cast(-0.5 as decimal(18,1)) as sql_variant)", []byte("-0.5")},
+			{"cast(cast(-0.5 as numeric(18,1)) as sql_variant)", []byte("-0.5")},
+			{"cast(cast('abc' as varchar(3)) as sql_variant)", "abc"},
+			{"cast(cast('abc' as char(3)) as sql_variant)", "abc"},
+			{"cast(N'abc' as sql_variant)", "abc"},
+		}
 
-	for _, test := range values {
-		t.Run(test.sql, func(t *testing.T) {
-			stmt, err := conn.Prepare("select " + test.sql)
-			if err != nil {
-				t.Error("Prepare failed:", test.sql, err.Error())
-				return
-			}
-			defer stmt.Close()
-
-			row := stmt.QueryRow()
-			var retval interface{}
-			err = row.Scan(&retval)
-			if err != nil {
-				t.Error("Scan failed:", test.sql, err.Error())
-				return
-			}
-			var same bool
-			switch decodedval := retval.(type) {
-			case []byte:
-				switch decodedvaltest := test.val.(type) {
-				case []byte:
-					same = bytes.Equal(decodedval, decodedvaltest)
-				default:
-					same = false
+		for _, test := range values {
+			t.Run(test.sql, func(t *testing.T) {
+				stmt, err := conn.Prepare("select " + test.sql)
+				if err != nil {
+					t.Error("Prepare failed:", test.sql, err.Error())
+					return
 				}
-			default:
-				same = retval == test.val
-			}
-			if !same {
-				t.Errorf("Values don't match '%s' '%s' for test: %s", retval, test.val, test.sql)
+				defer stmt.Close()
+
+				row := stmt.QueryRow()
+				var retval interface{}
+				err = row.Scan(&retval)
+				if err != nil {
+					t.Error("Scan failed:", test.sql, err.Error())
+					return
+				}
+				var same bool
+				switch decodedval := retval.(type) {
+				case []byte:
+					switch decodedvaltest := test.val.(type) {
+					case []byte:
+						same = bytes.Equal(decodedval, decodedvaltest)
+					default:
+						same = false
+					}
+				default:
+					same = retval == test.val
+				}
+				if !same {
+					t.Errorf("Values don't match '%s' '%s' for test: %s", retval, test.val, test.sql)
+					return
+				}
+			})
+		}
+	})
+	t.Run("scan into *int64", func(t *testing.T) {
+		t.Run("from integer", func(t *testing.T) {
+			row := conn.QueryRow("select 11")
+			var retval *int64
+			err := row.Scan(&retval)
+			if err != nil {
+				t.Error("Scan failed", err.Error())
 				return
+			}
+			if *retval != 11 {
+				t.Errorf("Expected 11, got %v", retval)
 			}
 		})
-	}
+		t.Run("from null", func(t *testing.T) {
+			row := conn.QueryRow("select null")
+			var retval *int64
+			err := row.Scan(&retval)
+			if err != nil {
+				t.Error("Scan failed", err.Error())
+				return
+			}
+			if retval != nil {
+				t.Errorf("Expected nil, got %v", retval)
+			}
+		})
+	})
 }
 
 func TestSelectDateTimeOffset(t *testing.T) {
@@ -318,45 +346,131 @@ func TestNull(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
 
-	types := []string{
-		"tinyint",
-		"smallint",
-		"int",
-		"bigint",
-		"real",
-		"float",
-		"smallmoney",
-		"money",
-		"decimal",
-		//"varbinary(15)",
-		//"binary(15)",
-		"nvarchar(15)",
-		"nchar(15)",
-		"varchar(15)",
-		"char(15)",
-		"bit",
-		"smalldatetime",
-		"date",
-		"time",
-		"datetime",
-		"datetime2",
-		"datetimeoffset",
-		"uniqueidentifier",
-		"sql_variant",
-	}
-	for _, typ := range types {
-		row := conn.QueryRow("declare @x "+typ+" = ?; select @x", nil)
-		var retval interface{}
-		err := row.Scan(&retval)
-		if err != nil {
-			t.Error("Scan failed for type "+typ, err.Error())
-			return
+	t.Run("scan into interface{}", func(t *testing.T) {
+		types := []string{
+			"tinyint",
+			"smallint",
+			"int",
+			"bigint",
+			"real",
+			"float",
+			"smallmoney",
+			"money",
+			"decimal",
+			//"varbinary(15)",
+			//"binary(15)",
+			"nvarchar(15)",
+			"nchar(15)",
+			"varchar(15)",
+			"char(15)",
+			"bit",
+			"smalldatetime",
+			"date",
+			"time",
+			"datetime",
+			"datetime2",
+			"datetimeoffset",
+			"uniqueidentifier",
+			"sql_variant",
 		}
-		if retval != nil {
-			t.Error("Value should be nil, but it is ", retval)
-			return
+		for _, typ := range types {
+			row := conn.QueryRow("declare @x "+typ+" = ?; select @x", nil)
+			var retval interface{}
+			err := row.Scan(&retval)
+			if err != nil {
+				t.Error("Scan failed for type "+typ, err.Error())
+				return
+			}
+			if retval != nil {
+				t.Error("Value should be nil, but it is ", retval)
+				return
+			}
 		}
-	}
+	})
+
+	t.Run("scan into NullInt64", func(t *testing.T) {
+		types := []string{
+			"tinyint",
+			"smallint",
+			"int",
+			"bigint",
+			"real",
+			"float",
+			"smallmoney",
+			"money",
+			"decimal",
+			//"varbinary(15)",
+			//"binary(15)",
+			"nvarchar(15)",
+			"nchar(15)",
+			"varchar(15)",
+			"char(15)",
+			"bit",
+			"smalldatetime",
+			"date",
+			"time",
+			"datetime",
+			"datetime2",
+			"datetimeoffset",
+			"uniqueidentifier",
+			"sql_variant",
+		}
+		for _, typ := range types {
+			row := conn.QueryRow("declare @x "+typ+" = ?; select @x", nil)
+			var retval sql.NullInt64
+			err := row.Scan(&retval)
+			if err != nil {
+				t.Error("Scan failed for type "+typ, err.Error())
+				return
+			}
+			if retval.Valid {
+				t.Error("Value should be nil, but it is ", retval)
+				return
+			}
+		}
+	})
+
+	t.Run("scan into *int", func(t *testing.T) {
+		types := []string{
+			"tinyint",
+			"smallint",
+			"int",
+			"bigint",
+			"real",
+			"float",
+			"smallmoney",
+			"money",
+			"decimal",
+			//"varbinary(15)",
+			//"binary(15)",
+			"nvarchar(15)",
+			"nchar(15)",
+			"varchar(15)",
+			"char(15)",
+			"bit",
+			"smalldatetime",
+			"date",
+			"time",
+			"datetime",
+			"datetime2",
+			"datetimeoffset",
+			"uniqueidentifier",
+			"sql_variant",
+		}
+		for _, typ := range types {
+			row := conn.QueryRow("declare @x "+typ+" = ?; select @x", nil)
+			var retval *int
+			err := row.Scan(&retval)
+			if err != nil {
+				t.Error("Scan failed for type "+typ, err.Error())
+				return
+			}
+			if retval != nil {
+				t.Error("Value should be nil, but it is ", retval)
+				return
+			}
+		}
+	})
 }
 
 func TestParams(t *testing.T) {
@@ -650,7 +764,7 @@ func TestAffectedRows(t *testing.T) {
 
 	res, err = tx.Exec("insert into #foo (bar) values (?)", 2)
 	if err != nil {
-		t.Fatal("insert failed")
+		t.Fatal("insert failed", err)
 	}
 	n, err = res.RowsAffected()
 	if err != nil {
