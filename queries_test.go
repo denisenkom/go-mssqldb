@@ -374,17 +374,19 @@ func TestNull(t *testing.T) {
 			"sql_variant",
 		}
 		for _, typ := range types {
-			row := conn.QueryRow("declare @x "+typ+" = ?; select @x", nil)
-			var retval interface{}
-			err := row.Scan(&retval)
-			if err != nil {
-				t.Error("Scan failed for type "+typ, err.Error())
-				return
-			}
-			if retval != nil {
-				t.Error("Value should be nil, but it is ", retval)
-				return
-			}
+			t.Run(typ, func(t *testing.T) {
+				row := conn.QueryRow("declare @x "+typ+" = ?; select @x", nil)
+				var retval interface{}
+				err := row.Scan(&retval)
+				if err != nil {
+					t.Error("Scan failed for type "+typ, err.Error())
+					return
+				}
+				if retval != nil {
+					t.Error("Value should be nil, but it is ", retval)
+					return
+				}
+			})
 		}
 	})
 
