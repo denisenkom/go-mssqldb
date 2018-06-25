@@ -117,6 +117,30 @@ _, err := db.ExecContext(ctx, "sp_RunMe",
 )
 ```
 
+When running a stored procedure which returns rows, do not use variables assigned as OUTPUT parameters until all rows have been read.
+This is necessary because SQL Server only sends OUTPUT parameters after all rows have been returned.
+
+```go
+var updated time.Time
+rows, err := db.QueryContext(ctx, "sp_RunMeQuery",
+	sql.Named("ID", 123),
+	sql.Named("Updated", sql.Out{Dest: (*mssql.DateTime1)(&updated)}),
+)
+if err != nil {
+  return err
+}
+defer rows.Close()
+for rows.Next() {
+  // Iteratively read all the rows, calling rows.Scan() as appropriate.
+}
+if err = rows.Err(); err != nil {
+  return err
+}
+// It is now safe to use the variable assigned as the OUTPUT parameter
+log.Println("Updated at:", updated)
+
+```
+
 ## Statement Parameters
 
 The `sqlserver` driver uses normal MS SQL Server syntax and expects parameters in
