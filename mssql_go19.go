@@ -29,6 +29,8 @@ var _ driver.NamedValueChecker = &Conn{}
 // VarChar parameter types.
 type VarChar string
 
+type NVarCharMax string
+
 // DateTime1 encodes parameters to original DateTime SQL types.
 type DateTime1 time.Time
 
@@ -38,6 +40,8 @@ type DateTimeOffset time.Time
 func convertInputParameter(val interface{}) (interface{}, error) {
 	switch v := val.(type) {
 	case VarChar:
+		return val, nil
+	case NVarCharMax:
 		return val, nil
 	case DateTime1:
 		return val, nil
@@ -114,6 +118,10 @@ func (s *Stmt) makeParamExtra(val driver.Value) (res param, err error) {
 		res.ti.TypeId = typeBigVarChar
 		res.buffer = []byte(val)
 		res.ti.Size = len(res.buffer)
+	case NVarCharMax:
+		res.ti.TypeId = typeNVarChar
+		res.buffer = str2ucs2(string(val))
+		res.ti.Size = 0  // currently zero forces nvarchar(max)
 	case DateTime1:
 		t := time.Time(val)
 		res.ti.TypeId = typeDateTimeN
