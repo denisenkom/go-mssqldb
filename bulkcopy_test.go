@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"math"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -70,6 +71,10 @@ func TestBulkcopy(t *testing.T) {
 		{"test_decimal_9_2", 1234.560001},
 		{"test_decimal_20_0", 1234.0001},
 		{"test_numeric_30_10", 1234567.1234567},
+		{"test_decimal_9_2", -1234.560001},
+		{"test_decimal_20_0", 1234.0001},
+		{"test_decimal_20_0_2", math.MinInt64},
+		{"test_numeric_30_10", "66666666666666666666.6666666666"},
 		{"test_varbinary", []byte("1")},
 		{"test_varbinary_16", bin},
 		{"test_varbinary_max", bin},
@@ -157,7 +162,11 @@ func TestBulkcopy(t *testing.T) {
 		}
 		for i, c := range testValues {
 			if !compareValue(container[i], c.val) {
-				t.Errorf("columns %s : expected: %v, got: %v\n", c.colname, c.val, container[i])
+				v := container[i]
+				if s, ok := v.([]uint8); ok {
+					v = string(s)
+				}
+				t.Errorf("columns %s : expected: %T %v, got: %T %v\n", c.colname, c.val, c.val, container[i], v)
 			}
 		}
 	}
@@ -169,11 +178,18 @@ func TestBulkcopy(t *testing.T) {
 func compareValue(a interface{}, expected interface{}) bool {
 	switch expected := expected.(type) {
 	case int:
+		if got, ok := a.([]uint8); ok {
+			v, err := strconv.ParseInt(string(got), 10, 64)
+			if err != nil {
+				return false
+			}
+			return int64(expected) == v
+		}
 		return int64(expected) == a
 	case int32:
 		return int64(expected) == a
 	case int64:
-		return int64(expected) == a
+		return expected == a
 	case float64:
 		if got, ok := a.([]uint8); ok {
 			var nf sql.NullFloat64
@@ -191,6 +207,9 @@ func compareValue(a interface{}, expected interface{}) bool {
 				}
 			}
 			return e.Equal(got)
+		}
+		if got, ok := a.([]uint8); ok {
+			return expected == string(got)
 		}
 		return expected == a
 	case time.Time:
@@ -251,6 +270,7 @@ func setupTable(ctx context.Context, t *testing.T, conn *sql.Conn, tableName str
 	[test_decimal_18_2] [decimal](18, 2) NULL,
 	[test_decimal_9_2] [decimal](9, 2) NULL,
 	[test_decimal_20_0] [decimal](20, 0) NULL,
+	[test_decimal_20_0_2] [decimal](20, 0) NULL,
 	[test_numeric_30_10] [decimal](30, 10) NULL,
 	[test_varbinary] VARBINARY NOT NULL,
 	[test_varbinary_16] VARBINARY(16) NOT NULL,

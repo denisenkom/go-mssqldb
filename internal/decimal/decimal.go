@@ -3,13 +3,15 @@ package decimal
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math"
 	"math/big"
+	"strings"
 )
 
 // Decimal represents decimal type in the Microsoft Open Specifications: http://msdn.microsoft.com/en-us/library/ee780893.aspx
 type Decimal struct {
-	integer  [4]uint32
+	integer  [4]uint32 // Little-endian
 	positive bool
 	prec     uint8
 	scale    uint8
@@ -45,6 +47,11 @@ func (d *Decimal) SetPrec(prec uint8) {
 // SetScale sets the scale member
 func (d *Decimal) SetScale(scale uint8) {
 	d.scale = scale
+}
+
+// IsPositive returns true if the Decimal is positive
+func (d *Decimal) IsPositive() bool {
+	return d.positive
 }
 
 // ToFloat64 converts decimal to a float64
@@ -135,6 +142,69 @@ func Float64ToDecimalScale(f float64, scale uint8) (Decimal, error) {
 		}
 	}
 	return dec, nil
+}
+
+// Int64ToDecimalScale converts float64 to decimal; user can specify the scale
+func Int64ToDecimalScale(v int64, scale uint8) Decimal {
+	pos := v >= 0
+	if !pos {
+		if v == math.MinInt64 {
+			// Special case - can't negate
+			return Decimal{
+				integer:  [4]uint32{0, 0x80000000, 0, 0},
+				positive: false,
+				prec:     20,
+				scale:    0,
+			}
+		}
+		v = -v
+	}
+	return Decimal{
+		integer:  [4]uint32{uint32(v), uint32(v >> 32), 0, 0},
+		positive: pos,
+		prec:     20,
+		scale:    scale,
+	}
+}
+
+// StringToDecimalScale converts string to decimal
+func StringToDecimal(v string) (Decimal, error) {
+	var r big.Int
+	var unscaled string
+	var scale int
+
+	point := strings.LastIndexByte(v, '.')
+	if point == -1 {
+		scale = 0
+		unscaled = v
+	} else {
+		scale = len(v) - point - 1
+		unscaled = v[:point] + v[point+1:]
+	}
+	if scale > math.MaxUint8 {
+		return Decimal{}, fmt.Errorf("Can't parse %q as a decimal number: scale too large", v)
+	}
+
+	_, ok := r.SetString(unscaled, 10)
+	if !ok {
+		return Decimal{}, fmt.Errorf("Can't parse %q as a decimal number", v)
+	}
+
+	bytes := r.Bytes()
+	if len(bytes) > 16 {
+		return Decimal{}, fmt.Errorf("Can't parse %q as a decimal number: precision too large", v)
+	}
+	var out [4]uint32
+	for i, b := range bytes {
+		pos := len(bytes) - i - 1
+		out[pos/4] += uint32(b) << uint(pos%4*8)
+	}
+	return Decimal{
+		integer:  out,
+		positive: r.Sign() >= 0,
+		prec:     20,
+		scale:    uint8(scale),
+	}, nil
 }
 
 // ScaleBytes converts a stringified decimal to a scaled byte slice
