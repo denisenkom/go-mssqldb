@@ -17,7 +17,11 @@ type Decimal struct {
 	scale    uint8
 }
 
-var scaletblflt64 [39]float64
+var (
+	scaletblflt64 [39]float64
+	int10         big.Int
+	int1e5        big.Int
+)
 
 func init() {
 	var acc float64 = 1
@@ -25,6 +29,9 @@ func init() {
 		scaletblflt64[i] = acc
 		acc *= 10
 	}
+
+	int10.SetInt64(10)
+	int1e5.SetInt64(1e5)
 }
 
 const autoScale = 100
@@ -168,26 +175,39 @@ func Int64ToDecimalScale(v int64, scale uint8) Decimal {
 }
 
 // StringToDecimalScale converts string to decimal
-func StringToDecimal(v string) (Decimal, error) {
+func StringToDecimalScale(v string, outScale uint8) (Decimal, error) {
 	var r big.Int
 	var unscaled string
-	var scale int
+	var inScale int
 
 	point := strings.LastIndexByte(v, '.')
 	if point == -1 {
-		scale = 0
+		inScale = 0
 		unscaled = v
 	} else {
-		scale = len(v) - point - 1
+		inScale = len(v) - point - 1
 		unscaled = v[:point] + v[point+1:]
 	}
-	if scale > math.MaxUint8 {
+	if inScale > math.MaxUint8 {
 		return Decimal{}, fmt.Errorf("can't parse %q as a decimal number: scale too large", v)
 	}
 
 	_, ok := r.SetString(unscaled, 10)
 	if !ok {
 		return Decimal{}, fmt.Errorf("can't parse %q as a decimal number", v)
+	}
+
+	if inScale > int(outScale) {
+		return Decimal{}, fmt.Errorf("can't parse %q as a decimal number: scale %d is larger than the scale %d of the target column", v, inScale, outScale)
+	}
+	for inScale < int(outScale) {
+		if int(outScale)-inScale >= 5 {
+			r.Mul(&r, &int1e5)
+			inScale += 5
+		} else {
+			r.Mul(&r, &int10)
+			inScale++
+		}
 	}
 
 	bytes := r.Bytes()
@@ -203,7 +223,7 @@ func StringToDecimal(v string) (Decimal, error) {
 		integer:  out,
 		positive: r.Sign() >= 0,
 		prec:     20,
-		scale:    uint8(scale),
+		scale:    uint8(inScale),
 	}, nil
 }
 

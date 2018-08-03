@@ -507,7 +507,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 		case float64:
 			dec, err = decimal.Float64ToDecimalScale(float64(v), scale)
 		case string:
-			dec, err = decimal.StringToDecimal(v)
+			dec, err = decimal.StringToDecimalScale(v, scale)
 		default:
 			return res, fmt.Errorf("unknown value for decimal: %T %#v", v, v)
 		}
