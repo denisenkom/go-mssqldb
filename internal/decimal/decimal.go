@@ -146,8 +146,8 @@ func Float64ToDecimalScale(f float64, scale uint8) (Decimal, error) {
 
 // Int64ToDecimalScale converts float64 to decimal; user can specify the scale
 func Int64ToDecimalScale(v int64, scale uint8) Decimal {
-	pos := v >= 0
-	if !pos {
+	positive := v >= 0
+	if !positive {
 		if v == math.MinInt64 {
 			// Special case - can't negate
 			return Decimal{
@@ -161,7 +161,7 @@ func Int64ToDecimalScale(v int64, scale uint8) Decimal {
 	}
 	return Decimal{
 		integer:  [4]uint32{uint32(v), uint32(v >> 32), 0, 0},
-		positive: pos,
+		positive: positive,
 		prec:     20,
 		scale:    scale,
 	}
@@ -182,17 +182,17 @@ func StringToDecimal(v string) (Decimal, error) {
 		unscaled = v[:point] + v[point+1:]
 	}
 	if scale > math.MaxUint8 {
-		return Decimal{}, fmt.Errorf("Can't parse %q as a decimal number: scale too large", v)
+		return Decimal{}, fmt.Errorf("can't parse %q as a decimal number: scale too large", v)
 	}
 
 	_, ok := r.SetString(unscaled, 10)
 	if !ok {
-		return Decimal{}, fmt.Errorf("Can't parse %q as a decimal number", v)
+		return Decimal{}, fmt.Errorf("can't parse %q as a decimal number", v)
 	}
 
 	bytes := r.Bytes()
 	if len(bytes) > 16 {
-		return Decimal{}, fmt.Errorf("Can't parse %q as a decimal number: precision too large", v)
+		return Decimal{}, fmt.Errorf("can't parse %q as a decimal number: precision too large", v)
 	}
 	var out [4]uint32
 	for i, b := range bytes {

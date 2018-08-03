@@ -486,7 +486,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 			err = fmt.Errorf("mssql: invalid size of column %d", col.ti.Size)
 		}
 
-		// case typeMoney, typeMoney4, typeMoneyN:
+	// case typeMoney, typeMoney4, typeMoneyN:
 	case typeDecimal, typeDecimalN, typeNumeric, typeNumericN:
 		prec := col.ti.Prec
 		scale := col.ti.Scale
