@@ -385,11 +385,9 @@ func processEnvChg(sess *tdsSession) {
 	}
 }
 
-type returnStatus int32
-
 // http://msdn.microsoft.com/en-us/library/dd358180.aspx
-func parseReturnStatus(r *tdsBuffer) returnStatus {
-	return returnStatus(r.int32())
+func parseReturnStatus(r *tdsBuffer) ReturnStatus {
+	return ReturnStatus(r.int32())
 }
 
 func parseOrder(r *tdsBuffer) (res orderStruct) {
