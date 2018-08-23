@@ -22,6 +22,10 @@ func TestIsProc(t *testing.T) {
 		{"select 1;", false},
 		{"[proc 1]", true},
 		{"[proc\n1]", false},
+		{"schema.name", true},
+		{"[schema].[name]", true},
+		{"schema.[name]", true},
+		{"[schema].name", true},
 	}
 
 	for _, item := range list {
