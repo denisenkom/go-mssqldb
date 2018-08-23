@@ -5,11 +5,11 @@ package mssql
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"testing"
 	"time"
 
 	"cloud.google.com/go/civil"
-	"strings"
 )
 
 func TestSessionInitSQL(t *testing.T) {
@@ -53,6 +53,7 @@ select Options = @@OPTIONS;
 }
 
 func TestParameterTypes(t *testing.T) {
+	checkConnStr(t)
 	pool, err := sql.Open("sqlserver", makeConnStr(t).String())
 	if err != nil {
 		t.Fatal(err)
@@ -123,6 +124,7 @@ select
 }
 
 func TestParameterValues(t *testing.T) {
+	checkConnStr(t)
 	pool, err := sql.Open("sqlserver", makeConnStr(t).String())
 	if err != nil {
 		t.Fatal(err)

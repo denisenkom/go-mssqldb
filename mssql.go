@@ -16,6 +16,13 @@ import (
 	"unicode"
 )
 
+// ReturnStatus may be used to return the return value from a proc.
+//
+//   var rs mssql.ReturnStatus
+//   _, err := db.Exec("theproc", &rs)
+//   log.Printf("return status = %d", rs)
+type ReturnStatus int32
+
 var driverInstance = &Driver{processQueryText: true}
 var driverInstanceNoProcess = &Driver{processQueryText: false}
 
@@ -129,7 +136,15 @@ type Conn struct {
 	processQueryText bool
 	connectionGood   bool
 
-	outs map[string]interface{}
+	outs         map[string]interface{}
+	returnStatus *ReturnStatus
+}
+
+func (c *Conn) setReturnStatus(s ReturnStatus) {
+	if c.returnStatus == nil {
+		return
+	}
+	*c.returnStatus = s
 }
 
 func (c *Conn) checkBadConn(err error) error {
@@ -584,6 +599,8 @@ loop:
 			if token.isError() {
 				return nil, s.c.checkBadConn(token.getError())
 			}
+		case ReturnStatus:
+			s.c.setReturnStatus(token)
 		case error:
 			return nil, s.c.checkBadConn(token)
 		}
@@ -627,6 +644,8 @@ func (s *Stmt) processExec(ctx context.Context) (res driver.Result, err error) {
 			if token.isError() {
 				return nil, token.getError()
 			}
+		case ReturnStatus:
+			s.c.setReturnStatus(token)
 		case error:
 			return nil, token
 		}
