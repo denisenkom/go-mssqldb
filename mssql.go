@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"strings"
 	"time"
+	"unicode"
 )
 
 var driverInstance = &Driver{processQueryText: true}
@@ -459,10 +460,52 @@ func isProc(s string) bool {
 	if len(s) == 0 {
 		return false
 	}
-	if s[0] == '[' && s[len(s)-1] == ']' && strings.ContainsAny(s, "\n\r") == false {
-		return true
+	const (
+		outside = iota
+		text
+		escaped
+	)
+	st := outside
+	var rn1, rPrev rune
+	for _, r := range s {
+		rPrev = rn1
+		rn1 = r
+		switch r {
+		// No newlines or string sequences.
+		case '\n', '\r', '\'', ';':
+			return false
+		}
+		switch st {
+		case outside:
+			switch {
+			case unicode.IsSpace(r):
+				return false
+			case r == '[':
+				st = escaped
+				continue
+			case r == ']' && rPrev == ']':
+				st = escaped
+				continue
+			case unicode.IsLetter(r):
+				st = text
+			}
+		case text:
+			switch {
+			case r == '.':
+				st = outside
+				continue
+			case unicode.IsSpace(r):
+				return false
+			}
+		case escaped:
+			switch {
+			case r == ']':
+				st = outside
+				continue
+			}
+		}
 	}
-	return !strings.ContainsAny(s, " \t\n\r;")
+	return true
 }
 
 func (s *Stmt) makeRPCParams(args []namedValue, offset int) ([]param, []string, error) {
