@@ -1050,7 +1050,7 @@ func makeGoLangScanType(ti typeInfo) reflect.Type {
 		return reflect.TypeOf("")
 	case typeBit, typeBitN:
 		return reflect.TypeOf(true)
-	case typeDecimalN, typeNumericN:
+	case typeDecimalN, typeNumericN, typeMoney, typeMoney4:
 		return reflect.TypeOf([]byte{})
 	case typeMoney, typeMoney4, typeMoneyN:
 		switch ti.Size {
