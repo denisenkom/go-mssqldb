@@ -50,12 +50,10 @@ func parseInstances(msg []byte) map[string]map[string]string {
 	return results
 }
 
-func getInstances(ctx context.Context, address string) (map[string]map[string]string, error) {
+func getInstances(ctx context.Context, p connectParams) (map[string]map[string]string, error) {
 	maxTime := 5 * time.Second
-	dialer := &net.Dialer{
-		Timeout: maxTime,
-	}
-	conn, err := dialer.DialContext(ctx, "udp", address+":1434")
+
+	conn, err := dialConnection(ctx, p)
 	if err != nil {
 		return nil, err
 	}
@@ -1184,7 +1182,7 @@ func connect(ctx context.Context, log optionalLogger, p connectParams) (res *tds
 	// if instance is specified use instance resolution service
 	if p.instance != "" {
 		p.instance = strings.ToUpper(p.instance)
-		instances, err := getInstances(dialCtx, p.host)
+		instances, err := getInstances(dialCtx, p)
 		if err != nil {
 			f := "Unable to get instances from Sql Server Browser on host %v: %v"
 			return nil, fmt.Errorf(f, p.host, err.Error())
