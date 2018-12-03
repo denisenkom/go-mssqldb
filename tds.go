@@ -1360,6 +1360,7 @@ continue_login:
 	if sess.routedServer != "" {
 		toconn.Close()
 		p.host = sess.routedServer
+		p.hostInCertificate = sess.routedServer
 		p.port = uint64(sess.routedPort)
 		goto initiate_connection
 	}
