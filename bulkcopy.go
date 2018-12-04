@@ -323,7 +323,15 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 
 	switch col.ti.TypeId {
 
-	case typeInt1, typeInt2, typeInt4, typeInt8, typeIntN:
+	case typeInt1, typeInt2, typeInt4, typeInt8, typeIntN, typeMoney:
+		// Note: typeMoney is really int64 with a hard-coded fixed
+		// point convention (123456 is treated as 12.3456).  In bulk
+		// insert it is treated as int64, and here we expect the
+		// caller to pass it as the underlying int64. This may be a
+		// bit inconsistent vs. the []byte that comes back from the
+		// driver on SELECT for money, but at least this solution
+		// allows for the possibility of doing a bulk insert.
+
 		var intvalue int64
 
 		switch val := val.(type) {
@@ -334,12 +342,18 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 		case int64:
 			intvalue = val
 		default:
-			err = fmt.Errorf("mssql: invalid type for int column")
+			if col.ti.TypeId == typeMoney {
+				err = fmt.Errorf("mssql: please pass money values as int64 for bulk copy (int64 of 12345 turns into money '1.2345')")
+			} else {
+				err = fmt.Errorf("mssql: invalid type for int column")
+			}
 			return
 		}
 
 		res.buffer = make([]byte, res.ti.Size)
-		if col.ti.Size == 1 {
+		if col.ti.TypeId == typeMoney {
+			encodeMoney(res.buffer, intvalue)
+		} else if col.ti.Size == 1 {
 			res.buffer[0] = byte(intvalue)
 		} else if col.ti.Size == 2 {
 			binary.LittleEndian.PutUint16(res.buffer, uint16(intvalue))
@@ -453,7 +467,6 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 			err = fmt.Errorf("mssql: invalid type for datetime column: %s", val)
 		}
 
-	// case typeMoney, typeMoney4, typeMoneyN:
 	case typeDecimal, typeDecimalN, typeNumeric, typeNumericN:
 		var value float64
 		switch v := val.(type) {
@@ -545,6 +558,24 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 	}
 	return
 
+}
+
+// encodeMoney turns a 64-bit integer into the TDS wire format for the
+// 'money' type in mssql.  The byte ordering was deduced from
+// decodeMoney in types.go; could not find it explicitly in the TDS
+// documentation. The format has been tested on the wire against real
+// SQL Server.
+func encodeMoney(out []byte, value int64) {
+	var buf [8]byte
+	binary.LittleEndian.PutUint64(buf[:], uint64(value))
+	out[4] = buf[0]
+	out[5] = buf[1]
+	out[6] = buf[2]
+	out[7] = buf[3]
+	out[0] = buf[4]
+	out[1] = buf[5]
+	out[2] = buf[6]
+	out[3] = buf[7]
 }
 
 func (b *Bulk) dlogf(format string, v ...interface{}) {

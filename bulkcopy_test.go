@@ -23,6 +23,11 @@ func TestBulkcopy(t *testing.T) {
 		val     interface{}
 	}
 
+	type differentExpected struct {
+		input    interface{}
+		expected interface{}
+	}
+
 	tableName := "#table_test"
 	geom, _ := hex.DecodeString("E6100000010C00000000000034400000000000004440")
 	bin, _ := hex.DecodeString("ba8b7782168d4033a299333aec17bd33")
@@ -58,7 +63,6 @@ func TestBulkcopy(t *testing.T) {
 		{"test_geom", geom},
 		{"test_uniqueidentifier", []byte{0x6F, 0x96, 0x19, 0xFF, 0x8B, 0x86, 0xD0, 0x11, 0xB4, 0x2D, 0x00, 0xC0, 0x4F, 0xC9, 0x64, 0xFF}},
 		// {"test_smallmoney", 1234.56},
-		// {"test_money", 1234.56},
 		{"test_decimal_18_0", 1234.0001},
 		{"test_decimal_9_2", 1234.560001},
 		{"test_decimal_20_0", 1234.0001},
@@ -68,6 +72,18 @@ func TestBulkcopy(t *testing.T) {
 		{"test_varbinary_max", bin},
 		{"test_binary", []byte("1")},
 		{"test_binary_16", bin},
+
+		// money must be input as int64 to bulk insert, but scans back as a string on SELECT, so use `differentExpected` to provide
+		// different input and expected output
+
+		// First test: We do some byte shuffling for the money type, so make sure every byte is unique in the test.
+		{"test_money_1", differentExpected{
+			int64(-(0x01<<56 | 0x02<<48 | 0x03<<40 | 0x04<<32 | 0x05<<24 | 0x06<<16 | 0x07<<8 | 0x08)), // evaluates to 72623859790382856
+			[]byte("-7262385979038.2856")}},
+		// maximum positive, minimum negative, and zero values
+		{"test_money_2", differentExpected{math.MaxInt64, []byte("922337203685477.5807")}},
+		{"test_money_3", differentExpected{math.MinInt64, []byte("-922337203685477.5808")}},
+		{"test_money_4", differentExpected{0, []byte("0.0000")}},
 	}
 
 	columns := make([]string, len(testValues))
@@ -77,7 +93,12 @@ func TestBulkcopy(t *testing.T) {
 
 	values := make([]interface{}, len(testValues))
 	for i, val := range testValues {
-		values[i] = val.val
+		switch t := val.val.(type) {
+		case differentExpected:
+			values[i] = t.input
+		default:
+			values[i] = val.val
+		}
 	}
 
 	pool := open(t)
@@ -149,8 +170,15 @@ func TestBulkcopy(t *testing.T) {
 			t.Fatal(err)
 		}
 		for i, c := range testValues {
-			if !compareValue(container[i], c.val) {
-				t.Errorf("columns %s : expected: %v, got: %v\n", c.colname, c.val, container[i])
+			var expected interface{}
+			switch t := c.val.(type) {
+			case differentExpected:
+				expected = t.expected
+			default:
+				expected = c.val
+			}
+			if !compareValue(container[i], expected) {
+				t.Errorf("columns %s : expected: %v, got: %v\n", c.colname, expected, container[i])
 			}
 		}
 	}
@@ -203,8 +231,6 @@ func setupTable(ctx context.Context, t *testing.T, conn *sql.Conn, tableName str
 	[test_datetime2_3] [datetime2](3) NULL,
 	[test_datetime2_7] [datetime2](7) NULL,
 	[test_date] [date] NULL,
-	[test_smallmoney] [smallmoney] NULL,
-	[test_money] [money] NULL,
 	[test_tinyint] [tinyint] NULL,
 	[test_smallint] [smallint] NOT NULL,
 	[test_smallintn] [smallint] NULL,
@@ -224,6 +250,10 @@ func setupTable(ctx context.Context, t *testing.T, conn *sql.Conn, tableName str
 	[test_varbinary_max] VARBINARY(max) NOT NULL,
 	[test_binary] BINARY NOT NULL,
 	[test_binary_16] BINARY(16) NOT NULL,
+	[test_money_1] MONEY NOT NULL,
+	[test_money_2] MONEY NOT NULL,
+	[test_money_3] MONEY NOT NULL,
+	[test_money_4] MONEY NOT NULL
  CONSTRAINT [PK_` + tableName + `_id] PRIMARY KEY CLUSTERED 
 (
 	[id] ASC
