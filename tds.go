@@ -678,6 +678,7 @@ type connectParams struct {
 	failOverPartner        string
 	failOverPort           uint64
 	packetSize             uint16
+	network                string
 }
 
 func splitConnectionString(dsn string) (res map[string]string) {
@@ -1099,6 +1100,10 @@ func parseConnectParams(dsn string) (connectParams, error) {
 			return p, fmt.Errorf(f, failOverPort, err.Error())
 		}
 	}
+	network, ok := params["network"]
+	if ok {
+		p.network = network
+	}
 
 	return p, nil
 }
@@ -1123,7 +1128,7 @@ func dialConnection(ctx context.Context, p connectParams) (conn net.Conn, err er
 		ips = []net.IP{ip}
 	}
 	if len(ips) == 1 {
-		d := createDialer(&p)
+		d := getDialer(&p)
 		addr := net.JoinHostPort(ips[0].String(), strconv.Itoa(int(p.port)))
 		conn, err = d.Dial(ctx, addr)
 
@@ -1134,7 +1139,7 @@ func dialConnection(ctx context.Context, p connectParams) (conn net.Conn, err er
 		portStr := strconv.Itoa(int(p.port))
 		for _, ip := range ips {
 			go func(ip net.IP) {
-				d := createDialer(&p)
+				d := getDialer(&p)
 				addr := net.JoinHostPort(ip.String(), portStr)
 				conn, err := d.Dial(ctx, addr)
 				if err == nil {

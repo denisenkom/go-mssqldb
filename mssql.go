@@ -12,6 +12,7 @@ import (
 	"net"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 )
@@ -32,11 +33,35 @@ func init() {
 	createDialer = func(p *connectParams) dialer {
 		return tcpDialer{&net.Dialer{KeepAlive: p.keepAlive}}
 	}
+	dialers = make(map[string]dialer)
 }
 
 // Abstract the dialer for testing and for non-TCP based connections.
 type dialer interface {
 	Dial(ctx context.Context, addr string) (net.Conn, error)
+}
+var (
+	dialsLock sync.RWMutex  // guards dialers
+	dialers map[string]dialer
+	createDialer func(p *connectParams) dialer
+)
+
+func getDialer(p *connectParams) dialer {
+	dialsLock.RLock()
+	defer dialsLock.RUnlock()
+	if dialer, ok := dialers[p.network]; ok {
+		return dialer
+	}
+	return createDialer(p)
+}
+
+// RegisterDialer registers a custom dialer with a unique net name.
+// If the net name is already registered with a dialer, the old dialer will be replaced
+// by the new dialer.
+func RegisterDialer(net string, d dialer) {
+	dialsLock.Lock()
+	defer dialsLock.Unlock()
+	dialers[net] = d
 }
 
 var createDialer func(p *connectParams) dialer
