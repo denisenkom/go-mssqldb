@@ -64,8 +64,6 @@ func RegisterDialer(net string, d dialer) {
 	dialers[net] = d
 }
 
-var createDialer func(p *connectParams) dialer
-
 type tcpDialer struct {
 	nd *net.Dialer
 }
