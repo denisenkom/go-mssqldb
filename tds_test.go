@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"testing"
@@ -518,5 +519,31 @@ func TestBadConnect(t *testing.T) {
 	err = conn.Ping()
 	if err == nil {
 		t.Error("Ping should fail for connection: ", badDSN)
+	}
+}
+
+
+func TestCustomDialer(t *testing.T) {
+	checkConnStr(t)
+	RegisterDialer("TestCustomDialer", tcpDialer{&net.Dialer{KeepAlive: 30 * time.Second}})
+	SetLogger(testLogger{t})
+	connURL := makeConnStr(t)
+	if values, err := url.ParseQuery(connURL.RawQuery); err != nil {
+		t.Fatalf("Failed to parse raw query %q", connURL.RawQuery)
+	} else {
+		values.Set("network", "TestCustomDialer")
+		connURL.RawQuery = values.Encode()
+	}
+
+	dsn := connURL.String()
+	conn, err := sql.Open("mssql", dsn)
+	if err != nil {
+		t.Error("Open connection failed:", err.Error())
+	}
+	defer conn.Close()
+
+	err = conn.Ping()
+	if err != nil {
+		t.Error("Ping failed for connection: ", dsn)
 	}
 }
