@@ -830,3 +830,27 @@ func TestDateTimeParam19(t *testing.T) {
 		})
 	}
 }
+
+func TestReturnStatus(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+
+	_, err := conn.Exec("if object_id('retstatus') is not null drop proc retstatus;")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = conn.Exec("create proc retstatus as return 2;")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var rs ReturnStatus
+	_, err = conn.Exec("retstatus", &rs)
+	conn.Exec("drop proc retstatus;")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rs != 2 {
+		t.Errorf("expected status=2, got %d", rs)
+	}
+}
