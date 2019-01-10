@@ -2020,14 +2020,14 @@ func (c *connInterrupt) Write(b []byte) (n int, err error) {
 }
 
 type dialerInterrupt struct {
-	nd tcpDialer
+	nd netDialer
 
 	mu   sync.Mutex
 	list []*connInterrupt
 }
 
-func (d *dialerInterrupt) Dial(ctx context.Context, addr string) (net.Conn, error) {
-	conn, err := d.nd.Dial(ctx, addr)
+func (d *dialerInterrupt) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	conn, err := d.nd.DialContext(ctx, network, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -2082,8 +2082,8 @@ func TestDisconnect1(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
-	createDialer = func(p *connectParams) dialer {
-		nd := tcpDialer{&net.Dialer{Timeout: p.dial_timeout, KeepAlive: p.keepAlive}}
+	createDialer = func(p *connectParams) Dialer {
+		nd := netDialer{&net.Dialer{Timeout: p.dial_timeout, KeepAlive: p.keepAlive}}
 		di := &dialerInterrupt{nd: nd}
 		go func() {
 			<-waitDisrupt
@@ -2145,8 +2145,8 @@ func TestDisconnect2(t *testing.T) {
 		ctx, cancel = context.WithTimeout(ctx, time.Second*2)
 		defer cancel()
 
-		createDialer = func(p *connectParams) dialer {
-			nd := tcpDialer{&net.Dialer{Timeout: p.dial_timeout, KeepAlive: p.keepAlive}}
+		createDialer = func(p *connectParams) Dialer {
+			nd := netDialer{&net.Dialer{Timeout: p.dial_timeout, KeepAlive: p.keepAlive}}
 			di := &dialerInterrupt{nd: nd}
 			go func() {
 				<-waitDisrupt
