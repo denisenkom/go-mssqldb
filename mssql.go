@@ -386,6 +386,9 @@ func (s *Stmt) sendQuery(args []namedValue) (err error) {
 			data: transDescrHdr{s.c.sess.tranid, 1}.pack()},
 	}
 
+	// replace nil arguments in the query
+	args = s.transformNullArguments(args)
+
 	if s.notifSub != nil {
 		headers = append(headers,
 			headerStruct{
@@ -474,12 +477,7 @@ func (s *Stmt) makeRPCParams(args []namedValue, offset int) ([]param, []string, 
 		if err != nil {
 			return nil, nil, err
 		}
-		var name string
-		if len(val.Name) > 0 {
-			name = "@" + val.Name
-		} else {
-			name = fmt.Sprintf("@p%d", val.Ordinal)
-		}
+		name := val.ParamKey()
 		params[i+offset].Name = name
 		decls[i] = fmt.Sprintf("%s %s", name, makeDecl(params[i+offset].ti))
 	}
@@ -492,6 +490,15 @@ type namedValue struct {
 	Value   driver.Value
 }
 
+// ParamKey forms the query parameter key value
+func (v namedValue) ParamKey() string {
+	param := fmt.Sprintf("@p%d", v.Ordinal)
+	if v.Name != "" {
+		param = "@" + v.Name
+	}
+	return param
+}
+
 func convertOldArgs(args []driver.Value) []namedValue {
 	list := make([]namedValue, len(args))
 	for i, v := range args {
@@ -501,6 +508,18 @@ func convertOldArgs(args []driver.Value) []namedValue {
 		}
 	}
 	return list
+}
+
+// transformNullArguments pre-process query, no reason to handle nil params
+func (s *Stmt) transformNullArguments(args []namedValue) []namedValue {
+	for i := len(args)-1; i >= 0; i-- {
+		if args[i].Value == nil {
+			s.query = strings.Replace(s.query, args[i].ParamKey(), "NULL", 1)
+			args = append(args[:i], args[i+1:]...)
+			s.paramCount--
+		}
+	}
+	return args
 }
 
 func (s *Stmt) Query(args []driver.Value) (driver.Rows, error) {
