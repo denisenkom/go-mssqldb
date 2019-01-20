@@ -119,7 +119,7 @@ _, err := db.ExecContext(ctx, "sp_RunMe",
 
 ## Caveat for local temporary tables
 
-Due to driver internals, temporary tables will only be allocated on the connection
+Due to protocol limitations, temporary tables will only be allocated on the connection
 as a result of executing a query with zero parameters. The following query
 will, due to the use of a parameter, execute in its own session,
 and `#mytemp` will be de-allocated right away:
