@@ -323,7 +323,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 
 	switch col.ti.TypeId {
 
-	case typeInt1, typeInt2, typeInt4, typeInt8, typeIntN, typeMoney:
+	case typeInt1, typeInt2, typeInt4, typeInt8, typeIntN, typeMoney, typeMoneyN:
 		// Note: typeMoney is really int64 with a hard-coded fixed
 		// point convention (123456 is treated as 12.3456).  In bulk
 		// insert it is treated as int64, and here we expect the
@@ -342,7 +342,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 		case int64:
 			intvalue = val
 		default:
-			if col.ti.TypeId == typeMoney {
+			if col.ti.TypeId == typeMoney || col.ti.TypeId == typeMoneyN {
 				err = fmt.Errorf("mssql: please pass money values as int64 for bulk copy (int64 of 12345 turns into money '1.2345')")
 			} else {
 				err = fmt.Errorf("mssql: invalid type for int column")
@@ -351,7 +351,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 		}
 
 		res.buffer = make([]byte, res.ti.Size)
-		if col.ti.TypeId == typeMoney {
+		if col.ti.TypeId == typeMoney || col.ti.TypeId == typeMoneyN {
 			encodeMoney(res.buffer, intvalue)
 		} else if col.ti.Size == 1 {
 			res.buffer[0] = byte(intvalue)

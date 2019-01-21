@@ -84,6 +84,15 @@ func TestBulkcopy(t *testing.T) {
 		{"test_money_2", differentExpected{math.MaxInt64, []byte("922337203685477.5807")}},
 		{"test_money_3", differentExpected{math.MinInt64, []byte("-922337203685477.5808")}},
 		{"test_money_4", differentExpected{0, []byte("0.0000")}},
+
+		{"test_money_n_1", differentExpected{
+			int64(-(0x01<<56 | 0x02<<48 | 0x03<<40 | 0x04<<32 | 0x05<<24 | 0x06<<16 | 0x07<<8 | 0x08)), // evaluates to 72623859790382856
+			[]byte("-7262385979038.2856")}},
+		// maximum positive, minimum negative, and zero values
+		{"test_money_n_2", differentExpected{math.MaxInt64, []byte("922337203685477.5807")}},
+		{"test_money_n_3", differentExpected{math.MinInt64, []byte("-922337203685477.5808")}},
+		{"test_money_n_4", differentExpected{0, []byte("0.0000")}},
+		{"test_money_n_5", nil},
 	}
 
 	columns := make([]string, len(testValues))
@@ -178,7 +187,7 @@ func TestBulkcopy(t *testing.T) {
 				expected = c.val
 			}
 			if !compareValue(container[i], expected) {
-				t.Errorf("columns %s : expected: %v, got: %v\n", c.colname, expected, container[i])
+				t.Errorf("columns %s : expected: %v, got: %v\n", c.colname, string(expected.([]byte)), string(container[i].([]byte)))
 			}
 		}
 	}
@@ -253,7 +262,12 @@ func setupTable(ctx context.Context, t *testing.T, conn *sql.Conn, tableName str
 	[test_money_1] MONEY NOT NULL,
 	[test_money_2] MONEY NOT NULL,
 	[test_money_3] MONEY NOT NULL,
-	[test_money_4] MONEY NOT NULL
+	[test_money_4] MONEY NOT NULL,
+	[test_money_n_1] MONEY NULL,
+	[test_money_n_2] MONEY NULL,
+	[test_money_n_3] MONEY NULL,
+	[test_money_n_4] MONEY NULL,
+	[test_money_n_5] MONEY NULL
  CONSTRAINT [PK_` + tableName + `_id] PRIMARY KEY CLUSTERED 
 (
 	[id] ASC
