@@ -66,13 +66,13 @@ func convertInputParameter(val interface{}) (interface{}, error) {
 
 func (c *Conn) CheckNamedValue(nv *driver.NamedValue) error {
 
-	if table, ok := nv.Value.(tvpWrapper); ok {
-		typeName, exampleRow, rows := table.TVP()
-		nv.Value = &TableValuedParam{
-			TypeName:   typeName,
-			Rows:       rows,
-			ExampleRow: exampleRow,
-		}
+	if _, ok := nv.Value.(TVPType); ok {
+		//typeName, exampleRow, rows := table.TVP()
+		//nv.Value = &TableValuedParam{
+		//	TypeName:   typeName,
+		//	Rows:       rows,
+		//	ExampleRow: exampleRow,
+		//}
 		return nil
 	}
 
@@ -186,6 +186,17 @@ func (s *Stmt) makeParamExtra(val driver.Value) (res param, err error) {
 		}
 		res.buffer, err = val.encode(res)
 		res.ti.Size = len(res.buffer)
+	case TVPType:
+		err = val.check()
+		if err != nil {
+			return
+		}
+		res.ti.UdtInfo.TypeName = val.TVPName
+		res.ti.UdtInfo.SchemaName = val.TVPScheme
+		res.ti.TypeId = typeTvp
+		res.buffer, err = val.encode()
+		res.ti.Size = len(res.buffer)
+
 	default:
 		err = fmt.Errorf("mssql: unknown type for %T", val)
 	}

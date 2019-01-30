@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestTVP(t *testing.T) {
@@ -37,23 +38,26 @@ func TestTVP(t *testing.T) {
 			p_int               INT,
 			p_bigint            BIGINT,
 			p_bit               BIT,
-			p_float             FLOAT
+			p_bit1              BIT,
+			p_float             FLOAT,
+			p_time 				datetime2
 		); `
 
 	sqltextdroptable := `DROP TYPE tvptable;`
 
 	sqltextcreatesp := `
 	CREATE PROCEDURE spwithtvp
-		@param1 tvptable READONLY,
-		@param2 tvptable READONLY,
-		@param3 NVARCHAR(10)
+		@param1 tvptable READONLY
+-- 		,
+-- 		@param2 tvptable READONLY,
+-- 		@param3 NVARCHAR(10)
 	AS   
 	BEGIN
 		SET NOCOUNT ON; 
 
 		SELECT * FROM @param1;
-		SELECT * FROM @param2;
-		SELECT @param3;
+-- 		SELECT * FROM @param2;
+-- 		SELECT @param3;
 	END;`
 
 	sqltextdropsp := `DROP PROCEDURE spwithtvp;`
@@ -73,9 +77,34 @@ func TestTVP(t *testing.T) {
 	}
 	defer db.ExecContext(ctx, sqltextdropsp)
 
-	param1 := Tvptable{
+	//param1 := Tvptable{
+	//	TvptableRow{
+	//		//PBit:       true,
+	//		//PBit1:       true,
+	//	},
+	//	//TvptableRow{
+	//	//	PBit:       false,
+	//	//	PBit1:       false,
+	//	//},
+	//}
+
+	//boolNull := true
+	//boolNull1 := false
+	param1 := []TvptableRow{
+		//TvptableRow{
+		//	PBit:    &boolNull,
+		//	PBit1:   true,
+		//	Time:    time.Now(),
+		//	PBigint: int64(64),
+		//	PFloat:  float64(640),
+		//	PInt:    int32(32),
+		//},
+		//TvptableRow{
+		//	PBit:  &boolNull1,
+		//	PBit1: false,
+		//},
 		TvptableRow{
-			PBinary:    []byte("ccc"),
+			PBinary:    nil,
 			PVarchar:   "aaa",
 			PNvarchar:  "bbb",
 			PID:        UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
@@ -84,38 +113,30 @@ func TestTVP(t *testing.T) {
 			PSmallint:  2,
 			PInt:       3,
 			PBigint:    4,
-			PBit:       true,
-			PFloat:     0.123,
-		},
-		TvptableRow{
-			PBinary:    []byte("ggg"),
-			PVarchar:   "eee",
-			PNvarchar:  "fff",
-			PID:        UniqueIdentifier{0x11, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
-			PVarbinary: []byte("hhh"),
-			PTinyint:   4,
-			PSmallint:  3,
-			PInt:       2,
-			PBigint:    1,
-			PBit:       false,
-			PFloat:     0.321,
+			//PBit:       true,
+			PFloat: 0.123,
 		},
 	}
 
+	tvpType := TVPType{
+		TVPName:  "tvptable",
+		TVPValue: param1,
+	}
+
 	rows, err := db.QueryContext(ctx,
-		"exec spwithtvp @param1, @param2, @param3",
-		sql.Named("param1", &param1),
-		sql.Named("param2", &Tvptable{}),
-		sql.Named("param3", "test"))
+		"exec spwithtvp @param1",
+		sql.Named("param1", tvpType))
+	//sql.Named("param2", &Tvptable{}),
+	//sql.Named("param3", "test"))
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	var result1 Tvptable
+	var result1 []TvptableRow
 	for rows.Next() {
 		var val TvptableRow
-		err := rows.Scan(&val.PBinary, &val.PVarchar, &val.PNvarchar, &val.PID, &val.PVarbinary, &val.PTinyint, &val.PSmallint, &val.PInt, &val.PBigint, &val.PBit, &val.PFloat)
+		err := rows.Scan(&val.PBinary, &val.PVarchar, &val.PNvarchar, &val.PID, &val.PVarbinary, &val.PTinyint, &val.PSmallint, &val.PInt, &val.PBigint, &val.PBit, &val.PBit1, &val.PFloat, &val.Time)
 		if err != nil {
 			t.Fatalf("scan failed with error: %s", err)
 		}
@@ -166,17 +187,18 @@ func (t *Tvptable) TVP() (typeName string, exampleRow []interface{}, rows [][]in
 	}
 	for _, r := range append(v, TvptableRow{}) {
 		rows = append(rows, []interface{}{
-			r.PBinary,
-			r.PVarchar,
-			r.PNvarchar,
-			r.PID,
-			r.PVarbinary,
-			r.PTinyint,
-			r.PSmallint,
-			r.PInt,
-			r.PBigint,
+			//r.PBinary,
+			//r.PVarchar,
+			//r.PNvarchar,
+			//r.PID,
+			//r.PVarbinary,
+			//r.PTinyint,
+			//r.PSmallint,
+			//r.PInt,
+			//r.PBigint,
 			r.PBit,
-			r.PFloat,
+			r.PBit1,
+			//r.PFloat,
 		})
 	}
 	exampleRow = rows[len(rows)-1]
@@ -195,6 +217,8 @@ type TvptableRow struct {
 	PSmallint  int16            `db:"p_smallint"`
 	PInt       int32            `db:"p_int"`
 	PBigint    int64            `db:"p_bigint"`
-	PBit       bool             `db:"p_bit"`
+	PBit       *bool            `db:"p_bit"`
+	PBit1      bool             `db:"p_bit"`
 	PFloat     float64          `db:"p_float"`
+	Time       time.Time        `db:"p_time"`
 }

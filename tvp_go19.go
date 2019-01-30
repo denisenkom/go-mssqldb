@@ -102,6 +102,8 @@ func (p *TableValuedParam) encode(tvpParam param) ([]byte, error) {
 	// w.put_byte(tds_base.TVP_END_TOKEN)
 	buf.WriteByte(_TVP_END_TOKEN)
 
+	fmt.Println(buf.Bytes())
+
 	// # now sending rows using TVP_ROW
 	// # https://msdn.microsoft.com/en-us/library/dd305261.aspx
 	// if val.rows:
@@ -125,6 +127,8 @@ func (p *TableValuedParam) encode(tvpParam param) ([]byte, error) {
 	// # terminating rows
 	// w.put_byte(tds_base.TVP_END_TOKEN)
 	buf.WriteByte(_TVP_END_TOKEN)
+
+	fmt.Println(buf.Bytes())
 
 	return buf.Bytes(), nil
 }
