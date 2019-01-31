@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"reflect"
 	"testing"
-	"time"
 )
 
 func TestTVP(t *testing.T) {
@@ -31,6 +30,7 @@ func TestTVP(t *testing.T) {
 			p_binary            BINARY(3),
 			p_varchar           VARCHAR(500),
 			p_nvarchar          NVARCHAR(100),
+			p_nvarchar1         NVARCHAR(100),
 			p_id                UNIQUEIDENTIFIER,
 			p_varbinary         VARBINARY(MAX),
 			p_tinyint           TINYINT,
@@ -39,25 +39,23 @@ func TestTVP(t *testing.T) {
 			p_bigint            BIGINT,
 			p_bit               BIT,
 			p_bit1              BIT,
-			p_float             FLOAT,
-			p_time 				datetime2
+			p_float             FLOAT
+-- 			p_time 				datetime2
 		); `
 
 	sqltextdroptable := `DROP TYPE tvptable;`
 
 	sqltextcreatesp := `
 	CREATE PROCEDURE spwithtvp
-		@param1 tvptable READONLY
--- 		,
--- 		@param2 tvptable READONLY,
--- 		@param3 NVARCHAR(10)
+		@param1 tvptable READONLY,
+		@param2 tvptable READONLY,
+		@param3 NVARCHAR(10)
 	AS   
 	BEGIN
 		SET NOCOUNT ON; 
-
 		SELECT * FROM @param1;
--- 		SELECT * FROM @param2;
--- 		SELECT @param3;
+		SELECT * FROM @param2;
+		SELECT @param3;
 	END;`
 
 	sqltextdropsp := `DROP PROCEDURE spwithtvp;`
@@ -77,44 +75,34 @@ func TestTVP(t *testing.T) {
 	}
 	defer db.ExecContext(ctx, sqltextdropsp)
 
-	//param1 := Tvptable{
-	//	TvptableRow{
-	//		//PBit:       true,
-	//		//PBit1:       true,
-	//	},
-	//	//TvptableRow{
-	//	//	PBit:       false,
-	//	//	PBit1:       false,
-	//	//},
-	//}
-
-	//boolNull := true
-	//boolNull1 := false
+	boolNull := true
+	boolNull1 := false
+	str := "bbb"
 	param1 := []TvptableRow{
-		//TvptableRow{
-		//	PBit:    &boolNull,
-		//	PBit1:   true,
-		//	Time:    time.Now(),
-		//	PBigint: int64(64),
-		//	PFloat:  float64(640),
-		//	PInt:    int32(32),
-		//},
-		//TvptableRow{
-		//	PBit:  &boolNull1,
-		//	PBit1: false,
-		//},
+		TvptableRow{
+			PBit:  &boolNull,
+			PBit1: true,
+			//Time:    time.Now().UTC(),
+			PBigint: int64(64),
+			PFloat:  float64(640),
+			PInt:    int32(32),
+		},
+		TvptableRow{
+			PBit:  &boolNull1,
+			PBit1: false,
+		},
 		TvptableRow{
 			PBinary:    nil,
 			PVarchar:   "aaa",
-			PNvarchar:  "bbb",
+			PNvarchar1: &str,
 			PID:        UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
 			PVarbinary: []byte("ddd"),
 			PTinyint:   1,
 			PSmallint:  2,
 			PInt:       3,
 			PBigint:    4,
-			//PBit:       true,
-			PFloat: 0.123,
+			PBit:       &boolNull,
+			PFloat:     0.123,
 		},
 	}
 
@@ -122,12 +110,20 @@ func TestTVP(t *testing.T) {
 		TVPName:  "tvptable",
 		TVPValue: param1,
 	}
+	//tvpTypeEmpty := TVPType{
+	//	TVPName:  "tvptable",
+	//	TVPValue: []TvptableRow{TvptableRow{
+	//		PBit:  &boolNull1,
+	//		PBit1: false,
+	//	}},
+	//}
 
 	rows, err := db.QueryContext(ctx,
-		"exec spwithtvp @param1",
-		sql.Named("param1", tvpType))
-	//sql.Named("param2", &Tvptable{}),
-	//sql.Named("param3", "test"))
+		"exec spwithtvp @param1, @param2, @param3",
+		sql.Named("param1", tvpType),
+		sql.Named("param2", nil),
+		sql.Named("param3", "test"),
+	)
 
 	if err != nil {
 		t.Fatal(err)
@@ -136,7 +132,7 @@ func TestTVP(t *testing.T) {
 	var result1 []TvptableRow
 	for rows.Next() {
 		var val TvptableRow
-		err := rows.Scan(&val.PBinary, &val.PVarchar, &val.PNvarchar, &val.PID, &val.PVarbinary, &val.PTinyint, &val.PSmallint, &val.PInt, &val.PBigint, &val.PBit, &val.PBit1, &val.PFloat, &val.Time)
+		err := rows.Scan(&val.PBinary, &val.PVarchar, &val.PNvarchar, &val.PNvarchar1, &val.PID, &val.PVarbinary, &val.PTinyint, &val.PSmallint, &val.PInt, &val.PBigint, &val.PBit, &val.PBit1, &val.PFloat)
 		if err != nil {
 			t.Fatalf("scan failed with error: %s", err)
 		}
@@ -173,7 +169,6 @@ func TestTVP(t *testing.T) {
 	if result3 != "test" {
 		t.Errorf("third result set had wrong value expected: %s actual: %s", "test", result3)
 	}
-
 }
 
 type Tvptable []TvptableRow
@@ -189,15 +184,15 @@ func (t *Tvptable) TVP() (typeName string, exampleRow []interface{}, rows [][]in
 		rows = append(rows, []interface{}{
 			//r.PBinary,
 			//r.PVarchar,
-			//r.PNvarchar,
+			r.PNvarchar,
 			//r.PID,
 			//r.PVarbinary,
 			//r.PTinyint,
 			//r.PSmallint,
 			//r.PInt,
 			//r.PBigint,
-			r.PBit,
-			r.PBit1,
+			//r.PBit,
+			//r.PBit1,
 			//r.PFloat,
 		})
 	}
@@ -211,6 +206,7 @@ type TvptableRow struct {
 	PBinary    []byte           `db:"p_binary"`
 	PVarchar   string           `db:"p_varchar"`
 	PNvarchar  string           `db:"p_nvarchar"`
+	PNvarchar1 *string          `db:"p_nvarchar1"`
 	PID        UniqueIdentifier `db:"p_id"`
 	PVarbinary []byte           `db:"p_varbinary"`
 	PTinyint   int8             `db:"p_tinyint"`
@@ -220,5 +216,4 @@ type TvptableRow struct {
 	PBit       *bool            `db:"p_bit"`
 	PBit1      bool             `db:"p_bit"`
 	PFloat     float64          `db:"p_float"`
-	Time       time.Time        `db:"p_time"`
 }

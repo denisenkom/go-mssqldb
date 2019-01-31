@@ -11,8 +11,9 @@ import (
 )
 
 var (
-	ErrorEmptyTVPName = errors.New("TVPName must not be empty")
-	ErrorTVPType      = errors.New("TVPType must be array type")
+	ErrorEmptyTVPName        = errors.New("TVPName must not be empty")
+	ErrorTVPTypeSlice        = errors.New("TVPType must be slice type")
+	ErrorTVPTypeSliceIsEmpty = errors.New("TVPType must be slice type")
 )
 
 type TVPType struct {
@@ -29,7 +30,10 @@ func (tvp TVPType) check() error {
 		return ErrorEmptyTVPName
 	}
 	if reflect.TypeOf(tvp.TVPValue).Kind() != reflect.Slice {
-		return ErrorTVPType
+		return ErrorTVPTypeSlice
+	}
+	if reflect.ValueOf(tvp.TVPValue).Len() == 0 {
+		return ErrorTVPTypeSliceIsEmpty
 	}
 	return nil
 }
@@ -55,8 +59,6 @@ func (tvp TVPType) encode() ([]byte, error) {
 		writeBVarChar(buf, "")
 	}
 	buf.WriteByte(_TVP_END_TOKEN)
-	fmt.Println(buf.Bytes())
-
 	conn := new(Conn)
 	conn.sess = new(tdsSession)
 	conn.sess.loginAck = loginAckStruct{TDSVersion: verTDS73}
@@ -67,16 +69,20 @@ func (tvp TVPType) encode() ([]byte, error) {
 	val := reflect.ValueOf(tvp.TVPValue)
 	for i := 0; i < val.Len(); i++ {
 		refStr := reflect.ValueOf(val.Index(i).Interface())
-		tmp := val.Index(i).Interface()
-		fmt.Println(tmp)
 		buf.WriteByte(_TVP_ROW_TOKEN)
 		for j := 0; j < refStr.NumField(); j++ {
-			if refStr.Field(j).Interface() == nil {
-				binary.Write(buf, binary.LittleEndian, uint8(0))
+			tvpVal := refStr.Field(j).Interface()
+			if refStr.Field(j).Kind() == reflect.Ptr && reflect.ValueOf(tvpVal).IsNil() {
+				switch refStr.Field(j).Type().Elem().Kind() {
+				case reflect.Bool:
+					binary.Write(buf, binary.LittleEndian, uint8(0))
+				default:
+					binary.Write(buf, binary.LittleEndian, uint64(_PLP_NULL))
+				}
 				continue
 			}
-			if refStr.Field(j).Kind() == reflect.Slice && refStr.Field(j).Len() == 0 {
-				binary.Write(buf, binary.LittleEndian, uint8(0))
+			if refStr.Field(j).Kind() == reflect.Slice && reflect.ValueOf(tvpVal).IsNil() {
+				binary.Write(buf, binary.LittleEndian, uint64(_PLP_NULL))
 				continue
 			}
 
@@ -88,14 +94,10 @@ func (tvp TVPType) encode() ([]byte, error) {
 			if err != nil {
 				return nil, fmt.Errorf("failed to make tvp parameter row col: %s", err)
 			}
-
 			columnStr[j].ti.Writer(buf, param.ti, param.buffer)
 		}
 	}
 	buf.WriteByte(_TVP_END_TOKEN)
-
-	fmt.Println(buf.Bytes())
-
 	return buf.Bytes(), nil
 }
 
@@ -122,8 +124,6 @@ func (tvp TVPType) columnTypes() ([]columnStruct, error) {
 	stmt := &Stmt{
 		c: conn,
 	}
-	buf := &bytes.Buffer{}
-	fmt.Println(stmt, buf)
 
 	columnConfiguration := make([]columnStruct, 0, columnCount)
 	for index, val := range defaultValues {

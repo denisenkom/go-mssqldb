@@ -121,7 +121,6 @@ func (p *TableValuedParam) encode(tvpParam param) ([]byte, error) {
 			columns[i].ti.Writer(buf, param.ti, param.buffer)
 			//}
 		}
-
 	}
 
 	// # terminating rows
