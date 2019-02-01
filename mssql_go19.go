@@ -64,17 +64,6 @@ func convertInputParameter(val interface{}) (interface{}, error) {
 }
 
 func (c *Conn) CheckNamedValue(nv *driver.NamedValue) error {
-
-	if _, ok := nv.Value.(TVPType); ok {
-		//typeName, exampleRow, rows := table.TVP()
-		//nv.Value = &TableValuedParam{
-		//	TypeName:   typeName,
-		//	Rows:       rows,
-		//	ExampleRow: exampleRow,
-		//}
-		return nil
-	}
-
 	switch v := nv.Value.(type) {
 	case sql.Out:
 		if c.outs == nil {
@@ -123,6 +112,8 @@ func (c *Conn) CheckNamedValue(nv *driver.NamedValue) error {
 		*v = 0 // By default the return value should be zero.
 		c.returnStatus = v
 		return driver.ErrRemoveArgument
+	case TVPType:
+		return nil
 	default:
 		var err error
 		nv.Value, err = convertInputParameter(nv.Value)

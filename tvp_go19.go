@@ -17,9 +17,9 @@ var (
 	ErrorTVPTypeSliceIsEmpty = errors.New("TVPType mustn't be null value")
 )
 
-//TVPType is driver type, which allows supporting TVPType
+//TVPType is driver type, which allows supporting Table Valued Parameters (TVP) in SQL Server
 type TVPType struct {
-	//TVP param name
+	//TVP param name, mustn't be default value
 	TVPName string
 	//TVP scheme name
 	TVPScheme string
@@ -49,8 +49,8 @@ func (tvp TVPType) encode() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	preperdBuffer := make([]byte, 0, 20+(8*len(columnStr)))
-	buf := bytes.NewBuffer(preperdBuffer)
+	preparedBuffer := make([]byte, 0, 20+(10*len(columnStr)))
+	buf := bytes.NewBuffer(preparedBuffer)
 	err = writeBVarChar(buf, "")
 	if err != nil {
 		return nil, err
@@ -82,9 +82,10 @@ func (tvp TVPType) encode() ([]byte, error) {
 			field := refStr.Field(j)
 			tvpVal := field.Interface()
 			valOf := reflect.ValueOf(tvpVal)
-			if field.Kind() == reflect.Ptr && valOf.IsNil() {
-				switch field.Interface().(type) {
-				case *bool, *time.Time:
+			elemKind := field.Kind()
+			if elemKind == reflect.Ptr && valOf.IsNil() {
+				switch tvpVal.(type) {
+				case *bool, *time.Time, *int8, *int16, *int32, *int64, *float32, *float64:
 					binary.Write(buf, binary.LittleEndian, uint8(0))
 					continue
 				default:
@@ -92,7 +93,7 @@ func (tvp TVPType) encode() ([]byte, error) {
 					continue
 				}
 			}
-			if field.Kind() == reflect.Slice && valOf.IsNil() {
+			if elemKind == reflect.Slice && valOf.IsNil() {
 				binary.Write(buf, binary.LittleEndian, uint64(_PLP_NULL))
 				continue
 			}

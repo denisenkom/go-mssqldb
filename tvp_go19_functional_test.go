@@ -26,21 +26,30 @@ func TestTVP(t *testing.T) {
 	sqltextcreatetable := `
 		CREATE TYPE tvptable AS TABLE
 		(
-			p_binary            BINARY(3),
-			p_varchar           VARCHAR(500),
-			p_nvarchar          NVARCHAR(100),
-			p_nvarchar1         NVARCHAR(100),
-			p_id                UNIQUEIDENTIFIER,
-			p_varbinary         VARBINARY(MAX),
-			p_tinyint           TINYINT,
+			p_binary 			BINARY(3),
+			p_varchar 			VARCHAR(500),
+			p_varcharNull 		VARCHAR(500),
+			p_nvarchar 			NVARCHAR(100),
+			p_nvarcharNull 		NVARCHAR(100),
+			p_id 				UNIQUEIDENTIFIER,
+			p_idNull 			UNIQUEIDENTIFIER,
+			p_varbinary 		VARBINARY(MAX),
+			p_tinyint 			TINYINT,
+			p_tinyintNull 		TINYINT,
 			p_smallint          SMALLINT,
+			p_smallintNull      SMALLINT,
 			p_int               INT,
+			p_intNull           INT,
 			p_bigint            BIGINT,
+			p_bigintNull        BIGINT,
 			p_bit               BIT,
-			p_bit1              BIT,
-			p_float             FLOAT,
+			p_bitNull           BIT,
+			p_float32           FLOAT,
+			p_floatNull32       FLOAT,
+			p_float64           FLOAT,
+			p_floatNull64       FLOAT,
 			p_time 				datetime2,
-			p_time2 				datetime2
+			p_timeNull			datetime2
 		); `
 
 	sqltextdroptable := `DROP TYPE tvptable;`
@@ -75,38 +84,85 @@ func TestTVP(t *testing.T) {
 	}
 	defer db.ExecContext(ctx, sqltextdropsp)
 
-	boolNull := true
-	boolNull1 := false
-	str := "bbb"
-	ti := time.Now().UTC()
+	varcharNull := "aaa"
+	nvarchar := "bbb"
+	bytesMock := []byte("ddd")
+	i8 := int8(1)
+	i16 := int16(2)
+	i32 := int32(3)
+	i64 := int64(4)
+	bFalse := false
+	floatValue64 := 0.123
+	floatValue32 := float32(-10.123)
+	timeNow := time.Now().UTC()
 	param1 := []TvptableRow{
 		{
-			PBit:         &boolNull,
-			PBit1:        true,
-			PBigint:      int64(64),
-			PFloat:       float64(640),
-			PInt:         int32(32),
-			DTime:        &ti,
-			DTimeNotNull: time.Date(2001, 11, 06, 18, 37, 9, 0, time.UTC).UTC(),
+			PBinary:    []byte("ccc"),
+			PVarchar:   varcharNull,
+			PNvarchar:  nvarchar,
+			PID:        UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
+			PVarbinary: bytesMock,
+			PTinyint:   i8,
+			PSmallint:  i16,
+			PInt:       i32,
+			PBigint:    i64,
+			PBit:       bFalse,
+			PFloat32:   floatValue32,
+			PFloat64:   floatValue64,
+			DTime:      timeNow,
 		},
 		{
-			PBit:         &boolNull1,
-			PBit1:        false,
-			DTimeNotNull: time.Now().UTC(),
+			PBinary:    []byte("www"),
+			PVarchar:   "eee",
+			PNvarchar:  "lll",
+			PID:        UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
+			PVarbinary: []byte("zzz"),
+			PTinyint:   5,
+			PSmallint:  16000,
+			PInt:       20000000,
+			PBigint:    2000000020000000,
+			PBit:       true,
+			PFloat32:   -123.45,
+			PFloat64:   -123.45,
+			DTime:      time.Date(2001, 11, 16, 23, 59, 39, 0, time.UTC),
 		},
 		{
-			PBinary:      nil,
-			PVarchar:     "aaa",
-			PNvarchar1:   &str,
-			PID:          UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
-			PVarbinary:   []byte("ddd"),
-			PTinyint:     1,
-			PSmallint:    2,
-			PInt:         3,
-			PBigint:      4,
-			PBit:         &boolNull,
-			PFloat:       0.123,
-			DTimeNotNull: time.Now().UTC(),
+			PBinary:       nil,
+			PVarcharNull:  &varcharNull,
+			PNvarcharNull: &nvarchar,
+			PIDNull:       &UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
+			PTinyintNull:  &i8,
+			PSmallintNull: &i16,
+			PIntNull:      &i32,
+			PBigintNull:   &i64,
+			PBitNull:      &bFalse,
+			PFloatNull32:  &floatValue32,
+			PFloatNull64:  &floatValue64,
+			DTime:         timeNow,
+		},
+		{
+			PBinary:       []byte("www"),
+			PVarchar:      "eee",
+			PNvarchar:     "lll",
+			PIDNull:       &UniqueIdentifier{},
+			PVarbinary:    []byte("zzz"),
+			PTinyint:      5,
+			PSmallint:     16000,
+			PInt:          20000000,
+			PBigint:       2000000020000000,
+			PBit:          true,
+			PFloat64:      123.45,
+			DTime:         time.Date(2001, 11, 16, 23, 59, 39, 0, time.UTC),
+			PVarcharNull:  &varcharNull,
+			PNvarcharNull: &nvarchar,
+			PTinyintNull:  &i8,
+			PSmallintNull: &i16,
+			PIntNull:      &i32,
+			PBigintNull:   &i64,
+			PBitNull:      &bFalse,
+			PFloatNull32:  &floatValue32,
+			PFloatNull64:  &floatValue64,
+			DTimeNull:     &timeNow,
 		},
 	}
 
@@ -133,7 +189,32 @@ func TestTVP(t *testing.T) {
 	var result1 []TvptableRow
 	for rows.Next() {
 		var val TvptableRow
-		err := rows.Scan(&val.PBinary, &val.PVarchar, &val.PNvarchar, &val.PNvarchar1, &val.PID, &val.PVarbinary, &val.PTinyint, &val.PSmallint, &val.PInt, &val.PBigint, &val.PBit, &val.PBit1, &val.PFloat, &val.DTime, &val.DTimeNotNull)
+		err := rows.Scan(
+			&val.PBinary,
+			&val.PVarchar,
+			&val.PVarcharNull,
+			&val.PNvarchar,
+			&val.PNvarcharNull,
+			&val.PID,
+			&val.PIDNull,
+			&val.PVarbinary,
+			&val.PTinyint,
+			&val.PTinyintNull,
+			&val.PSmallint,
+			&val.PSmallintNull,
+			&val.PInt,
+			&val.PIntNull,
+			&val.PBigint,
+			&val.PBigintNull,
+			&val.PBit,
+			&val.PBitNull,
+			&val.PFloat32,
+			&val.PFloatNull32,
+			&val.PFloat64,
+			&val.PFloatNull64,
+			&val.DTime,
+			&val.DTimeNull,
+		)
 		if err != nil {
 			t.Fatalf("scan failed with error: %s", err)
 		}
@@ -173,19 +254,28 @@ func TestTVP(t *testing.T) {
 }
 
 type TvptableRow struct {
-	PBinary      []byte           `db:"p_binary"`
-	PVarchar     string           `db:"p_varchar"`
-	PNvarchar    string           `db:"p_nvarchar"`
-	PNvarchar1   *string          `db:"p_nvarchar1"`
-	PID          UniqueIdentifier `db:"p_id"`
-	PVarbinary   []byte           `db:"p_varbinary"`
-	PTinyint     int8             `db:"p_tinyint"`
-	PSmallint    int16            `db:"p_smallint"`
-	PInt         int32            `db:"p_int"`
-	PBigint      int64            `db:"p_bigint"`
-	PBit         *bool            `db:"p_bit"`
-	PBit1        bool             `db:"p_bit"`
-	PFloat       float64          `db:"p_float"`
-	DTime        *time.Time       `db:"p_time"`
-	DTimeNotNull time.Time        `db:"p_time2"`
+	PBinary       []byte            `db:"p_binary"`
+	PVarchar      string            `db:"p_varchar"`
+	PVarcharNull  *string           `db:"p_varcharNull"`
+	PNvarchar     string            `db:"p_nvarchar"`
+	PNvarcharNull *string           `db:"p_nvarcharNull"`
+	PID           UniqueIdentifier  `db:"p_id"`
+	PIDNull       *UniqueIdentifier `db:"p_idNull"`
+	PVarbinary    []byte            `db:"p_varbinary"`
+	PTinyint      int8              `db:"p_tinyint"`
+	PTinyintNull  *int8             `db:"p_tinyintNull"`
+	PSmallint     int16             `db:"p_smallint"`
+	PSmallintNull *int16            `db:"p_smallintNull"`
+	PInt          int32             `db:"p_int"`
+	PIntNull      *int32            `db:"p_intNull"`
+	PBigint       int64             `db:"p_bigint"`
+	PBigintNull   *int64            `db:"p_bigintNull"`
+	PBit          bool              `db:"p_bit"`
+	PBitNull      *bool             `db:"p_bitNull"`
+	PFloat32      float32           `db:"p_float32"`
+	PFloatNull32  *float32          `db:"p_floatNull32"`
+	PFloat64      float64           `db:"p_float64"`
+	PFloatNull64  *float64          `db:"p_floatNull64"`
+	DTime         time.Time         `db:"p_timeNull"`
+	DTimeNull     *time.Time        `db:"p_time"`
 }
