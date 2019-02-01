@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 	"time"
 
 	// "github.com/cockroachdb/apd"
@@ -172,20 +171,6 @@ func (s *Stmt) makeParamExtra(val driver.Value) (res param, err error) {
 	case sql.Out:
 		res, err = s.makeParam(val.Dest)
 		res.Flags = fByRevValue
-	case *TableValuedParam:
-		res.ti.TypeId = typeTvp
-		parts := strings.Split(val.TypeName, ".")
-		switch len(parts) {
-		case 1:
-			res.ti.UdtInfo.TypeName = parts[0] // TODO: These probably shouldn't be held here?
-		case 2:
-			res.ti.UdtInfo.SchemaName = parts[0]
-			res.ti.UdtInfo.TypeName = parts[1]
-		default:
-			err = fmt.Errorf("mssql: Type name should consist of at most 2 parts, e.g. dbo.MyType (got: %s)", val.TypeName)
-		}
-		res.buffer, err = val.encode(res)
-		res.ti.Size = len(res.buffer)
 	case TVPType:
 		err = val.check()
 		if err != nil {

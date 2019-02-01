@@ -5,129 +5,169 @@ package mssql
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"reflect"
+	"time"
 )
 
-type tvpWrapper interface {
-	TVP() (typeName string, exampleRow []interface{}, rows [][]interface{})
+var (
+	ErrorEmptyTVPName        = errors.New("TVPName must not be empty")
+	ErrorTVPTypeSlice        = errors.New("TVPType must be slice type")
+	ErrorTVPTypeSliceIsEmpty = errors.New("TVPType mustn't be null value")
+)
+
+//TVPType is driver type, which allows supporting TVPType
+type TVPType struct {
+	//TVP param name
+	TVPName string
+	//TVP scheme name
+	TVPScheme string
+	//TVP Value. Param must be the slice, mustn't be nil
+	TVPValue interface{}
 }
 
-type TableValuedParam struct {
-	TypeName   string
-	Rows       [][]interface{}
-	ExampleRow []interface{}
+func (tvp TVPType) check() error {
+	if len(tvp.TVPName) == 0 {
+		return ErrorEmptyTVPName
+	}
+	valueOf := reflect.ValueOf(tvp.TVPValue)
+	if valueOf.Kind() != reflect.Slice {
+		return ErrorTVPTypeSlice
+	}
+	if valueOf.IsNil() {
+		return ErrorTVPTypeSliceIsEmpty
+	}
+	if reflect.TypeOf(tvp.TVPValue).Elem().Kind() != reflect.Struct {
+		return ErrorTVPTypeSlice
+	}
+	return nil
 }
 
-func (p *TableValuedParam) encode(tvpParam param) ([]byte, error) {
+func (tvp TVPType) encode() ([]byte, error) {
+	buf := &bytes.Buffer{}
+	err := writeBVarChar(buf, "")
+	if err != nil {
+		return nil, err
+	}
+	writeBVarChar(buf, tvp.TVPScheme)
+	writeBVarChar(buf, tvp.TVPName)
+	columnStr, err := tvp.columnTypes()
+	if err != nil {
+		return nil, err
+	}
+	binary.Write(buf, binary.LittleEndian, uint16(len(columnStr)))
 
-	var params [][]param
-	var columns []columnStruct
+	for i, column := range columnStr {
+		binary.Write(buf, binary.LittleEndian, uint32(column.UserType))
+		binary.Write(buf, binary.LittleEndian, uint16(column.Flags))
+		writeTypeInfo(buf, &columnStr[i].ti)
+		writeBVarChar(buf, "")
+	}
+	buf.WriteByte(_TVP_END_TOKEN)
+	conn := new(Conn)
+	conn.sess = new(tdsSession)
+	conn.sess.loginAck = loginAckStruct{TDSVersion: verTDS73}
+	stmt := &Stmt{
+		c: conn,
+	}
 
-	stmt := &Stmt{}
+	val := reflect.ValueOf(tvp.TVPValue)
+	for i := 0; i < val.Len(); i++ {
+		refStr := reflect.ValueOf(val.Index(i).Interface())
+		buf.WriteByte(_TVP_ROW_TOKEN)
+		for j := 0; j < refStr.NumField(); j++ {
+			field := refStr.Field(j)
+			tvpVal := field.Interface()
+			valOf := reflect.ValueOf(tvpVal)
+			if field.Kind() == reflect.Ptr && valOf.IsNil() {
+				switch field.Type().Elem().Kind() {
+				case reflect.Bool:
+					binary.Write(buf, binary.LittleEndian, uint8(0))
+					continue
+				default:
+					switch valOf.Interface().(type) {
+					case *time.Time:
+						binary.Write(buf, binary.LittleEndian, uint8(0))
+						continue
+					default:
+						binary.Write(buf, binary.LittleEndian, uint64(_PLP_NULL))
+						continue
+					}
+				}
+			}
+			if field.Kind() == reflect.Slice && valOf.IsNil() {
+				binary.Write(buf, binary.LittleEndian, uint64(_PLP_NULL))
+				continue
+			}
 
-	// Make rows of parameters from the rows of data
-	for rowI, row := range p.Rows {
-		var rowParams []param
-		for colI, val := range row {
-			cval, err := convertInputParameter(val)
+			cval, err := convertInputParameter(tvpVal)
 			if err != nil {
-				return nil, fmt.Errorf("failed to convert tvp parameter row %d col %d: %s", rowI, colI, err)
+				return nil, fmt.Errorf("failed to convert tvp parameter row col: %s", err)
 			}
 			param, err := stmt.makeParam(cval)
 			if err != nil {
-				return nil, fmt.Errorf("failed to make tvp parameter row %d col %d: %s", rowI, colI, err)
+				return nil, fmt.Errorf("failed to make tvp parameter row col: %s", err)
 			}
-			rowParams = append(rowParams, param)
+			columnStr[j].ti.Writer(buf, param.ti, param.buffer)
 		}
-		params = append(params, rowParams)
+	}
+	buf.WriteByte(_TVP_END_TOKEN)
+	return buf.Bytes(), nil
+}
+
+func (tvp TVPType) columnTypes() ([]columnStruct, error) {
+	val := reflect.ValueOf(tvp.TVPValue)
+	var firstRow interface{}
+	if val.Len() != 0 {
+		firstRow = val.Index(0).Interface()
+	} else {
+		firstRow = reflect.New(reflect.TypeOf(tvp.TVPValue).Elem()).Elem().Interface()
 	}
 
-	// Use the first row for the column (without size?) (TODO: Check this...)
-	for i, col := range p.ExampleRow {
+	tvpRow := reflect.TypeOf(firstRow)
+	columnCount := tvpRow.NumField()
+	defaultValues := make([]interface{}, 0, columnCount)
 
-		cval, err := convertInputParameter(col)
+	for i := 0; i < columnCount; i++ {
+		typeField := tvpRow.Field(i).Type
+		if typeField.Kind() == reflect.Ptr {
+			v := reflect.New(typeField.Elem())
+			defaultValues = append(defaultValues, v.Interface())
+			continue
+		}
+		defaultValues = append(defaultValues, reflect.Zero(typeField).Interface())
+	}
+
+	conn := new(Conn)
+	conn.sess = new(tdsSession)
+	conn.sess.loginAck = loginAckStruct{TDSVersion: verTDS73}
+	stmt := &Stmt{
+		c: conn,
+	}
+
+	columnConfiguration := make([]columnStruct, 0, columnCount)
+	for index, val := range defaultValues {
+		cval, err := convertInputParameter(val)
+		if err != nil {
+			return nil, err
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert tvp parameter row %d col %d: %s", index, val, err)
+		}
 		param, err := stmt.makeParam(cval)
 		if err != nil {
-			return nil, fmt.Errorf("failed to make example row parameter col %d: %s", i, err)
+			return nil, err
 		}
-		var c columnStruct
-		c.ti = param.ti
-		switch param.ti.TypeId { // TODO: This seems ugly. better way?
+		column := columnStruct{
+			ti: param.ti,
+		}
+		switch param.ti.TypeId {
 		case typeNVarChar, typeBigVarBin:
-			c.ti.Size = 0
+			column.ti.Size = 0
 		}
-
-		columns = append(columns, c)
+		columnConfiguration = append(columnConfiguration, column)
 	}
 
-	buf := &bytes.Buffer{}
-
-	// w.write_b_varchar("")  # db_name, should be empty
-	writeBVarChar(buf, "")
-
-	// w.write_b_varchar(self._table_type.typ_schema)
-	writeBVarChar(buf, tvpParam.ti.UdtInfo.SchemaName)
-
-	// w.write_b_varchar(self._table_type.typ_name)
-	writeBVarChar(buf, tvpParam.ti.UdtInfo.TypeName)
-
-	// w.put_usmallint(len(columns))
-	binary.Write(buf, binary.LittleEndian, uint16(len(columns)))
-
-	//for i, column in enumerate(columns):
-	for i, column := range columns {
-
-		// w.put_uint(column.column_usertype)
-		binary.Write(buf, binary.LittleEndian, uint32(column.UserType))
-
-		// w.put_usmallint(column.flags)
-		binary.Write(buf, binary.LittleEndian, uint16(column.Flags))
-
-		// # TYPE_INFO structure: https://msdn.microsoft.com/en-us/library/dd358284.aspx
-
-		// serializer = self._columns_serializers[i]
-		// type_id = serializer.type
-		// w.put_byte(type_id) // ES: Appears to be done by writeTypeInfo
-		// serializer.write_info(w)
-		writeTypeInfo(buf, &columns[i].ti)
-
-		// w.write_b_varchar('')  # ColName, must be empty in TVP according to spec
-		writeBVarChar(buf, "")
-	}
-
-	// # here can optionally send TVP_ORDER_UNIQUE and TVP_COLUMN_ORDERING
-	// # https://msdn.microsoft.com/en-us/library/dd305261.aspx
-
-	// # terminating optional metadata
-	// w.put_byte(tds_base.TVP_END_TOKEN)
-	buf.WriteByte(_TVP_END_TOKEN)
-
-	fmt.Println(buf.Bytes())
-
-	// # now sending rows using TVP_ROW
-	// # https://msdn.microsoft.com/en-us/library/dd305261.aspx
-	// if val.rows:
-	// 	for row in val.rows:
-	for _, row := range params {
-		// 		w.put_byte(tds_base.TVP_ROW_TOKEN)
-		buf.WriteByte(_TVP_ROW_TOKEN)
-
-		// 		for i, col in enumerate(self._table_type.columns):
-		for i, param := range row {
-
-			// 			if not col.flags & tds_base.TVP_COLUMN_DEFAULT_FLAG:
-			// 				self._columns_serializers[i].write(w, row[i])
-			//if !p.columns[i].Flags&_TVP_COLUMN_DEFAULT_FLAG != 0 { // TODO: Is this needed?
-			columns[i].ti.Writer(buf, param.ti, param.buffer)
-			//}
-		}
-	}
-
-	// # terminating rows
-	// w.put_byte(tds_base.TVP_END_TOKEN)
-	buf.WriteByte(_TVP_END_TOKEN)
-
-	fmt.Println(buf.Bytes())
-
-	return buf.Bytes(), nil
+	return columnConfiguration, nil
 }
