@@ -45,17 +45,19 @@ func (tvp TVPType) check() error {
 }
 
 func (tvp TVPType) encode() ([]byte, error) {
-	buf := &bytes.Buffer{}
-	err := writeBVarChar(buf, "")
+	columnStr, err := tvp.columnTypes()
+	if err != nil {
+		return nil, err
+	}
+	preperdBuffer := make([]byte, 0, 20+(8*len(columnStr)))
+	buf := bytes.NewBuffer(preperdBuffer)
+	err = writeBVarChar(buf, "")
 	if err != nil {
 		return nil, err
 	}
 	writeBVarChar(buf, tvp.TVPScheme)
 	writeBVarChar(buf, tvp.TVPName)
-	columnStr, err := tvp.columnTypes()
-	if err != nil {
-		return nil, err
-	}
+
 	binary.Write(buf, binary.LittleEndian, uint16(len(columnStr)))
 
 	for i, column := range columnStr {
@@ -81,19 +83,13 @@ func (tvp TVPType) encode() ([]byte, error) {
 			tvpVal := field.Interface()
 			valOf := reflect.ValueOf(tvpVal)
 			if field.Kind() == reflect.Ptr && valOf.IsNil() {
-				switch field.Type().Elem().Kind() {
-				case reflect.Bool:
+				switch field.Interface().(type) {
+				case *bool, *time.Time:
 					binary.Write(buf, binary.LittleEndian, uint8(0))
 					continue
 				default:
-					switch valOf.Interface().(type) {
-					case *time.Time:
-						binary.Write(buf, binary.LittleEndian, uint8(0))
-						continue
-					default:
-						binary.Write(buf, binary.LittleEndian, uint64(_PLP_NULL))
-						continue
-					}
+					binary.Write(buf, binary.LittleEndian, uint64(_PLP_NULL))
+					continue
 				}
 			}
 			if field.Kind() == reflect.Slice && valOf.IsNil() {
