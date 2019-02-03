@@ -15,6 +15,14 @@ type TestFields struct {
 	TimeNullValue *time.Time
 }
 
+type TestFieldError struct {
+	ErrorValue []*byte
+}
+
+type TestFieldsUnsuportedTypes struct {
+	ErrorType TestFieldError
+}
+
 func TestTVPType_columnTypes(t *testing.T) {
 	type fields struct {
 		TVPName   string
@@ -33,13 +41,27 @@ func TestTVPType_columnTypes(t *testing.T) {
 				TVPValue: []TestFields{TestFields{}},
 			},
 		},
+		{
+			name: "TVPValue has wrong type",
+			fields: fields{
+				TVPValue: []TestFieldError{TestFieldError{}},
+			},
+			wantErr: true,
+		},
+		{
+			name: "TVPValue has wrong type",
+			fields: fields{
+				TVPValue: []TestFieldsUnsuportedTypes{},
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tvp := TVPType{
-				TVPName:   tt.fields.TVPName,
-				TVPScheme: tt.fields.TVPScheme,
-				TVPValue:  tt.fields.TVPValue,
+				TVPTypeName: tt.fields.TVPName,
+				TVPScheme:   tt.fields.TVPScheme,
+				TVPValue:    tt.fields.TVPValue,
 			}
 			_, err := tvp.columnTypes()
 			if (err != nil) != tt.wantErr {
@@ -65,7 +87,7 @@ func TestTVPType_check(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "TVPName is nil",
+			name:    "TVPTypeName is nil",
 			wantErr: true,
 		},
 		{
@@ -108,7 +130,15 @@ func TestTVPType_check(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "TVPValue isn't slice",
+			name: "TVPValue isn't right",
+			fields: fields{
+				TVPName:  "Test",
+				TVPValue: []*fields{},
+			},
+			wantErr: true,
+		},
+		{
+			name: "TVPValue is right",
 			fields: fields{
 				TVPName:  "Test",
 				TVPValue: []fields{},
@@ -119,9 +149,9 @@ func TestTVPType_check(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tvp := TVPType{
-				TVPName:   tt.fields.TVPName,
-				TVPScheme: tt.fields.TVPScheme,
-				TVPValue:  tt.fields.TVPValue,
+				TVPTypeName: tt.fields.TVPName,
+				TVPScheme:   tt.fields.TVPScheme,
+				TVPValue:    tt.fields.TVPValue,
 			}
 			if err := tvp.check(); (err != nil) != tt.wantErr {
 				t.Errorf("TVPType.check() error = %v, wantErr %v", err, tt.wantErr)
@@ -135,8 +165,8 @@ func BenchmarkTVPType_check(b *testing.B) {
 		Value string
 	}
 	tvp := TVPType{
-		TVPName:  "Test",
-		TVPValue: []val{},
+		TVPTypeName: "Test",
+		TVPValue:    []val{},
 	}
 	for i := 0; i < b.N; i++ {
 		err := tvp.check()
@@ -180,13 +210,50 @@ func BenchmarkColumnTypes(b *testing.B) {
 	}
 	wal := make([]str, 100)
 	tvp := TVPType{
-		TVPName:  "Test",
-		TVPValue: wal,
+		TVPTypeName: "Test",
+		TVPValue:    wal,
 	}
 	for i := 0; i < b.N; i++ {
 		_, err := tvp.columnTypes()
 		if err != nil {
 			b.Error(err)
 		}
+	}
+}
+
+func TestTVPType_encode(t *testing.T) {
+	type fields struct {
+		TVPTypeName string
+		TVPScheme   string
+		TVPValue    interface{}
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		want    []byte
+		wantErr bool
+	}{
+		{
+			name: "TVPValue get error unsupport type",
+			fields: fields{
+				TVPTypeName: "Test",
+				TVPValue:    []TestFieldError{},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tvp := TVPType{
+				TVPTypeName: tt.fields.TVPTypeName,
+				TVPScheme:   tt.fields.TVPScheme,
+				TVPValue:    tt.fields.TVPValue,
+			}
+			_, err := tvp.encode()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("TVPType.encode() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+		})
 	}
 }

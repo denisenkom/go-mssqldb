@@ -5,6 +5,7 @@ package mssql
 import (
 	"context"
 	"database/sql"
+	"log"
 	"reflect"
 	"testing"
 	"time"
@@ -139,6 +140,7 @@ func TestTVP(t *testing.T) {
 			PFloatNull32:  &floatValue32,
 			PFloatNull64:  &floatValue64,
 			DTime:         timeNow,
+			DTimeNull:     &timeNow,
 		},
 		{
 			PBinary:       []byte("www"),
@@ -167,12 +169,12 @@ func TestTVP(t *testing.T) {
 	}
 
 	tvpType := TVPType{
-		TVPName:  "tvptable",
-		TVPValue: param1,
+		TVPTypeName: "tvptable",
+		TVPValue:    param1,
 	}
 	tvpTypeEmpty := TVPType{
-		TVPName:  "tvptable",
-		TVPValue: []TvptableRow{},
+		TVPTypeName: "tvptable",
+		TVPValue:    []TvptableRow{},
 	}
 
 	rows, err := db.QueryContext(ctx,
@@ -251,6 +253,108 @@ func TestTVP(t *testing.T) {
 	if result3 != "test" {
 		t.Errorf("third result set had wrong value expected: %s actual: %s", "test", result3)
 	}
+}
+
+type TvpExemple struct {
+	Message string
+}
+
+const (
+	crateSchema = `create schema TestTVPSchema;`
+
+	dropSchema = `drop schema TestTVPSchema;`
+
+	createTVP = `
+		CREATE TYPE TestTVPSchema.exempleTVP AS TABLE
+		(
+			message	NVARCHAR(100)
+		)`
+
+	dropTVP = `DROP TYPE TestTVPSchema.exempleTVP;`
+
+	procedureWithTVP = `	
+	CREATE PROCEDURE ExecTVP
+		@param1 TestTVPSchema.exempleTVP READONLY
+	AS   
+	BEGIN
+		SET NOCOUNT ON; 
+		SELECT * FROM @param1;
+	END;
+	`
+
+	dropProcedure = `drop PROCEDURE ExecTVP`
+
+	execTvp = `exec ExecTVP @param1;`
+)
+
+func TestTVPSchema(t *testing.T) {
+	checkConnStr(t)
+	SetLogger(testLogger{t})
+
+	conn, err := sql.Open("sqlserver", makeConnStr(t).String())
+	if err != nil {
+		log.Fatal("Open connection failed:", err.Error())
+	}
+	defer conn.Close()
+
+	_, err = conn.Exec(crateSchema)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer conn.Exec(dropSchema)
+
+	_, err = conn.Exec(createTVP)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer conn.Exec(dropTVP)
+
+	_, err = conn.Exec(procedureWithTVP)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer conn.Exec(dropProcedure)
+
+	exempleData := []TvpExemple{
+		{
+			Message: "Hello",
+		},
+		{
+			Message: "World",
+		},
+		{
+			Message: "TVP",
+		},
+	}
+
+	tvpType := TVPType{
+		TVPTypeName: "exempleTVP",
+		TVPScheme:   "TestTVPSchema",
+		TVPValue:    exempleData,
+	}
+
+	rows, err := conn.Query(execTvp,
+		sql.Named("param1", tvpType),
+	)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	tvpResult := make([]TvpExemple, 0)
+	for rows.Next() {
+		tvpExemple := TvpExemple{}
+		err = rows.Scan(&tvpExemple.Message)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		tvpResult = append(tvpResult, tvpExemple)
+	}
+	log.Println(tvpResult)
 }
 
 type TvptableRow struct {

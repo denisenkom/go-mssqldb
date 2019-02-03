@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	ErrorEmptyTVPName        = errors.New("TVPName must not be empty")
+	ErrorEmptyTVPName        = errors.New("TVPTypeName must not be empty")
 	ErrorTVPTypeSlice        = errors.New("TVPType must be slice type")
 	ErrorTVPTypeSliceIsEmpty = errors.New("TVPType mustn't be null value")
 )
@@ -20,7 +20,7 @@ var (
 //TVPType is driver type, which allows supporting Table Valued Parameters (TVP) in SQL Server
 type TVPType struct {
 	//TVP param name, mustn't be default value
-	TVPName string
+	TVPTypeName string
 	//TVP scheme name
 	TVPScheme string
 	//TVP Value. Param must be the slice, mustn't be nil
@@ -28,7 +28,7 @@ type TVPType struct {
 }
 
 func (tvp TVPType) check() error {
-	if len(tvp.TVPName) == 0 {
+	if len(tvp.TVPTypeName) == 0 {
 		return ErrorEmptyTVPName
 	}
 	valueOf := reflect.ValueOf(tvp.TVPValue)
@@ -56,7 +56,7 @@ func (tvp TVPType) encode() ([]byte, error) {
 		return nil, err
 	}
 	writeBVarChar(buf, tvp.TVPScheme)
-	writeBVarChar(buf, tvp.TVPName)
+	writeBVarChar(buf, tvp.TVPTypeName)
 
 	binary.Write(buf, binary.LittleEndian, uint16(len(columnStr)))
 
@@ -146,9 +146,6 @@ func (tvp TVPType) columnTypes() ([]columnStruct, error) {
 	columnConfiguration := make([]columnStruct, 0, columnCount)
 	for index, val := range defaultValues {
 		cval, err := convertInputParameter(val)
-		if err != nil {
-			return nil, err
-		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert tvp parameter row %d col %d: %s", index, val, err)
 		}
