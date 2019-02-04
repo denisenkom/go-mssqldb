@@ -189,6 +189,7 @@ are supported:
  * "cloud.google.com/go/civil".Date -> date
  * "cloud.google.com/go/civil".DateTime -> datetime2
  * "cloud.google.com/go/civil".Time -> time
+ * mssql.TVPType -> Table Value Parameter (TDS version dependent)
 
 ## Important Notes
 
