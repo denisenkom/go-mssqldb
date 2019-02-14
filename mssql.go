@@ -731,14 +731,14 @@ func (rc *Rows) NextResultSet() error {
 	return nil
 }
 
-// It should return
+// ColumnTypeScanType: It should return
 // the value type that can be used to scan types into. For example, the database
 // column type "bigint" this should return "reflect.TypeOf(int64(0))".
 func (r *Rows) ColumnTypeScanType(index int) reflect.Type {
 	return makeGoLangScanType(r.cols[index].ti)
 }
 
-// RowsColumnTypeDatabaseTypeName may be implemented by Rows. It should return the
+// ColumnTypeDatabaseTypeName: may be implemented by Rows. It should return the
 // database system type name without the length. Type names should be uppercase.
 // Examples of returned types: "VARCHAR", "NVARCHAR", "VARCHAR2", "CHAR", "TEXT",
 // "DECIMAL", "SMALLINT", "INT", "BIGINT", "BOOL", "[]BIGINT", "JSONB", "XML",
@@ -747,7 +747,7 @@ func (r *Rows) ColumnTypeDatabaseTypeName(index int) string {
 	return makeGoLangTypeName(r.cols[index].ti)
 }
 
-// RowsColumnTypeLength may be implemented by Rows. It should return the length
+// ColumnTypeLength: may be implemented by Rows. It should return the length
 // of the column type if the column is a variable length type. If the column is
 // not a variable length type ok should return false.
 // If length is not limited other than system limits, it should return math.MaxInt64.
@@ -762,7 +762,7 @@ func (r *Rows) ColumnTypeLength(index int) (int64, bool) {
 	return makeGoLangTypeLength(r.cols[index].ti)
 }
 
-// It should return
+// ColumnTypePrecisionScale: It should return
 // the precision and scale for decimal types. If not applicable, ok should be false.
 // The following are examples of returned values for various types:
 //   decimal(38, 4)    (38, 4, true)
@@ -772,7 +772,7 @@ func (r *Rows) ColumnTypePrecisionScale(index int) (int64, int64, bool) {
 	return makeGoLangTypePrecisionScale(r.cols[index].ti)
 }
 
-// The nullable value should
+// ColumnTypeNullable: The nullable value should
 // be true if it is known the column may be null, or false if the column is known
 // to be not nullable.
 // If the column nullability is unknown, ok should be false.
