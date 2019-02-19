@@ -221,6 +221,9 @@ func TestSelectDateTimeOffset(t *testing.T) {
 	}
 
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 	for _, test := range values {
 		row := conn.QueryRow("select " + test.sql)
@@ -244,6 +247,9 @@ func TestSelectDateTimeOffset(t *testing.T) {
 
 func TestSelectNewTypes(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 	var ver string
 	err := conn.QueryRow("select SERVERPROPERTY('productversion')").Scan(&ver)
@@ -323,6 +329,9 @@ func TestSelectNewTypes(t *testing.T) {
 
 func TestTrans(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	var tx *sql.Tx
@@ -347,6 +356,9 @@ func TestTrans(t *testing.T) {
 
 func TestNull(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	t.Run("scan into interface{}", func(t *testing.T) {
@@ -501,6 +513,9 @@ func TestParams(t *testing.T) {
 	}
 
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	for _, val := range values {
@@ -536,6 +551,9 @@ func TestParams(t *testing.T) {
 
 func TestExec(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	res, err := conn.Exec("create table #abc (fld int)")
@@ -580,6 +598,9 @@ func TestShortTimeout(t *testing.T) {
 
 func TestTwoQueries(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	rows, err := conn.Query("select 1")
@@ -613,6 +634,9 @@ func TestTwoQueries(t *testing.T) {
 
 func TestError(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	_, err := conn.Query("exec bad")
@@ -631,6 +655,9 @@ func TestError(t *testing.T) {
 
 func TestQueryNoRows(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	var rows *sql.Rows
@@ -645,6 +672,9 @@ func TestQueryNoRows(t *testing.T) {
 
 func TestQueryManyNullsRow(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	var row *sql.Row
@@ -660,6 +690,9 @@ func TestQueryManyNullsRow(t *testing.T) {
 
 func TestOrderBy(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	tx, err := conn.Begin()
@@ -708,6 +741,9 @@ func TestOrderBy(t *testing.T) {
 
 func TestScanDecimal(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	var f float64
@@ -735,6 +771,9 @@ func TestScanDecimal(t *testing.T) {
 
 func TestAffectedRows(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	tx, err := conn.Begin()
@@ -782,6 +821,9 @@ func TestAffectedRows(t *testing.T) {
 
 func TestIdentity(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	tx, err := conn.Begin()
@@ -839,6 +881,9 @@ func queryParamRoundTrip(db *sql.DB, param interface{}, dest interface{}) {
 
 func TestDateTimeParam(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 	type testStruct struct {
 		t time.Time
@@ -881,6 +926,9 @@ func TestDateTimeParam(t *testing.T) {
 
 func TestUniqueIdentifierParam(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 	type testStruct struct {
 		name string
@@ -922,6 +970,9 @@ func TestUniqueIdentifierParam(t *testing.T) {
 
 func TestBigQuery(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 	rows, err := conn.Query(`WITH n(n) AS
 		(
@@ -948,6 +999,9 @@ func TestBigQuery(t *testing.T) {
 
 func TestBug32(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	tx, err := conn.Begin()
@@ -974,6 +1028,9 @@ func TestBug32(t *testing.T) {
 
 func TestIgnoreEmptyResults(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 	rows, err := conn.Query("set nocount on; select 2")
 	if err != nil {
@@ -1017,6 +1074,9 @@ func TestStmt_SetQueryNotification(t *testing.T) {
 
 func TestErrorInfo(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	_, err := conn.Exec("select bad")
@@ -1057,6 +1117,9 @@ func TestErrorInfo(t *testing.T) {
 
 func TestSetLanguage(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	_, err := conn.Exec("set language russian")
@@ -1412,6 +1475,9 @@ func TestLongConnection(t *testing.T) {
 
 func TestNextResultSet(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 	rows, err := conn.Query("select 1; select 2")
 	if err != nil {
@@ -1508,6 +1574,9 @@ func TestColumnTypeIntrospection(t *testing.T) {
 		{"cast(1 as sql_variant)", "SQL_VARIANT", reflect.TypeOf(nil), false, 0, false, 0, 0},
 	}
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 	for _, tt := range tests {
 		rows, err := conn.Query("select " + tt.expr)
@@ -1566,6 +1635,9 @@ func TestColumnIntrospection(t *testing.T) {
 		{"f3 decimal(5, 2) null", "f3", "DECIMAL", true, false, 0, true, 5, 2},
 	}
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	// making table variable with specified fields and making a select from it
@@ -1626,6 +1698,9 @@ func TestColumnIntrospection(t *testing.T) {
 
 func TestContext(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	opts := &sql.TxOptions{
@@ -1675,6 +1750,9 @@ func TestContext(t *testing.T) {
 
 func TestBeginTxtReadOnlyNotSupported(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 	opts := &sql.TxOptions{ReadOnly: true}
 	_, err := conn.BeginTx(context.Background(), opts)
@@ -1685,6 +1763,9 @@ func TestBeginTxtReadOnlyNotSupported(t *testing.T) {
 
 func TestConn_BeginTx(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 	_, err := conn.Exec("create table test (f int)")
 	defer conn.Exec("drop table test")
@@ -1731,6 +1812,9 @@ func TestConn_BeginTx(t *testing.T) {
 
 func TestNamedParameters(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 	row := conn.QueryRow(
 		"select :param2, :param1, :param2",
@@ -1749,6 +1833,9 @@ func TestNamedParameters(t *testing.T) {
 
 func TestBadNamedParameters(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 	row := conn.QueryRow(
 		"select :param2, :param1, :param2",
@@ -1765,6 +1852,9 @@ func TestBadNamedParameters(t *testing.T) {
 
 func TestMixedParameters(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 	row := conn.QueryRow(
 		"select :2, :param1, :param2",
@@ -1786,6 +1876,9 @@ func TestMixedParameters(t *testing.T) {
 /*
 func TestMixedParametersExample(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 	row := conn.QueryRow(
 		"select :id, ?",
@@ -1806,6 +1899,9 @@ func TestMixedParametersExample(t *testing.T) {
 
 func TestPinger(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 	err := conn.Ping()
 	if err != nil {
@@ -1858,6 +1954,9 @@ func TestQueryCancelLowLevel(t *testing.T) {
 
 func TestQueryCancelHighLevel(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1881,6 +1980,9 @@ func TestQueryCancelHighLevel(t *testing.T) {
 
 func TestQueryTimeout(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()

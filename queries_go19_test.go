@@ -737,6 +737,9 @@ with
 	t.Logf("query len (utf16 bytes)=%d, len/4096=%f\n", len(query)*2, float64(len(query)*2)/4096)
 
 	db := open(t)
+	if db == nil {
+		return
+	}
 	defer db.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -798,6 +801,9 @@ with
 
 func TestDateTimeParam19(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	// testing DateTime1, only supported on go 1.9
@@ -833,6 +839,9 @@ func TestDateTimeParam19(t *testing.T) {
 
 func TestReturnStatus(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	_, err := conn.Exec("if object_id('retstatus') is not null drop proc retstatus;")
