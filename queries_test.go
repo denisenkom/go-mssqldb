@@ -31,6 +31,9 @@ func driverNoProcess(t *testing.T) *Driver {
 
 func TestSelect(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	t.Run("scan into interface{}", func(t *testing.T) {

@@ -81,6 +81,9 @@ func TestBulkcopy(t *testing.T) {
 	}
 
 	pool := open(t)
+	if pool == nil {
+		return
+	}
 	defer pool.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())

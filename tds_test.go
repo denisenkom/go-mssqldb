@@ -259,6 +259,9 @@ func TestQuery(t *testing.T) {
 func TestMultipleQueriesSequentialy(t *testing.T) {
 
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	stmt, err := conn.Prepare("select 1 as a")
@@ -287,6 +290,9 @@ func TestMultipleQueriesSequentialy(t *testing.T) {
 
 func TestMultipleQueryClose(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 
 	stmt, err := conn.Prepare("select 1 as a")
@@ -314,6 +320,9 @@ func TestMultipleQueryClose(t *testing.T) {
 
 func TestPing(t *testing.T) {
 	conn := open(t)
+	if conn == nil {
+		return
+	}
 	defer conn.Close()
 	conn.Ping()
 }
