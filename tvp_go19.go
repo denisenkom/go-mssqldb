@@ -15,6 +15,7 @@ var (
 	ErrorEmptyTVPName        = errors.New("TVPTypeName must not be empty")
 	ErrorTVPTypeSlice        = errors.New("TVPType must be slice type")
 	ErrorTVPTypeSliceIsEmpty = errors.New("TVPType mustn't be null value")
+	ErrorTVPCustomTag        = errors.New("all fields mustn't skip")
 )
 
 //TVPType is driver type, which allows supporting Table Valued Parameters (TVP) in SQL Server
@@ -23,11 +24,16 @@ type TVPType struct {
 	TVPTypeName string
 	//TVP scheme name
 	TVPScheme string
-	//TVP Value. Param must be the slice, mustn't be nil
+	//TVP Value Param must be the slice, mustn't be nil
 	TVPValue interface{}
+	//TVPCustomTag If the field tag is "-", the field is always omit
+	TVPCustomTag string
+	isCustomTag  bool
+	//tvpFieldIndexes
+	tvpFieldIndexes []int
 }
 
-func (tvp TVPType) check() error {
+func (tvp *TVPType) check() error {
 	if len(tvp.TVPTypeName) == 0 {
 		return ErrorEmptyTVPName
 	}
@@ -40,6 +46,9 @@ func (tvp TVPType) check() error {
 	}
 	if reflect.TypeOf(tvp.TVPValue).Elem().Kind() != reflect.Struct {
 		return ErrorTVPTypeSlice
+	}
+	if tvp.TVPCustomTag != "" {
+		tvp.isCustomTag = true
 	}
 	return nil
 }
@@ -78,7 +87,7 @@ func (tvp TVPType) encode() ([]byte, error) {
 	for i := 0; i < val.Len(); i++ {
 		refStr := reflect.ValueOf(val.Index(i).Interface())
 		buf.WriteByte(_TVP_ROW_TOKEN)
-		for j := 0; j < refStr.NumField(); j++ {
+		for _, j := range tvp.tvpFieldIndexes {
 			field := refStr.Field(j)
 			tvpVal := field.Interface()
 			valOf := reflect.ValueOf(tvpVal)
@@ -113,7 +122,7 @@ func (tvp TVPType) encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (tvp TVPType) columnTypes() ([]columnStruct, error) {
+func (tvp *TVPType) columnTypes() ([]columnStruct, error) {
 	val := reflect.ValueOf(tvp.TVPValue)
 	var firstRow interface{}
 	if val.Len() != 0 {
@@ -125,15 +134,23 @@ func (tvp TVPType) columnTypes() ([]columnStruct, error) {
 	tvpRow := reflect.TypeOf(firstRow)
 	columnCount := tvpRow.NumField()
 	defaultValues := make([]interface{}, 0, columnCount)
-
+	tvp.tvpFieldIndexes = make([]int, 0, columnCount)
 	for i := 0; i < columnCount; i++ {
-		typeField := tvpRow.Field(i).Type
-		if typeField.Kind() == reflect.Ptr {
-			v := reflect.New(typeField.Elem())
+		field := tvpRow.Field(i)
+		if tvp.isCustomTag && field.Tag.Get(tvp.TVPCustomTag) == "-" {
+			continue
+		}
+		tvp.tvpFieldIndexes = append(tvp.tvpFieldIndexes, i)
+		if field.Type.Kind() == reflect.Ptr {
+			v := reflect.New(field.Type.Elem())
 			defaultValues = append(defaultValues, v.Interface())
 			continue
 		}
-		defaultValues = append(defaultValues, reflect.Zero(typeField).Interface())
+		defaultValues = append(defaultValues, reflect.Zero(field.Type).Interface())
+	}
+
+	if columnCount-len(tvp.tvpFieldIndexes) == columnCount {
+		return nil, ErrorTVPCustomTag
 	}
 
 	conn := new(Conn)

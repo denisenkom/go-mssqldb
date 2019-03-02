@@ -169,12 +169,14 @@ func TestTVP(t *testing.T) {
 	}
 
 	tvpType := TVPType{
-		TVPTypeName: "tvptable",
-		TVPValue:    param1,
+		TVPTypeName:  "tvptable",
+		TVPValue:     param1,
+		TVPCustomTag: "customTag",
 	}
 	tvpTypeEmpty := TVPType{
-		TVPTypeName: "tvptable",
-		TVPValue:    []TvptableRow{},
+		TVPTypeName:  "tvptable",
+		TVPValue:     []TvptableRow{},
+		TVPCustomTag: "customTag",
 	}
 
 	rows, err := db.QueryContext(ctx,
@@ -331,9 +333,10 @@ func TestTVPSchema(t *testing.T) {
 	}
 
 	tvpType := TVPType{
-		TVPTypeName: "exempleTVP",
-		TVPScheme:   "TestTVPSchema",
-		TVPValue:    exempleData,
+		TVPTypeName:  "exempleTVP",
+		TVPScheme:    "TestTVPSchema",
+		TVPValue:     exempleData,
+		TVPCustomTag: "customTag",
 	}
 
 	rows, err := conn.Query(execTvp,
@@ -382,4 +385,29 @@ type TvptableRow struct {
 	PFloatNull64  *float64          `db:"p_floatNull64"`
 	DTime         time.Time         `db:"p_timeNull"`
 	DTimeNull     *time.Time        `db:"p_time"`
+
+	SkipPBinary       []byte            `customTag:"-"`
+	SkipPVarchar      string            `customTag:"-"`
+	SkipPVarcharNull  *string           `customTag:"-"`
+	SkipPNvarchar     string            `customTag:"-"`
+	SkipPNvarcharNull *string           `customTag:"-"`
+	SkipPID           UniqueIdentifier  `customTag:"-"`
+	SkipPIDNull       *UniqueIdentifier `customTag:"-"`
+	SkipPVarbinary    []byte            `customTag:"-"`
+	SkipPTinyint      int8              `customTag:"-"`
+	SkipPTinyintNull  *int8             `customTag:"-"`
+	SkipPSmallint     int16             `customTag:"-"`
+	SkipPSmallintNull *int16            `customTag:"-"`
+	SkipPInt          int32             `customTag:"-"`
+	SkipPIntNull      *int32            `customTag:"-"`
+	SkipPBigint       int64             `customTag:"-"`
+	SkipPBigintNull   *int64            `customTag:"-"`
+	SkipPBit          bool              `customTag:"-"`
+	SkipPBitNull      *bool             `customTag:"-"`
+	SkipPFloat32      float32           `customTag:"-"`
+	SkipPFloatNull32  *float32          `customTag:"-"`
+	SkipPFloat64      float64           `customTag:"-"`
+	SkipPFloatNull64  *float64          `customTag:"-"`
+	SkipDTime         time.Time         `customTag:"-"`
+	SkipDTimeNull     *time.Time        `customTag:"-"`
 }

@@ -16,8 +16,10 @@ var (
 	user          = flag.String("user", "", "the database user")
 )
 
-type TvpExemple struct {
-	Message string
+type TvpExample struct {
+	Message              string
+	OmitField            string  `skip:"-"`
+	OmitWrongTypingField []*byte `skip:"-"`
 }
 
 const (
@@ -26,16 +28,16 @@ const (
 	dropSchema = `drop schema TestTVPSchema;`
 
 	createTVP = `
-		CREATE TYPE TestTVPSchema.exempleTVP AS TABLE
+		CREATE TYPE TestTVPSchema.exampleTVP AS TABLE
 		(
 			message	NVARCHAR(100)
 		)`
 
-	dropTVP = `DROP TYPE TestTVPSchema.exempleTVP;`
+	dropTVP = `DROP TYPE TestTVPSchema.exampleTVP;`
 
 	procedureWithTVP = `	
 	CREATE PROCEDURE ExecTVP
-		@param1 TestTVPSchema.exempleTVP READONLY
+		@param1 TestTVPSchema.exampleTVP READONLY
 	AS   
 	BEGIN
 		SET NOCOUNT ON; 
@@ -89,7 +91,7 @@ func main() {
 	}
 	defer conn.Exec(dropProcedure)
 
-	exempleData := []TvpExemple{
+	exampleData := []TvpExample{
 		{
 			Message: "Hello",
 		},
@@ -102,9 +104,10 @@ func main() {
 	}
 
 	tvpType := mssql.TVPType{
-		TVPTypeName: "exempleTVP",
-		TVPScheme:   "TestTVPSchema",
-		TVPValue:    exempleData,
+		TVPTypeName:  "exampleTVP",
+		TVPScheme:    "TestTVPSchema",
+		TVPValue:     exampleData,
+		TVPCustomTag: "skip",
 	}
 
 	rows, err := conn.Query(execTvp,
@@ -115,15 +118,15 @@ func main() {
 		return
 	}
 
-	tvpResult := make([]TvpExemple, 0)
+	tvpResult := make([]TvpExample, 0)
 	for rows.Next() {
-		tvpExemple := TvpExemple{}
-		err = rows.Scan(&tvpExemple.Message)
+		tvpExample := TvpExample{}
+		err = rows.Scan(&tvpExample.Message)
 		if err != nil {
 			log.Println(err)
 			return
 		}
-		tvpResult = append(tvpResult, tvpExemple)
+		tvpResult = append(tvpResult, tvpExample)
 	}
 	fmt.Println(tvpResult)
 }
