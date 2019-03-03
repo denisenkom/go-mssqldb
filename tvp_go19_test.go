@@ -39,6 +39,9 @@ func TestTVPType_columnTypes(t *testing.T) {
 		SkipTest  int
 		SkipTest1 []*skipWrongField
 	}
+	type skipWithAnotherTagValue struct {
+		SkipTest int `skip:"test"`
+	}
 
 	type fields struct {
 		TVPName   string
@@ -96,6 +99,13 @@ func TestTVPType_columnTypes(t *testing.T) {
 			name: "CustomTag all fields are skip wrong field type",
 			fields: fields{
 				TVPValue: []skipWrongField{},
+			},
+			wantErr: false,
+		},
+		{
+			name: "CustomTag tag value is not -",
+			fields: fields{
+				TVPValue: []skipWithAnotherTagValue{},
 			},
 			wantErr: false,
 		},
