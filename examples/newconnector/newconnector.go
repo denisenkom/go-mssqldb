@@ -42,26 +42,28 @@ func main() {
 		fmt.Printf(" connString:%s\n", connString)
 	}
 
+	// Create a new connector object by calling NewConnector
 	connector, err := mssql.NewConnector(connString)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
+	// Use SessionInitSql to set any options that cannot be set with the dsn string
 	// With ANSI_NULLS set to ON, compare NULL data with = NULL or <> NULL will return 0 rows
 	connector.SessionInitSQL = "SET ANSI_NULLS ON"
 
+	// Pass connector to sql.OpenDB to get a sql.DB object
 	db := sql.OpenDB(connector)
 	defer db.Close()
 
-	db.Exec(dropTableSql)
+	// Create and populate table
 	_, err = db.Exec(createTableSql)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 	defer db.Exec(dropTableSql)
-
 	_, err = db.Exec(insertQuery1)
 	if err != nil {
 		log.Println(err)
@@ -77,7 +79,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// (*Row) Scan should return ErrNoRows
+	// (*Row) Scan should return ErrNoRows since ANSI_NULLS is set to ON
 	err = db.QueryRowContext(ctx, selectNullFilter).Scan(&bitval)
 	if err.Error() != "sql: no rows in result set" {
 		if err != nil {
@@ -88,7 +90,7 @@ func main() {
 		return
 	}
 
-	// (*Row) Scan should return ErrNoRows
+	// (*Row) Scan should return ErrNoRows since ANSI_NULLS is set to ON
 	err = db.QueryRowContext(ctx, selectNotNullFilter).Scan(&bitval)
 	if err.Error() != "sql: no rows in result set" {
 		if err != nil {
