@@ -27,3 +27,6 @@ Open a database by passing connector to `sql.OpenDB`.
 `db := sql.OpenDB(connector)`
 
 The returned DB maintains its own pool of idle connections. Now you can use you `sql.DB` object for querying and executing queries.
+
+## Example
+[NewConnector Example](../examples/newconnector/newconnector.go)
