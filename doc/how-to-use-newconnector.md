@@ -29,4 +29,4 @@ Open a database by passing connector to `sql.OpenDB`.
 The returned DB maintains its own pool of idle connections. Now you can use the `sql.DB` object for querying and executing queries.
 
 ## Example
-[NewConnector example](../examples/newconnector/newconnector.go)
+[NewConnector example](../newconnector_example_test.go)
