@@ -1,3 +1,5 @@
+// +build go1.10
+
 package mssql_test
 
 import (
@@ -6,6 +8,8 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/url"
+	"strconv"
 
 	mssql "github.com/denisenkom/go-mssqldb"
 )
@@ -27,6 +31,14 @@ const (
 	selectNotNullFilter = "SELECT bitcol FROM TestAnsiNull WHERE charcol <> NULL;"
 )
 
+func makeConnURL() *url.URL {
+	return &url.URL{
+		Scheme: "sqlserver",
+		Host:   *server + ":" + strconv.Itoa(*port),
+		User:   url.UserPassword(*user, *password),
+	}
+}
+
 // This example shows the usage of Connector type
 func ExampleConnector() {
 	flag.Parse()
@@ -38,7 +50,7 @@ func ExampleConnector() {
 		fmt.Printf(" user:%s\n", *user)
 	}
 
-	connString := fmt.Sprintf("server=%s;user id=%s;password=%s;port=%d", *server, *user, *password, *port)
+	connString := makeConnURL().String()
 	if *debug {
 		fmt.Printf(" connString:%s\n", connString)
 	}
@@ -82,23 +94,25 @@ func ExampleConnector() {
 
 	// (*Row) Scan should return ErrNoRows since ANSI_NULLS is set to ON
 	err = db.QueryRowContext(ctx, selectNullFilter).Scan(&bitval)
-	if err.Error() != "sql: no rows in result set" {
-		if err != nil {
+	if err != nil {
+		if err.Error() != "sql: no rows in result set" {
 			log.Println(err)
-		} else {
-			log.Println("Expects an ErrNoRows error. No error is returned")
+			return
 		}
+	} else {
+		log.Println("Expects an ErrNoRows error. No error is returned")
 		return
 	}
 
 	// (*Row) Scan should return ErrNoRows since ANSI_NULLS is set to ON
 	err = db.QueryRowContext(ctx, selectNotNullFilter).Scan(&bitval)
-	if err.Error() != "sql: no rows in result set" {
-		if err != nil {
+	if err != nil {
+		if err.Error() != "sql: no rows in result set" {
 			log.Println(err)
-		} else {
-			log.Println("Expects an ErrNoRows error. No error is returned")
+			return
 		}
+	} else {
+		log.Println("Expects an ErrNoRows error. No error is returned")
 		return
 	}
 
