@@ -15,7 +15,7 @@ Now you can create a Connector object by calling `NewConnector`, which creates a
 
 ```
 dsn := "sqlserver://username:password@hostname/instance?database=databasename"
-connector, err := mssql.NewConnector(dsn)
+connector, err := mssqldb.NewConnector(dsn)
 ```
 
 You can set `connector.SessionInitSQL` for any options that cannot be passed through in the dsn string.
