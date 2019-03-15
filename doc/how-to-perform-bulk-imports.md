@@ -45,4 +45,4 @@ _, err = stmt.Exec()
 ```
 
 ## Example
-[Bulk import example](../examples/bulk/bulk.go)
+[Bulk import example](../bulkimport_example_test.go)
