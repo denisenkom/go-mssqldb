@@ -26,7 +26,7 @@ const (
 	dropTestTable = "IF OBJECT_ID('test_table', 'U') IS NOT NULL DROP TABLE test_table;"
 )
 
-// This example shows the usage of Connector type
+// This example shows how to perform bulk imports
 func ExampleCopyIn() {
 	flag.Parse()
 
