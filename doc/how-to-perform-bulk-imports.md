@@ -1,6 +1,6 @@
 # How to perform bulk imports
 
-To use bulk imports feature in go-mssqldb, you need to import the sql and go-mssqldb packages.
+To use the bulk imports feature in go-mssqldb, you need to import the sql and go-mssqldb packages.
 
 ```
 import (
@@ -9,7 +9,7 @@ import (
 )
 ```
 
-The `mssqldb.CopyIn` function creates a string which can be prepared by passing it to `DB.Prepare` or `Tx.Prepare`. The string returned contains information such as the name of the table and columns to bulk import data into, and bulk options.
+The `mssqldb.CopyIn` function creates a string which can be prepared by passing it to `Prepare`. The string returned contains information such as the name of the table and columns to bulk import data into, and bulk options.
 
 ```
 bulkImportStr := mssqldb.CopyIn("tablename", mssql.BulkOptions{}, "column1", "column2", "column3")
