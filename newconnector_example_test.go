@@ -14,23 +14,6 @@ import (
 	mssql "github.com/denisenkom/go-mssqldb"
 )
 
-var (
-	debug         = flag.Bool("debug", false, "enable debugging")
-	password      = flag.String("password", "", "the database password")
-	port     *int = flag.Int("port", 1433, "the database port")
-	server        = flag.String("server", "", "the database server")
-	user          = flag.String("user", "", "the database user")
-)
-
-const (
-	createTableSql      = "CREATE TABLE TestAnsiNull (bitcol bit, charcol char(1));"
-	dropTableSql        = "IF OBJECT_ID('TestAnsiNull', 'U') IS NOT NULL DROP TABLE TestAnsiNull;"
-	insertQuery1        = "INSERT INTO TestAnsiNull VALUES (0, NULL);"
-	insertQuery2        = "INSERT INTO TestAnsiNull VALUES (1, 'a');"
-	selectNullFilter    = "SELECT bitcol FROM TestAnsiNull WHERE charcol = NULL;"
-	selectNotNullFilter = "SELECT bitcol FROM TestAnsiNull WHERE charcol <> NULL;"
-)
-
 func makeConnURL() *url.URL {
 	return &url.URL{
 		Scheme: "sqlserver",
@@ -41,6 +24,23 @@ func makeConnURL() *url.URL {
 
 // This example shows the usage of Connector type
 func ExampleConnector() {
+	var (
+		debug         = flag.Bool("debug", false, "enable debugging")
+		password      = flag.String("password", "", "the database password")
+		port     *int = flag.Int("port", 1433, "the database port")
+		server        = flag.String("server", "", "the database server")
+		user          = flag.String("user", "", "the database user")
+	)
+
+	const (
+		createTableSql      = "CREATE TABLE TestAnsiNull (bitcol bit, charcol char(1));"
+		dropTableSql        = "IF OBJECT_ID('TestAnsiNull', 'U') IS NOT NULL DROP TABLE TestAnsiNull;"
+		insertQuery1        = "INSERT INTO TestAnsiNull VALUES (0, NULL);"
+		insertQuery2        = "INSERT INTO TestAnsiNull VALUES (1, 'a');"
+		selectNullFilter    = "SELECT bitcol FROM TestAnsiNull WHERE charcol = NULL;"
+		selectNotNullFilter = "SELECT bitcol FROM TestAnsiNull WHERE charcol <> NULL;"
+	)
+
 	flag.Parse()
 
 	if *debug {

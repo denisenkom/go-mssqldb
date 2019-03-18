@@ -5,29 +5,39 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"strings"
+	"unicode/utf8"
 
 	mssql "github.com/denisenkom/go-mssqldb"
 )
 
-const (
-	createTestTable = `CREATE TABLE test_table(
-		[id] [int] IDENTITY(1,1) NOT NULL,
-		[test_nvarchar] [nvarchar](50) NULL,
-		[test_varchar] [varchar](50) NULL,
-		[test_float] [float] NULL,
-		[test_datetime2_3] [datetime2](3) NULL,
-		[test_bitn] [bit] NULL,
-		[test_bigint] [bigint] NOT NULL,
-		[test_geom] [geometry] NULL,
-	CONSTRAINT [PK_table_test_id] PRIMARY KEY CLUSTERED
-	(
-		[id] ASC
-	) ON [PRIMARY]);`
-	dropTestTable = "IF OBJECT_ID('test_table', 'U') IS NOT NULL DROP TABLE test_table;"
-)
-
 // This example shows how to perform bulk imports
 func ExampleCopyIn() {
+	var (
+		debug         = flag.Bool("debug", false, "enable debugging")
+		password      = flag.String("password", "", "the database password")
+		port     *int = flag.Int("port", 1433, "the database port")
+		server        = flag.String("server", "", "the database server")
+		user          = flag.String("user", "", "the database user")
+	)
+
+	const (
+		createTestTable = `CREATE TABLE test_table(
+			[id] [int] IDENTITY(1,1) NOT NULL,
+			[test_nvarchar] [nvarchar](50) NULL,
+			[test_varchar] [varchar](50) NULL,
+			[test_float] [float] NULL,
+			[test_datetime2_3] [datetime2](3) NULL,
+			[test_bitn] [bit] NULL,
+			[test_bigint] [bigint] NOT NULL,
+			[test_geom] [geometry] NULL,
+		CONSTRAINT [PK_table_test_id] PRIMARY KEY CLUSTERED
+		(
+			[id] ASC
+		) ON [PRIMARY]);`
+		dropTestTable = "IF OBJECT_ID('test_table', 'U') IS NOT NULL DROP TABLE test_table;"
+	)
+
 	flag.Parse()
 
 	if *debug {
@@ -42,24 +52,24 @@ func ExampleCopyIn() {
 		fmt.Printf(" connString:%s\n", connString)
 	}
 
-	conn, err := sql.Open("sqlserver", connString)
+	db, err := sql.Open("sqlserver", connString)
 	if err != nil {
 		log.Fatal("Open connection failed:", err.Error())
 	}
-	defer conn.Close()
+	defer db.Close()
 
-	txn, err := conn.Begin()
+	txn, err := db.Begin()
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Create table
-	_, err = conn.Exec(createTestTable)
+	_, err = db.Exec(createTestTable)
 	if err != nil {
-		log.Println(err)
+		log.Fatal(err)
 		return
 	}
-	defer conn.Exec(dropTestTable)
+	defer db.Exec(dropTestTable)
 
 	// mssqldb.CopyIn creates string to be consumed by Prepare
 	stmt, err := txn.Prepare(mssql.CopyIn("test_table", mssql.BulkOptions{}, "test_varchar", "test_nvarchar", "test_float", "test_bigint"))
@@ -97,16 +107,17 @@ func generateString(x int, n int) string {
 	letters := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	b := make([]byte, n)
 	for i := range b {
-		b[i] = letters[i%len(letters)]
+		b[i] = letters[(x+i)%len(letters)]
 	}
 	return string(b)
 }
 func generateStringUnicode(x int, n int) string {
-	letters := "ab©💾é?ghïjklmnopqЯ☀tuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = letters[i%len(letters)]
+	letters := []byte("ab©💾é?ghïjklmnopqЯ☀tuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	b := &strings.Builder{}
+	for i := 0; i < n; i++ {
+		r, sz := utf8.DecodeRune(letters[x%len(letters):])
+		x += sz
+		b.WriteRune(r)
 	}
-	return string(b)
+	return b.String()
 }
