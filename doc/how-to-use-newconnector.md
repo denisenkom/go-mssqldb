@@ -7,7 +7,7 @@ To use the Connector type, first you need to import the sql and go-mssqldb packa
 ```
 import (
   "database/sql"
-  mssqldb "github.com/denisenkom/go-mssqldb"
+  "github.com/denisenkom/go-mssqldb"
 )
 ```
 
@@ -15,7 +15,7 @@ Now you can create a Connector object by calling `NewConnector`, which creates a
 
 ```
 dsn := "sqlserver://username:password@hostname/instance?database=databasename"
-connector, err := mssqldb.NewConnector(dsn)
+connector, err := mssql.NewConnector(dsn)
 ```
 
 You can set `connector.SessionInitSQL` for any options that cannot be passed through in the dsn string.

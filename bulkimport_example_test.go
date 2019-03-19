@@ -8,22 +8,22 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	mssql "github.com/denisenkom/go-mssqldb"
+	"github.com/denisenkom/go-mssqldb"
 )
 
 const (
 	createTestTable = `CREATE TABLE test_table(
-		[id] [int] IDENTITY(1,1) NOT NULL,
-		[test_nvarchar] [nvarchar](50) NULL,
-		[test_varchar] [varchar](50) NULL,
-		[test_float] [float] NULL,
-		[test_datetime2_3] [datetime2](3) NULL,
-		[test_bitn] [bit] NULL,
-		[test_bigint] [bigint] NOT NULL,
-		[test_geom] [geometry] NULL,
-	CONSTRAINT [PK_table_test_id] PRIMARY KEY CLUSTERED
+		id int IDENTITY(1,1) NOT NULL,
+		test_nvarchar nvarchar(50) NULL,
+		test_varchar varchar(50) NULL,
+		test_float float NULL,
+		test_datetime2_3 datetime2(3) NULL,
+		test_bitn bit NULL,
+		test_bigint bigint NOT NULL,
+		test_geom geometry NULL,
+	CONSTRAINT PK_table_test_id PRIMARY KEY CLUSTERED
 	(
-		[id] ASC
+		id ASC
 	) ON [PRIMARY]);`
 	dropTestTable = "IF OBJECT_ID('test_table', 'U') IS NOT NULL DROP TABLE test_table;"
 )
@@ -59,7 +59,6 @@ func ExampleCopyIn() {
 	_, err = db.Exec(createTestTable)
 	if err != nil {
 		log.Fatal(err)
-		return
 	}
 	defer db.Exec(dropTestTable)
 
