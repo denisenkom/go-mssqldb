@@ -12,7 +12,7 @@ import (
 )
 
 // This example shows how to use tvp type
-func main() {
+func ExampleTVPType() {
 	const (
 		createTable = "CREATE TABLE Location (Name VARCHAR(50), CostRate INT, Availability BIT, ModifiedDate DATETIME2)"
 
