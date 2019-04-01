@@ -1,6 +1,6 @@
 # How to Handle Date and Time Types
 
-SQL Server has six date and time datatypes: date, time, smalldatetime, datetime, datetime2 and datetimeoffset. Some of these datatypes may contain more information than others (for example, datetimeoffset is the only type that has time zone awareness), higher ranges, or larger precisions (for example, datetime2 ranges from 0001-01-01 while datetime only ranges from 1753-01-01, also, datetime2 supports up to 7 decimal digits and datetime only supports up to 3 digits). In a Go application using the mssql driver, the data types used to hold these data must be chosen carefully so no data is lost.
+SQL Server has six date and time datatypes: date, time, smalldatetime, datetime, datetime2 and datetimeoffset. Some of these datatypes may contain more information than others (for example, datetimeoffset is the only type that has time zone awareness), higher ranges, or larger precisions. In a Go application using the mssql driver, the data types used to hold these data must be chosen carefully so no data is lost.
 
 ## Inserting Date and Time Data
 
@@ -13,7 +13,7 @@ The following is a list of datatypes that can be used to insert data into a SQL 
 - "cloud.google.com/go/civil".Time
 - "cloud.google.com/go/civil".DateTime
 
-`time.Time` and `mssql.DateTimeOffset` contain the most information (time zone and over 7 digits precision). Designed to match the SQL Server `datetime` type, `mssql.DateTime1` does not have time zone information, only has up to 3 digits precision and they are rouded to increments of .000, .003 or .007 seconds. If you use `mssql.DateTime1` to hold time zone information or very precised time data (more than 3 decimal digits), you will see data lost when inserting into columns with types that can hold more information. For example:
+`time.Time` and `mssql.DateTimeOffset` contain the most information (time zone and over 7 digits precision). Designed to match the SQL Server `datetime` type, `mssql.DateTime1` does not have time zone information, only has up to 3 digits precision and they are rouded to increments of .000, .003 or .007 seconds when the data is passed to SQL Server. If you use `mssql.DateTime1` to hold time zone information or very precised time data (more than 3 decimal digits), you will see data lost when inserting into columns with types that can hold more information. For example:
 
 ```
 // all these types have up to 7 digits precision points
@@ -36,6 +36,7 @@ _, err = stmt.Exec(param, param, param)
 
 The following is a list of datatypes that can be used to retrieved data from a SQL Server date and/or time type column:
 - string
+- sql.RawBytes
 - time.Time
 - mssql.DateTime1
 - mssql.DateTiimeOffset

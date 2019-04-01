@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/civil"
-	mssql "github.com/denisenkom/go-mssqldb"
+	"github.com/denisenkom/go-mssqldb"
 )
 
 // This example shows how to insert and retrieve date and time types data
