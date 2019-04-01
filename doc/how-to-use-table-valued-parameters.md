@@ -17,7 +17,7 @@ INSERT INTO Location
 (
 	Name,
 	CostRate,
-    Availability,
+	Availability,
 	ModifiedDate)
 SELECT *, 0,GETDATE()
 FROM @TVP`
@@ -44,7 +44,7 @@ locationTableTypeData := []LocationTableTvp{
 }
 ```
 
-Create a `mssql.TVPType` object, and pass the slice of structs into the `TVPValue` member. Set `TVPTypeName` to the table type name, and `TVPScheme` to the Schema which the table type belongs to. If `TVPScheme` is not specified, SQL Server searches the table type from the default schema of your user in SQL Server. Note the `TVPTypeName` and `TVPScheme` members may be combined in future implementations of the go-mssqldb driver (see [issue 458](https://github.com/denisenkom/go-mssqldb/issues/458)).
+Create a `mssql.TVPType` object, and pass the slice of structs into the `TVPValue` member. Set `TVPTypeName` to the table type name, and `TVPScheme` to the schema which the table type belongs to. If `TVPScheme` is not specified, SQL Server searches the table type from the default schema of your user in SQL Server. Note the `TVPTypeName` and `TVPScheme` members may be combined in future implementations of the go-mssqldb driver (see [issue 458](https://github.com/denisenkom/go-mssqldb/issues/458)).
 
 ```
 tvpType := mssql.TVPType{
@@ -59,4 +59,4 @@ Finally, execute the stored procedure and pass the `mssql.TVPType` object you ha
 `_, err = db.Exec("exec dbo.usp_InsertProductionLocation @TVP;", sql.Named("TVP", tvpType))`
 
 ## Example
-[NewConnector example](../tvptype_example_test.go)
+[TVPType example](../tvptype_example_test.go)
