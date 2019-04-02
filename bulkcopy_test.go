@@ -25,6 +25,7 @@ func TestBulkcopy(t *testing.T) {
 
 	tableName := "#table_test"
 	geom, _ := hex.DecodeString("E6100000010C00000000000034400000000000004440")
+	bin, _ := hex.DecodeString("ba8b7782168d4033a299333aec17bd33")
 	testValues := []testValue{
 
 		{"test_nvarchar", "ab©ĎéⒻghïjklmnopqЯ☀tuvwxyz"},
@@ -62,6 +63,11 @@ func TestBulkcopy(t *testing.T) {
 		{"test_decimal_9_2", 1234.560001},
 		{"test_decimal_20_0", 1234.0001},
 		{"test_numeric_30_10", 1234567.1234567},
+		{"test_varbinary", []byte("1")},
+		{"test_varbinary_16", bin},
+		{"test_varbinary_max", bin},
+		{"test_binary", []byte("1")},
+		{"test_binary_16", bin},
 	}
 
 	columns := make([]string, len(testValues))
@@ -213,6 +219,11 @@ func setupTable(ctx context.Context, t *testing.T, conn *sql.Conn, tableName str
 	[test_decimal_9_2] [decimal](9, 2) NULL,
 	[test_decimal_20_0] [decimal](20, 0) NULL,
 	[test_numeric_30_10] [decimal](30, 10) NULL,
+	[test_varbinary] VARBINARY NOT NULL,
+	[test_varbinary_16] VARBINARY(16) NOT NULL,
+	[test_varbinary_max] VARBINARY(max) NOT NULL,
+	[test_binary] BINARY NOT NULL,
+	[test_binary_16] BINARY(16) NOT NULL,
  CONSTRAINT [PK_` + tableName + `_id] PRIMARY KEY CLUSTERED 
 (
 	[id] ASC
