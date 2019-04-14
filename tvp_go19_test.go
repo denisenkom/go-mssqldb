@@ -223,9 +223,25 @@ func TestTVPType_check(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "TVP name is right",
+			fields: fields{
+				TVPName:  "[123].Test",
+				TVPValue: []fields{},
+			},
+			wantErr: false,
+		},
+		{
+			name: "TVP name is right",
+			fields: fields{
+				TVPName:  "123.[Test]",
+				TVPValue: []fields{},
+			},
+			wantErr: false,
+		},
+		{
 			name: "TVP name is wrong",
 			fields: fields{
-				TVPName:  "]123].[Test]",
+				TVPName:  "123.[Test\n]",
 				TVPValue: []fields{},
 			},
 			wantErr: true,
@@ -233,15 +249,7 @@ func TestTVPType_check(t *testing.T) {
 		{
 			name: "TVP name is wrong",
 			fields: fields{
-				TVPName:  "123].[Test",
-				TVPValue: []fields{},
-			},
-			wantErr: true,
-		},
-		{
-			name: "TVP name is wrong",
-			fields: fields{
-				TVPName:  "[123].[Test",
+				TVPName:  "123.[Test].456",
 				TVPValue: []fields{},
 			},
 			wantErr: true,
