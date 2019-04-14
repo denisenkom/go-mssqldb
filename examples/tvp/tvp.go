@@ -9,17 +9,22 @@ import (
 )
 
 var (
-	debug         = flag.Bool("debug", false, "enable debugging")
-	password      = flag.String("password", "", "the database password")
-	port     *int = flag.Int("port", 1433, "the database port")
-	server        = flag.String("server", "", "the database server")
-	user          = flag.String("user", "", "the database user")
+	debug    = flag.Bool("debug", false, "enable debugging")
+	password = flag.String("password", "", "the database password")
+	port     = flag.Int("port", 1433, "the database port")
+	server   = flag.String("server", "", "the database server")
+	user     = flag.String("user", "", "the database user")
 )
 
 type TvpExample struct {
-	Message              string
-	OmitField            string  `skip:"-"`
-	OmitWrongTypingField []*byte `skip:"-"`
+	MessageWithoutAnyTag      string
+	MessageWithJSONTag        string `json:"message"`
+	MessageWithTVPTag         string `tvp:"message"`
+	MessageJSONSkipWithTVPTag string `json:"-" tvp:"message"`
+
+	OmitFieldJSONTag     string `json:"-"`
+	OmitFieldTVPTag      string `json:"any" tvp:"-"`
+	OmitWrongTypingField string `tvp:"-"`
 }
 
 const (
@@ -30,7 +35,10 @@ const (
 	createTVP = `
 		CREATE TYPE TestTVPSchema.exampleTVP AS TABLE
 		(
-			message	NVARCHAR(100)
+			message1	NVARCHAR(100),
+			message2	NVARCHAR(100),
+			message3	NVARCHAR(100),
+			message4	NVARCHAR(100)
 		)`
 
 	dropTVP = `DROP TYPE TestTVPSchema.exampleTVP;`
@@ -93,21 +101,28 @@ func main() {
 
 	exampleData := []TvpExample{
 		{
-			Message: "Hello",
+			MessageWithoutAnyTag:      "Hello1",
+			MessageWithJSONTag:        "Hello2",
+			MessageWithTVPTag:         "Hello3",
+			MessageJSONSkipWithTVPTag: "Hello4",
+			OmitFieldJSONTag:          "Hello5",
+			OmitFieldTVPTag:           "Hello6",
+			OmitWrongTypingField:      "Hello7",
 		},
 		{
-			Message: "World",
-		},
-		{
-			Message: "TVP",
+			MessageWithoutAnyTag:      "World1",
+			MessageWithJSONTag:        "World2",
+			MessageWithTVPTag:         "World3",
+			MessageJSONSkipWithTVPTag: "World4",
+			OmitFieldJSONTag:          "World5",
+			OmitFieldTVPTag:           "World6",
+			OmitWrongTypingField:      "World7",
 		},
 	}
 
 	tvpType := mssql.TVPType{
-		TVPTypeName:  "exampleTVP",
-		TVPScheme:    "TestTVPSchema",
-		TVPValue:     exampleData,
-		TVPCustomTag: "skip",
+		TVPTypeName: "TestTVPSchema.exampleTVP",
+		TVPValue:    exampleData,
 	}
 
 	rows, err := conn.Query(execTvp,
@@ -121,7 +136,11 @@ func main() {
 	tvpResult := make([]TvpExample, 0)
 	for rows.Next() {
 		tvpExample := TvpExample{}
-		err = rows.Scan(&tvpExample.Message)
+		err = rows.Scan(&tvpExample.MessageWithoutAnyTag,
+			&tvpExample.MessageWithJSONTag,
+			&tvpExample.MessageWithTVPTag,
+			&tvpExample.MessageJSONSkipWithTVPTag,
+		)
 		if err != nil {
 			log.Println(err)
 			return

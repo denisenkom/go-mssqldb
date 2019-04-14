@@ -8,10 +8,10 @@ import (
 )
 
 type TestFields struct {
-	PBinary       []byte    `db:"p_binary"`
-	PVarchar      string    `db:"p_varchar"`
-	PNvarchar     *string   `db:"p_nvarchar"`
-	TimeValue     time.Time `anyTag:"-"`
+	PBinary       []byte    `tvp:"p_binary"`
+	PVarchar      string    `json:"p_varchar"`
+	PNvarchar     *string   `json:"p_nvarchar"`
+	TimeValue     time.Time `echo:"-"`
 	TimeNullValue *time.Time
 }
 
@@ -25,22 +25,22 @@ type TestFieldsUnsupportedTypes struct {
 
 func TestTVPType_columnTypes(t *testing.T) {
 	type customTypeAllFieldsSkipOne struct {
-		SkipTest int `skip:"-"`
+		SkipTest int `tvp:"-"`
 	}
 	type customTypeAllFieldsSkipMoreOne struct {
-		SkipTest  int `skip:"-"`
-		SkipTest1 int `skip:"-"`
+		SkipTest  int `tvp:"-"`
+		SkipTest1 int `json:"-"`
 	}
 	type skipWrongField struct {
 		SkipTest  int
-		SkipTest1 []*byte `skip:"-"`
+		SkipTest1 []*byte `json:"skip_test" tvp:"-"`
 	}
 	type structType struct {
-		SkipTest  int
-		SkipTest1 []*skipWrongField
+		SkipTest  int               `json:"-" tvp:"test"`
+		SkipTest1 []*skipWrongField `json:"any" tvp:"tvp"`
 	}
 	type skipWithAnotherTagValue struct {
-		SkipTest int `skip:"test"`
+		SkipTest int `json:"-" tvp:"test"`
 	}
 
 	type fields struct {
@@ -113,11 +113,8 @@ func TestTVPType_columnTypes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tvp := TVPType{
-				TVPTypeName:  tt.fields.TVPName,
-				TVPScheme:    tt.fields.TVPScheme,
-				TVPValue:     tt.fields.TVPValue,
-				isCustomTag:  true,
-				TVPCustomTag: "skip",
+				TVPTypeName: tt.fields.TVPName,
+				TVPValue:    tt.fields.TVPValue,
 			}
 			_, err := tvp.columnTypes()
 			if (err != nil) != tt.wantErr {
@@ -215,10 +212,8 @@ func TestTVPType_check(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tvp := TVPType{
-				TVPTypeName:  tt.fields.TVPName,
-				TVPScheme:    tt.fields.TVPScheme,
-				TVPValue:     tt.fields.TVPValue,
-				TVPCustomTag: tt.fields.TVPCustomTag,
+				TVPTypeName: tt.fields.TVPName,
+				TVPValue:    tt.fields.TVPValue,
 			}
 			if err := tvp.check(); (err != nil) != tt.wantErr {
 				t.Errorf("TVPType.check() error = %v, wantErr %v", err, tt.wantErr)
@@ -252,15 +247,12 @@ func TestTVPType_encode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tvp := TVPType{
-				TVPTypeName:  tt.fields.TVPTypeName,
-				TVPScheme:    tt.fields.TVPScheme,
-				TVPValue:     tt.fields.TVPValue,
-				TVPCustomTag: tt.fields.TVPCustomTag,
+				TVPTypeName: tt.fields.TVPTypeName,
+				TVPValue:    tt.fields.TVPValue,
 			}
 			_, err := tvp.encode()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("TVPType.encode() error = %v, wantErr %v", err, tt.wantErr)
-				return
 			}
 		})
 	}
@@ -324,5 +316,179 @@ func BenchmarkColumnTypes(b *testing.B) {
 		if err != nil {
 			b.Error(err)
 		}
+	}
+}
+
+func TestIsSkipField(t *testing.T) {
+	type args struct {
+		tvpTagValue    string
+		isTvpValue     bool
+		jsonTagValue   string
+		isJsonTagValue bool
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "Empty tags",
+			want: false,
+		},
+		{
+			name: "tvp is skip",
+			want: true,
+			args: args{
+				isTvpValue:  true,
+				tvpTagValue: skipTagValue,
+			},
+		},
+		{
+			name: "tvp is any",
+			want: false,
+			args: args{
+				isTvpValue:  true,
+				tvpTagValue: "tvp",
+			},
+		},
+		{
+			name: "Json is skip",
+			want: true,
+			args: args{
+				isJsonTagValue: true,
+				jsonTagValue:   skipTagValue,
+			},
+		},
+		{
+			name: "Json is any",
+			want: false,
+			args: args{
+				isJsonTagValue: true,
+				jsonTagValue:   "any",
+			},
+		},
+		{
+			name: "Json is skip tvp is skip",
+			want: true,
+			args: args{
+				isJsonTagValue: true,
+				jsonTagValue:   skipTagValue,
+				isTvpValue:     true,
+				tvpTagValue:    skipTagValue,
+			},
+		},
+		{
+			name: "Json is skip tvp is any",
+			want: false,
+			args: args{
+				isJsonTagValue: true,
+				jsonTagValue:   skipTagValue,
+				isTvpValue:     true,
+				tvpTagValue:    "tvp",
+			},
+		},
+		{
+			name: "Json is any tvp is skip",
+			want: true,
+			args: args{
+				isJsonTagValue: true,
+				jsonTagValue:   "json",
+				isTvpValue:     true,
+				tvpTagValue:    skipTagValue,
+			},
+		},
+		{
+			name: "Json is any tvp is skip",
+			want: false,
+			args: args{
+				isJsonTagValue: true,
+				jsonTagValue:   "json",
+				isTvpValue:     true,
+				tvpTagValue:    "tvp",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsSkipField(tt.args.tvpTagValue, tt.args.isTvpValue, tt.args.jsonTagValue, tt.args.isJsonTagValue); got != tt.want {
+				t.Errorf("IsSkipField() = %v, schema %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_getSchemeAndName(t *testing.T) {
+	type args struct {
+		tvpName string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		schema  string
+		tvpName string
+		wantErr bool
+	}{
+		{
+			name:    "Empty object name",
+			wantErr: true,
+		},
+		{
+			name:    "Wrong object name",
+			wantErr: true,
+			args: args{
+				tvpName: "1.2.3",
+			},
+		},
+		{
+			name:    "Schema+name",
+			wantErr: false,
+			args: args{
+				tvpName: "obj.tvp",
+			},
+			schema:  "obj",
+			tvpName: "tvp",
+		},
+		{
+			name:    "Schema+name",
+			wantErr: false,
+			args: args{
+				tvpName: "[obj].[tvp]",
+			},
+			schema:  "obj",
+			tvpName: "tvp",
+		},
+		{
+			name:    "only name",
+			wantErr: false,
+			args: args{
+				tvpName: "tvp",
+			},
+			schema:  "",
+			tvpName: "tvp",
+		},
+		{
+			name:    "only name",
+			wantErr: false,
+			args: args{
+				tvpName: "[tvp]",
+			},
+			schema:  "",
+			tvpName: "tvp",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			schema, name, err := getSchemeAndName(tt.args.tvpName)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getSchemeAndName() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if schema != tt.schema {
+				t.Errorf("getSchemeAndName() schema = %v, schema %v", schema, tt.schema)
+			}
+			if name != tt.tvpName {
+				t.Errorf("getSchemeAndName() name = %v, schema %v", name, tt.tvpName)
+			}
+		})
 	}
 }

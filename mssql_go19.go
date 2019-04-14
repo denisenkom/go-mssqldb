@@ -168,7 +168,7 @@ func (s *Stmt) makeParamExtra(val driver.Value) (res param, err error) {
 			return
 		}
 		res.ti.UdtInfo.TypeName = val.TVPTypeName
-		res.ti.UdtInfo.SchemaName = val.TVPScheme
+		res.ti.UdtInfo.SchemaName = val.tvpScheme
 		res.ti.TypeId = typeTvp
 		res.buffer, err = val.encode()
 		res.ti.Size = len(res.buffer)

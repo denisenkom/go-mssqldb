@@ -92,30 +92,30 @@ type TvptableRowWithSkipTag struct {
 	DTime         time.Time         `db:"p_timeNull"`
 	DTimeNull     *time.Time        `db:"p_time"`
 
-	SkipPBinary       []byte            `customTag:"-"`
-	SkipPVarchar      string            `customTag:"-"`
-	SkipPVarcharNull  *string           `customTag:"-"`
-	SkipPNvarchar     string            `customTag:"-"`
-	SkipPNvarcharNull *string           `customTag:"-"`
-	SkipPID           UniqueIdentifier  `customTag:"-"`
-	SkipPIDNull       *UniqueIdentifier `customTag:"-"`
-	SkipPVarbinary    []byte            `customTag:"-"`
-	SkipPTinyint      int8              `customTag:"-"`
-	SkipPTinyintNull  *int8             `customTag:"-"`
-	SkipPSmallint     int16             `customTag:"-"`
-	SkipPSmallintNull *int16            `customTag:"-"`
-	SkipPInt          int32             `customTag:"-"`
-	SkipPIntNull      *int32            `customTag:"-"`
-	SkipPBigint       int64             `customTag:"-"`
-	SkipPBigintNull   *int64            `customTag:"-"`
-	SkipPBit          bool              `customTag:"-"`
-	SkipPBitNull      *bool             `customTag:"-"`
-	SkipPFloat32      float32           `customTag:"-"`
-	SkipPFloatNull32  *float32          `customTag:"-"`
-	SkipPFloat64      float64           `customTag:"-"`
-	SkipPFloatNull64  *float64          `customTag:"-"`
-	SkipDTime         time.Time         `customTag:"-"`
-	SkipDTimeNull     *time.Time        `customTag:"-"`
+	SkipPBinary       []byte            `json:"-"`
+	SkipPVarchar      string            `tvp:"-"`
+	SkipPVarcharNull  *string           `json:"-" tvp:"-"`
+	SkipPNvarchar     string            `json:"-"`
+	SkipPNvarcharNull *string           `json:"-"`
+	SkipPID           UniqueIdentifier  `json:"-"`
+	SkipPIDNull       *UniqueIdentifier `tvp:"-"`
+	SkipPVarbinary    []byte            `json:"-" tvp:"-"`
+	SkipPTinyint      int8              `tvp:"-"`
+	SkipPTinyintNull  *int8             `tvp:"-" json:"any"`
+	SkipPSmallint     int16             `json:"-"`
+	SkipPSmallintNull *int16            `tvp:"-"`
+	SkipPInt          int32             `json:"-"`
+	SkipPIntNull      *int32            `tvp:"-"`
+	SkipPBigint       int64             `tvp:"-"`
+	SkipPBigintNull   *int64            `json:"any" tvp:"-"`
+	SkipPBit          bool              `json:"-"`
+	SkipPBitNull      *bool             `json:"-"`
+	SkipPFloat32      float32           `tvp:"-"`
+	SkipPFloatNull32  *float32          `tvp:"-"`
+	SkipPFloat64      float64           `tvp:"-"`
+	SkipPFloatNull64  *float64          `tvp:"-"`
+	SkipDTime         time.Time         `tvp:"-"`
+	SkipDTimeNull     *time.Time        `tvp:"-"`
 }
 
 func TestTVP(t *testing.T) {
@@ -276,14 +276,12 @@ func TestTVP(t *testing.T) {
 	}
 
 	tvpType := TVPType{
-		TVPTypeName:  "tvptable",
-		TVPValue:     param1,
-		TVPCustomTag: "customTag",
+		TVPTypeName: "tvptable",
+		TVPValue:    param1,
 	}
 	tvpTypeEmpty := TVPType{
-		TVPTypeName:  "tvptable",
-		TVPValue:     []TvptableRow{},
-		TVPCustomTag: "customTag",
+		TVPTypeName: "tvptable",
+		TVPValue:    []TvptableRow{},
 	}
 
 	rows, err := db.QueryContext(ctx,
@@ -522,14 +520,12 @@ func TestTVP_WithTag(t *testing.T) {
 	}
 
 	tvpType := TVPType{
-		TVPTypeName:  "tvptable",
-		TVPValue:     param1,
-		TVPCustomTag: "customTag",
+		TVPTypeName: "tvptable",
+		TVPValue:    param1,
 	}
 	tvpTypeEmpty := TVPType{
-		TVPTypeName:  "tvptable",
-		TVPValue:     []TvptableRowWithSkipTag{},
-		TVPCustomTag: "customTag",
+		TVPTypeName: "tvptable",
+		TVPValue:    []TvptableRowWithSkipTag{},
 	}
 
 	rows, err := db.QueryContext(ctx,
@@ -658,10 +654,8 @@ func TestTVPSchema(t *testing.T) {
 	}
 
 	tvpType := TVPType{
-		TVPTypeName:  "exempleTVP",
-		TVPScheme:    "TestTVPSchema",
-		TVPValue:     exempleData,
-		TVPCustomTag: "customTag",
+		TVPTypeName: "exempleTVP",
+		TVPValue:    exempleData,
 	}
 
 	rows, err := conn.Query(execTvp,
