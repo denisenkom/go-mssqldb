@@ -22,9 +22,9 @@ type TvpExample struct {
 	MessageWithTVPTag         string `tvp:"message"`
 	MessageJSONSkipWithTVPTag string `json:"-" tvp:"message"`
 
-	OmitFieldJSONTag     string `json:"-"`
-	OmitFieldTVPTag      string `json:"any" tvp:"-"`
-	OmitWrongTypingField string `tvp:"-"`
+	OmitFieldJSONTag string `json:"-"`
+	OmitFieldTVPTag  string `json:"any" tvp:"-"`
+	OmitFieldTVPTag2 string `tvp:"-"`
 }
 
 const (
@@ -107,7 +107,7 @@ func main() {
 			MessageJSONSkipWithTVPTag: "Hello4",
 			OmitFieldJSONTag:          "Hello5",
 			OmitFieldTVPTag:           "Hello6",
-			OmitWrongTypingField:      "Hello7",
+			OmitFieldTVPTag2:          "Hello7",
 		},
 		{
 			MessageWithoutAnyTag:      "World1",
@@ -116,7 +116,7 @@ func main() {
 			MessageJSONSkipWithTVPTag: "World4",
 			OmitFieldJSONTag:          "World5",
 			OmitFieldTVPTag:           "World6",
-			OmitWrongTypingField:      "World7",
+			OmitFieldTVPTag2:          "World7",
 		},
 	}
 
