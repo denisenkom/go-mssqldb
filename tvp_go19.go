@@ -78,37 +78,15 @@ func (tvp TVPType) encode() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = writeBVarChar(buf, tvp.tvpScheme)
-	if err != nil {
-		return nil, err
-	}
-	err = writeBVarChar(buf, tvp.TVPTypeName)
-	if err != nil {
-		return nil, err
-	}
-
-	err = binary.Write(buf, binary.LittleEndian, uint16(len(columnStr)))
-	if err != nil {
-		return nil, err
-	}
+	writeBVarChar(buf, tvp.tvpScheme)
+	writeBVarChar(buf, tvp.TVPTypeName)
+	binary.Write(buf, binary.LittleEndian, uint16(len(columnStr)))
 
 	for i, column := range columnStr {
-		err = binary.Write(buf, binary.LittleEndian, uint32(column.UserType))
-		if err != nil {
-			return nil, err
-		}
-		err = binary.Write(buf, binary.LittleEndian, uint16(column.Flags))
-		if err != nil {
-			return nil, err
-		}
-		err = writeTypeInfo(buf, &columnStr[i].ti)
-		if err != nil {
-			return nil, err
-		}
-		err = writeBVarChar(buf, "")
-		if err != nil {
-			return nil, err
-		}
+		binary.Write(buf, binary.LittleEndian, uint32(column.UserType))
+		binary.Write(buf, binary.LittleEndian, uint16(column.Flags))
+		writeTypeInfo(buf, &columnStr[i].ti)
+		writeBVarChar(buf, "")
 	}
 	err = buf.WriteByte(_TVP_END_TOKEN)
 	if err != nil {
@@ -133,24 +111,15 @@ func (tvp TVPType) encode() ([]byte, error) {
 			if elemKind == reflect.Ptr && valOf.IsNil() {
 				switch tvpVal.(type) {
 				case *bool, *time.Time, *int8, *int16, *int32, *int64, *float32, *float64:
-					err = binary.Write(buf, binary.LittleEndian, uint8(0))
-					if err != nil {
-						return nil, err
-					}
+					binary.Write(buf, binary.LittleEndian, uint8(0))
 					continue
 				default:
-					err = binary.Write(buf, binary.LittleEndian, uint64(_PLP_NULL))
-					if err != nil {
-						return nil, err
-					}
+					binary.Write(buf, binary.LittleEndian, uint64(_PLP_NULL))
 					continue
 				}
 			}
 			if elemKind == reflect.Slice && valOf.IsNil() {
-				err = binary.Write(buf, binary.LittleEndian, uint64(_PLP_NULL))
-				if err != nil {
-					return nil, err
-				}
+				binary.Write(buf, binary.LittleEndian, uint64(_PLP_NULL))
 				continue
 			}
 
@@ -165,10 +134,7 @@ func (tvp TVPType) encode() ([]byte, error) {
 			columnStr[j].ti.Writer(buf, param.ti, param.buffer)
 		}
 	}
-	err = buf.WriteByte(_TVP_END_TOKEN)
-	if err != nil {
-		return nil, err
-	}
+	buf.WriteByte(_TVP_END_TOKEN)
 	return buf.Bytes(), nil
 }
 
