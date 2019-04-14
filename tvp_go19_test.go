@@ -127,10 +127,9 @@ func TestTVPType_columnTypes(t *testing.T) {
 
 func TestTVPType_check(t *testing.T) {
 	type fields struct {
-		TVPName      string
-		TVPScheme    string
-		TVPValue     interface{}
-		TVPCustomTag string
+		TVPName   string
+		TVPScheme string
+		TVPValue  interface{}
 	}
 
 	var nullSlice []*string
@@ -202,11 +201,50 @@ func TestTVPType_check(t *testing.T) {
 		{
 			name: "TVPValue is right",
 			fields: fields{
-				TVPName:      "Test",
-				TVPValue:     []fields{},
-				TVPCustomTag: "skip",
+				TVPName:  "Test",
+				TVPValue: []fields{},
 			},
 			wantErr: false,
+		},
+		{
+			name: "TVPValue is right",
+			fields: fields{
+				TVPName:  "[Test]",
+				TVPValue: []fields{},
+			},
+			wantErr: false,
+		},
+		{
+			name: "TVPValue is right",
+			fields: fields{
+				TVPName:  "[123].[Test]",
+				TVPValue: []fields{},
+			},
+			wantErr: false,
+		},
+		{
+			name: "TVP name is wrong",
+			fields: fields{
+				TVPName:  "]123].[Test]",
+				TVPValue: []fields{},
+			},
+			wantErr: true,
+		},
+		{
+			name: "TVP name is wrong",
+			fields: fields{
+				TVPName:  "123].[Test",
+				TVPValue: []fields{},
+			},
+			wantErr: true,
+		},
+		{
+			name: "TVP name is wrong",
+			fields: fields{
+				TVPName:  "[123].[Test",
+				TVPValue: []fields{},
+			},
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
