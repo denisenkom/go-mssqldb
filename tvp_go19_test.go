@@ -293,7 +293,11 @@ func TestTVPType_encode(t *testing.T) {
 				TVPTypeName: tt.fields.TVPTypeName,
 				TVPValue:    tt.fields.TVPValue,
 			}
-			_, err := tvp.encode()
+			schema, name, err := getSchemeAndName(tt.fields.TVPTypeName)
+			if err != nil {
+				t.Errorf("getSchemeAndName() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			_, err = tvp.encode(schema, name)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("TVPType.encode() error = %v, wantErr %v", err, tt.wantErr)
 			}

@@ -58,7 +58,7 @@ func (tvp TVPType) check() error {
 	return nil
 }
 
-func (tvp TVPType) encode() ([]byte, error) {
+func (tvp TVPType) encode(schema, name string) ([]byte, error) {
 	columnStr, tvpFieldIndexes, err := tvp.columnTypes()
 	if err != nil {
 		return nil, err
@@ -66,11 +66,6 @@ func (tvp TVPType) encode() ([]byte, error) {
 	preparedBuffer := make([]byte, 0, 20+(10*len(columnStr)))
 	buf := bytes.NewBuffer(preparedBuffer)
 	err = writeBVarChar(buf, "")
-	if err != nil {
-		return nil, err
-	}
-
-	schema, name, err := getSchemeAndName(tvp.TVPTypeName)
 	if err != nil {
 		return nil, err
 	}
