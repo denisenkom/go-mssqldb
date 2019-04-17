@@ -16,14 +16,15 @@ const (
 	jsonTag      = "json"
 	tvpTag       = "tvp"
 	skipTagValue = "-"
+	sqlSeparator = "."
 )
 
 var (
-	ErrorEmptyTVPName        = errors.New("TVPTypeName must not be empty")
-	ErrorTVPTypeSlice        = errors.New("TVPType must be slice type")
-	ErrorTVPTypeSliceIsEmpty = errors.New("TVPType mustn't be null value")
-	ErrorTVPSkip             = errors.New("all fields mustn't skip")
-	ErrorTVPObjectName       = errors.New("wrong tvp name")
+	ErrorEmptyTVPTypeName = errors.New("TVPTypeName must not be empty")
+	ErrorTypeSlice        = errors.New("TVPType must be slice type")
+	ErrorTypeSliceIsEmpty = errors.New("TVPType mustn't be null value")
+	ErrorSkip             = errors.New("all fields mustn't skip")
+	ErrorObjectName       = errors.New("wrong tvp name")
 )
 
 //TVPType is driver type, which allows supporting Table Valued Parameters (TVP) in SQL Server
@@ -32,43 +33,33 @@ type TVPType struct {
 	TVPTypeName string
 	//TVP Value Param must be the slice, mustn't be nil
 	TVPValue interface{}
-	//TVPCustomTag If the field tag is "-", the field is always omit
-	tvpCustomTag string
-	//tvp scheme name
-	tvpScheme string
-	//tvpFieldIndexes
-	tvpFieldIndexes []int
 }
 
-func (tvp *TVPType) check() error {
+func (tvp TVPType) check() error {
 	if len(tvp.TVPTypeName) == 0 {
-		return ErrorEmptyTVPName
+		return ErrorEmptyTVPTypeName
 	}
 	if !isProc(tvp.TVPTypeName) {
-		return ErrorEmptyTVPName
+		return ErrorEmptyTVPTypeName
 	}
-	schema, name, err := getSchemeAndName(tvp.TVPTypeName)
-	if err != nil {
-		return err
+	if sepCount := getCountSQLSeparators(tvp.TVPTypeName); sepCount > 1 {
+		return ErrorObjectName
 	}
-	tvp.TVPTypeName = name
-	tvp.tvpScheme = schema
-
 	valueOf := reflect.ValueOf(tvp.TVPValue)
 	if valueOf.Kind() != reflect.Slice {
-		return ErrorTVPTypeSlice
+		return ErrorTypeSlice
 	}
 	if valueOf.IsNil() {
-		return ErrorTVPTypeSliceIsEmpty
+		return ErrorTypeSliceIsEmpty
 	}
 	if reflect.TypeOf(tvp.TVPValue).Elem().Kind() != reflect.Struct {
-		return ErrorTVPTypeSlice
+		return ErrorTypeSlice
 	}
 	return nil
 }
 
 func (tvp TVPType) encode() ([]byte, error) {
-	columnStr, err := tvp.columnTypes()
+	columnStr, tvpFieldIndexes, err := tvp.columnTypes()
 	if err != nil {
 		return nil, err
 	}
@@ -78,8 +69,14 @@ func (tvp TVPType) encode() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	writeBVarChar(buf, tvp.tvpScheme)
-	writeBVarChar(buf, tvp.TVPTypeName)
+
+	schema, name, err := getSchemeAndName(tvp.TVPTypeName)
+	if err != nil {
+		return nil, err
+	}
+
+	writeBVarChar(buf, schema)
+	writeBVarChar(buf, name)
 	binary.Write(buf, binary.LittleEndian, uint16(len(columnStr)))
 
 	for i, column := range columnStr {
@@ -103,7 +100,7 @@ func (tvp TVPType) encode() ([]byte, error) {
 	for i := 0; i < val.Len(); i++ {
 		refStr := reflect.ValueOf(val.Index(i).Interface())
 		buf.WriteByte(_TVP_ROW_TOKEN)
-		for _, j := range tvp.tvpFieldIndexes {
+		for _, j := range tvpFieldIndexes {
 			field := refStr.Field(j)
 			tvpVal := field.Interface()
 			valOf := reflect.ValueOf(tvpVal)
@@ -138,7 +135,7 @@ func (tvp TVPType) encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (tvp *TVPType) columnTypes() ([]columnStruct, error) {
+func (tvp TVPType) columnTypes() ([]columnStruct, []int, error) {
 	val := reflect.ValueOf(tvp.TVPValue)
 	var firstRow interface{}
 	if val.Len() != 0 {
@@ -150,7 +147,7 @@ func (tvp *TVPType) columnTypes() ([]columnStruct, error) {
 	tvpRow := reflect.TypeOf(firstRow)
 	columnCount := tvpRow.NumField()
 	defaultValues := make([]interface{}, 0, columnCount)
-	tvp.tvpFieldIndexes = make([]int, 0, columnCount)
+	tvpFieldIndexes := make([]int, 0, columnCount)
 	for i := 0; i < columnCount; i++ {
 		field := tvpRow.Field(i)
 		tvpTagValue, isTvpTag := field.Tag.Lookup(tvpTag)
@@ -158,7 +155,7 @@ func (tvp *TVPType) columnTypes() ([]columnStruct, error) {
 		if IsSkipField(tvpTagValue, isTvpTag, jsonTagValue, isJsonTag) {
 			continue
 		}
-		tvp.tvpFieldIndexes = append(tvp.tvpFieldIndexes, i)
+		tvpFieldIndexes = append(tvpFieldIndexes, i)
 		if field.Type.Kind() == reflect.Ptr {
 			v := reflect.New(field.Type.Elem())
 			defaultValues = append(defaultValues, v.Interface())
@@ -167,8 +164,8 @@ func (tvp *TVPType) columnTypes() ([]columnStruct, error) {
 		defaultValues = append(defaultValues, reflect.Zero(field.Type).Interface())
 	}
 
-	if columnCount-len(tvp.tvpFieldIndexes) == columnCount {
-		return nil, ErrorTVPSkip
+	if columnCount-len(tvpFieldIndexes) == columnCount {
+		return nil, nil, ErrorSkip
 	}
 
 	conn := new(Conn)
@@ -182,11 +179,11 @@ func (tvp *TVPType) columnTypes() ([]columnStruct, error) {
 	for index, val := range defaultValues {
 		cval, err := convertInputParameter(val)
 		if err != nil {
-			return nil, fmt.Errorf("failed to convert tvp parameter row %d col %d: %s", index, val, err)
+			return nil, nil, fmt.Errorf("failed to convert tvp parameter row %d col %d: %s", index, val, err)
 		}
 		param, err := stmt.makeParam(cval)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		column := columnStruct{
 			ti: param.ti,
@@ -198,7 +195,7 @@ func (tvp *TVPType) columnTypes() ([]columnStruct, error) {
 		columnConfiguration = append(columnConfiguration, column)
 	}
 
-	return columnConfiguration, nil
+	return columnConfiguration, tvpFieldIndexes, nil
 }
 
 func IsSkipField(tvpTagValue string, isTvpValue bool, jsonTagValue string, isJsonTagValue bool) bool {
@@ -214,7 +211,7 @@ func IsSkipField(tvpTagValue string, isTvpValue bool, jsonTagValue string, isJso
 
 func getSchemeAndName(tvpName string) (string, string, error) {
 	if len(tvpName) == 0 {
-		return "", "", ErrorEmptyTVPName
+		return "", "", ErrorEmptyTVPTypeName
 	}
 	splitVal := strings.Split(tvpName, ".")
 	if len(splitVal) > 2 {
@@ -233,4 +230,8 @@ func getSchemeAndName(tvpName string) (string, string, error) {
 	tmp = strings.Replace(tmp, "]", "", -1)
 
 	return "", tmp, nil
+}
+
+func getCountSQLSeparators(str string) int {
+	return strings.Count(str, sqlSeparator)
 }

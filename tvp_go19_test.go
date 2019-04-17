@@ -44,9 +44,8 @@ func TestTVPType_columnTypes(t *testing.T) {
 	}
 
 	type fields struct {
-		TVPName   string
-		TVPScheme string
-		TVPValue  interface{}
+		TVPName  string
+		TVPValue interface{}
 	}
 	tests := []struct {
 		name    string
@@ -116,7 +115,7 @@ func TestTVPType_columnTypes(t *testing.T) {
 				TVPTypeName: tt.fields.TVPName,
 				TVPValue:    tt.fields.TVPValue,
 			}
-			_, err := tvp.columnTypes()
+			_, _, err := tvp.columnTypes()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("TVPType.columnTypes() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -127,9 +126,8 @@ func TestTVPType_columnTypes(t *testing.T) {
 
 func TestTVPType_check(t *testing.T) {
 	type fields struct {
-		TVPName   string
-		TVPScheme string
-		TVPValue  interface{}
+		TVPName  string
+		TVPValue interface{}
 	}
 
 	var nullSlice []*string
@@ -271,7 +269,6 @@ func TestTVPType_check(t *testing.T) {
 func TestTVPType_encode(t *testing.T) {
 	type fields struct {
 		TVPTypeName  string
-		TVPScheme    string
 		TVPValue     interface{}
 		TVPCustomTag string
 	}
@@ -358,7 +355,7 @@ func BenchmarkColumnTypes(b *testing.B) {
 		TVPValue:    wal,
 	}
 	for i := 0; i < b.N; i++ {
-		_, err := tvp.columnTypes()
+		_, _, err := tvp.columnTypes()
 		if err != nil {
 			b.Error(err)
 		}
