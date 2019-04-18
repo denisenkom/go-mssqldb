@@ -9,15 +9,22 @@ import (
 )
 
 var (
-	debug         = flag.Bool("debug", false, "enable debugging")
-	password      = flag.String("password", "", "the database password")
-	port     *int = flag.Int("port", 1433, "the database port")
-	server        = flag.String("server", "", "the database server")
-	user          = flag.String("user", "", "the database user")
+	debug    = flag.Bool("debug", false, "enable debugging")
+	password = flag.String("password", "", "the database password")
+	port     = flag.Int("port", 1433, "the database port")
+	server   = flag.String("server", "", "the database server")
+	user     = flag.String("user", "", "the database user")
 )
 
-type TvpExemple struct {
-	Message string
+type TvpExample struct {
+	MessageWithoutAnyTag      string
+	MessageWithJSONTag        string `json:"message"`
+	MessageWithTVPTag         string `tvp:"message"`
+	MessageJSONSkipWithTVPTag string `json:"-" tvp:"message"`
+
+	OmitFieldJSONTag string `json:"-"`
+	OmitFieldTVPTag  string `json:"any" tvp:"-"`
+	OmitFieldTVPTag2 string `tvp:"-"`
 }
 
 const (
@@ -26,16 +33,19 @@ const (
 	dropSchema = `drop schema TestTVPSchema;`
 
 	createTVP = `
-		CREATE TYPE TestTVPSchema.exempleTVP AS TABLE
+		CREATE TYPE TestTVPSchema.exampleTVP AS TABLE
 		(
-			message	NVARCHAR(100)
+			message1	NVARCHAR(100),
+			message2	NVARCHAR(100),
+			message3	NVARCHAR(100),
+			message4	NVARCHAR(100)
 		)`
 
-	dropTVP = `DROP TYPE TestTVPSchema.exempleTVP;`
+	dropTVP = `DROP TYPE TestTVPSchema.exampleTVP;`
 
 	procedureWithTVP = `	
 	CREATE PROCEDURE ExecTVP
-		@param1 TestTVPSchema.exempleTVP READONLY
+		@param1 TestTVPSchema.exampleTVP READONLY
 	AS   
 	BEGIN
 		SET NOCOUNT ON; 
@@ -89,22 +99,30 @@ func main() {
 	}
 	defer conn.Exec(dropProcedure)
 
-	exempleData := []TvpExemple{
+	exampleData := []TvpExample{
 		{
-			Message: "Hello",
+			MessageWithoutAnyTag:      "Hello1",
+			MessageWithJSONTag:        "Hello2",
+			MessageWithTVPTag:         "Hello3",
+			MessageJSONSkipWithTVPTag: "Hello4",
+			OmitFieldJSONTag:          "Hello5",
+			OmitFieldTVPTag:           "Hello6",
+			OmitFieldTVPTag2:          "Hello7",
 		},
 		{
-			Message: "World",
-		},
-		{
-			Message: "TVP",
+			MessageWithoutAnyTag:      "World1",
+			MessageWithJSONTag:        "World2",
+			MessageWithTVPTag:         "World3",
+			MessageJSONSkipWithTVPTag: "World4",
+			OmitFieldJSONTag:          "World5",
+			OmitFieldTVPTag:           "World6",
+			OmitFieldTVPTag2:          "World7",
 		},
 	}
 
 	tvpType := mssql.TVPType{
-		TVPTypeName: "exempleTVP",
-		TVPScheme:   "TestTVPSchema",
-		TVPValue:    exempleData,
+		TVPTypeName: "TestTVPSchema.exampleTVP",
+		TVPValue:    exampleData,
 	}
 
 	rows, err := conn.Query(execTvp,
@@ -115,15 +133,19 @@ func main() {
 		return
 	}
 
-	tvpResult := make([]TvpExemple, 0)
+	tvpResult := make([]TvpExample, 0)
 	for rows.Next() {
-		tvpExemple := TvpExemple{}
-		err = rows.Scan(&tvpExemple.Message)
+		tvpExample := TvpExample{}
+		err = rows.Scan(&tvpExample.MessageWithoutAnyTag,
+			&tvpExample.MessageWithJSONTag,
+			&tvpExample.MessageWithTVPTag,
+			&tvpExample.MessageJSONSkipWithTVPTag,
+		)
 		if err != nil {
 			log.Println(err)
 			return
 		}
-		tvpResult = append(tvpResult, tvpExemple)
+		tvpResult = append(tvpResult, tvpExample)
 	}
 	fmt.Println(tvpResult)
 }
