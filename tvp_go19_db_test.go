@@ -275,13 +275,13 @@ func TestTVP(t *testing.T) {
 		},
 	}
 
-	tvpType := TVPType{
-		TVPTypeName: "tvptable",
-		TVPValue:    param1,
+	tvpType := TVP{
+		TypeName: "tvptable",
+		Value:    param1,
 	}
-	tvpTypeEmpty := TVPType{
-		TVPTypeName: "tvptable",
-		TVPValue:    []TvptableRow{},
+	tvpTypeEmpty := TVP{
+		TypeName: "tvptable",
+		Value:    []TvptableRow{},
 	}
 
 	rows, err := db.QueryContext(ctx,
@@ -519,13 +519,13 @@ func TestTVP_WithTag(t *testing.T) {
 		},
 	}
 
-	tvpType := TVPType{
-		TVPTypeName: "tvptable",
-		TVPValue:    param1,
+	tvpType := TVP{
+		TypeName: "tvptable",
+		Value:    param1,
 	}
-	tvpTypeEmpty := TVPType{
-		TVPTypeName: "tvptable",
-		TVPValue:    []TvptableRowWithSkipTag{},
+	tvpTypeEmpty := TVP{
+		TypeName: "tvptable",
+		Value:    []TvptableRowWithSkipTag{},
 	}
 
 	rows, err := db.QueryContext(ctx,
@@ -653,9 +653,9 @@ func TestTVPSchema(t *testing.T) {
 		},
 	}
 
-	tvpType := TVPType{
-		TVPTypeName: "exempleTVP",
-		TVPValue:    exempleData,
+	tvpType := TVP{
+		TypeName: "exempleTVP",
+		Value:    exempleData,
 	}
 
 	rows, err := conn.Query(execTvp,

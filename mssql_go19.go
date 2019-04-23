@@ -112,7 +112,7 @@ func (c *Conn) CheckNamedValue(nv *driver.NamedValue) error {
 		*v = 0 // By default the return value should be zero.
 		c.returnStatus = v
 		return driver.ErrRemoveArgument
-	case TVPType:
+	case TVP:
 		return nil
 	default:
 		var err error
@@ -162,12 +162,12 @@ func (s *Stmt) makeParamExtra(val driver.Value) (res param, err error) {
 	case sql.Out:
 		res, err = s.makeParam(val.Dest)
 		res.Flags = fByRevValue
-	case TVPType:
+	case TVP:
 		err = val.check()
 		if err != nil {
 			return
 		}
-		schema, name, errGetName := getSchemeAndName(val.TVPTypeName)
+		schema, name, errGetName := getSchemeAndName(val.TypeName)
 		if errGetName != nil {
 			return
 		}
