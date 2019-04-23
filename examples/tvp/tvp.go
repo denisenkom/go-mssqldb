@@ -120,9 +120,9 @@ func main() {
 		},
 	}
 
-	tvpType := mssql.TVPType{
-		TVPTypeName: "TestTVPSchema.exampleTVP",
-		TVPValue:    exampleData,
+	tvpType := mssql.TVP{
+		TypeName: "TestTVPSchema.exampleTVP",
+		Value:    exampleData,
 	}
 
 	rows, err := conn.Query(execTvp,
