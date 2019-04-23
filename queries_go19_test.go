@@ -505,6 +505,74 @@ END;
 	})
 }
 
+// TestOutputParamWithRows tests reading output parameter before and after
+// retrieving rows from the result set of a stored procedure. SQL Server sends output
+// parameters after all the rows are returned. Therefore, if the output parameter
+// is read before all the rows are retrieved, the value will be incorrect.
+//
+// Issue https://github.com/denisenkom/go-mssqldb/issues/378
+func TestOutputParamWithRows(t *testing.T) {
+	sqltextcreate := `
+	CREATE PROCEDURE spwithoutputandrows
+		@bitparam BIT OUTPUT
+	AS BEGIN
+		SET @bitparam = 1
+		SELECT 'Row 1'
+	END
+	`
+	sqltextdrop := `DROP PROCEDURE spwithoutputandrows;`
+	sqltextrun := `spwithoutputandrows`
+
+	checkConnStr(t)
+	SetLogger(testLogger{t})
+
+	db, err := sql.Open("sqlserver", makeConnStr(t).String())
+	if err != nil {
+		t.Fatalf("failed to open driver sqlserver")
+	}
+	defer db.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	db.ExecContext(ctx, sqltextdrop)
+	_, err = db.ExecContext(ctx, sqltextcreate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.ExecContext(ctx, sqltextdrop)
+
+	t.Run("Retrieve output after reading rows", func(t *testing.T) {
+		var bitout int64 = 5
+		rows, err := db.QueryContext(ctx, sqltextrun, sql.Named("bitparam", sql.Out{Dest: &bitout}))
+		if err != nil {
+			t.Error(err)
+		} else {
+			defer rows.Close()
+			var strrow string
+			for rows.Next() {
+				err = rows.Scan(&strrow)
+			}
+			if bitout != 1 {
+				t.Errorf("expected 1, got %d", bitout)
+			}
+		}
+	})
+
+	t.Run("Retrieve output before reading rows", func(t *testing.T) {
+		var bitout int64 = 5
+		rows, err := db.QueryContext(ctx, sqltextrun, sql.Named("bitparam", sql.Out{Dest: &bitout}))
+		if err != nil {
+			t.Error(err)
+		} else {
+			defer rows.Close()
+			if bitout != 5 {
+				t.Errorf("expected 5, got %d", bitout)
+			}
+		}
+	})
+}
+
 // TestTLSServerReadClose tests writing to an encrypted database connection.
 // Currently the database server will close the connection while the server is
 // reading the TDS packets and before any of the data has been parsed.
