@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/denisenkom/go-mssqldb"
+	mssql "github.com/denisenkom/go-mssqldb"
 )
 
 // This example shows how to use tvp type
-func ExampleTVPType() {
+func ExampleTVP() {
 	const (
 		createTable = "CREATE TABLE Location (Name VARCHAR(50), CostRate INT, Availability BIT, ModifiedDate DATETIME2)"
 
@@ -42,8 +42,10 @@ func ExampleTVPType() {
 		execTvp = "exec dbo.usp_InsertProductionLocation @TVP;"
 	)
 	type LocationTableTvp struct {
-		LocationName string
-		CostRate     int64
+		LocationName    string
+		LocationCountry string `tvp:"-"`
+		CostRate        int64
+		Currency        string `json:"-"`
 	}
 
 	flag.Parse()
@@ -83,23 +85,30 @@ func ExampleTVPType() {
 
 	locationTableTypeData := []LocationTableTvp{
 		{
-			LocationName: "Alberta",
-			CostRate:     0,
+			LocationName:    "Alberta",
+			LocationCountry: "Canada",
+			CostRate:        0,
+			Currency:        "CAD",
 		},
 		{
-			LocationName: "British Columbia",
-			CostRate:     1,
+			LocationName:    "British Columbia",
+			LocationCountry: "Canada",
+			CostRate:        1,
+			Currency:        "CAD",
 		},
 	}
 
-	tvpType := mssql.TVPType{
-		TVPTypeName: "LocationTableType",
-		TVPScheme:   "",
-		TVPValue:    locationTableTypeData,
+	tvpType := mssql.TVP{
+		TypeName: "LocationTableType",
+		Value:    locationTableTypeData,
 	}
 
 	_, err = db.Exec(execTvp, sql.Named("TVP", tvpType))
 	if err != nil {
 		log.Fatal(err)
+	} else {
+		for _, locationData := range locationTableTypeData {
+			fmt.Printf("Data for location %s, %s has been inserted.\n", locationData.LocationName, locationData.LocationCountry)
+		}
 	}
 }

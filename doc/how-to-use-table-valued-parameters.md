@@ -44,13 +44,12 @@ locationTableTypeData := []LocationTableTvp{
 }
 ```
 
-Create a `mssql.TVPType` object, and pass the slice of structs into the `TVPValue` member. Set `TVPTypeName` to the table type name, and `TVPScheme` to the schema which the table type belongs to. If `TVPScheme` is not specified, SQL Server searches the table type from the default schema of your user in SQL Server. Note the `TVPTypeName` and `TVPScheme` members may be combined in future implementations of the go-mssqldb driver (see [issue 458](https://github.com/denisenkom/go-mssqldb/issues/458)).
+Create a `mssql.TVP` object, and pass the slice of structs into the `Value` member. Set `TypeName` to the table type name.
 
 ```
-tvpType := mssql.TVPType{
-	TVPTypeName: "LocationTableType",
-	TVPScheme:   "",
-	TVPValue:    locationTableTypeData,
+tvpType := mssql.TVP{
+	TypeName: "LocationTableType",
+	Value:    locationTableTypeData,
 }
 ```
 
@@ -58,5 +57,35 @@ Finally, execute the stored procedure and pass the `mssql.TVPType` object you ha
 
 `_, err = db.Exec("exec dbo.usp_InsertProductionLocation @TVP;", sql.Named("TVP", tvpType))`
 
+## Using Tags to Omit Fields in a Struct
+
+Sometimes users may find it useful to include fields in the struct that do not have corresponding columns in the table type. The driver supports this feature by using tags. To omit a field from a struct, use the `json` or `tvp` tag key and the `"-"` tag value.
+
+For example, the user wants to define a struct with two more fields: `LocationCountry` and `Currency`. However, the `LocationTableType` table type do not have these corresponding columns. The user can omit the two new fields from being read by using the `json` or `tvp` tag.
+
+```
+type LocationTableTvpDetailed struct {
+	LocationName	string
+	LocationCountry string	`tvp:"-"`
+	CostRate		int64
+	Currency		string	`json:"-"`
+}
+```
+
+The `tvp` tag is the highest priority. Therefore if there is a field with tag `json:"-" tvp:"any"`, the field is not omitted. The following struct demonstrates different scenarios of using the `json` and `tvp` tags.
+
+```
+type T struct {
+	F1 string `json:"f1" tvp:"f1"`	// not omitted
+	F2 string `json:"-" tvp:"f2"`	// tvp tag takes precedence; not omitted
+	F3 string `json:"f3" tvp:"-"`	// tvp tag takes precedence; omitted
+	F4 string `json:"-" tvp:"-"`	// omitted
+	F5 string `json:"f5"`			// not omitted
+	F6 string `json:"-"`			// omitted
+	F7 string `tvp:"f7"`			// not omitted
+	F8 string `tvp:"-"`				// omitted
+}
+```
+
 ## Example
-[TVPType example](../tvptype_example_test.go)
+[TVPType example](../tvp_example_test.go)
