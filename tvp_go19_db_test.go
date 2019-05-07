@@ -67,54 +67,53 @@ type TvptableRow struct {
 }
 
 type TvptableRowWithSkipTag struct {
-	PBinary       []byte            `db:"p_binary"`
-	PVarchar      string            `db:"p_varchar"`
-	PVarcharNull  *string           `db:"p_varcharNull"`
-	PNvarchar     string            `db:"p_nvarchar"`
-	PNvarcharNull *string           `db:"p_nvarcharNull"`
-	PID           UniqueIdentifier  `db:"p_id"`
-	PIDNull       *UniqueIdentifier `db:"p_idNull"`
-	PVarbinary    []byte            `db:"p_varbinary"`
-	PTinyint      int8              `db:"p_tinyint"`
-	PTinyintNull  *int8             `db:"p_tinyintNull"`
-	PSmallint     int16             `db:"p_smallint"`
-	PSmallintNull *int16            `db:"p_smallintNull"`
-	PInt          int32             `db:"p_int"`
-	PIntNull      *int32            `db:"p_intNull"`
-	PBigint       int64             `db:"p_bigint"`
-	PBigintNull   *int64            `db:"p_bigintNull"`
-	PBit          bool              `db:"p_bit"`
-	PBitNull      *bool             `db:"p_bitNull"`
-	PFloat32      float32           `db:"p_float32"`
-	PFloatNull32  *float32          `db:"p_floatNull32"`
-	PFloat64      float64           `db:"p_float64"`
-	PFloatNull64  *float64          `db:"p_floatNull64"`
-	DTime         time.Time         `db:"p_timeNull"`
-	DTimeNull     *time.Time        `db:"p_time"`
-
+	PBinary           []byte            `db:"p_binary"`
 	SkipPBinary       []byte            `json:"-"`
+	PVarchar          string            `db:"p_varchar"`
 	SkipPVarchar      string            `tvp:"-"`
+	PVarcharNull      *string           `db:"p_varcharNull"`
 	SkipPVarcharNull  *string           `json:"-" tvp:"-"`
+	PNvarchar         string            `db:"p_nvarchar"`
 	SkipPNvarchar     string            `json:"-"`
+	PNvarcharNull     *string           `db:"p_nvarcharNull"`
 	SkipPNvarcharNull *string           `json:"-"`
+	PID               UniqueIdentifier  `db:"p_id"`
 	SkipPID           UniqueIdentifier  `json:"-"`
+	PIDNull           *UniqueIdentifier `db:"p_idNull"`
 	SkipPIDNull       *UniqueIdentifier `tvp:"-"`
+	PVarbinary        []byte            `db:"p_varbinary"`
 	SkipPVarbinary    []byte            `json:"-" tvp:"-"`
+	PTinyint          int8              `db:"p_tinyint"`
 	SkipPTinyint      int8              `tvp:"-"`
+	PTinyintNull      *int8             `db:"p_tinyintNull"`
 	SkipPTinyintNull  *int8             `tvp:"-" json:"any"`
+	PSmallint         int16             `db:"p_smallint"`
 	SkipPSmallint     int16             `json:"-"`
+	PSmallintNull     *int16            `db:"p_smallintNull"`
 	SkipPSmallintNull *int16            `tvp:"-"`
+	PInt              int32             `db:"p_int"`
 	SkipPInt          int32             `json:"-"`
+	PIntNull          *int32            `db:"p_intNull"`
 	SkipPIntNull      *int32            `tvp:"-"`
+	PBigint           int64             `db:"p_bigint"`
 	SkipPBigint       int64             `tvp:"-"`
+	PBigintNull       *int64            `db:"p_bigintNull"`
 	SkipPBigintNull   *int64            `json:"any" tvp:"-"`
+	PBit              bool              `db:"p_bit"`
 	SkipPBit          bool              `json:"-"`
+	PBitNull          *bool             `db:"p_bitNull"`
 	SkipPBitNull      *bool             `json:"-"`
+	PFloat32          float32           `db:"p_float32"`
 	SkipPFloat32      float32           `tvp:"-"`
+	PFloatNull32      *float32          `db:"p_floatNull32"`
 	SkipPFloatNull32  *float32          `tvp:"-"`
+	PFloat64          float64           `db:"p_float64"`
 	SkipPFloat64      float64           `tvp:"-"`
+	PFloatNull64      *float64          `db:"p_floatNull64"`
 	SkipPFloatNull64  *float64          `tvp:"-"`
+	DTime             time.Time         `db:"p_timeNull"`
 	SkipDTime         time.Time         `tvp:"-"`
+	DTimeNull         *time.Time        `db:"p_time"`
 	SkipDTimeNull     *time.Time        `tvp:"-"`
 }
 
@@ -677,4 +676,51 @@ func TestTVPSchema(t *testing.T) {
 		tvpResult = append(tvpResult, tvpExemple)
 	}
 	log.Println(tvpResult)
+}
+
+func TestTVPObject(t *testing.T) {
+	checkConnStr(t)
+	SetLogger(testLogger{t})
+
+	conn, err := sql.Open("sqlserver", makeConnStr(t).String())
+	if err != nil {
+		log.Fatal("Open connection failed:", err.Error())
+	}
+	defer conn.Close()
+
+	tests := []struct {
+		name    string
+		tvp     TVP
+		wantErr bool
+	}{
+		{
+			name:    "empty name",
+			wantErr: true,
+			tvp:     TVP{TypeName: ""},
+		},
+		{
+			name:    "value is wrong type",
+			wantErr: true,
+			tvp:     TVP{TypeName: "type", Value: "wrong type"},
+		},
+		{
+			name:    "tvp type is wrong",
+			wantErr: true,
+			tvp:     TVP{TypeName: "[type", Value: []TvpExample{{}}},
+		},
+		{
+			name:    "tvp type is wrong",
+			wantErr: true,
+			tvp:     TVP{TypeName: "[type", Value: []TestFieldsUnsupportedTypes{{}}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := conn.Exec("somequery", tt.tvp)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("TVP.encode() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+		})
+	}
 }

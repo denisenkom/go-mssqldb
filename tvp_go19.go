@@ -25,6 +25,7 @@ var (
 	ErrorTypeSliceIsEmpty = errors.New("TVP mustn't be null value")
 	ErrorSkip             = errors.New("all fields mustn't skip")
 	ErrorObjectName       = errors.New("wrong tvp name")
+	ErrorWrongTyping      = errors.New("the number of elements in columnStr and tvpFieldIndexes do not align")
 )
 
 //TVP is driver type, which allows supporting Table Valued Parameters (TVP) in SQL Server
@@ -58,17 +59,16 @@ func (tvp TVP) check() error {
 	return nil
 }
 
-func (tvp TVP) encode(schema, name string) ([]byte, error) {
-	columnStr, tvpFieldIndexes, err := tvp.columnTypes()
-	if err != nil {
-		return nil, err
+func (tvp TVP) encode(schema, name string, columnStr []columnStruct, tvpFieldIndexes []int) ([]byte, error) {
+	if len(columnStr) != len(tvpFieldIndexes) {
+		return nil, ErrorWrongTyping
 	}
 	if len(columnStr) != len(tvpFieldIndexes) {
 		return nil, fmt.Errorf("the number of elements in columnStr and tvpFieldIndexes do not align")
 	}
 	preparedBuffer := make([]byte, 0, 20+(10*len(columnStr)))
 	buf := bytes.NewBuffer(preparedBuffer)
-	err = writeBVarChar(buf, "")
+	err := writeBVarChar(buf, "")
 	if err != nil {
 		return nil, err
 	}
@@ -83,10 +83,9 @@ func (tvp TVP) encode(schema, name string) ([]byte, error) {
 		writeTypeInfo(buf, &columnStr[i].ti)
 		writeBVarChar(buf, "")
 	}
-	err = buf.WriteByte(_TVP_END_TOKEN)
-	if err != nil {
-		return nil, err
-	}
+	// The returned error is always nil
+	buf.WriteByte(_TVP_END_TOKEN)
+
 	conn := new(Conn)
 	conn.sess = new(tdsSession)
 	conn.sess.loginAck = loginAckStruct{TDSVersion: verTDS73}
