@@ -63,9 +63,6 @@ func (tvp TVP) encode(schema, name string, columnStr []columnStruct, tvpFieldInd
 	if len(columnStr) != len(tvpFieldIndexes) {
 		return nil, ErrorWrongTyping
 	}
-	if len(columnStr) != len(tvpFieldIndexes) {
-		return nil, fmt.Errorf("the number of elements in columnStr and tvpFieldIndexes do not align")
-	}
 	preparedBuffer := make([]byte, 0, 20+(10*len(columnStr)))
 	buf := bytes.NewBuffer(preparedBuffer)
 	err := writeBVarChar(buf, "")
