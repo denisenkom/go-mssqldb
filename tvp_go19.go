@@ -25,6 +25,7 @@ var (
 	ErrorTypeSliceIsEmpty = errors.New("TVP mustn't be null value")
 	ErrorSkip             = errors.New("all fields mustn't skip")
 	ErrorObjectName       = errors.New("wrong tvp name")
+	ErrorWrongTyping      = errors.New("the number of elements in columnStr and tvpFieldIndexes do not align")
 )
 
 //TVP is driver type, which allows supporting Table Valued Parameters (TVP) in SQL Server
@@ -58,14 +59,13 @@ func (tvp TVP) check() error {
 	return nil
 }
 
-func (tvp TVP) encode(schema, name string) ([]byte, error) {
-	columnStr, tvpFieldIndexes, err := tvp.columnTypes()
-	if err != nil {
-		return nil, err
+func (tvp TVP) encode(schema, name string, columnStr []columnStruct, tvpFieldIndexes []int) ([]byte, error) {
+	if len(columnStr) != len(tvpFieldIndexes) {
+		return nil, ErrorWrongTyping
 	}
 	preparedBuffer := make([]byte, 0, 20+(10*len(columnStr)))
 	buf := bytes.NewBuffer(preparedBuffer)
-	err = writeBVarChar(buf, "")
+	err := writeBVarChar(buf, "")
 	if err != nil {
 		return nil, err
 	}
@@ -80,10 +80,9 @@ func (tvp TVP) encode(schema, name string) ([]byte, error) {
 		writeTypeInfo(buf, &columnStr[i].ti)
 		writeBVarChar(buf, "")
 	}
-	err = buf.WriteByte(_TVP_END_TOKEN)
-	if err != nil {
-		return nil, err
-	}
+	// The returned error is always nil
+	buf.WriteByte(_TVP_END_TOKEN)
+
 	conn := new(Conn)
 	conn.sess = new(tdsSession)
 	conn.sess.loginAck = loginAckStruct{TDSVersion: verTDS73}
@@ -95,8 +94,8 @@ func (tvp TVP) encode(schema, name string) ([]byte, error) {
 	for i := 0; i < val.Len(); i++ {
 		refStr := reflect.ValueOf(val.Index(i).Interface())
 		buf.WriteByte(_TVP_ROW_TOKEN)
-		for _, j := range tvpFieldIndexes {
-			field := refStr.Field(j)
+		for columnStrIdx, fieldIdx := range tvpFieldIndexes {
+			field := refStr.Field(fieldIdx)
 			tvpVal := field.Interface()
 			valOf := reflect.ValueOf(tvpVal)
 			elemKind := field.Kind()
@@ -123,7 +122,7 @@ func (tvp TVP) encode(schema, name string) ([]byte, error) {
 			if err != nil {
 				return nil, fmt.Errorf("failed to make tvp parameter row col: %s", err)
 			}
-			columnStr[j].ti.Writer(buf, param.ti, param.buffer)
+			columnStr[columnStrIdx].ti.Writer(buf, param.ti, param.buffer)
 		}
 	}
 	buf.WriteByte(_TVP_END_TOKEN)

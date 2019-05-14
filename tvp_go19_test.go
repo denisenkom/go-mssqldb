@@ -3,6 +3,7 @@
 package mssql
 
 import (
+	"reflect"
 	"testing"
 	"time"
 )
@@ -266,45 +267,6 @@ func TestTVPType_check(t *testing.T) {
 	}
 }
 
-func TestTVPType_encode(t *testing.T) {
-	type fields struct {
-		TVPTypeName  string
-		TVPValue     interface{}
-		TVPCustomTag string
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		want    []byte
-		wantErr bool
-	}{
-		{
-			name: "Value gets error unsupported type",
-			fields: fields{
-				TVPTypeName: "Test",
-				TVPValue:    []TestFieldError{},
-			},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tvp := TVP{
-				TypeName: tt.fields.TVPTypeName,
-				Value:    tt.fields.TVPValue,
-			}
-			schema, name, err := getSchemeAndName(tt.fields.TVPTypeName)
-			if err != nil {
-				t.Errorf("getSchemeAndName() error = %v, wantErr %v", err, tt.wantErr)
-			}
-			_, err = tvp.encode(schema, name)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("TVP.encode() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
 func BenchmarkTVPType_check(b *testing.B) {
 	type val struct {
 		Value string
@@ -535,6 +497,81 @@ func Test_getSchemeAndName(t *testing.T) {
 			}
 			if name != tt.tvpName {
 				t.Errorf("getSchemeAndName() name = %v, schema %v", name, tt.tvpName)
+			}
+		})
+	}
+}
+
+func TestTVP_encode(t *testing.T) {
+	type fields struct {
+		TypeName string
+		Value    interface{}
+	}
+	type args struct {
+		schema          string
+		name            string
+		columnStr       []columnStruct
+		tvpFieldIndexes []int
+	}
+	tests := []struct {
+		name      string
+		fields    fields
+		args      args
+		want      []byte
+		wantErr   bool
+		wantPanic bool
+	}{
+		{
+			name:    "column and indexes are nil",
+			wantErr: true,
+			args: args{
+				tvpFieldIndexes: []int{1, 2},
+			},
+		},
+		{
+			name:    "column and indexes are nil",
+			wantErr: true,
+			args: args{
+				tvpFieldIndexes: []int{1, 2},
+				columnStr:       []columnStruct{columnStruct{}},
+			},
+		},
+		{
+			name:    "column and indexes are nil",
+			wantErr: true,
+			args: args{
+				columnStr: []columnStruct{columnStruct{}},
+			},
+		},
+		{
+			name:      "column and indexes are nil",
+			wantErr:   true,
+			wantPanic: true,
+			args: args{
+				schema: string(make([]byte, 256)),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.wantPanic {
+				defer func() {
+					if r := recover(); r == nil {
+						t.Errorf("Want panic")
+					}
+				}()
+			}
+			tvp := TVP{
+				TypeName: tt.fields.TypeName,
+				Value:    tt.fields.Value,
+			}
+			got, err := tvp.encode(tt.args.schema, tt.args.name, tt.args.columnStr, tt.args.tvpFieldIndexes)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("TVP.encode() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("TVP.encode() = %v, want %v", got, tt.want)
 			}
 		})
 	}

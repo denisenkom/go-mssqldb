@@ -174,7 +174,12 @@ func (s *Stmt) makeParamExtra(val driver.Value) (res param, err error) {
 		res.ti.UdtInfo.TypeName = name
 		res.ti.UdtInfo.SchemaName = schema
 		res.ti.TypeId = typeTvp
-		res.buffer, err = val.encode(schema, name)
+		columnStr, tvpFieldIndexes, errCalTypes := val.columnTypes()
+		if errCalTypes != nil {
+			err = errCalTypes
+			return
+		}
+		res.buffer, err = val.encode(schema, name, columnStr, tvpFieldIndexes)
 		if err != nil {
 			return
 		}
