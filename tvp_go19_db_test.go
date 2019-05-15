@@ -198,7 +198,6 @@ func TestTVP(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.ExecContext(ctx, sqltextdropsp)
-
 	varcharNull := "aaa"
 	nvarchar := "bbb"
 	bytesMock := []byte("ddd")
