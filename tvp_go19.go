@@ -101,7 +101,7 @@ func (tvp TVP) encode(schema, name string, columnStr []columnStruct, tvpFieldInd
 			elemKind := field.Kind()
 			if elemKind == reflect.Ptr && valOf.IsNil() {
 				switch tvpVal.(type) {
-				case *bool, *time.Time, *int8, *int16, *int32, *int64, *float32, *float64:
+				case *bool, *time.Time, *int8, *int16, *int32, *int64, *float32, *float64, *int:
 					binary.Write(buf, binary.LittleEndian, uint8(0))
 					continue
 				default:
