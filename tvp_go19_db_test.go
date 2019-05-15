@@ -64,6 +64,8 @@ type TvptableRow struct {
 	PFloatNull64  *float64          `db:"p_floatNull64"`
 	DTime         time.Time         `db:"p_timeNull"`
 	DTimeNull     *time.Time        `db:"p_time"`
+	Pint          int               `db:"pInt"`
+	PintNull      *int              `db:"pIntNull"`
 }
 
 type TvptableRowWithSkipTag struct {
@@ -115,6 +117,10 @@ type TvptableRowWithSkipTag struct {
 	SkipDTime         time.Time         `tvp:"-"`
 	DTimeNull         *time.Time        `db:"p_time"`
 	SkipDTimeNull     *time.Time        `tvp:"-"`
+	Pint              int               `db:"p_int_null"`
+	SkipPint          int               `tvp:"-"`
+	PintNull          *int              `db:"p_int_"`
+	SkipPintNull      *int              `tvp:"-"`
 }
 
 func TestTVP(t *testing.T) {
@@ -156,7 +162,9 @@ func TestTVP(t *testing.T) {
 			p_float64           FLOAT,
 			p_floatNull64       FLOAT,
 			p_time 				datetime2,
-			p_timeNull			datetime2
+			p_timeNull			datetime2,
+			pInt              	INT,
+			pIntNull          	INT
 		); `
 
 	sqltextdroptable := `DROP TYPE tvptable;`
@@ -198,6 +206,7 @@ func TestTVP(t *testing.T) {
 	i16 := int16(2)
 	i32 := int32(3)
 	i64 := int64(4)
+	i := int(5)
 	bFalse := false
 	floatValue64 := 0.123
 	floatValue32 := float32(-10.123)
@@ -217,6 +226,7 @@ func TestTVP(t *testing.T) {
 			PFloat32:   floatValue32,
 			PFloat64:   floatValue64,
 			DTime:      timeNow,
+			Pint:       355,
 		},
 		{
 			PBinary:    []byte("www"),
@@ -232,6 +242,7 @@ func TestTVP(t *testing.T) {
 			PFloat32:   -123.45,
 			PFloat64:   -123.45,
 			DTime:      time.Date(2001, 11, 16, 23, 59, 39, 0, time.UTC),
+			Pint:       455,
 		},
 		{
 			PBinary:       nil,
@@ -247,6 +258,7 @@ func TestTVP(t *testing.T) {
 			PFloatNull64:  &floatValue64,
 			DTime:         timeNow,
 			DTimeNull:     &timeNow,
+			PintNull:      &i,
 		},
 		{
 			PBinary:       []byte("www"),
@@ -271,6 +283,7 @@ func TestTVP(t *testing.T) {
 			PFloatNull32:  &floatValue32,
 			PFloatNull64:  &floatValue64,
 			DTimeNull:     &timeNow,
+			PintNull:      &i,
 		},
 	}
 
@@ -322,6 +335,8 @@ func TestTVP(t *testing.T) {
 			&val.PFloatNull64,
 			&val.DTime,
 			&val.DTimeNull,
+			&val.Pint,
+			&val.PintNull,
 		)
 		if err != nil {
 			t.Fatalf("scan failed with error: %s", err)
@@ -400,7 +415,9 @@ func TestTVP_WithTag(t *testing.T) {
 			p_float64           FLOAT,
 			p_floatNull64       FLOAT,
 			p_time 				datetime2,
-			p_timeNull			datetime2
+			p_timeNull			datetime2,
+			pInt              	INT,
+			pIntNull          	INT
 		); `
 
 	sqltextdroptable := `DROP TYPE tvptable;`
@@ -442,6 +459,7 @@ func TestTVP_WithTag(t *testing.T) {
 	i16 := int16(2)
 	i32 := int32(3)
 	i64 := int64(4)
+	i := int(355)
 	bFalse := false
 	floatValue64 := 0.123
 	floatValue32 := float32(-10.123)
@@ -461,6 +479,8 @@ func TestTVP_WithTag(t *testing.T) {
 			PFloat32:   floatValue32,
 			PFloat64:   floatValue64,
 			DTime:      timeNow,
+			Pint:       i,
+			PintNull:   &i,
 		},
 		{
 			PBinary:    []byte("www"),
@@ -476,6 +496,8 @@ func TestTVP_WithTag(t *testing.T) {
 			PFloat32:   -123.45,
 			PFloat64:   -123.45,
 			DTime:      time.Date(2001, 11, 16, 23, 59, 39, 0, time.UTC),
+			Pint:       3669,
+			PintNull:   &i,
 		},
 		{
 			PBinary:       nil,
@@ -491,6 +513,7 @@ func TestTVP_WithTag(t *testing.T) {
 			PFloatNull64:  &floatValue64,
 			DTime:         timeNow,
 			DTimeNull:     &timeNow,
+			Pint:          969,
 		},
 		{
 			PBinary:       []byte("www"),
@@ -515,6 +538,7 @@ func TestTVP_WithTag(t *testing.T) {
 			PFloatNull32:  &floatValue32,
 			PFloatNull64:  &floatValue64,
 			DTimeNull:     &timeNow,
+			PintNull:      &i,
 		},
 	}
 
@@ -566,6 +590,8 @@ func TestTVP_WithTag(t *testing.T) {
 			&val.PFloatNull64,
 			&val.DTime,
 			&val.DTimeNull,
+			&val.Pint,
+			&val.PintNull,
 		)
 		if err != nil {
 			t.Fatalf("scan failed with error: %s", err)
