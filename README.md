@@ -203,9 +203,9 @@ are supported:
  * time.Time -> datetimeoffset or datetime (TDS version dependent)
  * mssql.DateTime1 -> datetime
  * mssql.DateTimeOffset -> datetimeoffset
- * "cloud.google.com/go/civil".Date -> date
- * "cloud.google.com/go/civil".DateTime -> datetime2
- * "cloud.google.com/go/civil".Time -> time
+ * "github.com/lucidhq/civil".Date -> date
+ * "github.com/lucidhq/civil".DateTime -> datetime2
+ * "github.com/lucidhq/civil".Time -> time
  * mssql.TVP -> Table Value Parameter (TDS version dependent)
 
 ## Important Notes

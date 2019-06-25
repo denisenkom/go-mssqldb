@@ -9,7 +9,7 @@ import (
 	"log"
 	"time"
 
-	"cloud.google.com/go/civil"
+	"github.com/lucidhq/civil"
 	"github.com/lucidhq/go-mssqldb"
 )
 

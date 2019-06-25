@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"cloud.google.com/go/civil"
+	"github.com/lucidhq/civil"
 )
 
 func TestSessionInitSQL(t *testing.T) {

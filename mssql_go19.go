@@ -11,7 +11,7 @@ import (
 	"time"
 
 	// "github.com/cockroachdb/apd"
-	"cloud.google.com/go/civil"
+	"github.com/lucidhq/civil"
 )
 
 // Type alias provided for compatibility.
