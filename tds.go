@@ -1268,7 +1268,7 @@ initiate_connection:
 			config.InsecureSkipVerify = true
 		}
 		config.ServerName = p.hostInCertificate
-		// fix for https://github.com/denisenkom/go-mssqldb/issues/166
+		// fix for https://github.com/lucidhq/go-mssqldb/issues/166
 		// Go implementation of TLS payload size heuristic algorithm splits single TDS package to multiple TCP segments,
 		// while SQL Server seems to expect one TCP segment per encrypted TDS package.
 		// Setting DynamicRecordSizingDisabled to true disables that algorithm and uses 16384 bytes per TLS package

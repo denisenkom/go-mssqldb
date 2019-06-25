@@ -510,7 +510,7 @@ END;
 // parameters after all the rows are returned. Therefore, if the output parameter
 // is read before all the rows are retrieved, the value will be incorrect.
 //
-// Issue https://github.com/denisenkom/go-mssqldb/issues/378
+// Issue https://github.com/lucidhq/go-mssqldb/issues/378
 func TestOutputParamWithRows(t *testing.T) {
 	sqltextcreate := `
 	CREATE PROCEDURE spwithoutputandrows
@@ -597,7 +597,7 @@ func TestOutputParamWithRows(t *testing.T) {
 // config may help with that, but wireshark wasn't decrypting TDS based TLS streams
 // even when using that.
 //
-// Issue https://github.com/denisenkom/go-mssqldb/issues/166
+// Issue https://github.com/lucidhq/go-mssqldb/issues/166
 func TestTLSServerReadClose(t *testing.T) {
 	query := `
 with

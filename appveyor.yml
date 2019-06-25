@@ -2,7 +2,7 @@ version: 1.0.{build}
 
 os: Windows Server 2012 R2
 
-clone_folder: c:\gopath\src\github.com\denisenkom\go-mssqldb
+clone_folder: c:\gopath\src\github.com\lucidhq\go-mssqldb
 
 environment:
   GOPATH: c:\gopath
