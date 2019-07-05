@@ -22,6 +22,15 @@ const (
 			message	NVARCHAR(100)
 		)`
 
+	createTVPWithPosition = `
+		CREATE TYPE TestTVPSchema.exempleTVP AS TABLE
+		(
+			message3	NVARCHAR(100),
+			message2	NVARCHAR(100),
+			message1	NVARCHAR(100),						
+			message4	NVARCHAR(100)
+		)`
+
 	dropTVP = `DROP TYPE TestTVPSchema.exempleTVP;`
 
 	procedureWithTVP = `	
@@ -747,5 +756,82 @@ func TestTVPObject(t *testing.T) {
 				return
 			}
 		})
+	}
+}
+
+type TvpExampleWithOrdering struct {
+	Message1DB3     string `tvp:",3"`
+	Message2DB2     string `tvp:",2"`
+	Message3DB1     string `tvp:",1"`
+	Message4DB4     string `tvp:",4"`
+	MessageSkipTVP  string `tvp:"-"`
+	MessageSkipJSON string `json:"-"`
+}
+
+func TestTVPWithPosition(t *testing.T) {
+	checkConnStr(t)
+	SetLogger(testLogger{t})
+
+	conn, err := sql.Open("sqlserver", makeConnStr(t).String())
+	if err != nil {
+		log.Fatal("Open connection failed:", err.Error())
+	}
+	defer conn.Close()
+
+	_, err = conn.Exec(crateSchema)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer conn.Exec(dropSchema)
+
+	_, err = conn.Exec(createTVPWithPosition)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer conn.Exec(dropTVP)
+
+	_, err = conn.Exec(procedureWithTVP)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer conn.Exec(dropProcedure)
+
+	exempleData := []TvpExampleWithOrdering{
+		{
+			Message1DB3: "3",
+			Message2DB2: "2",
+			Message3DB1: "1",
+			Message4DB4: "4",
+		},
+	}
+
+	tvpType := TVP{
+		TypeName: "TestTVPSchema.exempleTVP",
+		Value:    exempleData,
+	}
+
+	rows, err := conn.Query(execTvp,
+		sql.Named("param1", tvpType),
+	)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	tvpResult := make([]TvpExampleWithOrdering, 0)
+	for rows.Next() {
+		tvpExemple := TvpExampleWithOrdering{}
+		err = rows.Scan(&tvpExemple.Message3DB1, &tvpExemple.Message2DB2, &tvpExemple.Message1DB3, &tvpExemple.Message4DB4)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		tvpResult = append(tvpResult, tvpExemple)
+	}
+	if !reflect.DeepEqual(tvpResult, exempleData) {
+		t.Error(tvpResult)
 	}
 }

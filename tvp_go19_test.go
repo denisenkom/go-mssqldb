@@ -511,29 +511,46 @@ func TestTVP_encode(t *testing.T) {
 		schema          string
 		name            string
 		columnStr       []columnStruct
-		tvpFieldIndexes []int
+		tvpFieldIndexes []indexPosition
 	}
 	tests := []struct {
-		name      string
-		fields    fields
-		args      args
-		want      []byte
-		wantErr   bool
-		wantPanic bool
+		name    string
+		fields  fields
+		args    args
+		want    []byte
+		wantErr bool
 	}{
 		{
 			name:    "column and indexes are nil",
 			wantErr: true,
 			args: args{
-				tvpFieldIndexes: []int{1, 2},
+				tvpFieldIndexes: []indexPosition{
+					{
+						index:    1,
+						position: 1,
+					},
+					{
+						index:    2,
+						position: 2,
+					},
+				},
 			},
 		},
 		{
 			name:    "column and indexes are nil",
 			wantErr: true,
 			args: args{
-				tvpFieldIndexes: []int{1, 2},
-				columnStr:       []columnStruct{columnStruct{}},
+				tvpFieldIndexes: []indexPosition{
+					{
+						index:    1,
+						position: 1,
+					},
+					{
+						index:    2,
+						position: 2,
+					},
+				},
+				columnStr: []columnStruct{columnStruct{}},
 			},
 		},
 		{
@@ -544,9 +561,8 @@ func TestTVP_encode(t *testing.T) {
 			},
 		},
 		{
-			name:      "column and indexes are nil",
-			wantErr:   true,
-			wantPanic: true,
+			name:    "column and indexes are nil",
+			wantErr: true,
 			args: args{
 				schema: string(make([]byte, 256)),
 			},
@@ -554,13 +570,6 @@ func TestTVP_encode(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.wantPanic {
-				defer func() {
-					if r := recover(); r == nil {
-						t.Errorf("Want panic")
-					}
-				}()
-			}
 			tvp := TVP{
 				TypeName: tt.fields.TypeName,
 				Value:    tt.fields.Value,
@@ -572,6 +581,251 @@ func TestTVP_encode(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("TVP.encode() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_parseTvpTag(t *testing.T) {
+	type args struct {
+		tvpValue string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		want1   uint16
+		wantErr bool
+	}{
+		{
+			name:    "empty value",
+			args:    args{},
+			want:    "",
+			want1:   0,
+			wantErr: false,
+		},
+		{
+			name: "only name",
+			args: args{
+				tvpValue: "TVP",
+			},
+			want:    "TVP",
+			want1:   0,
+			wantErr: false,
+		},
+		{
+			name: "only position",
+			args: args{
+				tvpValue: ",1",
+			},
+			want:    "",
+			want1:   1,
+			wantErr: false,
+		},
+		{
+			name: "only skip value",
+			args: args{
+				tvpValue: "-",
+			},
+			want:    "-",
+			want1:   0,
+			wantErr: false,
+		},
+		{
+			name: "skip tag and position",
+			args: args{
+				tvpValue: "-,10",
+			},
+			want:    "-",
+			want1:   10,
+			wantErr: false,
+		},
+		{
+			name: "wrong tvp position is string",
+			args: args{
+				tvpValue: "-,tsc",
+			},
+			want:    "",
+			want1:   0,
+			wantErr: true,
+		},
+		{
+			name: "wrong tvp",
+			args: args{
+				tvpValue: "-,1,123",
+			},
+			want:    "",
+			want1:   0,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, got1, err := parseTvpTag(tt.args.tvpValue)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseTvpTag() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("parseTvpTag() got = %v, want %v", got, tt.want)
+			}
+			if got1 != tt.want1 {
+				t.Errorf("parseTvpTag() got1 = %v, want %v", got1, tt.want1)
+			}
+		})
+	}
+}
+
+func Test_checkPosition(t *testing.T) {
+	type args struct {
+		check []indexPosition
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name:    "empty value",
+			args:    args{},
+			wantErr: true,
+		},
+		{
+			name: "empty slice",
+			args: args{
+				check: []indexPosition{},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Single value",
+			args: args{
+				check: []indexPosition{
+					{
+						index:    1,
+						position: 1,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "2 values",
+			args: args{
+				check: []indexPosition{
+					{
+						index:    1,
+						position: 0,
+					},
+					{
+						index:    2,
+						position: 0,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "2 values with wrong positions",
+			args: args{
+				check: []indexPosition{
+					{
+						index:    1,
+						position: 0,
+					},
+					{
+						index:    2,
+						position: 1,
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "2 values with same position",
+			args: args{
+				check: []indexPosition{
+					{
+						index:    1,
+						position: 1,
+					},
+					{
+						index:    2,
+						position: 1,
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "2 values wrong position",
+			args: args{
+				check: []indexPosition{
+					{
+						index:    1,
+						position: 1,
+					},
+					{
+						index:    2,
+						position: 3,
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "2 values wrong position",
+			args: args{
+				check: []indexPosition{
+					{
+						index:    1,
+						position: 3,
+					},
+					{
+						index:    2,
+						position: 1,
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "positions are right",
+			args: args{
+				check: []indexPosition{
+					{
+						index:    0,
+						position: 2,
+					},
+					{
+						index:    2,
+						position: 1,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "positions are right",
+			args: args{
+				check: []indexPosition{
+					{
+						index:    0,
+						position: 1,
+					},
+					{
+						index:    2,
+						position: 2,
+					},
+				},
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := checkPosition(tt.args.check); (err != nil) != tt.wantErr {
+				t.Errorf("checkPosition() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
