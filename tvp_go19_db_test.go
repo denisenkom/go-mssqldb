@@ -25,9 +25,9 @@ const (
 	createTVPWithPosition = `
 		CREATE TYPE TestTVPSchema.exempleTVP AS TABLE
 		(
-			message3	NVARCHAR(100),
+			message1	NVARCHAR(100),
 			message2	NVARCHAR(100),
-			message1	NVARCHAR(100),						
+			message3	NVARCHAR(100),
 			message4	NVARCHAR(100)
 		)`
 
@@ -760,10 +760,10 @@ func TestTVPObject(t *testing.T) {
 }
 
 type TvpExampleWithOrdering struct {
-	Message1DB3     string `tvp:",3"`
-	Message2DB2     string `tvp:",2"`
-	Message3DB1     string `tvp:",1"`
-	Message4DB4     string `tvp:",4"`
+	Message4        string `tvp:",4"`
+	Message3        string `tvp:",3"`
+	Message2        string `tvp:",2"`
+	Message1        string `tvp:",1"`
 	MessageSkipTVP  string `tvp:"-"`
 	MessageSkipJSON string `json:"-"`
 }
@@ -801,10 +801,10 @@ func TestTVPWithPosition(t *testing.T) {
 
 	exempleData := []TvpExampleWithOrdering{
 		{
-			Message1DB3: "3",
-			Message2DB2: "2",
-			Message3DB1: "1",
-			Message4DB4: "4",
+			Message1: "1",
+			Message2: "2",
+			Message3: "3",
+			Message4: "4",
 		},
 	}
 
@@ -824,7 +824,7 @@ func TestTVPWithPosition(t *testing.T) {
 	tvpResult := make([]TvpExampleWithOrdering, 0)
 	for rows.Next() {
 		tvpExemple := TvpExampleWithOrdering{}
-		err = rows.Scan(&tvpExemple.Message3DB1, &tvpExemple.Message2DB2, &tvpExemple.Message1DB3, &tvpExemple.Message4DB4)
+		err = rows.Scan(&tvpExemple.Message1, &tvpExemple.Message2, &tvpExemple.Message3, &tvpExemple.Message4)
 		if err != nil {
 			t.Error(err)
 			return
