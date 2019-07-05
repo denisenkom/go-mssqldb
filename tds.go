@@ -655,28 +655,29 @@ func sendAttention(buf *tdsBuffer) error {
 }
 
 type connectParams struct {
-	logFlags               uint64
-	port                   uint64
-	host                   string
-	instance               string
-	database               string
-	user                   string
-	password               string
-	dial_timeout           time.Duration
-	conn_timeout           time.Duration
-	keepAlive              time.Duration
-	encrypt                bool
-	disableEncryption      bool
-	trustServerCertificate bool
-	certificate            string
-	hostInCertificate      string
-	serverSPN              string
-	workstation            string
-	appname                string
-	typeFlags              uint8
-	failOverPartner        string
-	failOverPort           uint64
-	packetSize             uint16
+	logFlags                  uint64
+	port                      uint64
+	host                      string
+	instance                  string
+	database                  string
+	user                      string
+	password                  string
+	dial_timeout              time.Duration
+	conn_timeout              time.Duration
+	keepAlive                 time.Duration
+	encrypt                   bool
+	disableEncryption         bool
+	trustServerCertificate    bool
+	certificate               string
+	hostInCertificate         string
+	hostInCertificateProvided bool
+	serverSPN                 string
+	workstation               string
+	appname                   string
+	typeFlags                 uint8
+	failOverPartner           string
+	failOverPort              uint64
+	packetSize                uint16
 }
 
 func splitConnectionString(dsn string) (res map[string]string) {
@@ -1052,6 +1053,9 @@ func parseConnectParams(dsn string) (connectParams, error) {
 	p.hostInCertificate, ok = params["hostnameincertificate"]
 	if !ok {
 		p.hostInCertificate = p.host
+		p.hostInCertificateProvided = false
+	} else {
+		p.hostInCertificateProvided = true
 	}
 
 	serverSPN, ok := params["serverspn"]
@@ -1361,6 +1365,9 @@ continue_login:
 		toconn.Close()
 		p.host = sess.routedServer
 		p.port = uint64(sess.routedPort)
+		if !p.hostInCertificateProvided {
+			p.hostInCertificate = sess.routedServer
+		}
 		goto initiate_connection
 	}
 	return &sess, nil
