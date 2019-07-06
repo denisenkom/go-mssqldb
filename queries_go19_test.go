@@ -505,10 +505,11 @@ END;
 	})
 }
 
-// TestOutputParamWithRows tests reading output parameter before and after
-// retrieving rows from the result set of a stored procedure. SQL Server sends output
-// parameters after all the rows are returned. Therefore, if the output parameter
-// is read before all the rows are retrieved, the value will be incorrect.
+// TestOutputParamWithRows tests reading output parameter after retrieving rows from the result set
+// of a stored procedure. SQL Server sends output parameters after all the rows are returned.
+// Therefore, if the output parameter is read before all the rows are retrieved, the value will be
+// incorrect. Furthermore, the Data Race Detector would detect a data race because the output
+// variable is shared between the driver and the client application.
 //
 // Issue https://github.com/denisenkom/go-mssqldb/issues/378
 func TestOutputParamWithRows(t *testing.T) {
@@ -549,25 +550,20 @@ func TestOutputParamWithRows(t *testing.T) {
 			t.Error(err)
 		} else {
 			defer rows.Close()
+			// If the output parameter is read all the rows are retrieved:
+			// 1. The output parameter remains that same (int this case, bitout = 5)
+			// 2. Data Race Detector reports a Data Race because bitout is being shared by the driver and the client application
+			/*
+				if bitout != 5 {
+					t.Errorf("expected bitout to remain as 5, got %d", bitout)
+				}
+			*/
 			var strrow string
 			for rows.Next() {
 				err = rows.Scan(&strrow)
 			}
 			if bitout != 1 {
 				t.Errorf("expected 1, got %d", bitout)
-			}
-		}
-	})
-
-	t.Run("Retrieve output before reading rows", func(t *testing.T) {
-		var bitout int64 = 5
-		rows, err := db.QueryContext(ctx, sqltextrun, sql.Named("bitparam", sql.Out{Dest: &bitout}))
-		if err != nil {
-			t.Error(err)
-		} else {
-			defer rows.Close()
-			if bitout != 5 {
-				t.Errorf("expected 5, got %d", bitout)
 			}
 		}
 	})
