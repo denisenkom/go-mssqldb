@@ -77,7 +77,6 @@ func (tvp TVP) encode(schema, name string, columnStr []columnStruct, tvpFieldInd
 	if errPosition != nil {
 		return nil, errPosition
 	}
-	sortByIndex(tvpFieldIndexes)
 
 	preparedBuffer := make([]byte, 0, 20+(10*len(columnStr)))
 	buf := bytes.NewBuffer(preparedBuffer)
@@ -300,7 +299,7 @@ func checkPosition(check []indexPosition) (bool, error) {
 			return false, ErrorTVPTagPositionNumber
 		}
 	}
-
+	sortByIndex(check)
 	return true, nil
 }
 
