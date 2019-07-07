@@ -27,12 +27,12 @@ func main() {
 		fmt.Println("Cannot connect: ", err.Error())
 		return
 	}
+	defer db.Close()
 	err = db.Ping()
 	if err != nil {
 		fmt.Println("Cannot connect: ", err.Error())
 		return
 	}
-	defer db.Close()
 	r := bufio.NewReader(os.Stdin)
 	for {
 		_, err = os.Stdout.Write([]byte("> "))
