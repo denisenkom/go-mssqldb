@@ -1051,11 +1051,11 @@ func parseConnectParams(dsn string) (connectParams, error) {
 	}
 	p.certificate = params["certificate"]
 	p.hostInCertificate, ok = params["hostnameincertificate"]
-	if !ok {
+	if ok {
+		p.hostInCertificateProvided = true
+	} else {
 		p.hostInCertificate = p.host
 		p.hostInCertificateProvided = false
-	} else {
-		p.hostInCertificateProvided = true
 	}
 
 	serverSPN, ok := params["serverspn"]
