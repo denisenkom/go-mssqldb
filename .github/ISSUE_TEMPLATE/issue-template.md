@@ -1,12 +1,3 @@
----
-name: Issue template
-about: 'Issue template '
-title: ''
-labels: ''
-assignees: ''
-
----
-
 ## SQL Server version
 
 ## Client Operating System
