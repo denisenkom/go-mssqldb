@@ -88,18 +88,25 @@ func (tvp TVP) encode(schema, name string, columnStr []columnStruct, tvpFieldInd
 	writeBVarChar(buf, schema)
 	writeBVarChar(buf, name)
 	binary.Write(buf, binary.LittleEndian, uint16(len(columnStr)))
-	for _, fieldIdx := range tvpFieldIndexes {
-		binary.Write(buf, binary.LittleEndian, columnStr[fieldIdx.position-1].UserType)
-		binary.Write(buf, binary.LittleEndian, columnStr[fieldIdx.position-1].Flags)
-		writeTypeInfo(buf, &columnStr[fieldIdx.position-1].ti)
-		writeBVarChar(buf, "")
-	}
 
 	if isOrdered {
+		for _, fieldIdx := range tvpFieldIndexes {
+			binary.Write(buf, binary.LittleEndian, columnStr[fieldIdx.position-1].UserType)
+			binary.Write(buf, binary.LittleEndian, columnStr[fieldIdx.position-1].Flags)
+			writeTypeInfo(buf, &columnStr[fieldIdx.position-1].ti)
+			writeBVarChar(buf, "")
+		}
 		buf.WriteByte(_TVP_ORDER_TOKEN)
 		binary.Write(buf, binary.LittleEndian, uint16(len(tvpFieldIndexes)))
 		for _, fieldIdx := range tvpFieldIndexes {
 			binary.Write(buf, binary.LittleEndian, fieldIdx.position)
+		}
+	} else {
+		for i, column := range columnStr {
+			binary.Write(buf, binary.LittleEndian, column.UserType)
+			binary.Write(buf, binary.LittleEndian, column.Flags)
+			writeTypeInfo(buf, &columnStr[i].ti)
+			writeBVarChar(buf, "")
 		}
 	}
 	// The returned error is always nil
