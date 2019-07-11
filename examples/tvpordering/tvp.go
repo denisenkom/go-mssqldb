@@ -18,9 +18,9 @@ var (
 
 type TvpExample struct {
 	MessageWithoutAnyTag      string `tvp:",4"`
-	MessageWithJSONTag        string `json:"message" tvp:",3"`
+	MessageWithJSONTag        bool   `json:"message" tvp:",3"`
 	MessageWithTVPTag         string `tvp:"message,2"`
-	MessageJSONSkipWithTVPTag string `json:"-" tvp:"message,1"`
+	MessageJSONSkipWithTVPTag int    `json:"-" tvp:"message,1"`
 
 	OmitFieldJSONTag string `json:"-"`
 	OmitFieldTVPTag  string `json:"any" tvp:"-"`
@@ -35,9 +35,9 @@ const (
 	createTVP = `
 		CREATE TYPE TestTVPSchema.exampleTVP AS TABLE
 		(
-			message1	NVARCHAR(100),
+			message1	int,
 			message2	NVARCHAR(100),
-			message3	NVARCHAR(100),
+			message3	bit,
 			message4	NVARCHAR(100)
 		)`
 
@@ -102,9 +102,9 @@ func main() {
 	exampleData := []TvpExample{
 		{
 			MessageWithoutAnyTag:      "Hello1",
-			MessageWithJSONTag:        "Hello2",
+			MessageWithJSONTag:        true,
 			MessageWithTVPTag:         "Hello3",
-			MessageJSONSkipWithTVPTag: "Hello4",
+			MessageJSONSkipWithTVPTag: 123,
 
 			OmitFieldJSONTag: "Hello5",
 			OmitFieldTVPTag:  "Hello6",
@@ -112,9 +112,9 @@ func main() {
 		},
 		{
 			MessageWithoutAnyTag:      "World1",
-			MessageWithJSONTag:        "World2",
+			MessageWithJSONTag:        false,
 			MessageWithTVPTag:         "World3",
-			MessageJSONSkipWithTVPTag: "World4",
+			MessageJSONSkipWithTVPTag: 456,
 
 			OmitFieldJSONTag: "World5",
 			OmitFieldTVPTag:  "World6",
