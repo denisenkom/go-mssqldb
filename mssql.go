@@ -455,13 +455,13 @@ func (s *Stmt) sendQuery(args []namedValue) (err error) {
 		var params []param
 		if isProc(s.query) {
 			proc.name = s.query
-			params, _, err = s.makeRPCParams(args, 0)
+			params, _, err = s.makeRPCParams(args, true)
 			if err != nil {
 				return
 			}
 		} else {
 			var decls []string
-			params, decls, err = s.makeRPCParams(args, 2)
+			params, decls, err = s.makeRPCParams(args, false)
 			if err != nil {
 				return
 			}
@@ -533,8 +533,12 @@ func isProc(s string) bool {
 	return true
 }
 
-func (s *Stmt) makeRPCParams(args []namedValue, offset int) ([]param, []string, error) {
+func (s *Stmt) makeRPCParams(args []namedValue, isProc bool) ([]param, []string, error) {
 	var err error
+	var offset int
+	if !isProc {
+		offset = 2
+	}
 	params := make([]param, len(args)+offset)
 	decls := make([]string, len(args))
 	for i, val := range args {
@@ -545,7 +549,7 @@ func (s *Stmt) makeRPCParams(args []namedValue, offset int) ([]param, []string, 
 		var name string
 		if len(val.Name) > 0 {
 			name = "@" + val.Name
-		} else {
+		} else if !isProc {
 			name = fmt.Sprintf("@p%d", val.Ordinal)
 		}
 		params[i+offset].Name = name
