@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -518,5 +519,34 @@ func TestBadConnect(t *testing.T) {
 	err = conn.Ping()
 	if err == nil {
 		t.Error("Ping should fail for connection: ", badDSN)
+	}
+}
+
+func TestSSPIAuth(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Only on windows")
+	}
+	checkConnStr(t)
+	connStr := makeConnStr(t)
+	params := connStr.Query()
+	params.Set("Integrated Security", "sspi")
+	connStr.RawQuery = params.Encode()
+
+	db, err := sql.Open("mssql", connStr.String())
+	if err != nil {
+		t.Error("Open failed", err)
+	}
+	defer db.Close()
+
+	row := db.QueryRow("select 1, 'abc'")
+
+	var somenumber int64
+	var somechars string
+	err = row.Scan(&somenumber, &somechars)
+	if err != nil {
+		t.Error("scan failed", err)
+	}
+	if somenumber != int64(1) || somechars != "abc" {
+		t.Errorf("Invalid values from query: want {%d,'%s'}, got {%d,'%s'}", int64(1), "abc", somenumber, somechars)
 	}
 }
