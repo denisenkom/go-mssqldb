@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/denisenkom/go-mssqldb/internal/querytext"
 )
 
 // ReturnStatus may be used to return the return value from a proc.
@@ -385,7 +387,7 @@ func (c *Conn) Prepare(query string) (driver.Stmt, error) {
 func (c *Conn) prepareContext(ctx context.Context, query string) (*Stmt, error) {
 	paramCount := -1
 	if c.processQueryText {
-		query, paramCount = parseParams(query)
+		query, paramCount = querytext.ParseParams(query)
 	}
 	return &Stmt{c, query, paramCount, nil}, nil
 }

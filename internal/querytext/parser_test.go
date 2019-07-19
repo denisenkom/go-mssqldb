@@ -1,4 +1,4 @@
-package mssql
+package querytext
 
 import (
 	"testing"
@@ -49,7 +49,7 @@ func TestParseParams(t *testing.T) {
 	}
 
 	for _, v := range values {
-		d, n := parseParams(v.s)
+		d, n := ParseParams(v.s)
 		if d != v.d {
 			t.Errorf("Parse params don't match for %s, got %s but expected %s", v.s, d, v.d)
 		}
