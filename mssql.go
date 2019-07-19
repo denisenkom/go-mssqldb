@@ -75,6 +75,10 @@ func (d *Driver) SetLogger(logger Logger) {
 	d.log = optionalLogger{logger}
 }
 
+func (d *Driver) SetProcessQueryText(processQueryText bool) {
+	d.processQueryText = processQueryText
+}
+
 // NewConnector creates a new connector from a DSN.
 // The returned connector may be used with sql.OpenDB.
 func NewConnector(dsn string) (*Connector, error) {
