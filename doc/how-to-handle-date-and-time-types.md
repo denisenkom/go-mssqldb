@@ -9,9 +9,9 @@ The following is a list of datatypes that can be used to insert data into a SQL 
 - time.Time
 - mssql.DateTime1
 - mssql.DateTimeOffset
-- "cloud.google.com/go/civil".Date
-- "cloud.google.com/go/civil".Time
-- "cloud.google.com/go/civil".DateTime
+- "github.com/golang-sql/civil".Date
+- "github.com/golang-sql/civil".Time
+- "github.com/golang-sql/civil".DateTime
 
 `time.Time` and `mssql.DateTimeOffset` contain the most information (time zone and over 7 digits precision). Designed to match the SQL Server `datetime` type, `mssql.DateTime1` does not have time zone information, only has up to 3 digits precision and they are rouded to increments of .000, .003 or .007 seconds when the data is passed to SQL Server. If you use `mssql.DateTime1` to hold time zone information or very precised time data (more than 3 decimal digits), you will see data lost when inserting into columns with types that can hold more information. For example:
 
@@ -30,7 +30,7 @@ _, err = stmt.Exec(param, param, param)
 // precisions are lost in all columns. Also, time zone information is lost in datetimeoffsetCol
 ```
 
- `"cloud.google.com/go/civil".DateTime` does not have time zone information. `"cloud.google.com/go/civil".Date` only has the date information, and `"cloud.google.com/go/civil".Time` only has the time information. `string` can also be used to insert data into date and time types columns, but you have to make sure the format is accepted by SQL Server.
+ `"github.com/golang-sql/civil".DateTime` does not have time zone information. `"github.com/golang-sql/civil".Date` only has the date information, and `"github.com/golang-sql/civil".Time` only has the time information. `string` can also be used to insert data into date and time types columns, but you have to make sure the format is accepted by SQL Server.
 
 ## Retrieving Date and Time Data
 

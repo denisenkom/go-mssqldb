@@ -9,7 +9,7 @@ import (
 	"log"
 	"time"
 
-	"cloud.google.com/go/civil"
+	"github.com/golang-sql/civil"
 	"github.com/denisenkom/go-mssqldb"
 )
 

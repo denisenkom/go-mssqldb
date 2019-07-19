@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"cloud.google.com/go/civil"
+	"github.com/golang-sql/civil"
 )
 
 func TestSessionInitSQL(t *testing.T) {
