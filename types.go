@@ -829,6 +829,9 @@ func decodeMoney4(buf []byte) []byte {
 func decodeGuid(buf []byte) []byte {
 	res := make([]byte, 16)
 	copy(res, buf)
+	res[0], res[1], res[2], res[3] = res[3], res[2], res[1], res[0]
+	res[4], res[5] = res[5], res[4]
+	res[6], res[7] = res[7], res[6]
 	return res
 }
 
