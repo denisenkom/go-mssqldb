@@ -687,7 +687,7 @@ func TestTVPSchema(t *testing.T) {
 	}
 
 	tvpType := TVP{
-		TypeName: "exempleTVP",
+		TypeName: "TestTVPSchema.exempleTVP",
 		Value:    exempleData,
 	}
 

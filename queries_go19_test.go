@@ -505,10 +505,11 @@ END;
 	})
 }
 
-// TestOutputParamWithRows tests reading output parameter before and after
-// retrieving rows from the result set of a stored procedure. SQL Server sends output
-// parameters after all the rows are returned. Therefore, if the output parameter
-// is read before all the rows are retrieved, the value will be incorrect.
+// TestOutputParamWithRows tests reading output parameter after retrieving rows from the result set
+// of a stored procedure. SQL Server sends output parameters after all the rows are returned.
+// Therefore, if the output parameter is read before all the rows are retrieved, the value will be
+// incorrect. Furthermore, the Data Race Detector would detect a data race because the output
+// variable is shared between the driver and the client application.
 //
 // Issue https://github.com/denisenkom/go-mssqldb/issues/378
 func TestOutputParamWithRows(t *testing.T) {
@@ -549,6 +550,14 @@ func TestOutputParamWithRows(t *testing.T) {
 			t.Error(err)
 		} else {
 			defer rows.Close()
+			// If the output parameter is read all the rows are retrieved:
+			// 1. The output parameter remains that same (int this case, bitout = 5)
+			// 2. Data Race Detector reports a Data Race because bitout is being shared by the driver and the client application
+			/*
+				if bitout != 5 {
+					t.Errorf("expected bitout to remain as 5, got %d", bitout)
+				}
+			*/
 			var strrow string
 			for rows.Next() {
 				err = rows.Scan(&strrow)
@@ -558,18 +567,101 @@ func TestOutputParamWithRows(t *testing.T) {
 			}
 		}
 	})
+}
 
-	t.Run("Retrieve output before reading rows", func(t *testing.T) {
-		var bitout int64 = 5
-		rows, err := db.QueryContext(ctx, sqltextrun, sql.Named("bitparam", sql.Out{Dest: &bitout}))
-		if err != nil {
-			t.Error(err)
-		} else {
-			defer rows.Close()
-			if bitout != 5 {
-				t.Errorf("expected 5, got %d", bitout)
-			}
+func TestParamNoName(t *testing.T) {
+	checkConnStr(t)
+	SetLogger(testLogger{t})
+
+	db, err := sql.Open("sqlserver", makeConnStr(t).String())
+	if err != nil {
+		t.Fatalf("failed to open driver sqlserver")
+	}
+	defer db.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	checkResults := func(r *sql.Rows, tInner *testing.T) {
+		var intCol int
+		var nvarcharCol string
+		var varcharCol string
+		for r.Next() {
+			err = r.Scan(&intCol, &nvarcharCol, &varcharCol)
 		}
+		if intCol != 5 {
+			tInner.Errorf("expected 5, got %d", intCol)
+		}
+		if nvarcharCol != "OK" {
+			tInner.Errorf("expected OK, got %s", nvarcharCol)
+		}
+		if varcharCol != "DREAM" {
+			tInner.Errorf("expected DREAM, got %s", varcharCol)
+		}
+	}
+
+	t.Run("Execute stored prodecure", func(t *testing.T) {
+		sqltextcreate := `
+		CREATE PROCEDURE spnoparamname
+			@intCol INT,
+			@nvarcharCol NVARCHAR(2000),
+			@varcharCol VARCHAR(2000)
+		AS BEGIN
+			SELECT @intCol, @nvarcharCol, @varcharCol
+		END`
+		sqltextdrop := `DROP PROCEDURE spnoparamname`
+		sqltextrun := `spnoparamname`
+
+		db.ExecContext(ctx, sqltextdrop)
+		_, err = db.ExecContext(ctx, sqltextcreate)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer db.ExecContext(ctx, sqltextdrop)
+
+		t.Run("With no parameter names", func(t *testing.T) {
+			rows, err := db.QueryContext(ctx, sqltextrun, 5, "OK", "DREAM")
+			if err != nil {
+				t.Error(err)
+			} else {
+				defer rows.Close()
+				checkResults(rows, t)
+			}
+		})
+
+		t.Run("With parameter names", func(t *testing.T) {
+			rows, err := db.QueryContext(ctx, sqltextrun, sql.Named("intCol", 5), sql.Named("nvarcharCol", "OK"), sql.Named("varcharCol", "DREAM"))
+			if err != nil {
+				t.Error(err)
+			} else {
+				defer rows.Close()
+				checkResults(rows, t)
+			}
+		})
+	})
+
+	t.Run("Execute query", func(t *testing.T) {
+		sqltextrun := "SELECT @p1, @p2, @p3"
+
+		t.Run("With no parameter names", func(t *testing.T) {
+			rows, err := db.QueryContext(ctx, sqltextrun, 5, "OK", "DREAM")
+			if err != nil {
+				t.Error(err)
+			} else {
+				defer rows.Close()
+				checkResults(rows, t)
+			}
+		})
+
+		t.Run("With parameter names", func(t *testing.T) {
+			rows, err := db.QueryContext(ctx, sqltextrun, sql.Named("p1", 5), sql.Named("p2", "OK"), sql.Named("p3", "DREAM"))
+			if err != nil {
+				t.Error(err)
+			} else {
+				defer rows.Close()
+				checkResults(rows, t)
+			}
+		})
 	})
 }
 
