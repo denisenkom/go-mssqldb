@@ -22,15 +22,15 @@ const (
 )
 
 var (
-	ErrorEmptyTVPTypeName     = errors.New("TypeName must not be empty")
-	ErrorTypeSlice            = errors.New("TVP must be slice type")
-	ErrorTypeSliceIsEmpty     = errors.New("TVP mustn't be null value")
-	ErrorSkip                 = errors.New("all fields mustn't skip")
-	ErrorObjectName           = errors.New("wrong tvp name")
-	ErrorWrongTyping          = errors.New("the number of elements in columnStr and tvpFieldIndexes do not align")
-	ErrorTvpTagWrong          = errors.New("tvp tag is wrong")
-	ErrorTvpTagPositionWrong  = errors.New("tvp tag position is not number")
-	ErrorTVPTagPositionNumber = errors.New("fields must have position number")
+	errorEmptyTVPTypeName     = errors.New("TypeName must not be empty")
+	errorTypeSlice            = errors.New("TVP must be slice type")
+	errorTypeSliceIsEmpty     = errors.New("TVP mustn't be null value")
+	errorSkip                 = errors.New("all fields mustn't skip")
+	errorObjectName           = errors.New("wrong tvp name")
+	errorWrongTyping          = errors.New("the number of elements in columnStr and tvpFieldIndexes do not align")
+	errorTvpTagWrong          = errors.New("tvp tag is wrong")
+	errorTvpTagPositionWrong  = errors.New("tvp tag tvpPosition is not number")
+	errorTVPTagPositionNumber = errors.New("fields must have tvpPosition number")
 )
 
 //TVP is driver type, which allows supporting Table Valued Parameters (TVP) in SQL Server
@@ -41,37 +41,40 @@ type TVP struct {
 	Value interface{}
 }
 
+//the model allows keeping the connection between struct field number and TVP field number
 type indexPosition struct {
-	index    int
-	position uint16
+	//struct field number
+	fieldIndex int
+	//TVP field number
+	tvpPosition uint16
 }
 
 func (tvp TVP) check() error {
 	if len(tvp.TypeName) == 0 {
-		return ErrorEmptyTVPTypeName
+		return errorEmptyTVPTypeName
 	}
 	if !isProc(tvp.TypeName) {
-		return ErrorEmptyTVPTypeName
+		return errorEmptyTVPTypeName
 	}
 	if sepCount := getCountSQLSeparators(tvp.TypeName); sepCount > 1 {
-		return ErrorObjectName
+		return errorObjectName
 	}
 	valueOf := reflect.ValueOf(tvp.Value)
 	if valueOf.Kind() != reflect.Slice {
-		return ErrorTypeSlice
+		return errorTypeSlice
 	}
 	if valueOf.IsNil() {
-		return ErrorTypeSliceIsEmpty
+		return errorTypeSliceIsEmpty
 	}
 	if reflect.TypeOf(tvp.Value).Elem().Kind() != reflect.Struct {
-		return ErrorTypeSlice
+		return errorTypeSlice
 	}
 	return nil
 }
 
 func (tvp TVP) encode(schema, name string, columnStr []columnStruct, tvpFieldIndexes []indexPosition) ([]byte, error) {
 	if len(columnStr) != len(tvpFieldIndexes) {
-		return nil, ErrorWrongTyping
+		return nil, errorWrongTyping
 	}
 	isOrdered, errPosition := checkPosition(tvpFieldIndexes)
 	if errPosition != nil {
@@ -91,15 +94,15 @@ func (tvp TVP) encode(schema, name string, columnStr []columnStruct, tvpFieldInd
 
 	if isOrdered {
 		for _, fieldIdx := range tvpFieldIndexes {
-			binary.Write(buf, binary.LittleEndian, columnStr[fieldIdx.position-1].UserType)
-			binary.Write(buf, binary.LittleEndian, columnStr[fieldIdx.position-1].Flags)
-			writeTypeInfo(buf, &columnStr[fieldIdx.position-1].ti)
+			binary.Write(buf, binary.LittleEndian, columnStr[fieldIdx.tvpPosition-1].UserType)
+			binary.Write(buf, binary.LittleEndian, columnStr[fieldIdx.tvpPosition-1].Flags)
+			writeTypeInfo(buf, &columnStr[fieldIdx.tvpPosition-1].ti)
 			writeBVarChar(buf, "")
 		}
 		buf.WriteByte(_TVP_ORDER_TOKEN)
 		binary.Write(buf, binary.LittleEndian, uint16(len(tvpFieldIndexes)))
 		for _, fieldIdx := range tvpFieldIndexes {
-			binary.Write(buf, binary.LittleEndian, fieldIdx.position)
+			binary.Write(buf, binary.LittleEndian, fieldIdx.tvpPosition)
 		}
 	} else {
 		for i, column := range columnStr {
@@ -124,7 +127,7 @@ func (tvp TVP) encode(schema, name string, columnStr []columnStruct, tvpFieldInd
 		refStr := reflect.ValueOf(val.Index(i).Interface())
 		buf.WriteByte(_TVP_ROW_TOKEN)
 		for columnStrIdx, fieldIdx := range tvpFieldIndexes {
-			field := refStr.Field(fieldIdx.index)
+			field := refStr.Field(fieldIdx.fieldIndex)
 			tvpVal := field.Interface()
 			valOf := reflect.ValueOf(tvpVal)
 			elemKind := field.Kind()
@@ -189,8 +192,8 @@ func (tvp TVP) columnTypes() ([]columnStruct, []indexPosition, error) {
 		}
 
 		tvpFieldIndexes = append(tvpFieldIndexes, indexPosition{
-			index:    idx,
-			position: positionIndex,
+			fieldIndex:  idx,
+			tvpPosition: positionIndex,
 		})
 		if field.Type.Kind() == reflect.Ptr {
 			v := reflect.New(field.Type.Elem())
@@ -201,7 +204,7 @@ func (tvp TVP) columnTypes() ([]columnStruct, []indexPosition, error) {
 	}
 
 	if columnCount-len(tvpFieldIndexes) == columnCount {
-		return nil, nil, ErrorSkip
+		return nil, nil, errorSkip
 	}
 
 	conn := new(Conn)
@@ -247,7 +250,7 @@ func IsSkipField(tvpTagValue string, isTvpValue bool, jsonTagValue string, isJso
 
 func getSchemeAndName(tvpName string) (string, string, error) {
 	if len(tvpName) == 0 {
-		return "", "", ErrorEmptyTVPTypeName
+		return "", "", errorEmptyTVPTypeName
 	}
 	splitVal := strings.Split(tvpName, ".")
 	if len(splitVal) > 2 {
@@ -275,12 +278,12 @@ func getCountSQLSeparators(str string) int {
 func parseTvpTag(tvpValue string) (string, uint16, error) {
 	parsedValues := strings.Split(tvpValue, ",")
 	if len(parsedValues) > 2 {
-		return "", 0, ErrorTvpTagWrong
+		return "", 0, errorTvpTagWrong
 	} else if len(parsedValues) == 2 {
 		if position, err := strconv.ParseUint(parsedValues[1], 10, 16); err == nil {
 			return parsedValues[0], uint16(position), nil
 		} else {
-			return "", 0, ErrorTvpTagPositionWrong
+			return "", 0, errorTvpTagPositionWrong
 		}
 	} else {
 		return parsedValues[0], 0, nil
@@ -289,21 +292,22 @@ func parseTvpTag(tvpValue string) (string, uint16, error) {
 
 func checkPosition(check []indexPosition) (bool, error) {
 	if check == nil || len(check) == 0 {
-		return false, ErrorWrongTyping
+		return false, errorWrongTyping
 	}
-	first := check[0].position
+	first := check[0].tvpPosition
 	if first == 0 {
 		for idx := range check {
-			if first == 0 && check[idx].position != first {
-				return false, ErrorTVPTagPositionNumber
+			if first == 0 && check[idx].tvpPosition != first {
+				return false, errorTVPTagPositionNumber
 			}
 		}
 		return false, nil
 	}
+
 	sortByPosition(check)
 	for pos := 1; pos <= len(check); pos++ {
-		if check[pos-1].position != uint16(pos) {
-			return false, ErrorTVPTagPositionNumber
+		if check[pos-1].tvpPosition != uint16(pos) {
+			return false, errorTVPTagPositionNumber
 		}
 	}
 	sortByIndex(check)
@@ -312,12 +316,12 @@ func checkPosition(check []indexPosition) (bool, error) {
 
 func sortByPosition(check []indexPosition) {
 	sort.Slice(check, func(i, j int) bool {
-		return check[i].position < check[j].position
+		return check[i].tvpPosition < check[j].tvpPosition
 	})
 }
 
 func sortByIndex(check []indexPosition) {
 	sort.Slice(check, func(i, j int) bool {
-		return check[i].index < check[j].index
+		return check[i].fieldIndex < check[j].fieldIndex
 	})
 }

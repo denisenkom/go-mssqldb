@@ -526,12 +526,12 @@ func TestTVP_encode(t *testing.T) {
 			args: args{
 				tvpFieldIndexes: []indexPosition{
 					{
-						index:    1,
-						position: 1,
+						fieldIndex:  1,
+						tvpPosition: 1,
 					},
 					{
-						index:    2,
-						position: 2,
+						fieldIndex:  2,
+						tvpPosition: 2,
 					},
 				},
 			},
@@ -542,12 +542,12 @@ func TestTVP_encode(t *testing.T) {
 			args: args{
 				tvpFieldIndexes: []indexPosition{
 					{
-						index:    1,
-						position: 1,
+						fieldIndex:  1,
+						tvpPosition: 1,
 					},
 					{
-						index:    2,
-						position: 2,
+						fieldIndex:  2,
+						tvpPosition: 2,
 					},
 				},
 				columnStr: []columnStruct{columnStruct{}},
@@ -614,7 +614,7 @@ func Test_parseTvpTag(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "only position",
+			name: "only tvpPosition",
 			args: args{
 				tvpValue: ",1",
 			},
@@ -632,7 +632,7 @@ func Test_parseTvpTag(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "skip tag and position",
+			name: "skip tag and tvpPosition",
 			args: args{
 				tvpValue: "-,10",
 			},
@@ -641,7 +641,7 @@ func Test_parseTvpTag(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "wrong tvp position is string",
+			name: "wrong tvp tvpPosition is string",
 			args: args{
 				tvpValue: "-,tsc",
 			},
@@ -702,8 +702,8 @@ func Test_checkPosition(t *testing.T) {
 			args: args{
 				check: []indexPosition{
 					{
-						index:    1,
-						position: 1,
+						fieldIndex:  1,
+						tvpPosition: 1,
 					},
 				},
 			},
@@ -714,12 +714,12 @@ func Test_checkPosition(t *testing.T) {
 			args: args{
 				check: []indexPosition{
 					{
-						index:    1,
-						position: 0,
+						fieldIndex:  1,
+						tvpPosition: 0,
 					},
 					{
-						index:    2,
-						position: 0,
+						fieldIndex:  2,
+						tvpPosition: 0,
 					},
 				},
 			},
@@ -730,60 +730,60 @@ func Test_checkPosition(t *testing.T) {
 			args: args{
 				check: []indexPosition{
 					{
-						index:    1,
-						position: 0,
+						fieldIndex:  1,
+						tvpPosition: 0,
 					},
 					{
-						index:    2,
-						position: 1,
-					},
-				},
-			},
-			wantErr: true,
-		},
-		{
-			name: "2 values with same position",
-			args: args{
-				check: []indexPosition{
-					{
-						index:    1,
-						position: 1,
-					},
-					{
-						index:    2,
-						position: 1,
+						fieldIndex:  2,
+						tvpPosition: 1,
 					},
 				},
 			},
 			wantErr: true,
 		},
 		{
-			name: "2 values wrong position",
+			name: "2 values with same tvpPosition",
 			args: args{
 				check: []indexPosition{
 					{
-						index:    1,
-						position: 1,
+						fieldIndex:  1,
+						tvpPosition: 1,
 					},
 					{
-						index:    2,
-						position: 3,
+						fieldIndex:  2,
+						tvpPosition: 1,
 					},
 				},
 			},
 			wantErr: true,
 		},
 		{
-			name: "2 values wrong position",
+			name: "2 values wrong tvpPosition",
 			args: args{
 				check: []indexPosition{
 					{
-						index:    1,
-						position: 3,
+						fieldIndex:  1,
+						tvpPosition: 1,
 					},
 					{
-						index:    2,
-						position: 1,
+						fieldIndex:  2,
+						tvpPosition: 3,
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "2 values wrong tvpPosition",
+			args: args{
+				check: []indexPosition{
+					{
+						fieldIndex:  1,
+						tvpPosition: 3,
+					},
+					{
+						fieldIndex:  2,
+						tvpPosition: 1,
 					},
 				},
 			},
@@ -794,12 +794,12 @@ func Test_checkPosition(t *testing.T) {
 			args: args{
 				check: []indexPosition{
 					{
-						index:    0,
-						position: 2,
+						fieldIndex:  0,
+						tvpPosition: 2,
 					},
 					{
-						index:    2,
-						position: 1,
+						fieldIndex:  2,
+						tvpPosition: 1,
 					},
 				},
 			},
@@ -810,12 +810,12 @@ func Test_checkPosition(t *testing.T) {
 			args: args{
 				check: []indexPosition{
 					{
-						index:    0,
-						position: 1,
+						fieldIndex:  0,
+						tvpPosition: 1,
 					},
 					{
-						index:    2,
-						position: 2,
+						fieldIndex:  2,
+						tvpPosition: 2,
 					},
 				},
 			},
