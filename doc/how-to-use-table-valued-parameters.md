@@ -89,3 +89,20 @@ type T struct {
 
 ## Example
 [TVPType example](../tvp_example_test.go)
+
+##Ordering support
+The `tvp` tag allows setting position in the order. `tvp:"skip,position"`. The position is optional. All fields must contain the positions when you want to set order.
+```
+type TvpExample struct {
+	MessageWithoutAnyTag      string `tvp:",4"`
+	MessageWithJSONTag        bool   `json:"message" tvp:",3"`
+	MessageWithTVPTag         string `tvp:"message,2"`
+	MessageJSONSkipWithTVPTag int    `json:"-" tvp:"message,1"`
+
+	OmitFieldJSONTag string `json:"-"`
+	OmitFieldTVPTag  string `json:"any" tvp:"-"`
+	OmitFieldTVPTag2 string `tvp:"-"`
+}
+```
+## Example ordering
+[TVPType example_ordering](../examples/tvpordering/tvp.go)
