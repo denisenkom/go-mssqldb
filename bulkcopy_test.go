@@ -29,7 +29,11 @@ func TestBulkcopy(t *testing.T) {
 	testValues := []testValue{
 
 		{"test_nvarchar", "ab©ĎéⒻghïjklmnopqЯ☀tuvwxyz"},
+		{"test_nvarchar_4000", strings.Repeat("Ⓕ", 4000)}, // edge case
+		{"test_nvarchar_max", strings.Repeat("Ⓕ", 4001)},
 		{"test_varchar", "abcdefg"},
+		{"test_varchar_8000", strings.Repeat("a", 8000)}, // edge case
+		{"test_varchar_max", strings.Repeat("a", 8001)},
 		{"test_char", "abcdefg   "},
 		{"test_nchar", "abcdefg   "},
 		{"test_text", "abcdefg"},
@@ -183,7 +187,11 @@ func setupTable(ctx context.Context, t *testing.T, conn *sql.Conn, tableName str
 	tablesql := `CREATE TABLE ` + tableName + ` (
 	[id] [int] IDENTITY(1,1) NOT NULL,
 	[test_nvarchar] [nvarchar](50) NULL,
+	[test_nvarchar_4000] [nvarchar](4000) NULL,
+	[test_nvarchar_max] [nvarchar](max) NULL,
 	[test_varchar] [varchar](50) NULL,
+	[test_varchar_8000] [varchar](8000) NULL,
+	[test_varchar_max] [varchar](max) NULL,
 	[test_char] [char](10) NULL,
 	[test_nchar] [nchar](10) NULL,
 	[test_text] [text] NULL,

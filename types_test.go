@@ -116,6 +116,33 @@ func TestMakeGoLangTypePrecisionScale(t *testing.T) {
 	}
 }
 
+func TestMakeDecl(t *testing.T) {
+	defer handlePanic(t)
+
+	tests := []struct {
+		typeName string
+		Size     int
+		typeID   uint8
+	}{
+		{"varchar(max)", 0xffff, typeVarChar},
+		{"varchar(8000)", 8000, typeVarChar},
+		{"varchar(4001)", 4001, typeVarChar},
+		{"nvarchar(max)", 0xffff, typeNVarChar},
+		{"nvarchar(4000)", 8000, typeNVarChar},
+		{"nvarchar(2001)", 4002, typeNVarChar},
+		{"varbinary(max)", 0xffff, typeBigVarBin},
+		{"varbinary(8000)", 8000, typeBigVarBin},
+		{"varbinary(4001)", 4001, typeBigVarBin},
+	}
+
+	for _, tt := range tests {
+		s := makeDecl(typeInfo{TypeId: tt.typeID, Size: tt.Size})
+		if s != tt.typeName {
+			t.Errorf("invalid type translation for %s", tt.typeName)
+		}
+	}
+}
+
 func handlePanic(t *testing.T) {
 	if r := recover(); r != nil {
 		t.Errorf("recovered panic")
