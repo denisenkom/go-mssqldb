@@ -716,6 +716,8 @@ func (rc *Rows) Next(dest []driver.Value) error {
 			if tokdata.isError() {
 				return rc.stmt.c.checkBadConn(tokdata.getError())
 			}
+		case ReturnStatus:
+			rc.stmt.c.setReturnStatus(tokdata)
 		case error:
 			return rc.stmt.c.checkBadConn(tokdata)
 		}
