@@ -187,3 +187,34 @@ select
 		t.Errorf(`want %q got %q`, want, dto)
 	}
 }
+
+func TestReturnStatusWithQuery(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+
+	_, err := conn.Exec("if object_id('retstatus') is not null drop proc retstatus;")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = conn.Exec("create procedure retstatus as begin select 'value' return 22 end")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var rs ReturnStatus
+	rows, err := conn.Query("retstatus", &rs)
+	conn.Exec("drop proc retstatus;")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var str string
+	for rows.Next() {
+		err = rows.Scan(&str)
+		if str != "value" {
+			t.Errorf("expected str=value, got %s", str)
+		}
+	}
+	if rs != 22 {
+		t.Errorf("expected status=2, got %d", rs)
+	}
+}
