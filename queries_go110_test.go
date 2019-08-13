@@ -218,3 +218,34 @@ func TestReturnStatusWithQuery(t *testing.T) {
 		t.Errorf("expected status=2, got %d", rs)
 	}
 }
+
+func TestIdentity(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+
+	tx, err := conn.Begin()
+	if err != nil {
+		t.Fatal("Begin tran failed", err)
+	}
+	defer tx.Rollback()
+
+	res, err := tx.Exec("create table #foo (bar int identity, baz int unique)")
+	if err != nil {
+		t.Fatal("create table failed")
+	}
+
+	res, err = tx.Exec("insert into #foo (baz) values (1)")
+	if err != nil {
+		t.Fatal("insert failed")
+	}
+	n, err := res.LastInsertId()
+	expErr := "LastInsertId is not supported. Please use the OUTPUT clause or add `select ID = convert(bigint, SCOPE_IDENTITY())` to the end of your query."
+	if err == nil {
+		t.Fatal("Expected an error from LastInsertId, didn't get an error")
+	} else if err.Error() != expErr {
+		t.Errorf("Expected error %s, got %s", expErr, err.Error())
+	}
+	if n != -1 {
+		t.Error("Expected -1 for identity, got ", n)
+	}
+}
