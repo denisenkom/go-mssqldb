@@ -1186,11 +1186,7 @@ func makeDecl(ti typeInfo) string {
 	case typeBigChar, typeChar:
 		return fmt.Sprintf("char(%d)", ti.Size)
 	case typeBigVarChar, typeVarChar:
-<<<<<<< HEAD
-		if ti.Size == 0xffff || ti.Size == 0 {
-=======
 		if ti.Size > 8000 || ti.Size == 0 {
->>>>>>> 96234f6... revert changes to types.go change varchar(max) size
 			return fmt.Sprintf("varchar(max)")
 		} else {
 			return fmt.Sprintf("varchar(%d)", ti.Size)
