@@ -1176,7 +1176,7 @@ func makeDecl(ti typeInfo) string {
 			panic("invalid size of MONEYNTYPE")
 		}
 	case typeBigVarBin:
-		if ti.Size == 0xffff || ti.Size == 0 {
+		if ti.Size > 8000 || ti.Size == 0 {
 			return "varbinary(max)"
 		} else {
 			return fmt.Sprintf("varbinary(%d)", ti.Size)
@@ -1192,7 +1192,7 @@ func makeDecl(ti typeInfo) string {
 			return fmt.Sprintf("varchar(%d)", ti.Size)
 		}
 	case typeNVarChar:
-		if ti.Size == 0xffff || ti.Size == 0 {
+		if ti.Size > 8000 || ti.Size == 0 {
 			return "nvarchar(max)"
 		} else {
 			return fmt.Sprintf("nvarchar(%d)", ti.Size/2)
