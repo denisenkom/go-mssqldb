@@ -66,7 +66,7 @@ func Float64ToDecimalScale(f float64, scale uint8) (Decimal, error) {
 		mod := math.Mod(integer, 0x100000000)
 		integer -= mod
 		integer /= 0x100000000
-		dec.integer[i] = uint32(mod)
+		dec.integer[i] = uint32(math.Round(mod))
 	}
 	return dec, nil
 }
