@@ -1186,7 +1186,7 @@ func makeDecl(ti typeInfo) string {
 	case typeBigChar, typeChar:
 		return fmt.Sprintf("char(%d)", ti.Size)
 	case typeBigVarChar, typeVarChar:
-		if ti.Size > 4000 || ti.Size == 0 {
+		if ti.Size > 8000 || ti.Size == 0 {
 			return fmt.Sprintf("varchar(max)")
 		} else {
 			return fmt.Sprintf("varchar(%d)", ti.Size)
