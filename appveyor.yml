@@ -27,7 +27,7 @@ install:
   - set PATH=%GOPATH%\bin;%GOROOT%\bin;%PATH%
   - go version
   - go env
-  - go get -u cloud.google.com/go/civil
+  - go get -u github.com/golang-sql/civil
 
 build_script:
   - go build
