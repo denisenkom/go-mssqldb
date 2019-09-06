@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/denisenkom/go-mssqldb/internal/decimal"
 )
 
 type Bulk struct {
@@ -481,12 +483,12 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 
 		perc := col.ti.Prec
 		scale := col.ti.Scale
-		var dec Decimal
-		dec, err = Float64ToDecimalScale(value, scale)
+		var dec decimal.Decimal
+		dec, err = decimal.Float64ToDecimalScale(value, scale)
 		if err != nil {
 			return res, err
 		}
-		dec.prec = perc
+		dec.SetPrec(perc)
 
 		var length byte
 		switch {
