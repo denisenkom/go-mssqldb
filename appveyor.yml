@@ -10,7 +10,7 @@ environment:
   SQLUSER: sa
   SQLPASSWORD: Password12!
   DATABASE: test  
-  GOVERSION: 112
+  GOVERSION: 111
   matrix:
     - GOVERSION: 18
       SQLINSTANCE: SQL2016
