@@ -422,7 +422,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 	case typeDateTimeOffsetN:
 		switch val := val.(type) {
 		case time.Time:
-			res.buffer = encodeDateTimeOffset(val, int(res.ti.Scale))
+			res.buffer = encodeDateTimeOffset(val, int(col.ti.Scale))
 			res.ti.Size = len(res.buffer)
 
 		default:

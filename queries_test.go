@@ -213,6 +213,8 @@ func TestSelectDateTimeOffset(t *testing.T) {
 			time.Date(2010, 11, 15, 11, 56, 45, 123000000, time.FixedZone("", -14*60*60))},
 		{"cast('0001-01-01T00:00:00.0000000+00:00' as datetimeoffset(7))",
 			time.Date(1, 1, 1, 0, 0, 0, 0, time.FixedZone("", 0))},
+		{"cast('2010-11-12T13:14:15.123+00:00' as datetimeoffset(7))",
+			time.Date(2010, 11, 12, 13, 14, 15, 123000000, time.FixedZone("", 0))},
 		{"cast('9999-12-31T23:59:59.9999999+00:00' as datetimeoffset(7))",
 			time.Date(9999, 12, 31, 23, 59, 59, 999999900, time.FixedZone("", 0))},
 	}
