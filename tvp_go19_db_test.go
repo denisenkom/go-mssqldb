@@ -125,7 +125,7 @@ type TvptableRowWithSkipTag struct {
 
 func TestTVP(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(makeTestLogger(t))
+	SetLogger(testLogger{t})
 
 	db, err := sql.Open("sqlserver", makeConnStr(t).String())
 	if err != nil {
@@ -377,7 +377,7 @@ func TestTVP(t *testing.T) {
 
 func TestTVP_WithTag(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(makeTestLogger(t))
+	SetLogger(testLogger{t})
 
 	db, err := sql.Open("sqlserver", makeConnStr(t).String())
 	if err != nil {
@@ -636,7 +636,7 @@ type TvpExample struct {
 
 func TestTVPSchema(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(makeTestLogger(t))
+	SetLogger(testLogger{t})
 
 	conn, err := sql.Open("sqlserver", makeConnStr(t).String())
 	if err != nil {
@@ -705,7 +705,7 @@ func TestTVPSchema(t *testing.T) {
 
 func TestTVPObject(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(makeTestLogger(t))
+	SetLogger(testLogger{t})
 
 	conn, err := sql.Open("sqlserver", makeConnStr(t).String())
 	if err != nil {

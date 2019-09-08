@@ -14,7 +14,7 @@ import (
 
 func TestOutputParam(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(makeTestLogger(t))
+	SetLogger(testLogger{t})
 
 	db, err := sql.Open("sqlserver", makeConnStr(t).String())
 	if err != nil {
@@ -325,7 +325,7 @@ END;
 	sqltextrun := `abinout`
 
 	checkConnStr(t)
-	SetLogger(makeTestLogger(t))
+	SetLogger(testLogger{t})
 
 	db, err := sql.Open("sqlserver", makeConnStr(t).String())
 	if err != nil {
@@ -525,7 +525,7 @@ func TestOutputParamWithRows(t *testing.T) {
 	sqltextrun := `spwithoutputandrows`
 
 	checkConnStr(t)
-	SetLogger(makeTestLogger(t))
+	SetLogger(testLogger{t})
 
 	db, err := sql.Open("sqlserver", makeConnStr(t).String())
 	if err != nil {
@@ -571,7 +571,7 @@ func TestOutputParamWithRows(t *testing.T) {
 
 func TestParamNoName(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(makeTestLogger(t))
+	SetLogger(testLogger{t})
 
 	db, err := sql.Open("sqlserver", makeConnStr(t).String())
 	if err != nil {
