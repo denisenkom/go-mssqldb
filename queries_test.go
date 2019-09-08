@@ -18,13 +18,13 @@ import (
 
 func driverWithProcess(t *testing.T) *Driver {
 	return &Driver{
-		log:              optionalLogger{testLogger{t}},
+		log:              optionalLogger{makeTestLogger(t)},
 		processQueryText: true,
 	}
 }
 func driverNoProcess(t *testing.T) *Driver {
 	return &Driver{
-		log:              optionalLogger{testLogger{t}},
+		log:              optionalLogger{makeTestLogger(t)},
 		processQueryText: false,
 	}
 }
@@ -549,7 +549,7 @@ func TestShortTimeout(t *testing.T) {
 		t.Skip("short")
 	}
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	SetLogger(makeTestLogger(t))
 	dsn := makeConnStr(t)
 	dsnParams := dsn.Query()
 	dsnParams.Set("Connection Timeout", "2")
@@ -1849,7 +1849,7 @@ func TestQueryTimeout(t *testing.T) {
 
 func TestDriverParams(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	SetLogger(makeTestLogger(t))
 	type sqlCmd struct {
 		Name   string
 		Driver string
@@ -2022,7 +2022,7 @@ func TestDisconnect1(t *testing.T) {
 		t.Skip("short")
 	}
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	SetLogger(makeTestLogger(t))
 
 	// Revert to the normal dialer after the test is done.
 	normalCreateDialer := createDialer
@@ -2079,7 +2079,7 @@ func TestDisconnect2(t *testing.T) {
 		t.Skip("short")
 	}
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	SetLogger(makeTestLogger(t))
 
 	// Revert to the normal dialer after the test is done.
 	normalCreateDialer := createDialer

@@ -14,7 +14,7 @@ import (
 
 func TestSessionInitSQL(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	SetLogger(makeTestLogger(t))
 
 	d := &Driver{}
 	connector, err := d.OpenConnector(makeConnStr(t).String())

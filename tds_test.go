@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 )
@@ -79,7 +80,7 @@ func TestSendSqlBatch(t *testing.T) {
 		return
 	}
 
-	conn, err := connect(context.Background(), nil, optionalLogger{testLogger{t}}, p)
+	conn, err := connect(context.Background(), nil, optionalLogger{makeTestLogger(t)}, p)
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
 		return
@@ -167,19 +168,28 @@ func makeConnStr(t *testing.T) *url.URL {
 
 type testLogger struct {
 	t *testing.T
+	mutex sync.Mutex
 }
 
 func (l testLogger) Printf(format string, v ...interface{}) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
 	l.t.Logf(format, v...)
 }
 
 func (l testLogger) Println(v ...interface{}) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
 	l.t.Log(v...)
+}
+
+func makeTestLogger(t *testing.T) testLogger {
+	return testLogger{t: t, mutex: sync.Mutex{}}
 }
 
 func open(t *testing.T) *sql.DB {
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	SetLogger(makeTestLogger(t))
 	conn, err := sql.Open("mssql", makeConnStr(t).String())
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
@@ -191,7 +201,7 @@ func open(t *testing.T) *sql.DB {
 
 func TestConnect(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	SetLogger(makeTestLogger(t))
 	conn, err := sql.Open("mssql", makeConnStr(t).String())
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
@@ -321,7 +331,7 @@ func TestPing(t *testing.T) {
 
 func TestSecureWithInvalidHostName(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	SetLogger(makeTestLogger(t))
 
 	dsn := makeConnStr(t)
 	dsnParams := dsn.Query()
@@ -343,7 +353,7 @@ func TestSecureWithInvalidHostName(t *testing.T) {
 
 func TestSecureConnection(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	SetLogger(makeTestLogger(t))
 
 	dsn := makeConnStr(t)
 	dsnParams := dsn.Query()
@@ -505,7 +515,7 @@ func TestValidConnectionString(t *testing.T) {
 
 func TestBadConnect(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	SetLogger(makeTestLogger(t))
 	connURL := makeConnStr(t)
 	connURL.User = url.UserPassword("baduser", "badpwd")
 	badDSN := connURL.String()
