@@ -58,7 +58,7 @@ func TestBulkcopy(t *testing.T) {
 		{"test_smallint", 32767},
 		{"test_smallintn", nil},
 		{"test_int", 2147483647},
-		{"test_bigint", 9223372036854775807},
+		{"test_bigint", int64(9223372036854775807)},
 		{"test_bigintn", nil},
 		{"test_geom", geom},
 		{"test_uniqueidentifier", []byte{0x6F, 0x96, 0x19, 0xFF, 0x8B, 0x86, 0xD0, 0x11, 0xB4, 0x2D, 0x00, 0xC0, 0x4F, 0xC9, 0x64, 0xFF}},
