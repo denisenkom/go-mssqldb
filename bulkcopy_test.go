@@ -52,12 +52,13 @@ func TestBulkcopy(t *testing.T) {
 		{"test_datetime2_1", time.Date(2010, 11, 12, 13, 14, 15, 0, time.UTC)},
 		{"test_datetime2_3", time.Date(2010, 11, 12, 13, 14, 15, 123000000, time.UTC)},
 		{"test_datetime2_7", time.Date(2010, 11, 12, 13, 14, 15, 123000000, time.UTC)},
+		{"test_datetimeoffset_7", time.Date(2010, 11, 12, 13, 14, 15, 123000000, time.UTC)},
 		{"test_date", time.Date(2010, 11, 12, 00, 00, 00, 0, time.UTC)},
 		{"test_tinyint", 255},
 		{"test_smallint", 32767},
 		{"test_smallintn", nil},
 		{"test_int", 2147483647},
-		{"test_bigint", 9223372036854775807},
+		{"test_bigint", int64(9223372036854775807)},
 		{"test_bigintn", nil},
 		{"test_geom", geom},
 		{"test_uniqueidentifier", []byte{0x6F, 0x96, 0x19, 0xFF, 0x8B, 0x86, 0xD0, 0x11, 0xB4, 0x2D, 0x00, 0xC0, 0x4F, 0xC9, 0x64, 0xFF}},
@@ -179,6 +180,13 @@ func compareValue(a interface{}, expected interface{}) bool {
 			a = nf.Float64
 		}
 		return math.Abs(expected-a.(float64)) < 0.0001
+	case time.Time:
+		if got, ok := a.(time.Time); ok {
+			_, ez := expected.Zone()
+			_, az := got.Zone()
+			return expected.Equal(got) && ez == az
+		}
+		return false
 	default:
 		return reflect.DeepEqual(expected, a)
 	}
@@ -211,6 +219,7 @@ func setupTable(ctx context.Context, t *testing.T, conn *sql.Conn, tableName str
 	[test_datetime2_1] [datetime2](1) NULL,
 	[test_datetime2_3] [datetime2](3) NULL,
 	[test_datetime2_7] [datetime2](7) NULL,
+	[test_datetimeoffset_7] [datetimeoffset](7) NULL,
 	[test_date] [date] NULL,
 	[test_smallmoney] [smallmoney] NULL,
 	[test_money] [money] NULL,
