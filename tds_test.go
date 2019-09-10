@@ -550,3 +550,20 @@ func TestSSPIAuth(t *testing.T) {
 		t.Errorf("Invalid values from query: want {%d,'%s'}, got {%d,'%s'}", int64(1), "abc", somenumber, somechars)
 	}
 }
+
+func TestUcs22Str(t *testing.T) {
+	// Test valid input
+	s, err := ucs22str([]byte{0x31, 0, 0x32, 0, 0x33, 0})  // 123 in UCS2 encoding
+	if err != nil {
+		t.Errorf("ucs22str should not fail for valid ucs2 byte sequence: %s", err)
+	}
+	if s != "123" {
+		t.Errorf("ucs22str expected to return 123 but it returned %s", s)
+	}
+
+	// Test invalid input
+	_, err = ucs22str([]byte{0})
+	if err == nil {
+		t.Error("ucs22str should fail on single byte input, but it didn't")
+	}
+}
