@@ -474,10 +474,9 @@ func readUcs2(r io.Reader, numchars int) (res string, err error) {
 }
 
 func readUsVarChar(r io.Reader) (res string, err error) {
-	var numchars uint16
-	err = binary.Read(r, binary.LittleEndian, &numchars)
+	numchars, err := readUshort(r)
 	if err != nil {
-		return "", err
+		return
 	}
 	return readUcs2(r, int(numchars))
 }
@@ -497,8 +496,7 @@ func writeUsVarChar(w io.Writer, s string) (err error) {
 }
 
 func readBVarChar(r io.Reader) (res string, err error) {
-	var numchars uint8
-	err = binary.Read(r, binary.LittleEndian, &numchars)
+	numchars, err := readByte(r)
 	if err != nil {
 		return "", err
 	}
@@ -525,8 +523,7 @@ func writeBVarChar(w io.Writer, s string) (err error) {
 }
 
 func readBVarByte(r io.Reader) (res []byte, err error) {
-	var length uint8
-	err = binary.Read(r, binary.LittleEndian, &length)
+	length, err := readByte(r)
 	if err != nil {
 		return
 	}

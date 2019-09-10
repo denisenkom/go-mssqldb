@@ -600,6 +600,31 @@ func TestReadUsVarChar(t *testing.T) {
 	buf = bytes.NewBuffer([]byte{})
 	_, err = readUsVarChar(buf)
 	if err == nil {
-		t.Error("readUsVarChar should fail on single byte input, but it didn't")
+		t.Error("readUsVarChar should fail on empty buffer, but it didn't")
+	}
+}
+
+func TestReadBVarByte(t *testing.T) {
+	memBuf := bytes.NewBuffer([]byte{3, 1, 2, 3})
+	s, err := readBVarByte(memBuf)
+	if err != nil {
+		t.Errorf("readUsVarByte should not fail for valid buffer: %s", err)
+	}
+	if !bytes.Equal(s, []byte{1, 2, 3}) {
+		t.Errorf("readUsVarByte expected to return [1 2 3] but it returned %v", s)
+	}
+
+	// test empty buffer
+	memBuf = bytes.NewBuffer([]byte{})
+	s, err = readBVarByte(memBuf)
+	if err == nil {
+		t.Error("readUsVarByte should fail on empty buffer, but it didn't")
+	}
+
+	// test short buffer
+	memBuf = bytes.NewBuffer([]byte{1})
+	s, err = readBVarByte(memBuf)
+	if err == nil {
+		t.Error("readUsVarByte should fail on short buffer, but it didn't")
 	}
 }
