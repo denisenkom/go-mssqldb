@@ -567,3 +567,20 @@ func TestUcs22Str(t *testing.T) {
 		t.Error("ucs22str should fail on single byte input, but it didn't")
 	}
 }
+
+func TestReadUcs2(t *testing.T) {
+	buf := bytes.NewBuffer([]byte{0x31, 0, 0x32, 0, 0x33, 0})  // 123 in UCS2 encoding
+	s, err := readUcs2(buf, 3)
+	if err != nil {
+		t.Errorf("readUcs2 should not fail for valid ucs2 byte sequence: %s", err)
+	}
+	if s != "123" {
+		t.Errorf("readUcs2 expected to return 123 but it returned %s", s)
+	}
+
+	buf = bytes.NewBuffer([]byte{0})
+	_, err = readUcs2(buf, 1)
+	if err == nil {
+		t.Error("readUcs2 should fail on single byte input, but it didn't")
+	}
+}
