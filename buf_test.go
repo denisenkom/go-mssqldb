@@ -282,3 +282,35 @@ func TestWrite_BufferBounds(t *testing.T) {
 		t.Fatal("FinishPacket failed:", err.Error())
 	}
 }
+
+func TestReadUsVarCharOrPanic(t *testing.T) {
+	memBuf := bytes.NewBuffer([]byte{3, 0, 0x31, 0, 0x32, 0, 0x33, 0})
+	s := readUsVarCharOrPanic(memBuf)
+	if s != "123" {
+		t.Errorf("UsVarChar expected to return 123 but it returned %s", s)
+	}
+
+	// test invalid usvarchar
+	defer func() {
+		recover()
+	}()
+	memBuf = bytes.NewBuffer([]byte{})
+	s = readUsVarCharOrPanic(memBuf)
+	t.Fatal("UsVarChar() should panic, but it didn't")
+}
+
+func TestReadUcs2OrPanic(t *testing.T) {
+	memBuf := bytes.NewBuffer([]byte{0x31, 0, 0x32, 0, 0x33, 0})
+	s := readUcs2OrPanic(memBuf, 3)
+	if s != "123" {
+		t.Errorf("UsVarChar expected to return 123 but it returned %s", s)
+	}
+
+	// test invalid varchar
+	defer func() {
+		recover()
+	}()
+	memBuf = bytes.NewBuffer([]byte{})
+	s = readUcs2OrPanic(memBuf, 1)
+	t.Fatal("UsVarChar() should panic, but it didn't")
+}

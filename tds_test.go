@@ -584,3 +584,22 @@ func TestReadUcs2(t *testing.T) {
 		t.Error("readUcs2 should fail on single byte input, but it didn't")
 	}
 }
+
+func TestReadUsVarChar(t *testing.T) {
+	// should succeed for valid buffer
+	buf := bytes.NewBuffer([]byte{3, 0, 0x31, 0, 0x32, 0, 0x33, 0})  // 123 in UCS2 encoding with length prefix 3 uint16
+	s, err := readUsVarChar(buf)
+	if err != nil {
+		t.Errorf("readUsVarChar should not fail for valid ucs2 byte sequence: %s", err)
+	}
+	if s != "123" {
+		t.Errorf("readUsVarChar expected to return 123 but it returned %s", s)
+	}
+
+	// should fail for empty buffer
+	buf = bytes.NewBuffer([]byte{})
+	_, err = readUsVarChar(buf)
+	if err == nil {
+		t.Error("readUsVarChar should fail on single byte input, but it didn't")
+	}
+}
