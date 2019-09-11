@@ -10,6 +10,9 @@ import (
 	"regexp"
 	"testing"
 	"time"
+
+	"github.com/denisenkom/go-mssqldb/internal/mssqlerror"
+	"github.com/denisenkom/go-mssqldb/internal/mssqltypes"
 )
 
 func TestOutputParam(t *testing.T) {
@@ -174,8 +177,8 @@ END;
 			if err != nil {
 				t.Fatal(err)
 			}
-			var datetime_param DateTime1
-			datetime_param = DateTime1(tin)
+			var datetime_param mssqltypes.DateTime1
+			datetime_param = mssqltypes.DateTime1(tin)
 			_, err = db.ExecContext(ctx, sqltextrun,
 				sql.Named("datetime", sql.Out{Dest: &datetime_param}),
 			)
@@ -224,7 +227,7 @@ END;
 
 		t.Run("should fail if destination has invalid type", func(t *testing.T) {
 			// Error type should not be supported
-			var err_out Error
+			var err_out mssqlerror.Error
 			_, err := db.ExecContext(ctx, sqltextrun,
 				sql.Named("bid", sql.Out{Dest: &err_out}),
 			)
@@ -244,7 +247,7 @@ END;
 
 		t.Run("should fail if parameter has invalid type", func(t *testing.T) {
 			// passing invalid parameter type
-			var err_val Error
+			var err_val mssqlerror.Error
 			_, err = db.ExecContext(ctx, sqltextrun, err_val)
 			if err == nil {
 				t.Error("Expected to fail but it didn't")
@@ -346,7 +349,7 @@ END;
 	t.Run("original test", func(t *testing.T) {
 		var bout int64 = 3
 		var cout string
-		var vout VarChar
+		var vout mssqltypes.VarChar
 		_, err = db.ExecContext(ctx, sqltextrun,
 			sql.Named("aid", 5),
 			sql.Named("bid", sql.Out{Dest: &bout}),
@@ -964,12 +967,12 @@ func TestDateTimeParam19(t *testing.T) {
 	var emptydate time.Time
 	mindate1 := time.Date(1753, 1, 1, 0, 0, 0, 0, time.UTC)
 	maxdate1 := time.Date(9999, 12, 31, 23, 59, 59, 997000000, time.UTC)
-	testdates1 := []DateTime1{
-		DateTime1(mindate1),
-		DateTime1(maxdate1),
-		DateTime1(time.Date(1752, 12, 31, 23, 59, 59, 997000000, time.UTC)), // just a little below minimum date
-		DateTime1(time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)),             // just a little over maximum date
-		DateTime1(emptydate),
+	testdates1 := []mssqltypes.DateTime1{
+		mssqltypes.DateTime1(mindate1),
+		mssqltypes.DateTime1(maxdate1),
+		mssqltypes.DateTime1(time.Date(1752, 12, 31, 23, 59, 59, 997000000, time.UTC)), // just a little below minimum date
+		mssqltypes.DateTime1(time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)),             // just a little over maximum date
+		mssqltypes.DateTime1(emptydate),
 	}
 
 	for _, test := range testdates1 {

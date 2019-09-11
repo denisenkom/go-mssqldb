@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/denisenkom/go-mssqldb/internal/mssqltypes"
 )
 
 const (
@@ -40,87 +42,87 @@ const (
 )
 
 type TvptableRow struct {
-	PBinary       []byte            `db:"p_binary"`
-	PVarchar      string            `db:"p_varchar"`
-	PVarcharNull  *string           `db:"p_varcharNull"`
-	PNvarchar     string            `db:"p_nvarchar"`
-	PNvarcharNull *string           `db:"p_nvarcharNull"`
-	PID           UniqueIdentifier  `db:"p_id"`
-	PIDNull       *UniqueIdentifier `db:"p_idNull"`
-	PVarbinary    []byte            `db:"p_varbinary"`
-	PTinyint      int8              `db:"p_tinyint"`
-	PTinyintNull  *int8             `db:"p_tinyintNull"`
-	PSmallint     int16             `db:"p_smallint"`
-	PSmallintNull *int16            `db:"p_smallintNull"`
-	PInt          int32             `db:"p_int"`
-	PIntNull      *int32            `db:"p_intNull"`
-	PBigint       int64             `db:"p_bigint"`
-	PBigintNull   *int64            `db:"p_bigintNull"`
-	PBit          bool              `db:"p_bit"`
-	PBitNull      *bool             `db:"p_bitNull"`
-	PFloat32      float32           `db:"p_float32"`
-	PFloatNull32  *float32          `db:"p_floatNull32"`
-	PFloat64      float64           `db:"p_float64"`
-	PFloatNull64  *float64          `db:"p_floatNull64"`
-	DTime         time.Time         `db:"p_timeNull"`
-	DTimeNull     *time.Time        `db:"p_time"`
-	Pint          int               `db:"pInt"`
-	PintNull      *int              `db:"pIntNull"`
+	PBinary       []byte                       `db:"p_binary"`
+	PVarchar      string                       `db:"p_varchar"`
+	PVarcharNull  *string                      `db:"p_varcharNull"`
+	PNvarchar     string                       `db:"p_nvarchar"`
+	PNvarcharNull *string                      `db:"p_nvarcharNull"`
+	PID           mssqltypes.UniqueIdentifier  `db:"p_id"`
+	PIDNull       *mssqltypes.UniqueIdentifier `db:"p_idNull"`
+	PVarbinary    []byte                       `db:"p_varbinary"`
+	PTinyint      int8                         `db:"p_tinyint"`
+	PTinyintNull  *int8                        `db:"p_tinyintNull"`
+	PSmallint     int16                        `db:"p_smallint"`
+	PSmallintNull *int16                       `db:"p_smallintNull"`
+	PInt          int32                        `db:"p_int"`
+	PIntNull      *int32                       `db:"p_intNull"`
+	PBigint       int64                        `db:"p_bigint"`
+	PBigintNull   *int64                       `db:"p_bigintNull"`
+	PBit          bool                         `db:"p_bit"`
+	PBitNull      *bool                        `db:"p_bitNull"`
+	PFloat32      float32                      `db:"p_float32"`
+	PFloatNull32  *float32                     `db:"p_floatNull32"`
+	PFloat64      float64                      `db:"p_float64"`
+	PFloatNull64  *float64                     `db:"p_floatNull64"`
+	DTime         time.Time                    `db:"p_timeNull"`
+	DTimeNull     *time.Time                   `db:"p_time"`
+	Pint          int                          `db:"pInt"`
+	PintNull      *int                         `db:"pIntNull"`
 }
 
 type TvptableRowWithSkipTag struct {
-	PBinary           []byte            `db:"p_binary"`
-	SkipPBinary       []byte            `json:"-"`
-	PVarchar          string            `db:"p_varchar"`
-	SkipPVarchar      string            `tvp:"-"`
-	PVarcharNull      *string           `db:"p_varcharNull"`
-	SkipPVarcharNull  *string           `json:"-" tvp:"-"`
-	PNvarchar         string            `db:"p_nvarchar"`
-	SkipPNvarchar     string            `json:"-"`
-	PNvarcharNull     *string           `db:"p_nvarcharNull"`
-	SkipPNvarcharNull *string           `json:"-"`
-	PID               UniqueIdentifier  `db:"p_id"`
-	SkipPID           UniqueIdentifier  `json:"-"`
-	PIDNull           *UniqueIdentifier `db:"p_idNull"`
-	SkipPIDNull       *UniqueIdentifier `tvp:"-"`
-	PVarbinary        []byte            `db:"p_varbinary"`
-	SkipPVarbinary    []byte            `json:"-" tvp:"-"`
-	PTinyint          int8              `db:"p_tinyint"`
-	SkipPTinyint      int8              `tvp:"-"`
-	PTinyintNull      *int8             `db:"p_tinyintNull"`
-	SkipPTinyintNull  *int8             `tvp:"-" json:"any"`
-	PSmallint         int16             `db:"p_smallint"`
-	SkipPSmallint     int16             `json:"-"`
-	PSmallintNull     *int16            `db:"p_smallintNull"`
-	SkipPSmallintNull *int16            `tvp:"-"`
-	PInt              int32             `db:"p_int"`
-	SkipPInt          int32             `json:"-"`
-	PIntNull          *int32            `db:"p_intNull"`
-	SkipPIntNull      *int32            `tvp:"-"`
-	PBigint           int64             `db:"p_bigint"`
-	SkipPBigint       int64             `tvp:"-"`
-	PBigintNull       *int64            `db:"p_bigintNull"`
-	SkipPBigintNull   *int64            `json:"any" tvp:"-"`
-	PBit              bool              `db:"p_bit"`
-	SkipPBit          bool              `json:"-"`
-	PBitNull          *bool             `db:"p_bitNull"`
-	SkipPBitNull      *bool             `json:"-"`
-	PFloat32          float32           `db:"p_float32"`
-	SkipPFloat32      float32           `tvp:"-"`
-	PFloatNull32      *float32          `db:"p_floatNull32"`
-	SkipPFloatNull32  *float32          `tvp:"-"`
-	PFloat64          float64           `db:"p_float64"`
-	SkipPFloat64      float64           `tvp:"-"`
-	PFloatNull64      *float64          `db:"p_floatNull64"`
-	SkipPFloatNull64  *float64          `tvp:"-"`
-	DTime             time.Time         `db:"p_timeNull"`
-	SkipDTime         time.Time         `tvp:"-"`
-	DTimeNull         *time.Time        `db:"p_time"`
-	SkipDTimeNull     *time.Time        `tvp:"-"`
-	Pint              int               `db:"p_int_null"`
-	SkipPint          int               `tvp:"-"`
-	PintNull          *int              `db:"p_int_"`
-	SkipPintNull      *int              `tvp:"-"`
+	PBinary           []byte                       `db:"p_binary"`
+	SkipPBinary       []byte                       `json:"-"`
+	PVarchar          string                       `db:"p_varchar"`
+	SkipPVarchar      string                       `tvp:"-"`
+	PVarcharNull      *string                      `db:"p_varcharNull"`
+	SkipPVarcharNull  *string                      `json:"-" tvp:"-"`
+	PNvarchar         string                       `db:"p_nvarchar"`
+	SkipPNvarchar     string                       `json:"-"`
+	PNvarcharNull     *string                      `db:"p_nvarcharNull"`
+	SkipPNvarcharNull *string                      `json:"-"`
+	PID               mssqltypes.UniqueIdentifier  `db:"p_id"`
+	SkipPID           mssqltypes.UniqueIdentifier  `json:"-"`
+	PIDNull           *mssqltypes.UniqueIdentifier `db:"p_idNull"`
+	SkipPIDNull       *mssqltypes.UniqueIdentifier `tvp:"-"`
+	PVarbinary        []byte                       `db:"p_varbinary"`
+	SkipPVarbinary    []byte                       `json:"-" tvp:"-"`
+	PTinyint          int8                         `db:"p_tinyint"`
+	SkipPTinyint      int8                         `tvp:"-"`
+	PTinyintNull      *int8                        `db:"p_tinyintNull"`
+	SkipPTinyintNull  *int8                        `tvp:"-" json:"any"`
+	PSmallint         int16                        `db:"p_smallint"`
+	SkipPSmallint     int16                        `json:"-"`
+	PSmallintNull     *int16                       `db:"p_smallintNull"`
+	SkipPSmallintNull *int16                       `tvp:"-"`
+	PInt              int32                        `db:"p_int"`
+	SkipPInt          int32                        `json:"-"`
+	PIntNull          *int32                       `db:"p_intNull"`
+	SkipPIntNull      *int32                       `tvp:"-"`
+	PBigint           int64                        `db:"p_bigint"`
+	SkipPBigint       int64                        `tvp:"-"`
+	PBigintNull       *int64                       `db:"p_bigintNull"`
+	SkipPBigintNull   *int64                       `json:"any" tvp:"-"`
+	PBit              bool                         `db:"p_bit"`
+	SkipPBit          bool                         `json:"-"`
+	PBitNull          *bool                        `db:"p_bitNull"`
+	SkipPBitNull      *bool                        `json:"-"`
+	PFloat32          float32                      `db:"p_float32"`
+	SkipPFloat32      float32                      `tvp:"-"`
+	PFloatNull32      *float32                     `db:"p_floatNull32"`
+	SkipPFloatNull32  *float32                     `tvp:"-"`
+	PFloat64          float64                      `db:"p_float64"`
+	SkipPFloat64      float64                      `tvp:"-"`
+	PFloatNull64      *float64                     `db:"p_floatNull64"`
+	SkipPFloatNull64  *float64                     `tvp:"-"`
+	DTime             time.Time                    `db:"p_timeNull"`
+	SkipDTime         time.Time                    `tvp:"-"`
+	DTimeNull         *time.Time                   `db:"p_time"`
+	SkipDTimeNull     *time.Time                   `tvp:"-"`
+	Pint              int                          `db:"p_int_null"`
+	SkipPint          int                          `tvp:"-"`
+	PintNull          *int                         `db:"p_int_"`
+	SkipPintNull      *int                         `tvp:"-"`
 }
 
 func TestTVP(t *testing.T) {
@@ -215,7 +217,7 @@ func TestTVP(t *testing.T) {
 			PBinary:    []byte("ccc"),
 			PVarchar:   varcharNull,
 			PNvarchar:  nvarchar,
-			PID:        UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
+			PID:        mssqltypes.UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
 			PVarbinary: bytesMock,
 			PTinyint:   i8,
 			PSmallint:  i16,
@@ -231,7 +233,7 @@ func TestTVP(t *testing.T) {
 			PBinary:    []byte("www"),
 			PVarchar:   "eee",
 			PNvarchar:  "lll",
-			PID:        UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
+			PID:        mssqltypes.UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
 			PVarbinary: []byte("zzz"),
 			PTinyint:   5,
 			PSmallint:  16000,
@@ -247,7 +249,7 @@ func TestTVP(t *testing.T) {
 			PBinary:       nil,
 			PVarcharNull:  &varcharNull,
 			PNvarcharNull: &nvarchar,
-			PIDNull:       &UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
+			PIDNull:       &mssqltypes.UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
 			PTinyintNull:  &i8,
 			PSmallintNull: &i16,
 			PIntNull:      &i32,
@@ -263,7 +265,7 @@ func TestTVP(t *testing.T) {
 			PBinary:       []byte("www"),
 			PVarchar:      "eee",
 			PNvarchar:     "lll",
-			PIDNull:       &UniqueIdentifier{},
+			PIDNull:       &mssqltypes.UniqueIdentifier{},
 			PVarbinary:    []byte("zzz"),
 			PTinyint:      5,
 			PSmallint:     16000,
@@ -468,7 +470,7 @@ func TestTVP_WithTag(t *testing.T) {
 			PBinary:    []byte("ccc"),
 			PVarchar:   varcharNull,
 			PNvarchar:  nvarchar,
-			PID:        UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
+			PID:        mssqltypes.UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
 			PVarbinary: bytesMock,
 			PTinyint:   i8,
 			PSmallint:  i16,
@@ -485,7 +487,7 @@ func TestTVP_WithTag(t *testing.T) {
 			PBinary:    []byte("www"),
 			PVarchar:   "eee",
 			PNvarchar:  "lll",
-			PID:        UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
+			PID:        mssqltypes.UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
 			PVarbinary: []byte("zzz"),
 			PTinyint:   5,
 			PSmallint:  16000,
@@ -502,7 +504,7 @@ func TestTVP_WithTag(t *testing.T) {
 			PBinary:       nil,
 			PVarcharNull:  &varcharNull,
 			PNvarcharNull: &nvarchar,
-			PIDNull:       &UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
+			PIDNull:       &mssqltypes.UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
 			PTinyintNull:  &i8,
 			PSmallintNull: &i16,
 			PIntNull:      &i32,
@@ -518,7 +520,7 @@ func TestTVP_WithTag(t *testing.T) {
 			PBinary:       []byte("www"),
 			PVarchar:      "eee",
 			PNvarchar:     "lll",
-			PIDNull:       &UniqueIdentifier{},
+			PIDNull:       &mssqltypes.UniqueIdentifier{},
 			PVarbinary:    []byte("zzz"),
 			PTinyint:      5,
 			PSmallint:     16000,

@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/denisenkom/go-mssqldb/internal/mssqlerror"
 	"github.com/denisenkom/go-mssqldb/internal/querytext"
 )
 
@@ -188,7 +189,7 @@ func (c *Conn) checkBadConn(err error) error {
 	case net.Error:
 		c.connectionGood = false
 		return err
-	case StreamError:
+	case mssqlerror.StreamError:
 		c.connectionGood = false
 		return err
 	default:

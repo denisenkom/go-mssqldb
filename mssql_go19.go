@@ -11,6 +11,7 @@ import (
 	"time"
 
 	// "github.com/cockroachdb/apd"
+	"github.com/denisenkom/go-mssqldb/internal/mssqltypes"
 	"github.com/golang-sql/civil"
 )
 
@@ -26,29 +27,17 @@ type MssqlStmt = Stmt               // Deprecated: users should transition to th
 
 var _ driver.NamedValueChecker = &Conn{}
 
-// VarChar parameter types.
-type VarChar string
-
-type NVarCharMax string
-type VarCharMax string
-
-// DateTime1 encodes parameters to original DateTime SQL types.
-type DateTime1 time.Time
-
-// DateTimeOffset encodes parameters to DateTimeOffset, preserving the UTC offset.
-type DateTimeOffset time.Time
-
 func convertInputParameter(val interface{}) (interface{}, error) {
 	switch v := val.(type) {
-	case VarChar:
+	case mssqltypes.VarChar:
 		return val, nil
-	case NVarCharMax:
+	case mssqltypes.NVarCharMax:
 		return val, nil
-	case VarCharMax:
+	case mssqltypes.VarCharMax:
 		return val, nil
-	case DateTime1:
+	case mssqltypes.DateTime1:
 		return val, nil
-	case DateTimeOffset:
+	case mssqltypes.DateTimeOffset:
 		return val, nil
 	case civil.Date:
 		return val, nil
@@ -123,24 +112,24 @@ func (c *Conn) CheckNamedValue(nv *driver.NamedValue) error {
 
 func (s *Stmt) makeParamExtra(val driver.Value) (res param, err error) {
 	switch val := val.(type) {
-	case VarChar:
+	case mssqltypes.VarChar:
 		res.ti.TypeId = typeBigVarChar
 		res.buffer = []byte(val)
 		res.ti.Size = len(res.buffer)
-	case VarCharMax:
+	case mssqltypes.VarCharMax:
 		res.ti.TypeId = typeBigVarChar
 		res.buffer = []byte(val)
 		res.ti.Size = 0 // currently zero forces varchar(max)
-	case NVarCharMax:
+	case mssqltypes.NVarCharMax:
 		res.ti.TypeId = typeNVarChar
 		res.buffer = str2ucs2(string(val))
 		res.ti.Size = 0 // currently zero forces nvarchar(max)
-	case DateTime1:
+	case mssqltypes.DateTime1:
 		t := time.Time(val)
 		res.ti.TypeId = typeDateTimeN
 		res.buffer = encodeDateTime(t)
 		res.ti.Size = len(res.buffer)
-	case DateTimeOffset:
+	case mssqltypes.DateTimeOffset:
 		res.ti.TypeId = typeDateTimeOffsetN
 		res.ti.Scale = 7
 		res.buffer = encodeDateTimeOffset(time.Time(val), int(res.ti.Scale))

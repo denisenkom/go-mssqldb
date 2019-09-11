@@ -1,4 +1,4 @@
-package mssql
+package mssqltypes
 
 import (
 	"bytes"

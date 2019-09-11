@@ -1,4 +1,4 @@
-package mssql
+package mssqltypes
 
 import (
 	"database/sql/driver"
@@ -7,8 +7,10 @@ import (
 	"fmt"
 )
 
+// UniqueIdentifier encodes parameters to Uniqueidentifier SQL type.
 type UniqueIdentifier [16]byte
 
+// Scan converts v to UniqueIdentifier
 func (u *UniqueIdentifier) Scan(v interface{}) error {
 	reverse := func(b []byte) {
 		for i, j := 0, len(b)-1; i < j; i, j = i+1, j-1 {
@@ -52,6 +54,7 @@ func (u *UniqueIdentifier) Scan(v interface{}) error {
 	}
 }
 
+// Value converts UniqueIdentifier to bytes
 func (u UniqueIdentifier) Value() (driver.Value, error) {
 	reverse := func(b []byte) {
 		for i, j := 0, len(b)-1; i < j; i, j = i+1, j-1 {
@@ -69,6 +72,7 @@ func (u UniqueIdentifier) Value() (driver.Value, error) {
 	return raw, nil
 }
 
+// String converts UniqueIdentifier to string
 func (u UniqueIdentifier) String() string {
 	return fmt.Sprintf("%X-%X-%X-%X-%X", u[0:4], u[4:6], u[6:8], u[8:10], u[10:])
 }
