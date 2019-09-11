@@ -10,7 +10,6 @@ import (
 	"os"
 	"runtime"
 	"testing"
-	"time"
 )
 
 type MockTransport struct {
@@ -374,135 +373,6 @@ func TestSecureConnection(t *testing.T) {
 	}
 }
 
-func TestInvalidConnectionString(t *testing.T) {
-	connStrings := []string{
-		"log=invalid",
-		"port=invalid",
-		"packet size=invalid",
-		"connection timeout=invalid",
-		"dial timeout=invalid",
-		"keepalive=invalid",
-		"encrypt=invalid",
-		"trustservercertificate=invalid",
-		"failoverport=invalid",
-
-		// ODBC mode
-		"odbc:password={",
-		"odbc:password={somepass",
-		"odbc:password={somepass}}",
-		"odbc:password={some}pass",
-	}
-	for _, connStr := range connStrings {
-		_, err := parseConnectParams(connStr)
-		if err == nil {
-			t.Errorf("Connection expected to fail for connection string %s but it didn't", connStr)
-			continue
-		} else {
-			t.Logf("Connection failed for %s as expected with error %v", connStr, err)
-		}
-	}
-}
-
-func TestValidConnectionString(t *testing.T) {
-	type testStruct struct {
-		connStr string
-		check   func(connectParams) bool
-	}
-	connStrings := []testStruct{
-		{"server=server\\instance;database=testdb;user id=tester;password=pwd", func(p connectParams) bool {
-			return p.host == "server" && p.instance == "instance" && p.user == "tester" && p.password == "pwd"
-		}},
-		{"server=.", func(p connectParams) bool { return p.host == "localhost" }},
-		{"server=(local)", func(p connectParams) bool { return p.host == "localhost" }},
-		{"ServerSPN=serverspn;Workstation ID=workstid", func(p connectParams) bool { return p.serverSPN == "serverspn" && p.workstation == "workstid" }},
-		{"failoverpartner=fopartner;failoverport=2000", func(p connectParams) bool { return p.failOverPartner == "fopartner" && p.failOverPort == 2000 }},
-		{"app name=appname;applicationintent=ReadOnly", func(p connectParams) bool { return p.appname == "appname" && (p.typeFlags&fReadOnlyIntent != 0) }},
-		{"encrypt=disable", func(p connectParams) bool { return p.disableEncryption }},
-		{"encrypt=true", func(p connectParams) bool { return p.encrypt && !p.disableEncryption }},
-		{"encrypt=false", func(p connectParams) bool { return !p.encrypt && !p.disableEncryption }},
-		{"trustservercertificate=true", func(p connectParams) bool { return p.trustServerCertificate }},
-		{"trustservercertificate=false", func(p connectParams) bool { return !p.trustServerCertificate }},
-		{"certificate=abc", func(p connectParams) bool { return p.certificate == "abc" }},
-		{"hostnameincertificate=abc", func(p connectParams) bool { return p.hostInCertificate == "abc" }},
-		{"connection timeout=3;dial timeout=4;keepalive=5", func(p connectParams) bool {
-			return p.conn_timeout == 3*time.Second && p.dial_timeout == 4*time.Second && p.keepAlive == 5*time.Second
-		}},
-		{"log=63", func(p connectParams) bool { return p.logFlags == 63 && p.port == 1433 }},
-		{"log=63;port=1000", func(p connectParams) bool { return p.logFlags == 63 && p.port == 1000 }},
-		{"log=64", func(p connectParams) bool { return p.logFlags == 64 && p.packetSize == 4096 }},
-		{"log=64;packet size=0", func(p connectParams) bool { return p.logFlags == 64 && p.packetSize == 512 }},
-		{"log=64;packet size=300", func(p connectParams) bool { return p.logFlags == 64 && p.packetSize == 512 }},
-		{"log=64;packet size=8192", func(p connectParams) bool { return p.logFlags == 64 && p.packetSize == 8192 }},
-		{"log=64;packet size=48000", func(p connectParams) bool { return p.logFlags == 64 && p.packetSize == 32767 }},
-
-		// those are supported currently, but maybe should not be
-		{"someparam", func(p connectParams) bool { return true }},
-		{";;=;", func(p connectParams) bool { return true }},
-
-		// ODBC mode
-		{"odbc:server=somehost;user id=someuser;password=somepass", func(p connectParams) bool {
-			return p.host == "somehost" && p.user == "someuser" && p.password == "somepass"
-		}},
-		{"odbc:server=somehost;user id=someuser;password=some{pass", func(p connectParams) bool {
-			return p.host == "somehost" && p.user == "someuser" && p.password == "some{pass"
-		}},
-		{"odbc:server={somehost};user id={someuser};password={somepass}", func(p connectParams) bool {
-			return p.host == "somehost" && p.user == "someuser" && p.password == "somepass"
-		}},
-		{"odbc:server={somehost};user id={someuser};password={some=pass}", func(p connectParams) bool {
-			return p.host == "somehost" && p.user == "someuser" && p.password == "some=pass"
-		}},
-		{"odbc:server={somehost};user id={someuser};password={some;pass}", func(p connectParams) bool {
-			return p.host == "somehost" && p.user == "someuser" && p.password == "some;pass"
-		}},
-		{"odbc:server={somehost};user id={someuser};password={some{pass}", func(p connectParams) bool {
-			return p.host == "somehost" && p.user == "someuser" && p.password == "some{pass"
-		}},
-		{"odbc:server={somehost};user id={someuser};password={some}}pass}", func(p connectParams) bool {
-			return p.host == "somehost" && p.user == "someuser" && p.password == "some}pass"
-		}},
-		{"odbc:server={somehost};user id={someuser};password={some{}}p=a;ss}", func(p connectParams) bool {
-			return p.host == "somehost" && p.user == "someuser" && p.password == "some{}p=a;ss"
-		}},
-		{"odbc: server = somehost; user id =  someuser ; password = {some pass } ", func(p connectParams) bool {
-			return p.host == "somehost" && p.user == "someuser" && p.password == "some pass "
-		}},
-
-		// URL mode
-		{"sqlserver://somehost?connection+timeout=30", func(p connectParams) bool {
-			return p.host == "somehost" && p.port == 1433 && p.instance == "" && p.conn_timeout == 30*time.Second
-		}},
-		{"sqlserver://someuser@somehost?connection+timeout=30", func(p connectParams) bool {
-			return p.host == "somehost" && p.port == 1433 && p.instance == "" && p.user == "someuser" && p.password == "" && p.conn_timeout == 30*time.Second
-		}},
-		{"sqlserver://someuser:@somehost?connection+timeout=30", func(p connectParams) bool {
-			return p.host == "somehost" && p.port == 1433 && p.instance == "" && p.user == "someuser" && p.password == "" && p.conn_timeout == 30*time.Second
-		}},
-		{"sqlserver://someuser:foo%3A%2F%5C%21~%40;bar@somehost?connection+timeout=30", func(p connectParams) bool {
-			return p.host == "somehost" && p.port == 1433 && p.instance == "" && p.user == "someuser" && p.password == "foo:/\\!~@;bar" && p.conn_timeout == 30*time.Second
-		}},
-		{"sqlserver://someuser:foo%3A%2F%5C%21~%40;bar@somehost:1434?connection+timeout=30", func(p connectParams) bool {
-			return p.host == "somehost" && p.port == 1434 && p.instance == "" && p.user == "someuser" && p.password == "foo:/\\!~@;bar" && p.conn_timeout == 30*time.Second
-		}},
-		{"sqlserver://someuser:foo%3A%2F%5C%21~%40;bar@somehost:1434/someinstance?connection+timeout=30", func(p connectParams) bool {
-			return p.host == "somehost" && p.port == 1434 && p.instance == "someinstance" && p.user == "someuser" && p.password == "foo:/\\!~@;bar" && p.conn_timeout == 30*time.Second
-		}},
-	}
-	for _, ts := range connStrings {
-		p, err := parseConnectParams(ts.connStr)
-		if err == nil {
-			t.Logf("Connection string was parsed successfully %s", ts.connStr)
-		} else {
-			t.Errorf("Connection string %s failed to parse with error %s", ts.connStr, err)
-			continue
-		}
-
-		if !ts.check(p) {
-			t.Errorf("Check failed on conn str %s", ts.connStr)
-		}
-	}
-}
-
 func TestBadConnect(t *testing.T) {
 	checkConnStr(t)
 	SetLogger(testLogger{t})
@@ -548,5 +418,83 @@ func TestSSPIAuth(t *testing.T) {
 	}
 	if somenumber != int64(1) || somechars != "abc" {
 		t.Errorf("Invalid values from query: want {%d,'%s'}, got {%d,'%s'}", int64(1), "abc", somenumber, somechars)
+	}
+}
+
+func TestUcs22Str(t *testing.T) {
+	// Test valid input
+	s, err := ucs22str([]byte{0x31, 0, 0x32, 0, 0x33, 0})  // 123 in UCS2 encoding
+	if err != nil {
+		t.Errorf("ucs22str should not fail for valid ucs2 byte sequence: %s", err)
+	}
+	if s != "123" {
+		t.Errorf("ucs22str expected to return 123 but it returned %s", s)
+	}
+
+	// Test invalid input
+	_, err = ucs22str([]byte{0})
+	if err == nil {
+		t.Error("ucs22str should fail on single byte input, but it didn't")
+	}
+}
+
+func TestReadUcs2(t *testing.T) {
+	buf := bytes.NewBuffer([]byte{0x31, 0, 0x32, 0, 0x33, 0})  // 123 in UCS2 encoding
+	s, err := readUcs2(buf, 3)
+	if err != nil {
+		t.Errorf("readUcs2 should not fail for valid ucs2 byte sequence: %s", err)
+	}
+	if s != "123" {
+		t.Errorf("readUcs2 expected to return 123 but it returned %s", s)
+	}
+
+	buf = bytes.NewBuffer([]byte{0})
+	_, err = readUcs2(buf, 1)
+	if err == nil {
+		t.Error("readUcs2 should fail on single byte input, but it didn't")
+	}
+}
+
+func TestReadUsVarChar(t *testing.T) {
+	// should succeed for valid buffer
+	buf := bytes.NewBuffer([]byte{3, 0, 0x31, 0, 0x32, 0, 0x33, 0})  // 123 in UCS2 encoding with length prefix 3 uint16
+	s, err := readUsVarChar(buf)
+	if err != nil {
+		t.Errorf("readUsVarChar should not fail for valid ucs2 byte sequence: %s", err)
+	}
+	if s != "123" {
+		t.Errorf("readUsVarChar expected to return 123 but it returned %s", s)
+	}
+
+	// should fail for empty buffer
+	buf = bytes.NewBuffer([]byte{})
+	_, err = readUsVarChar(buf)
+	if err == nil {
+		t.Error("readUsVarChar should fail on empty buffer, but it didn't")
+	}
+}
+
+func TestReadBVarByte(t *testing.T) {
+	memBuf := bytes.NewBuffer([]byte{3, 1, 2, 3})
+	s, err := readBVarByte(memBuf)
+	if err != nil {
+		t.Errorf("readUsVarByte should not fail for valid buffer: %s", err)
+	}
+	if !bytes.Equal(s, []byte{1, 2, 3}) {
+		t.Errorf("readUsVarByte expected to return [1 2 3] but it returned %v", s)
+	}
+
+	// test empty buffer
+	memBuf = bytes.NewBuffer([]byte{})
+	s, err = readBVarByte(memBuf)
+	if err == nil {
+		t.Error("readUsVarByte should fail on empty buffer, but it didn't")
+	}
+
+	// test short buffer
+	memBuf = bytes.NewBuffer([]byte{1})
+	s, err = readBVarByte(memBuf)
+	if err == nil {
+		t.Error("readUsVarByte should fail on short buffer, but it didn't")
 	}
 }
