@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+
+	"github.com/denisenkom/go-mssqldb/internal/mssqlerror"
 )
 
 type packetType uint8
@@ -186,7 +188,7 @@ func (r *tdsBuffer) ReadByte() (res byte, err error) {
 func (r *tdsBuffer) byte() byte {
 	b, err := r.ReadByte()
 	if err != nil {
-		badStreamPanic(err)
+		mssqlerror.BadStreamPanic(err)
 	}
 	return b
 }
@@ -194,7 +196,7 @@ func (r *tdsBuffer) byte() byte {
 func (r *tdsBuffer) ReadFull(buf []byte) {
 	_, err := io.ReadFull(r, buf[:])
 	if err != nil {
-		badStreamPanic(err)
+		mssqlerror.BadStreamPanic(err)
 	}
 }
 
@@ -227,7 +229,7 @@ func (r *tdsBuffer) BVarChar() string {
 func readBVarCharOrPanic(r io.Reader) string {
 	s, err := readBVarChar(r)
 	if err != nil {
-		badStreamPanic(err)
+		mssqlerror.BadStreamPanic(err)
 	}
 	return s
 }
@@ -235,13 +237,23 @@ func readBVarCharOrPanic(r io.Reader) string {
 func readUsVarCharOrPanic(r io.Reader) string {
 	s, err := readUsVarChar(r)
 	if err != nil {
-		badStreamPanic(err)
+		mssqlerror.BadStreamPanic(err)
 	}
 	return s
 }
 
 func (r *tdsBuffer) UsVarChar() string {
 	return readUsVarCharOrPanic(r)
+}
+
+func (r *tdsBuffer) readUcs2(numchars int) string {
+	b := make([]byte, numchars*2)
+	r.ReadFull(b)
+	res, err := ucs22str(b)
+	if err != nil {
+		mssqlerror.BadStreamPanic(err)
+	}
+	return res
 }
 
 func (r *tdsBuffer) Read(buf []byte) (copied int, err error) {

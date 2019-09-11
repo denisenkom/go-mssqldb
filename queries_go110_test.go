@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/denisenkom/go-mssqldb/internal/mssqltypes"
 	"github.com/golang-sql/civil"
 )
 
@@ -80,14 +81,14 @@ select
 ;
 	`,
 		sql.Named("nv", "base type nvarchar"),
-		sql.Named("v", VarChar("base type varchar")),
-		sql.Named("nvcm", NVarCharMax(strings.Repeat("x", 5000))),
-		sql.Named("vcm", VarCharMax(strings.Repeat("x", 5000))),
-		sql.Named("dt1", DateTime1(tin)),
+		sql.Named("v", mssqltypes.VarChar("base type varchar")),
+		sql.Named("nvcm", mssqltypes.NVarCharMax(strings.Repeat("x", 5000))),
+		sql.Named("vcm", mssqltypes.VarCharMax(strings.Repeat("x", 5000))),
+		sql.Named("dt1", mssqltypes.DateTime1(tin)),
 		sql.Named("dt2", civil.DateTimeOf(tin)),
 		sql.Named("d", civil.DateOf(tin)),
 		sql.Named("tm", civil.TimeOf(tin)),
-		sql.Named("dto", DateTimeOffset(tin)),
+		sql.Named("dto", mssqltypes.DateTimeOffset(tin)),
 	)
 	err = row.Scan(&nv, &v, &nvcm, &vcm, &dt1, &dt2, &d, &tm, &dto)
 	if err != nil {
@@ -153,11 +154,11 @@ select
 		sql.Named("nv", sin),
 		sql.Named("v", sin),
 		sql.Named("tgo", tin),
-		sql.Named("dt1", DateTime1(tin)),
+		sql.Named("dt1", mssqltypes.DateTime1(tin)),
 		sql.Named("dt2", civil.DateTimeOf(tin)),
 		sql.Named("d", civil.DateOf(tin)),
 		sql.Named("tm", civil.TimeOf(tin)),
-		sql.Named("dto", DateTimeOffset(tin)),
+		sql.Named("dto", mssqltypes.DateTimeOffset(tin)),
 	).Scan(&nv, &v, &tgo, &dt1, &dt2, &d, &tm, &dto)
 	if err != nil {
 		t.Fatal(err)

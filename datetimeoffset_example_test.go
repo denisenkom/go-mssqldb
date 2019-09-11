@@ -9,8 +9,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/denisenkom/go-mssqldb/internal/mssqltypes"
 	"github.com/golang-sql/civil"
-	"github.com/denisenkom/go-mssqldb"
 )
 
 // This example shows how to insert and retrieve date and time types data
@@ -56,9 +56,9 @@ func insertDateTime(db *sql.DB) {
 	var timeCol civil.Time = civil.TimeOf(tin)
 	var dateCol civil.Date = civil.DateOf(tin)
 	var smalldatetimeCol string = "2006-01-02 22:04:00"
-	var datetimeCol mssql.DateTime1 = mssql.DateTime1(tin)
+	var datetimeCol mssqltypes.DateTime1 = mssqltypes.DateTime1(tin)
 	var datetime2Col civil.DateTime = civil.DateTimeOf(tin)
-	var datetimeoffsetCol mssql.DateTimeOffset = mssql.DateTimeOffset(tin)
+	var datetimeoffsetCol mssqltypes.DateTimeOffset = mssqltypes.DateTimeOffset(tin)
 	_, err = stmt.Exec(timeCol, dateCol, smalldatetimeCol, datetimeCol, datetime2Col, datetimeoffsetCol)
 	if err != nil {
 		log.Fatal(err)
@@ -103,8 +103,8 @@ func retrieveDateTimeOutParam(db *sql.DB) {
 		log.Fatal(err)
 	}
 	var (
-		timeOutParam, datetime2OutParam, datetimeoffsetOutParam mssql.DateTimeOffset
-		dateOutParam, datetimeOutParam                          mssql.DateTime1
+		timeOutParam, datetime2OutParam, datetimeoffsetOutParam mssqltypes.DateTimeOffset
+		dateOutParam, datetimeOutParam                          mssqltypes.DateTime1
 		smalldatetimeOutParam                                   string
 	)
 	_, err = db.Exec("OutDatetimeProc",
