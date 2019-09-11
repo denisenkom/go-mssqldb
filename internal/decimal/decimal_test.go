@@ -105,3 +105,54 @@ func TestFromFloat64(t *testing.T) {
 		t.Error("Expected to get error for conversion from too big number, but didn't")
 	}
 }
+
+func TestFromInt64(t *testing.T) {
+	values := []struct {
+		in    int64
+		scale uint8
+		out   string
+	}{
+		{0, 0, "0"},
+		{12345, 3, "12.345"},
+		{math.MaxInt64, 0, "9223372036854775807"},
+		{math.MinInt64, 0, "-9223372036854775808"},
+	}
+	for _, v := range values {
+		dec := Int64ToDecimalScale(v.in, v.scale)
+		if dec.String() != v.out {
+			t.Error("Int64ToDecimalScale values don't match ", v.in, dec, v.scale, v.out)
+		}
+	}
+}
+
+func TestFromString(t *testing.T) {
+	values := []struct {
+		in    string
+		scale uint8
+		out   string
+	}{
+		{"0", 0, "0"},
+		{"-000.000", 3, "0.000"},
+		{"-000.000", 5, "0.00000"},
+		{"1", 0, "1"},
+		{"-01.0", 1, "-1.0"},
+		{"0.01", 2, "0.01"},
+		{"-0.1", 10, "-0.1000000000"},
+		{"1.00", 2, "1.00"},
+		{"-1.00", 2, "-1.00"},
+		{"4294967296", 0, "4294967296"},
+		{"18446744073709551616", 0, "18446744073709551616"},
+		{"18446744078004.518912", 6, "18446744078004.518912"},
+		{"-18446744078004518912.12345", 5, "-18446744078004518912.12345"},
+		{"1844674407800451891212345", 0, "1844674407800451891212345"},
+		{"79228162532711081671548469248", 2, "79228162532711081671548469248.00"},
+	}
+	for _, v := range values {
+		dec, err := StringToDecimalScale(v.in, v.scale)
+		if err != nil {
+			t.Error("StringToDecimal failed with error:", err.Error())
+		} else if dec.String() != v.out {
+			t.Error("StringToDecimal values don't match ", v.in, dec.String(), v.out)
+		}
+	}
+}
