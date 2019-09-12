@@ -819,12 +819,12 @@ initiate_connection:
 		// while SQL Server seems to expect one TCP segment per encrypted TDS package.
 		// Setting DynamicRecordSizingDisabled to true disables that algorithm and uses 16384 bytes per TLS package
 		config.DynamicRecordSizingDisabled = true
-		outbuf.transport = conn
-		toconn.buf = outbuf
-		tlsConn := tls.Client(toconn, &config)
+		// setting up connection handler which will allow wrapping of TLS handshake packets inside TDS stream
+		handshakeConn := tlsHandshakeConn{buf: outbuf}
+		passthrough := passthroughConn{c: &handshakeConn}
+		tlsConn := tls.Client(&passthrough, &config)
 		err = tlsConn.Handshake()
-
-		toconn.buf = nil
+		passthrough.c = toconn
 		outbuf.transport = tlsConn
 		if err != nil {
 			return nil, fmt.Errorf("TLS Handshake failed: %v", err)
