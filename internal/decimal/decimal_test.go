@@ -116,6 +116,7 @@ func TestFromInt64(t *testing.T) {
 		{12345, 3, "12.345"},
 		{math.MaxInt64, 0, "9223372036854775807"},
 		{math.MinInt64, 0, "-9223372036854775808"},
+		{-100, 0, "-100"},
 	}
 	for _, v := range values {
 		dec := Int64ToDecimalScale(v.in, v.scale)
@@ -153,6 +154,30 @@ func TestFromString(t *testing.T) {
 			t.Error("StringToDecimal failed with error:", err.Error())
 		} else if dec.String() != v.out {
 			t.Error("StringToDecimal values don't match ", v.in, dec.String(), v.out)
+		}
+	}
+}
+
+func TestFromStringBad(t *testing.T) {
+	arr := make([]rune, 256)
+	for i := range arr {
+		arr[i] = '0'
+	}
+	bigScaleNumber := "0." + string(arr) + "1"
+
+	values := []struct {
+		in string
+		scale uint8
+	}{
+		{"0.0001", 2},
+		{bigScaleNumber, 2},
+		{"not a number", 2},
+		{"400000000000000000000000000000000000000", 2},
+	}
+	for _, v := range values {
+		_, err := StringToDecimalScale(v.in, v.scale)
+		if err == nil {
+			t.Error("expected to fail but it didn't")
 		}
 	}
 }
