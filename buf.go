@@ -246,16 +246,6 @@ func (r *tdsBuffer) UsVarChar() string {
 	return readUsVarCharOrPanic(r)
 }
 
-func (r *tdsBuffer) readUcs2(numchars int) string {
-	b := make([]byte, numchars*2)
-	r.ReadFull(b)
-	res, err := ucs22str(b)
-	if err != nil {
-		mssqlerror.BadStreamPanic(err)
-	}
-	return res
-}
-
 func (r *tdsBuffer) Read(buf []byte) (copied int, err error) {
 	copied = 0
 	err = nil
