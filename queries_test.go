@@ -379,7 +379,7 @@ func TestNull(t *testing.T) {
 		}
 		for _, typ := range types {
 			t.Run(typ, func(t *testing.T) {
-				row := conn.QueryRow("declare @x "+typ+" = ?; select @x", nil)
+				row := conn.QueryRow("declare @x "+typ+" = @p1; select @x", nil)
 				var retval interface{}
 				err := row.Scan(&retval)
 				if err != nil {
@@ -422,7 +422,7 @@ func TestNull(t *testing.T) {
 			"sql_variant",
 		}
 		for _, typ := range types {
-			row := conn.QueryRow("declare @x "+typ+" = ?; select @x", nil)
+			row := conn.QueryRow("declare @x "+typ+" = @p1; select @x", nil)
 			var retval sql.NullInt64
 			err := row.Scan(&retval)
 			if err != nil {
@@ -464,7 +464,7 @@ func TestNull(t *testing.T) {
 			"sql_variant",
 		}
 		for _, typ := range types {
-			row := conn.QueryRow("declare @x "+typ+" = ?; select @x", nil)
+			row := conn.QueryRow("declare @x "+typ+" = @p1; select @x", nil)
 			var retval *int
 			err := row.Scan(&retval)
 			if err != nil {
@@ -506,7 +506,7 @@ func TestParams(t *testing.T) {
 
 	for _, val := range values {
 		t.Run(fmt.Sprintf("%T:%#v", val, val), func(t *testing.T) {
-			row := conn.QueryRow("select ?", val)
+			row := conn.QueryRow("select @p1", val)
 			var retval interface{}
 			err := row.Scan(&retval)
 			if err != nil {
@@ -768,7 +768,7 @@ func TestAffectedRows(t *testing.T) {
 		t.Error("Expected 1 row affected, got ", n)
 	}
 
-	res, err = tx.Exec("insert into #foo (bar) values (?)", 2)
+	res, err = tx.Exec("insert into #foo (bar) values (@p1)", 2)
 	if err != nil {
 		t.Fatal("insert failed", err)
 	}
@@ -782,7 +782,7 @@ func TestAffectedRows(t *testing.T) {
 }
 
 func queryParamRoundTrip(db *sql.DB, param interface{}, dest interface{}) {
-	err := db.QueryRow("select ?", param).Scan(dest)
+	err := db.QueryRow("select @p1", param).Scan(dest)
 	if err != nil {
 		log.Panicf("select / scan failed: %v", err.Error())
 	}
@@ -859,7 +859,7 @@ func TestUniqueIdentifierParam(t *testing.T) {
 	for _, test := range values {
 		t.Run(test.name, func(t *testing.T) {
 			var uuid2 mssqltypes.UniqueIdentifier
-			err := conn.QueryRow("select ?", test.uuid).Scan(&uuid2)
+			err := conn.QueryRow("select @p1", test.uuid).Scan(&uuid2)
 			if err != nil {
 				t.Fatal("select / scan failed", err.Error())
 			}
@@ -917,7 +917,7 @@ func TestBug32(t *testing.T) {
 		t.Fatal("Create table failed", err)
 	}
 
-	_, err = tx.Exec("insert into tbl (a,fld) values (1,nullif(?, ''))", "")
+	_, err = tx.Exec("insert into tbl (a,fld) values (1,nullif(@p1, ''))", "")
 	if err != nil {
 		t.Fatal("Insert failed", err)
 	}
@@ -1684,7 +1684,7 @@ func TestNamedParameters(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
 	row := conn.QueryRow(
-		"select :param2, :param1, :param2",
+		"select @param2, @param1, @param2",
 		sql.Named("param1", 1),
 		sql.Named("param2", 2))
 	var col1, col2, col3 int64
@@ -1718,7 +1718,7 @@ func TestMixedParameters(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
 	row := conn.QueryRow(
-		"select :2, :param1, :param2",
+		"select @p2, @param1, @param2",
 		5, // this parameter will be unused
 		6,
 		sql.Named("param1", 1),

@@ -176,17 +176,7 @@ func (l testLogger) Println(v ...interface{}) {
 	l.t.Log(v...)
 }
 
-func open(t *testing.T) *sql.DB {
-	checkConnStr(t)
-	SetLogger(testLogger{t})
-	conn, err := sql.Open("mssql", makeConnStr(t).String())
-	if err != nil {
-		t.Error("Open connection failed:", err.Error())
-		return nil
-	}
 
-	return conn
-}
 
 func TestConnect(t *testing.T) {
 	checkConnStr(t)
