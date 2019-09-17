@@ -4,8 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-
-	"github.com/denisenkom/go-mssqldb/internal/mssqlerror"
 )
 
 type packetType uint8
@@ -188,7 +186,7 @@ func (r *tdsBuffer) ReadByte() (res byte, err error) {
 func (r *tdsBuffer) byte() byte {
 	b, err := r.ReadByte()
 	if err != nil {
-		mssqlerror.BadStreamPanic(err)
+		badStreamPanic(err)
 	}
 	return b
 }
@@ -196,7 +194,7 @@ func (r *tdsBuffer) byte() byte {
 func (r *tdsBuffer) ReadFull(buf []byte) {
 	_, err := io.ReadFull(r, buf[:])
 	if err != nil {
-		mssqlerror.BadStreamPanic(err)
+		badStreamPanic(err)
 	}
 }
 
@@ -229,7 +227,7 @@ func (r *tdsBuffer) BVarChar() string {
 func readBVarCharOrPanic(r io.Reader) string {
 	s, err := readBVarChar(r)
 	if err != nil {
-		mssqlerror.BadStreamPanic(err)
+		badStreamPanic(err)
 	}
 	return s
 }
@@ -237,7 +235,7 @@ func readBVarCharOrPanic(r io.Reader) string {
 func readUsVarCharOrPanic(r io.Reader) string {
 	s, err := readUsVarChar(r)
 	if err != nil {
-		mssqlerror.BadStreamPanic(err)
+		badStreamPanic(err)
 	}
 	return s
 }

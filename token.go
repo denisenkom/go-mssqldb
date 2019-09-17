@@ -9,8 +9,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-
-	"github.com/denisenkom/go-mssqldb/internal/mssqlerror"
 )
 
 //go:generate stringer -type token
@@ -89,18 +87,18 @@ type doneStruct struct {
 	Status   uint16
 	CurCmd   uint16
 	RowCount uint64
-	errors   []mssqlerror.Error
+	errors   []Error
 }
 
 func (d doneStruct) isError() bool {
 	return d.Status&doneError != 0 || len(d.errors) > 0
 }
 
-func (d doneStruct) getError() mssqlerror.Error {
+func (d doneStruct) getError() Error {
 	if len(d.errors) > 0 {
 		return d.errors[len(d.errors)-1]
 	} else {
-		return mssqlerror.Error{Message: "Request failed but didn't provide reason"}
+		return Error{Message: "Request failed but didn't provide reason"}
 	}
 }
 
@@ -139,127 +137,127 @@ func processEnvChg(sess *tdsSession) {
 			return
 		}
 		if err != nil {
-			mssqlerror.BadStreamPanic(err)
+			badStreamPanic(err)
 		}
 		switch envtype {
 		case envTypDatabase:
 			sess.database, err = readBVarChar(r)
 			if err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			_, err = readBVarChar(r)
 			if err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 		case envTypLanguage:
 			// currently ignored
 			// new value
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			// old value
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 		case envTypCharset:
 			// currently ignored
 			// new value
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			// old value
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 		case envTypPacketSize:
 			packetsize, err := readBVarChar(r)
 			if err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			_, err = readBVarChar(r)
 			if err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			packetsizei, err := strconv.Atoi(packetsize)
 			if err != nil {
-				mssqlerror.BadStreamPanicf("Invalid Packet size value returned from server (%s): %s", packetsize, err.Error())
+				badStreamPanicf("Invalid Packet size value returned from server (%s): %s", packetsize, err.Error())
 			}
 			sess.buf.ResizeBuffer(packetsizei)
 		case envSortId:
 			// currently ignored
 			// new value
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			// old value, should be 0
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 		case envSortFlags:
 			// currently ignored
 			// new value
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			// old value, should be 0
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 		case envSqlCollation:
 			// currently ignored
 			var collationSize uint8
 			err = binary.Read(r, binary.LittleEndian, &collationSize)
 			if err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 
 			// SQL Collation data should contain 5 bytes in length
 			if collationSize != 5 {
-				mssqlerror.BadStreamPanicf("Invalid SQL Collation size value returned from server: %d", collationSize)
+				badStreamPanicf("Invalid SQL Collation size value returned from server: %d", collationSize)
 			}
 
 			// 4 bytes, contains: LCID ColFlags Version
 			var info uint32
 			err = binary.Read(r, binary.LittleEndian, &info)
 			if err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 
 			// 1 byte, contains: sortID
 			var sortID uint8
 			err = binary.Read(r, binary.LittleEndian, &sortID)
 			if err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 
 			// old value, should be 0
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 		case envTypBeginTran:
 			tranid, err := readBVarByte(r)
 			if len(tranid) != 8 {
-				mssqlerror.BadStreamPanicf("invalid size of transaction identifier: %d", len(tranid))
+				badStreamPanicf("invalid size of transaction identifier: %d", len(tranid))
 			}
 			sess.tranid = binary.LittleEndian.Uint64(tranid)
 			if err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			if sess.logFlags&logTransaction != 0 {
 				sess.log.Printf("BEGIN TRANSACTION %x\n", sess.tranid)
 			}
 			_, err = readBVarByte(r)
 			if err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 		case envTypCommitTran, envTypRollbackTran:
 			_, err = readBVarByte(r)
 			if err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			_, err = readBVarByte(r)
 			if err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			if sess.logFlags&logTransaction != 0 {
 				if envtype == envTypCommitTran {
@@ -273,81 +271,81 @@ func processEnvChg(sess *tdsSession) {
 			// currently ignored
 			// new value, should be 0
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			// old value
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 		case envDefectTran:
 			// currently ignored
 			// new value
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			// old value, should be 0
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 		case envDatabaseMirrorPartner:
 			sess.partner, err = readBVarChar(r)
 			if err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			_, err = readBVarChar(r)
 			if err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 		case envPromoteTran:
 			// currently ignored
 			// old value, should be 0
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			// dtc token
 			// spec says it should be L_VARBYTE, so this code might be wrong
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 		case envTranMgrAddr:
 			// currently ignored
 			// old value, should be 0
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			// XACT_MANAGER_ADDRESS = B_VARBYTE
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 		case envTranEnded:
 			// currently ignored
 			// old value, B_VARBYTE
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			// should be 0
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 		case envResetConnAck:
 			// currently ignored
 			// old value, should be 0
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			// should be 0
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 		case envStartedInstanceName:
 			// currently ignored
 			// old value, should be 0
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			// instance name
 			if _, err = readBVarChar(r); err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 		case envRouting:
 			// RoutingData message is:
@@ -357,24 +355,24 @@ func processEnvChg(sess *tdsSession) {
 			// AlternateServer             US_VARCHAR
 			_, err := readUshort(r)
 			if err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			protocol, err := readByte(r)
 			if err != nil || protocol != 0 {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			newPort, err := readUshort(r)
 			if err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			newServer, err := readUsVarChar(r)
 			if err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			// consume the OLDVALUE = %x00 %x00
 			_, err = readUshort(r)
 			if err != nil {
-				mssqlerror.BadStreamPanic(err)
+				badStreamPanic(err)
 			}
 			sess.routedServer = newServer
 			sess.routedPort = newPort
@@ -443,7 +441,7 @@ func parseLoginAck(r *tdsBuffer) loginAckStruct {
 	prognamelen := buf[1+4]
 	var err error
 	if res.ProgName, err = ucs22str(buf[1+4+1 : 1+4+1+prognamelen*2]); err != nil {
-		mssqlerror.BadStreamPanic(err)
+		badStreamPanic(err)
 	}
 	res.ProgVer = binary.BigEndian.Uint32(buf[size-4:])
 	return res
@@ -491,7 +489,7 @@ func parseNbcRow(r *tdsBuffer, columns []columnStruct, row []interface{}) {
 }
 
 // http://msdn.microsoft.com/en-us/library/dd304156.aspx
-func parseError72(r *tdsBuffer) (res mssqlerror.Error) {
+func parseError72(r *tdsBuffer) (res Error) {
 	length := r.uint16()
 	_ = length // ignore length
 	res.Number = r.int32()
@@ -505,7 +503,7 @@ func parseError72(r *tdsBuffer) (res mssqlerror.Error) {
 }
 
 // http://msdn.microsoft.com/en-us/library/dd304156.aspx
-func parseInfo(r *tdsBuffer) (res mssqlerror.Error) {
+func parseInfo(r *tdsBuffer) (res Error) {
 	length := r.uint16()
 	_ = length // ignore length
 	res.Number = r.int32()
@@ -560,10 +558,10 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs map[strin
 		return
 	}
 	if packet_type != packReply {
-		mssqlerror.BadStreamPanic(fmt.Errorf("unexpected packet type in reply: got %v, expected %v", packet_type, packReply))
+		badStreamPanic(fmt.Errorf("unexpected packet type in reply: got %v, expected %v", packet_type, packReply))
 	}
 	var columns []columnStruct
-	errs := make([]mssqlerror.Error, 0, 5)
+	errs := make([]Error, 0, 5)
 	for {
 		token := token(sess.buf.byte())
 		if sess.logFlags&logDebug != 0 {
@@ -648,7 +646,7 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs map[strin
 				}
 			}
 		default:
-			mssqlerror.BadStreamPanic(fmt.Errorf("unknown token type returned: %v", token))
+			badStreamPanic(fmt.Errorf("unknown token type returned: %v", token))
 		}
 	}
 }

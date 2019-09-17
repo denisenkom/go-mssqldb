@@ -1,4 +1,4 @@
-package mssqlerror
+package mssql
 
 import (
 	"fmt"
@@ -73,12 +73,10 @@ func streamErrorf(format string, v ...interface{}) StreamError {
 	return StreamError{"Invalid TDS stream: " + fmt.Sprintf(format, v...)}
 }
 
-// BadStreamPanic calls panic with err.
-func BadStreamPanic(err error) {
+func badStreamPanic(err error) {
 	panic(err)
 }
 
-// BadStreamPanicf calls panic with a formatted error message as an invalid TDS stream error.
-func BadStreamPanicf(format string, v ...interface{}) {
+func badStreamPanicf(format string, v ...interface{}) {
 	panic(streamErrorf(format, v...))
 }

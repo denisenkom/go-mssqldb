@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/denisenkom/go-mssqldb/internal/cp"
-	"github.com/denisenkom/go-mssqldb/internal/mssqlerror"
 	"github.com/denisenkom/go-mssqldb/internal/mssqltypes"
 )
 
@@ -339,7 +338,7 @@ func readFixedType(ti *typeInfo, r *tdsBuffer) interface{} {
 	case typeInt8:
 		return int64(binary.LittleEndian.Uint64(buf))
 	default:
-		mssqlerror.BadStreamPanicf("Invalid typeid")
+		badStreamPanicf("Invalid typeid")
 	}
 	panic("shoulnd't get here")
 }
@@ -354,7 +353,7 @@ func readByteLenType(ti *typeInfo, r *tdsBuffer) interface{} {
 	switch ti.TypeId {
 	case typeDateN:
 		if len(buf) != 3 {
-			mssqlerror.BadStreamPanicf("Invalid size for DATENTYPE")
+			badStreamPanicf("Invalid size for DATENTYPE")
 		}
 		return decodeDate(buf)
 	case typeTimeN:
@@ -376,13 +375,13 @@ func readByteLenType(ti *typeInfo, r *tdsBuffer) interface{} {
 		case 8:
 			return int64(binary.LittleEndian.Uint64(buf))
 		default:
-			mssqlerror.BadStreamPanicf("Invalid size for INTNTYPE: %d", len(buf))
+			badStreamPanicf("Invalid size for INTNTYPE: %d", len(buf))
 		}
 	case typeDecimal, typeNumeric, typeDecimalN, typeNumericN:
 		return decodeDecimal(ti.Prec, ti.Scale, buf)
 	case typeBitN:
 		if len(buf) != 1 {
-			mssqlerror.BadStreamPanicf("Invalid size for BITNTYPE")
+			badStreamPanicf("Invalid size for BITNTYPE")
 		}
 		return buf[0] != 0
 	case typeFltN:
@@ -392,7 +391,7 @@ func readByteLenType(ti *typeInfo, r *tdsBuffer) interface{} {
 		case 8:
 			return math.Float64frombits(binary.LittleEndian.Uint64(buf))
 		default:
-			mssqlerror.BadStreamPanicf("Invalid size for FLTNTYPE")
+			badStreamPanicf("Invalid size for FLTNTYPE")
 		}
 	case typeMoneyN:
 		switch len(buf) {
@@ -401,7 +400,7 @@ func readByteLenType(ti *typeInfo, r *tdsBuffer) interface{} {
 		case 8:
 			return decodeMoney(buf)
 		default:
-			mssqlerror.BadStreamPanicf("Invalid size for MONEYNTYPE")
+			badStreamPanicf("Invalid size for MONEYNTYPE")
 		}
 	case typeDateTim4:
 		return decodeDateTim4(buf)
@@ -414,7 +413,7 @@ func readByteLenType(ti *typeInfo, r *tdsBuffer) interface{} {
 		case 8:
 			return decodeDateTime(buf)
 		default:
-			mssqlerror.BadStreamPanicf("Invalid size for DATETIMENTYPE")
+			badStreamPanicf("Invalid size for DATETIMENTYPE")
 		}
 	case typeChar, typeVarChar:
 		return decodeChar(ti.Collation, buf)
@@ -426,7 +425,7 @@ func readByteLenType(ti *typeInfo, r *tdsBuffer) interface{} {
 		copy(cpy, buf)
 		return cpy
 	default:
-		mssqlerror.BadStreamPanicf("Invalid typeid")
+		badStreamPanicf("Invalid typeid")
 	}
 	panic("shoulnd't get here")
 }
@@ -465,7 +464,7 @@ func readShortLenType(ti *typeInfo, r *tdsBuffer) interface{} {
 	case typeUdt:
 		return decodeUdt(*ti, buf)
 	default:
-		mssqlerror.BadStreamPanicf("Invalid typeid")
+		badStreamPanicf("Invalid typeid")
 	}
 	panic("shoulnd't get here")
 }
@@ -513,7 +512,7 @@ func readLongLenType(ti *typeInfo, r *tdsBuffer) interface{} {
 	case typeNText:
 		return decodeNChar(buf)
 	default:
-		mssqlerror.BadStreamPanicf("Invalid typeid")
+		badStreamPanicf("Invalid typeid")
 	}
 	panic("shoulnd't get here")
 }
@@ -646,7 +645,7 @@ func readVariantType(ti *typeInfo, r *tdsBuffer) interface{} {
 		r.ReadFull(buf)
 		return decodeNChar(buf)
 	default:
-		mssqlerror.BadStreamPanicf("Invalid variant typeid")
+		badStreamPanicf("Invalid variant typeid")
 	}
 	panic("shoulnd't get here")
 }
@@ -672,7 +671,7 @@ func readPLPType(ti *typeInfo, r *tdsBuffer) interface{} {
 			break
 		}
 		if _, err := io.CopyN(buf, r, int64(chunksize)); err != nil {
-			mssqlerror.BadStreamPanicf("Reading PLP type failed: %s", err.Error())
+			badStreamPanicf("Reading PLP type failed: %s", err.Error())
 		}
 	}
 	switch ti.TypeId {
@@ -726,7 +725,7 @@ func readVarLen(ti *typeInfo, r *tdsBuffer) {
 		case 5, 6, 7:
 			ti.Size = 5
 		default:
-			mssqlerror.BadStreamPanicf("Invalid scale for TIME/DATETIME2/DATETIMEOFFSET type")
+			badStreamPanicf("Invalid scale for TIME/DATETIME2/DATETIMEOFFSET type")
 		}
 		switch ti.TypeId {
 		case typeDateTime2N:
@@ -806,7 +805,7 @@ func readVarLen(ti *typeInfo, r *tdsBuffer) {
 			ti.Reader = readVariantType
 		}
 	default:
-		mssqlerror.BadStreamPanicf("Invalid type %d", ti.TypeId)
+		badStreamPanicf("Invalid type %d", ti.TypeId)
 	}
 	return
 }
@@ -995,7 +994,7 @@ func decodeChar(col cp.Collation, buf []byte) string {
 func decodeUcs2(buf []byte) string {
 	res, err := ucs22str(buf)
 	if err != nil {
-		mssqlerror.BadStreamPanicf("Invalid UCS2 encoding: %s", err.Error())
+		badStreamPanicf("Invalid UCS2 encoding: %s", err.Error())
 	}
 	return res
 }
