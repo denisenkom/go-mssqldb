@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -62,6 +63,14 @@ func TestUniqueIdentifierString(t *testing.T) {
 	expected := "01234567-89AB-CDEF-0123-456789ABCDEF"
 	if actual := sut.String(); actual != expected {
 		t.Errorf("sut.String() = %s; want %s", sut, expected)
+	}
+}
+
+func TestUniqueIdentifierMarshalText(t *testing.T) {
+	sut := UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF}
+	expected := []byte{48, 49, 50, 51, 52, 53, 54, 55, 45, 56, 57, 65, 66, 45, 67, 68, 69, 70, 45, 48, 49, 50, 51, 45, 52, 53, 54, 55, 56, 57, 65, 66, 67, 68, 69, 70}
+	if actual := sut.MarshalText(); !reflect.DeepEqual(actual, expected) {
+		t.Errorf("sut.MarshalText() = %v; want %v", actual, expected)
 	}
 }
 
