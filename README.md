@@ -21,7 +21,7 @@ Other supported formats are listed below.
 * `user id` - enter the SQL Server Authentication user id or the Windows Authentication user id in the DOMAIN\User format. On Windows, if user id is empty or missing Single-Sign-On is used.
 * `password`
 * `database`
-* `connection timeout` - in seconds (default is 0 for no timeout), set to 0 for no timeout. Recommended to set to 0 and use context to manage query and connection timeouts.
+* `connection timeout` - in seconds (default is 30), set to 0 for no timeout. Recommended to set to 0 and use context to manage query and connection timeouts.
 * `dial timeout` - in seconds (default is 15), set to 0 for no timeout
 * `encrypt`
   * `disable` - Data send between client and server is not encrypted.
