@@ -13,7 +13,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 	"unicode/utf16"
 	"unicode/utf8"
 )
@@ -48,15 +47,13 @@ func parseInstances(msg []byte) map[string]map[string]string {
 }
 
 func getInstances(ctx context.Context, d Dialer, address string) (map[string]map[string]string, error) {
-	maxTime := 5 * time.Second
-	ctx, cancel := context.WithTimeout(ctx, maxTime)
-	defer cancel()
 	conn, err := d.DialContext(ctx, "udp", address+":1434")
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
-	conn.SetDeadline(time.Now().Add(maxTime))
+	deadline, _ := ctx.Deadline()
+	conn.SetDeadline(deadline)
 	_, err = conn.Write([]byte{3})
 	if err != nil {
 		return nil, err
