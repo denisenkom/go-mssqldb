@@ -16,6 +16,7 @@ func TestInvalidConnectionString(t *testing.T) {
 		"encrypt=invalid",
 		"trustservercertificate=invalid",
 		"failoverport=invalid",
+		"applicationintent=ReadOnly",
 
 		// ODBC mode
 		"odbc:password={",
@@ -54,7 +55,7 @@ func TestValidConnectionString(t *testing.T) {
 		{"server=(local)", func(p connectParams) bool { return p.host == "localhost" }},
 		{"ServerSPN=serverspn;Workstation ID=workstid", func(p connectParams) bool { return p.serverSPN == "serverspn" && p.workstation == "workstid" }},
 		{"failoverpartner=fopartner;failoverport=2000", func(p connectParams) bool { return p.failOverPartner == "fopartner" && p.failOverPort == 2000 }},
-		{"app name=appname;applicationintent=ReadOnly", func(p connectParams) bool { return p.appname == "appname" && (p.typeFlags&fReadOnlyIntent != 0) }},
+		{"app name=appname;applicationintent=ReadOnly;database=testdb", func(p connectParams) bool { return p.appname == "appname" && (p.typeFlags&fReadOnlyIntent != 0) }},
 		{"encrypt=disable", func(p connectParams) bool { return p.disableEncryption }},
 		{"encrypt=true", func(p connectParams) bool { return p.encrypt && !p.disableEncryption }},
 		{"encrypt=false", func(p connectParams) bool { return !p.encrypt && !p.disableEncryption }},
