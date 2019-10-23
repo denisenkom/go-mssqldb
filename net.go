@@ -7,8 +7,8 @@ import (
 )
 
 type timeoutConn struct {
-	c             net.Conn
-	timeout       time.Duration
+	c       net.Conn
+	timeout time.Duration
 }
 
 func newTimeoutConn(conn net.Conn, timeout time.Duration) *timeoutConn {
@@ -65,7 +65,7 @@ func (c timeoutConn) SetWriteDeadline(t time.Time) error {
 // this connection is used during TLS Handshake
 // TDS protocol requires TLS handshake messages to be sent inside TDS packets
 type tlsHandshakeConn struct {
-	buf *tdsBuffer
+	buf           *TdsBuffer
 	packetPending bool
 	continueRead  bool
 }

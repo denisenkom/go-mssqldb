@@ -22,7 +22,7 @@ func (t *MockTransport) Close() error {
 
 func TestSendLogin(t *testing.T) {
 	memBuf := new(MockTransport)
-	buf := newTdsBuffer(1024, memBuf)
+	buf := NewTdsBuffer(1024, memBuf)
 	login := login{
 		TDSVersion:     verTDS73,
 		PacketSize:     0x1000,
@@ -175,8 +175,6 @@ func (l testLogger) Printf(format string, v ...interface{}) {
 func (l testLogger) Println(v ...interface{}) {
 	l.t.Log(v...)
 }
-
-
 
 func TestConnect(t *testing.T) {
 	checkConnStr(t)
@@ -413,7 +411,7 @@ func TestSSPIAuth(t *testing.T) {
 
 func TestUcs22Str(t *testing.T) {
 	// Test valid input
-	s, err := ucs22str([]byte{0x31, 0, 0x32, 0, 0x33, 0})  // 123 in UCS2 encoding
+	s, err := ucs22str([]byte{0x31, 0, 0x32, 0, 0x33, 0}) // 123 in UCS2 encoding
 	if err != nil {
 		t.Errorf("ucs22str should not fail for valid ucs2 byte sequence: %s", err)
 	}
@@ -429,7 +427,7 @@ func TestUcs22Str(t *testing.T) {
 }
 
 func TestReadUcs2(t *testing.T) {
-	buf := bytes.NewBuffer([]byte{0x31, 0, 0x32, 0, 0x33, 0})  // 123 in UCS2 encoding
+	buf := bytes.NewBuffer([]byte{0x31, 0, 0x32, 0, 0x33, 0}) // 123 in UCS2 encoding
 	s, err := readUcs2(buf, 3)
 	if err != nil {
 		t.Errorf("readUcs2 should not fail for valid ucs2 byte sequence: %s", err)
@@ -447,7 +445,7 @@ func TestReadUcs2(t *testing.T) {
 
 func TestReadUsVarChar(t *testing.T) {
 	// should succeed for valid buffer
-	buf := bytes.NewBuffer([]byte{3, 0, 0x31, 0, 0x32, 0, 0x33, 0})  // 123 in UCS2 encoding with length prefix 3 uint16
+	buf := bytes.NewBuffer([]byte{3, 0, 0x31, 0, 0x32, 0, 0x33, 0}) // 123 in UCS2 encoding with length prefix 3 uint16
 	s, err := readUsVarChar(buf)
 	if err != nil {
 		t.Errorf("readUsVarChar should not fail for valid ucs2 byte sequence: %s", err)

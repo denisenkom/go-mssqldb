@@ -100,24 +100,24 @@ const (
 // prelogin fields
 // http://msdn.microsoft.com/en-us/library/dd357559.aspx
 const (
-	preloginVERSION    = 0
-	preloginENCRYPTION = 1
-	preloginINSTOPT    = 2
-	preloginTHREADID   = 3
-	preloginMARS       = 4
-	preloginTRACEID    = 5
-	preloginTERMINATOR = 0xff
+	PreloginVERSION    = 0
+	PreloginENCRYPTION = 1
+	PreloginINSTOPT    = 2
+	PreloginTHREADID   = 3
+	PreloginMARS       = 4
+	PreloginTRACEID    = 5
+	PreloginTERMINATOR = 0xff
 )
 
 const (
-	encryptOff    = 0 // Encryption is available but off.
-	encryptOn     = 1 // Encryption is available and on.
-	encryptNotSup = 2 // Encryption is not available.
-	encryptReq    = 3 // Encryption is required.
+	EncryptOff    = 0 // Encryption is available but off.
+	EncryptOn     = 1 // Encryption is available and on.
+	EncryptNotSup = 2 // Encryption is not available.
+	EncryptReq    = 3 // Encryption is required.
 )
 
 type tdsSession struct {
-	buf          *tdsBuffer
+	buf          *TdsBuffer
 	loginAck     loginAckStruct
 	database     string
 	partner      string
@@ -146,19 +146,19 @@ type columnStruct struct {
 	ti       typeInfo
 }
 
-type keySlice []uint8
+type KeySlice []uint8
 
-func (p keySlice) Len() int           { return len(p) }
-func (p keySlice) Less(i, j int) bool { return p[i] < p[j] }
-func (p keySlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p KeySlice) Len() int           { return len(p) }
+func (p KeySlice) Less(i, j int) bool { return p[i] < p[j] }
+func (p KeySlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 // http://msdn.microsoft.com/en-us/library/dd357559.aspx
-func writePrelogin(w *tdsBuffer, fields map[uint8][]byte) error {
+func writePrelogin(w *TdsBuffer, fields map[uint8][]byte) error {
 	var err error
 
 	w.BeginPacket(packPrelogin, false)
 	offset := uint16(5*len(fields) + 1)
-	keys := make(keySlice, 0, len(fields))
+	keys := make(KeySlice, 0, len(fields))
 	for k, _ := range fields {
 		keys = append(keys, k)
 	}
@@ -181,7 +181,7 @@ func writePrelogin(w *tdsBuffer, fields map[uint8][]byte) error {
 		}
 		offset += size
 	}
-	err = w.WriteByte(preloginTERMINATOR)
+	err = w.WriteByte(PreloginTERMINATOR)
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func writePrelogin(w *tdsBuffer, fields map[uint8][]byte) error {
 	return w.FinishPacket()
 }
 
-func readPrelogin(r *tdsBuffer) (map[uint8][]byte, error) {
+func readPrelogin(r *TdsBuffer) (map[uint8][]byte, error) {
 	packet_type, err := r.BeginRead()
 	if err != nil {
 		return nil, err
@@ -215,7 +215,7 @@ func readPrelogin(r *tdsBuffer) (map[uint8][]byte, error) {
 	results := map[uint8][]byte{}
 	for true {
 		rec_type := struct_buf[offset]
-		if rec_type == preloginTERMINATOR {
+		if rec_type == PreloginTERMINATOR {
 			break
 		}
 
@@ -345,7 +345,7 @@ func manglePassword(password string) []byte {
 }
 
 // http://msdn.microsoft.com/en-us/library/dd304019.aspx
-func sendLogin(w *tdsBuffer, login login) error {
+func sendLogin(w *TdsBuffer, login login) error {
 	w.BeginPacket(packLogin7, false)
 	hostname := str2ucs2(login.HostName)
 	username := str2ucs2(login.UserName)
@@ -624,7 +624,7 @@ func writeAllHeaders(w io.Writer, headers []headerStruct) (err error) {
 	return nil
 }
 
-func sendSqlBatch72(buf *tdsBuffer, sqltext string, headers []headerStruct, resetSession bool) (err error) {
+func sendSqlBatch72(buf *TdsBuffer, sqltext string, headers []headerStruct, resetSession bool) (err error) {
 	buf.BeginPacket(packSQLBatch, resetSession)
 
 	if err = writeAllHeaders(buf, headers); err != nil {
@@ -640,7 +640,7 @@ func sendSqlBatch72(buf *tdsBuffer, sqltext string, headers []headerStruct, rese
 
 // 2.2.1.7 Attention: https://msdn.microsoft.com/en-us/library/dd341449.aspx
 // 4.19.2 Out-of-Band Attention Signal: https://msdn.microsoft.com/en-us/library/dd305167.aspx
-func sendAttention(buf *tdsBuffer) error {
+func sendAttention(buf *TdsBuffer) error {
 	buf.BeginPacket(packAttention, false)
 	return buf.FinishPacket()
 }
@@ -752,7 +752,7 @@ initiate_connection:
 
 	toconn := newTimeoutConn(conn, p.conn_timeout)
 
-	outbuf := newTdsBuffer(p.packetSize, toconn)
+	outbuf := NewTdsBuffer(p.packetSize, toconn)
 	sess := tdsSession{
 		buf:      outbuf,
 		log:      log,
@@ -763,18 +763,18 @@ initiate_connection:
 	instance_buf = append(instance_buf, 0) // zero terminate instance name
 	var encrypt byte
 	if p.disableEncryption {
-		encrypt = encryptNotSup
+		encrypt = EncryptNotSup
 	} else if p.encrypt {
-		encrypt = encryptOn
+		encrypt = EncryptOn
 	} else {
-		encrypt = encryptOff
+		encrypt = EncryptOff
 	}
 	fields := map[uint8][]byte{
-		preloginVERSION:    {0, 0, 0, 0, 0, 0},
-		preloginENCRYPTION: {encrypt},
-		preloginINSTOPT:    instance_buf,
-		preloginTHREADID:   {0, 0, 0, 0},
-		preloginMARS:       {0}, // MARS disabled
+		PreloginVERSION:    {0, 0, 0, 0, 0, 0},
+		PreloginENCRYPTION: {encrypt},
+		PreloginINSTOPT:    instance_buf,
+		PreloginTHREADID:   {0, 0, 0, 0},
+		PreloginMARS:       {0}, // MARS disabled
 	}
 
 	err = writePrelogin(outbuf, fields)
@@ -787,16 +787,16 @@ initiate_connection:
 		return nil, err
 	}
 
-	encryptBytes, ok := fields[preloginENCRYPTION]
+	encryptBytes, ok := fields[PreloginENCRYPTION]
 	if !ok {
 		return nil, fmt.Errorf("Encrypt negotiation failed")
 	}
 	encrypt = encryptBytes[0]
-	if p.encrypt && (encrypt == encryptNotSup || encrypt == encryptOff) {
+	if p.encrypt && (encrypt == EncryptNotSup || encrypt == EncryptOff) {
 		return nil, fmt.Errorf("Server does not support encryption")
 	}
 
-	if encrypt != encryptNotSup {
+	if encrypt != EncryptNotSup {
 		var config tls.Config
 		if p.certificate != "" {
 			pem, err := ioutil.ReadFile(p.certificate)
@@ -826,7 +826,7 @@ initiate_connection:
 		if err != nil {
 			return nil, fmt.Errorf("TLS Handshake failed: %v", err)
 		}
-		if encrypt == encryptOff {
+		if encrypt == EncryptOff {
 			outbuf.afterFirst = func() {
 				outbuf.transport = toconn
 			}
