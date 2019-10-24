@@ -29,15 +29,15 @@ func (failBuffer) Close() error {
 	return nil
 }
 
-func makeBuf(bufSize uint16, testData []byte) *tdsBuffer {
+func makeBuf(bufSize uint16, testData []byte) *TdsBuffer {
 	buffer := closableBuffer{bytes.NewBuffer(testData)}
-	return newTdsBuffer(bufSize, &buffer)
+	return NewTdsBuffer(bufSize, &buffer)
 }
 
 func TestStreamShorterThanHeader(t *testing.T) {
 	//buffer := closableBuffer{*bytes.NewBuffer([]byte{0xFF, 0xFF})}
 	//buffer := closableBuffer{*bytes.NewBuffer([]byte{0x6F, 0x96, 0x19, 0xFF, 0x8B, 0x86, 0xD0, 0x11, 0xB4, 0x2D, 0x00, 0xC0, 0x4F, 0xC9, 0x64, 0xFF})}
-	//tdsBuffer := newTdsBuffer(100, &buffer)
+	//TdsBuffer := NewTdsBuffer(100, &buffer)
 	buffer := makeBuf(100, []byte{0xFF, 0xFF})
 	_, err := buffer.BeginRead()
 	if err == nil {
@@ -187,7 +187,7 @@ func TestReadFailsOnSecondPacket(t *testing.T) {
 
 func TestWrite(t *testing.T) {
 	memBuf := bytes.NewBuffer([]byte{})
-	buf := newTdsBuffer(11, closableBuffer{memBuf})
+	buf := NewTdsBuffer(11, closableBuffer{memBuf})
 	buf.BeginPacket(1, false)
 	err := buf.WriteByte(2)
 	if err != nil {
@@ -233,7 +233,7 @@ func TestWrite(t *testing.T) {
 
 func TestWriteErrors(t *testing.T) {
 	// write should fail if underlying transport fails
-	buf := newTdsBuffer(uint16(headerSize)+1, failBuffer{})
+	buf := NewTdsBuffer(uint16(headerSize)+1, failBuffer{})
 	buf.BeginPacket(1, false)
 	wrote, err := buf.Write([]byte{0, 0})
 	// may change from error to panic in future
@@ -245,7 +245,7 @@ func TestWriteErrors(t *testing.T) {
 	}
 
 	// writebyte should fail if underlying transport fails
-	buf = newTdsBuffer(uint16(headerSize)+1, failBuffer{})
+	buf = NewTdsBuffer(uint16(headerSize)+1, failBuffer{})
 	buf.BeginPacket(1, false)
 	// first write should not fail because if fits in the buffer
 	err = buf.WriteByte(0)
@@ -261,7 +261,7 @@ func TestWriteErrors(t *testing.T) {
 
 func TestWrite_BufferBounds(t *testing.T) {
 	memBuf := bytes.NewBuffer([]byte{})
-	buf := newTdsBuffer(11, closableBuffer{memBuf})
+	buf := NewTdsBuffer(11, closableBuffer{memBuf})
 
 	buf.BeginPacket(1, false)
 	// write bytes enough to complete a package

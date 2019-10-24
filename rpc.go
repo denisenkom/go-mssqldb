@@ -46,7 +46,7 @@ var (
 )
 
 // http://msdn.microsoft.com/en-us/library/dd357576.aspx
-func sendRpc(buf *tdsBuffer, headers []headerStruct, proc procId, flags uint16, params []param, resetSession bool) (err error) {
+func sendRpc(buf *TdsBuffer, headers []headerStruct, proc procId, flags uint16, params []param, resetSession bool) (err error) {
 	buf.BeginPacket(packRPCRequest, resetSession)
 	writeAllHeaders(buf, headers)
 	if len(proc.name) == 0 {

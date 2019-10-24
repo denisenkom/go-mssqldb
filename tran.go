@@ -28,7 +28,7 @@ const (
 	isolationSnapshot                = 5
 )
 
-func sendBeginXact(buf *tdsBuffer, headers []headerStruct, isolation isoLevel, name string, resetSession bool) (err error) {
+func sendBeginXact(buf *TdsBuffer, headers []headerStruct, isolation isoLevel, name string, resetSession bool) (err error) {
 	buf.BeginPacket(packTransMgrReq, resetSession)
 	writeAllHeaders(buf, headers)
 	var rqtype uint16 = tmBeginXact
@@ -51,7 +51,7 @@ const (
 	fBeginXact = 1
 )
 
-func sendCommitXact(buf *tdsBuffer, headers []headerStruct, name string, flags uint8, isolation uint8, newname string, resetSession bool) error {
+func sendCommitXact(buf *TdsBuffer, headers []headerStruct, name string, flags uint8, isolation uint8, newname string, resetSession bool) error {
 	buf.BeginPacket(packTransMgrReq, resetSession)
 	writeAllHeaders(buf, headers)
 	var rqtype uint16 = tmCommitXact
@@ -80,7 +80,7 @@ func sendCommitXact(buf *tdsBuffer, headers []headerStruct, name string, flags u
 	return buf.FinishPacket()
 }
 
-func sendRollbackXact(buf *tdsBuffer, headers []headerStruct, name string, flags uint8, isolation uint8, newname string, resetSession bool) error {
+func sendRollbackXact(buf *TdsBuffer, headers []headerStruct, name string, flags uint8, isolation uint8, newname string, resetSession bool) error {
 	buf.BeginPacket(packTransMgrReq, resetSession)
 	writeAllHeaders(buf, headers)
 	var rqtype uint16 = tmRollbackXact

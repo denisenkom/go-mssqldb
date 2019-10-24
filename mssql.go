@@ -152,6 +152,11 @@ type Conn struct {
 	returnStatus *ReturnStatus
 }
 
+// NetConn exposes the underlying transport to the backend
+func (c *Conn) NetConn() net.Conn {
+	return c.sess.buf.transport.(net.Conn)
+}
+
 func (c *Conn) setReturnStatus(s ReturnStatus) {
 	if c.returnStatus == nil {
 		return
