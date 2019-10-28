@@ -397,7 +397,7 @@ func (s *Stmt) Close() error {
 }
 
 func (s *Stmt) SetQueryNotification(id, options string, timeout time.Duration) {
-	to := uint32(timeout / time.Second)
+	to := uint32(timeout / time.Millisecond)
 	if to < 1 {
 		to = 1
 	}
