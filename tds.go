@@ -81,20 +81,20 @@ const (
 // packet types
 // https://msdn.microsoft.com/en-us/library/dd304214.aspx
 const (
-	packSQLBatch   packetType = 1
-	packRPCRequest            = 3
-	packReply                 = 4
+	PackSQLBatch   packetType = 1
+	PackRPCRequest            = 3
+	PackReply                 = 4
 
 	// 2.2.1.7 Attention: https://msdn.microsoft.com/en-us/library/dd341449.aspx
 	// 4.19.2 Out-of-Band Attention Signal: https://msdn.microsoft.com/en-us/library/dd305167.aspx
-	packAttention = 6
+	PackAttention = 6
 
-	packBulkLoadBCP = 7
-	packTransMgrReq = 14
-	packNormal      = 15
-	packLogin7      = 16
-	packSSPIMessage = 17
-	packPrelogin    = 18
+	PackBulkLoadBCP = 7
+	PackTransMgrReq = 14
+	PackNormal      = 15
+	PackLogin7      = 16
+	PackSSPIMessage = 17
+	PackPrelogin    = 18
 )
 
 // prelogin fields
@@ -154,9 +154,12 @@ func (p KeySlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 // http://msdn.microsoft.com/en-us/library/dd357559.aspx
 func writePrelogin(w *TdsBuffer, fields map[uint8][]byte) error {
-	var err error
+	return writePreloginWithPacketType(w, fields, PackPrelogin)
+}
 
-	w.BeginPacket(packPrelogin, false)
+func writePreloginWithPacketType(w *TdsBuffer, fields map[uint8][]byte, packetType packetType) error {
+	var err error
+	w.BeginPacket(packetType, false)
 	offset := uint16(5*len(fields) + 1)
 	keys := make(KeySlice, 0, len(fields))
 	for k, _ := range fields {
@@ -200,6 +203,10 @@ func writePrelogin(w *TdsBuffer, fields map[uint8][]byte) error {
 }
 
 func readPrelogin(r *TdsBuffer) (map[uint8][]byte, error) {
+	return readPreloginWithPacketType(r, PackReply)
+}
+
+func readPreloginWithPacketType(r *TdsBuffer, expectedPacketType packetType) (map[uint8][]byte, error) {
 	packet_type, err := r.BeginRead()
 	if err != nil {
 		return nil, err
@@ -208,8 +215,8 @@ func readPrelogin(r *TdsBuffer) (map[uint8][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if packet_type != 4 {
-		return nil, errors.New("Invalid respones, expected packet type 4, PRELOGIN RESPONSE")
+	if packet_type != expectedPacketType {
+		return nil, errors.New(fmt.Sprintf("Invalid response, expected packet type %d", expectedPacketType))
 	}
 	offset := 0
 	results := map[uint8][]byte{}
@@ -346,7 +353,7 @@ func manglePassword(password string) []byte {
 
 // http://msdn.microsoft.com/en-us/library/dd304019.aspx
 func sendLogin(w *TdsBuffer, login login) error {
-	w.BeginPacket(packLogin7, false)
+	w.BeginPacket(PackLogin7, false)
 	hostname := str2ucs2(login.HostName)
 	username := str2ucs2(login.UserName)
 	password := manglePassword(login.Password)
@@ -625,7 +632,7 @@ func writeAllHeaders(w io.Writer, headers []headerStruct) (err error) {
 }
 
 func sendSqlBatch72(buf *TdsBuffer, sqltext string, headers []headerStruct, resetSession bool) (err error) {
-	buf.BeginPacket(packSQLBatch, resetSession)
+	buf.BeginPacket(PackSQLBatch, resetSession)
 
 	if err = writeAllHeaders(buf, headers); err != nil {
 		return
@@ -641,7 +648,7 @@ func sendSqlBatch72(buf *TdsBuffer, sqltext string, headers []headerStruct, rese
 // 2.2.1.7 Attention: https://msdn.microsoft.com/en-us/library/dd341449.aspx
 // 4.19.2 Out-of-Band Attention Signal: https://msdn.microsoft.com/en-us/library/dd305167.aspx
 func sendAttention(buf *TdsBuffer) error {
-	buf.BeginPacket(packAttention, false)
+	buf.BeginPacket(PackAttention, false)
 	return buf.FinishPacket()
 }
 
@@ -873,7 +880,7 @@ initiate_connection:
 					return nil, err
 				}
 				if sspi_msg != nil && len(sspi_msg) > 0 {
-					outbuf.BeginPacket(packSSPIMessage, false)
+					outbuf.BeginPacket(PackSSPIMessage, false)
 					_, err = outbuf.Write(sspi_msg)
 					if err != nil {
 						return nil, err

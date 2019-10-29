@@ -87,7 +87,7 @@ func (c *tlsHandshakeConn) Read(b []byte) (n int, err error) {
 			err = fmt.Errorf("Cannot read handshake packet: %s", err.Error())
 			return
 		}
-		if packet != packPrelogin {
+		if packet != PackPrelogin {
 			err = fmt.Errorf("unexpected packet %d, expecting prelogin", packet)
 			return
 		}
@@ -98,7 +98,7 @@ func (c *tlsHandshakeConn) Read(b []byte) (n int, err error) {
 
 func (c *tlsHandshakeConn) Write(b []byte) (n int, err error) {
 	if !c.packetPending {
-		c.buf.BeginPacket(packPrelogin, false)
+		c.buf.BeginPacket(PackPrelogin, false)
 		c.packetPending = true
 	}
 	return c.buf.Write(b)

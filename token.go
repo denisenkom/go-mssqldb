@@ -557,8 +557,8 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs map[strin
 		ch <- err
 		return
 	}
-	if packet_type != packReply {
-		badStreamPanic(fmt.Errorf("unexpected packet type in reply: got %v, expected %v", packet_type, packReply))
+	if packet_type != PackReply {
+		badStreamPanic(fmt.Errorf("unexpected packet type in reply: got %v, expected %v", packet_type, PackReply))
 	}
 	var columns []columnStruct
 	errs := make([]Error, 0, 5)
