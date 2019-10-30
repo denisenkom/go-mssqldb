@@ -154,10 +154,10 @@ func (p KeySlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 // http://msdn.microsoft.com/en-us/library/dd357559.aspx
 func writePrelogin(w *TdsBuffer, fields map[uint8][]byte) error {
-	return writePreloginWithPacketType(w, fields, PackPrelogin)
+	return WritePreloginWithPacketType(w, fields, PackPrelogin)
 }
 
-func writePreloginWithPacketType(w *TdsBuffer, fields map[uint8][]byte, packetType packetType) error {
+func WritePreloginWithPacketType(w *TdsBuffer, fields map[uint8][]byte, packetType packetType) error {
 	var err error
 	w.BeginPacket(packetType, false)
 	offset := uint16(5*len(fields) + 1)
@@ -203,10 +203,10 @@ func writePreloginWithPacketType(w *TdsBuffer, fields map[uint8][]byte, packetTy
 }
 
 func readPrelogin(r *TdsBuffer) (map[uint8][]byte, error) {
-	return readPreloginWithPacketType(r, PackReply)
+	return ReadPreloginWithPacketType(r, PackReply)
 }
 
-func readPreloginWithPacketType(r *TdsBuffer, expectedPacketType packetType) (map[uint8][]byte, error) {
+func ReadPreloginWithPacketType(r *TdsBuffer, expectedPacketType packetType) (map[uint8][]byte, error) {
 	packet_type, err := r.BeginRead()
 	if err != nil {
 		return nil, err
