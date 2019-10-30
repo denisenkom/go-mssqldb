@@ -13,7 +13,7 @@ var (
 	database = flag.String("database", "", "the database name")
 )
 
-// This example shows the how to set query notifications
+// This example shows the how to set query notifications on a pre-existing table
 func ExampleStmt_SetQueryNotification() {
 	connString := fmt.Sprintf("server=%s;user id=%s;password=%s;port=%d;database=%s;", *server, *user, *password, *port, *database)
 
@@ -36,6 +36,7 @@ func ExampleStmt_SetQueryNotification() {
 	defer sqlstmt.Close()
 	sqlstmt.SetQueryNotification("Message", "service=myService", time.Hour)
 
+	// Query will return the result of the above select statement and subscription for the query notification will be created.
 	rows, err := sqlstmt.Query(nil)
 	if err != nil {
 		log.Fatal("Query failed:", err.Error())
