@@ -119,7 +119,7 @@ func (w *TdsBuffer) BeginPacket(packetType packetType, resetSession bool) {
 	if resetSession {
 		switch packetType {
 		// Reset session can only be set on the following packet types.
-		case packSQLBatch, packRPCRequest, packTransMgrReq:
+		case PackSQLBatch, PackRPCRequest, PackTransMgrReq:
 			status = 0x8
 		}
 	}

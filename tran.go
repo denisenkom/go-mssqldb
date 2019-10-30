@@ -29,7 +29,7 @@ const (
 )
 
 func sendBeginXact(buf *TdsBuffer, headers []headerStruct, isolation isoLevel, name string, resetSession bool) (err error) {
-	buf.BeginPacket(packTransMgrReq, resetSession)
+	buf.BeginPacket(PackTransMgrReq, resetSession)
 	writeAllHeaders(buf, headers)
 	var rqtype uint16 = tmBeginXact
 	err = binary.Write(buf, binary.LittleEndian, &rqtype)
@@ -52,7 +52,7 @@ const (
 )
 
 func sendCommitXact(buf *TdsBuffer, headers []headerStruct, name string, flags uint8, isolation uint8, newname string, resetSession bool) error {
-	buf.BeginPacket(packTransMgrReq, resetSession)
+	buf.BeginPacket(PackTransMgrReq, resetSession)
 	writeAllHeaders(buf, headers)
 	var rqtype uint16 = tmCommitXact
 	err := binary.Write(buf, binary.LittleEndian, &rqtype)
@@ -81,7 +81,7 @@ func sendCommitXact(buf *TdsBuffer, headers []headerStruct, name string, flags u
 }
 
 func sendRollbackXact(buf *TdsBuffer, headers []headerStruct, name string, flags uint8, isolation uint8, newname string, resetSession bool) error {
-	buf.BeginPacket(packTransMgrReq, resetSession)
+	buf.BeginPacket(PackTransMgrReq, resetSession)
 	writeAllHeaders(buf, headers)
 	var rqtype uint16 = tmRollbackXact
 	err := binary.Write(buf, binary.LittleEndian, &rqtype)

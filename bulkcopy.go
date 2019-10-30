@@ -146,7 +146,7 @@ func (b *Bulk) sendBulkCommand(ctx context.Context) (err error) {
 	b.headerSent = true
 
 	var buf = b.cn.sess.buf
-	buf.BeginPacket(packBulkLoadBCP, false)
+	buf.BeginPacket(PackBulkLoadBCP, false)
 
 	// Send the columns metadata.
 	columnMetadata := b.createColMetadata()

@@ -47,7 +47,7 @@ var (
 
 // http://msdn.microsoft.com/en-us/library/dd357576.aspx
 func sendRpc(buf *TdsBuffer, headers []headerStruct, proc procId, flags uint16, params []param, resetSession bool) (err error) {
-	buf.BeginPacket(packRPCRequest, resetSession)
+	buf.BeginPacket(PackRPCRequest, resetSession)
 	writeAllHeaders(buf, headers)
 	if len(proc.name) == 0 {
 		var idswitch uint16 = 0xffff
