@@ -10,7 +10,11 @@ import (
 )
 
 var (
-	database = flag.String("database", "", "the database name")
+	password      = flag.String("password", "", "the database password")
+	port     *int = flag.Int("port", 1433, "the database port")
+	server        = flag.String("server", "", "the database server")
+	user          = flag.String("user", "", "the database user")
+	database      = flag.String("database", "", "the database name")
 )
 
 // This example shows the how to set query notifications on a pre-existing table
