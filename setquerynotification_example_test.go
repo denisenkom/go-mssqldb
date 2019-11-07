@@ -1,7 +1,6 @@
 package mssql_test
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"time"
@@ -9,17 +8,15 @@ import (
 	mssql "github.com/denisenkom/go-mssqldb"
 )
 
-var (
-	password      = flag.String("password", "", "the database password")
-	port     *int = flag.Int("port", 1433, "the database port")
-	server        = flag.String("server", "", "the database server")
-	user          = flag.String("user", "", "the database user")
-	database      = flag.String("database", "", "the database name")
-)
-
 // This example shows the how to set query notifications on a pre-existing table
 func ExampleStmt_SetQueryNotification() {
-	connString := fmt.Sprintf("server=%s;user id=%s;password=%s;port=%d;database=%s;", *server, *user, *password, *port, *database)
+	password := ""
+	port := 1433
+	server := ""
+	user := ""
+	database := ""
+
+	connString := fmt.Sprintf("server=%s;user id=%s;password=%s;port=%d;database=%s;", server, user, password, port, database)
 
 	mssqldriver := &mssql.Driver{}
 	cn, err := mssqldriver.Open(connString)
