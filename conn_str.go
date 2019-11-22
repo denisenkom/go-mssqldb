@@ -11,6 +11,8 @@ import (
 	"unicode"
 )
 
+const defaultServerPort = 1433
+
 type connectParams struct {
 	logFlags                  uint64
 	port                      uint64
@@ -453,4 +455,16 @@ func splitConnectionStringOdbc(dsn string) (map[string]string, error) {
 // Normalizes the given string as an ODBC-format key
 func normalizeOdbcKey(s string) string {
 	return strings.ToLower(strings.TrimRightFunc(s, unicode.IsSpace))
+}
+
+func resolveServerPort(port uint64) uint64 {
+	if port == 0 {
+		return defaultServerPort
+	}
+
+	return port
+}
+
+func generateSpn(host string, port uint64) string {
+	return fmt.Sprintf("MSSQLSvc/%s:%d", host, port)
 }
