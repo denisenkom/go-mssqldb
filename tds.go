@@ -724,7 +724,7 @@ func connect(ctx context.Context, c *Connector, log optionalLogger, p connectPar
 		defer cancel()
 	}
 	// if instance is specified use instance resolution service
-	if p.instance != "" {
+	if p.instance != "" && p.port == 0 {
 		p.instance = strings.ToUpper(p.instance)
 		d := c.getDialer(&p)
 		instances, err := getInstances(dialCtx, d, p.host)
