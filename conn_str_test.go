@@ -53,6 +53,7 @@ func TestValidConnectionString(t *testing.T) {
 		}},
 		{"server=.", func(p connectParams) bool { return p.host == "localhost" }},
 		{"server=(local)", func(p connectParams) bool { return p.host == "localhost" }},
+		{"server=somehost,1434", func(p connectParams) bool { return p.host == "somehost" && p.port == 1434 }},
 		{"ServerSPN=serverspn;Workstation ID=workstid", func(p connectParams) bool { return p.serverSPN == "serverspn" && p.workstation == "workstid" }},
 		{"failoverpartner=fopartner;failoverport=2000", func(p connectParams) bool { return p.failOverPartner == "fopartner" && p.failOverPort == 2000 }},
 		{"app name=appname;applicationintent=ReadOnly;database=testdb", func(p connectParams) bool { return p.appname == "appname" && (p.typeFlags&fReadOnlyIntent != 0) }},

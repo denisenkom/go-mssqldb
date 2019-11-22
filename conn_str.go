@@ -247,6 +247,15 @@ func splitConnectionString(dsn string) (res map[string]string) {
 			value = strings.TrimSpace(lst[1])
 		}
 		res[name] = value
+
+		// Allow "server=hostname,port" format
+		if name == "server" && strings.Contains(value, ",") {
+			values := strings.SplitN(value, ",", 2)
+			if len(values) == 2 {
+				res["server"] = strings.TrimSpace(values[0])
+				res["port"] = strings.TrimSpace(values[1])
+			}
+		}
 	}
 	return res
 }
