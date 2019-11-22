@@ -66,7 +66,7 @@ func TestValidConnectionString(t *testing.T) {
 		{"connection timeout=3;dial timeout=4;keepalive=5", func(p connectParams) bool {
 			return p.conn_timeout == 3*time.Second && p.dial_timeout == 4*time.Second && p.keepAlive == 5*time.Second
 		}},
-		{"log=63", func(p connectParams) bool { return p.logFlags == 63 && p.port == 1433 }},
+		{"log=63", func(p connectParams) bool { return p.logFlags == 63 && p.port == 0 }},
 		{"log=63;port=1000", func(p connectParams) bool { return p.logFlags == 63 && p.port == 1000 }},
 		{"log=64", func(p connectParams) bool { return p.logFlags == 64 && p.packetSize == 4096 }},
 		{"log=64;packet size=0", func(p connectParams) bool { return p.logFlags == 64 && p.packetSize == 512 }},
@@ -127,16 +127,16 @@ func TestValidConnectionString(t *testing.T) {
 
 		// URL mode
 		{"sqlserver://somehost?connection+timeout=30", func(p connectParams) bool {
-			return p.host == "somehost" && p.port == 1433 && p.instance == "" && p.conn_timeout == 30*time.Second
+			return p.host == "somehost" && p.port == 0 && p.instance == "" && p.conn_timeout == 30*time.Second
 		}},
 		{"sqlserver://someuser@somehost?connection+timeout=30", func(p connectParams) bool {
-			return p.host == "somehost" && p.port == 1433 && p.instance == "" && p.user == "someuser" && p.password == "" && p.conn_timeout == 30*time.Second
+			return p.host == "somehost" && p.port == 0 && p.instance == "" && p.user == "someuser" && p.password == "" && p.conn_timeout == 30*time.Second
 		}},
 		{"sqlserver://someuser:@somehost?connection+timeout=30", func(p connectParams) bool {
-			return p.host == "somehost" && p.port == 1433 && p.instance == "" && p.user == "someuser" && p.password == "" && p.conn_timeout == 30*time.Second
+			return p.host == "somehost" && p.port == 0 && p.instance == "" && p.user == "someuser" && p.password == "" && p.conn_timeout == 30*time.Second
 		}},
 		{"sqlserver://someuser:foo%3A%2F%5C%21~%40;bar@somehost?connection+timeout=30", func(p connectParams) bool {
-			return p.host == "somehost" && p.port == 1433 && p.instance == "" && p.user == "someuser" && p.password == "foo:/\\!~@;bar" && p.conn_timeout == 30*time.Second
+			return p.host == "somehost" && p.port == 0 && p.instance == "" && p.user == "someuser" && p.password == "foo:/\\!~@;bar" && p.conn_timeout == 30*time.Second
 		}},
 		{"sqlserver://someuser:foo%3A%2F%5C%21~%40;bar@somehost:1434?connection+timeout=30", func(p connectParams) bool {
 			return p.host == "somehost" && p.port == 1434 && p.instance == "" && p.user == "someuser" && p.password == "foo:/\\!~@;bar" && p.conn_timeout == 30*time.Second

@@ -80,7 +80,7 @@ func parseConnectParams(dsn string) (connectParams, error) {
 	p.user = params["user id"]
 	p.password = params["password"]
 
-	p.port = 1433
+	p.port = 0
 	strport, ok := params["port"]
 	if ok {
 		var err error
@@ -185,7 +185,7 @@ func parseConnectParams(dsn string) (connectParams, error) {
 	if ok {
 		p.serverSPN = serverSPN
 	} else {
-		p.serverSPN = fmt.Sprintf("MSSQLSvc/%s:%d", p.host, p.port)
+		p.serverSPN = generateSpn(p.host, resolveServerPort(p.port))
 	}
 
 	workstation, ok := params["workstation id"]
