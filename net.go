@@ -148,21 +148,21 @@ func (c passthroughConn) Close() error {
 }
 
 func (c passthroughConn) LocalAddr() net.Addr {
-	panic("Not implemented")
+	return c.c.LocalAddr()
 }
 
 func (c passthroughConn) RemoteAddr() net.Addr {
-	panic("Not implemented")
+	return c.c.RemoteAddr()
 }
 
 func (c passthroughConn) SetDeadline(t time.Time) error {
-	panic("Not implemented")
+	return c.c.SetDeadline(t)
 }
 
 func (c passthroughConn) SetReadDeadline(t time.Time) error {
-	panic("Not implemented")
+	return c.c.SetReadDeadline(t)
 }
 
 func (c passthroughConn) SetWriteDeadline(t time.Time) error {
-	panic("Not implemented")
+	return c.c.SetWriteDeadline(t)
 }
