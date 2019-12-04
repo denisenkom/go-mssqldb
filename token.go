@@ -386,11 +386,11 @@ func processEnvChg(sess *tdsSession) {
 }
 
 // http://msdn.microsoft.com/en-us/library/dd358180.aspx
-func parseReturnStatus(r *tdsBuffer) ReturnStatus {
+func parseReturnStatus(r *TdsBuffer) ReturnStatus {
 	return ReturnStatus(r.int32())
 }
 
-func parseOrder(r *tdsBuffer) (res orderStruct) {
+func parseOrder(r *TdsBuffer) (res orderStruct) {
 	len := int(r.uint16())
 	res.ColIds = make([]uint16, len/2)
 	for i := 0; i < len/2; i++ {
@@ -400,7 +400,7 @@ func parseOrder(r *tdsBuffer) (res orderStruct) {
 }
 
 // https://msdn.microsoft.com/en-us/library/dd340421.aspx
-func parseDone(r *tdsBuffer) (res doneStruct) {
+func parseDone(r *TdsBuffer) (res doneStruct) {
 	res.Status = r.uint16()
 	res.CurCmd = r.uint16()
 	res.RowCount = r.uint64()
@@ -408,7 +408,7 @@ func parseDone(r *tdsBuffer) (res doneStruct) {
 }
 
 // https://msdn.microsoft.com/en-us/library/dd340553.aspx
-func parseDoneInProc(r *tdsBuffer) (res doneInProcStruct) {
+func parseDoneInProc(r *TdsBuffer) (res doneInProcStruct) {
 	res.Status = r.uint16()
 	res.CurCmd = r.uint16()
 	res.RowCount = r.uint64()
@@ -417,7 +417,7 @@ func parseDoneInProc(r *tdsBuffer) (res doneInProcStruct) {
 
 type sspiMsg []byte
 
-func parseSSPIMsg(r *tdsBuffer) sspiMsg {
+func parseSSPIMsg(r *TdsBuffer) sspiMsg {
 	size := r.uint16()
 	buf := make([]byte, size)
 	r.ReadFull(buf)
@@ -431,7 +431,7 @@ type loginAckStruct struct {
 	ProgVer    uint32
 }
 
-func parseLoginAck(r *tdsBuffer) loginAckStruct {
+func parseLoginAck(r *TdsBuffer) loginAckStruct {
 	size := r.uint16()
 	buf := make([]byte, size)
 	r.ReadFull(buf)
@@ -448,7 +448,7 @@ func parseLoginAck(r *tdsBuffer) loginAckStruct {
 }
 
 // http://msdn.microsoft.com/en-us/library/dd357363.aspx
-func parseColMetadata72(r *tdsBuffer) (columns []columnStruct) {
+func parseColMetadata72(r *TdsBuffer) (columns []columnStruct) {
 	count := r.uint16()
 	if count == 0xffff {
 		// no metadata is sent
@@ -468,14 +468,14 @@ func parseColMetadata72(r *tdsBuffer) (columns []columnStruct) {
 }
 
 // http://msdn.microsoft.com/en-us/library/dd357254.aspx
-func parseRow(r *tdsBuffer, columns []columnStruct, row []interface{}) {
+func parseRow(r *TdsBuffer, columns []columnStruct, row []interface{}) {
 	for i, column := range columns {
 		row[i] = column.ti.Reader(&column.ti, r)
 	}
 }
 
 // http://msdn.microsoft.com/en-us/library/dd304783.aspx
-func parseNbcRow(r *tdsBuffer, columns []columnStruct, row []interface{}) {
+func parseNbcRow(r *TdsBuffer, columns []columnStruct, row []interface{}) {
 	bitlen := (len(columns) + 7) / 8
 	pres := make([]byte, bitlen)
 	r.ReadFull(pres)
@@ -489,7 +489,7 @@ func parseNbcRow(r *tdsBuffer, columns []columnStruct, row []interface{}) {
 }
 
 // http://msdn.microsoft.com/en-us/library/dd304156.aspx
-func parseError72(r *tdsBuffer) (res Error) {
+func parseError72(r *TdsBuffer) (res Error) {
 	length := r.uint16()
 	_ = length // ignore length
 	res.Number = r.int32()
@@ -503,7 +503,7 @@ func parseError72(r *tdsBuffer) (res Error) {
 }
 
 // http://msdn.microsoft.com/en-us/library/dd304156.aspx
-func parseInfo(r *tdsBuffer) (res Error) {
+func parseInfo(r *TdsBuffer) (res Error) {
 	length := r.uint16()
 	_ = length // ignore length
 	res.Number = r.int32()
@@ -517,7 +517,7 @@ func parseInfo(r *tdsBuffer) (res Error) {
 }
 
 // https://msdn.microsoft.com/en-us/library/dd303881.aspx
-func parseReturnValue(r *tdsBuffer) (nv namedValue) {
+func parseReturnValue(r *TdsBuffer) (nv namedValue) {
 	/*
 		ParamOrdinal
 		ParamName

@@ -17,11 +17,11 @@ type header struct {
 	Pad        uint8
 }
 
-// tdsBuffer reads and writes TDS packets of data to the transport.
+// TdsBuffer reads and writes TDS packets of data to the transport.
 // The write and read buffers are separate to make sending attn signals
 // possible without locks. Currently attn signals are only sent during
 // reads, not writes.
-type tdsBuffer struct {
+type TdsBuffer struct {
 	transport io.ReadWriteCloser
 
 	packetSize int
@@ -39,14 +39,14 @@ type tdsBuffer struct {
 	final       bool
 	rPacketType packetType
 
-	// afterFirst is assigned to right after tdsBuffer is created and
+	// afterFirst is assigned to right after TdsBuffer is created and
 	// before the first use. It is executed after the first packet is
 	// written and then removed.
 	afterFirst func()
 }
 
-func newTdsBuffer(bufsize uint16, transport io.ReadWriteCloser) *tdsBuffer {
-	return &tdsBuffer{
+func NewTdsBuffer(bufsize uint16, transport io.ReadWriteCloser) *TdsBuffer {
+	return &TdsBuffer{
 		packetSize: int(bufsize),
 		wbuf:       make([]byte, 1<<16),
 		rbuf:       make([]byte, 1<<16),
@@ -55,15 +55,15 @@ func newTdsBuffer(bufsize uint16, transport io.ReadWriteCloser) *tdsBuffer {
 	}
 }
 
-func (rw *tdsBuffer) ResizeBuffer(packetSize int) {
+func (rw *TdsBuffer) ResizeBuffer(packetSize int) {
 	rw.packetSize = packetSize
 }
 
-func (w *tdsBuffer) PackageSize() int {
+func (w *TdsBuffer) PackageSize() int {
 	return w.packetSize
 }
 
-func (w *tdsBuffer) flush() (err error) {
+func (w *TdsBuffer) flush() (err error) {
 	// Write packet size.
 	w.wbuf[0] = byte(w.wPacketType)
 	binary.BigEndian.PutUint16(w.wbuf[2:], uint16(w.wpos))
@@ -88,7 +88,7 @@ func (w *tdsBuffer) flush() (err error) {
 	return nil
 }
 
-func (w *tdsBuffer) Write(p []byte) (total int, err error) {
+func (w *TdsBuffer) Write(p []byte) (total int, err error) {
 	for {
 		copied := copy(w.wbuf[w.wpos:w.packetSize], p)
 		w.wpos += copied
@@ -103,7 +103,7 @@ func (w *tdsBuffer) Write(p []byte) (total int, err error) {
 	}
 }
 
-func (w *tdsBuffer) WriteByte(b byte) error {
+func (w *TdsBuffer) WriteByte(b byte) error {
 	if int(w.wpos) == len(w.wbuf) || w.wpos == w.packetSize {
 		if err := w.flush(); err != nil {
 			return err
@@ -114,7 +114,7 @@ func (w *tdsBuffer) WriteByte(b byte) error {
 	return nil
 }
 
-func (w *tdsBuffer) BeginPacket(packetType packetType, resetSession bool) {
+func (w *TdsBuffer) BeginPacket(packetType packetType, resetSession bool) {
 	status := byte(0)
 	if resetSession {
 		switch packetType {
@@ -129,14 +129,14 @@ func (w *tdsBuffer) BeginPacket(packetType packetType, resetSession bool) {
 	w.wPacketType = packetType
 }
 
-func (w *tdsBuffer) FinishPacket() error {
+func (w *TdsBuffer) FinishPacket() error {
 	w.wbuf[1] |= 1 // Mark this as the last packet in the message.
 	return w.flush()
 }
 
 var headerSize = binary.Size(header{})
 
-func (r *tdsBuffer) readNextPacket() error {
+func (r *TdsBuffer) ReadNextPacket() error {
 	h := header{}
 	var err error
 	err = binary.Read(r.transport, binary.BigEndian, &h)
@@ -160,20 +160,20 @@ func (r *tdsBuffer) readNextPacket() error {
 	return nil
 }
 
-func (r *tdsBuffer) BeginRead() (packetType, error) {
-	err := r.readNextPacket()
+func (r *TdsBuffer) BeginRead() (packetType, error) {
+	err := r.ReadNextPacket()
 	if err != nil {
 		return 0, err
 	}
 	return r.rPacketType, nil
 }
 
-func (r *tdsBuffer) ReadByte() (res byte, err error) {
+func (r *TdsBuffer) ReadByte() (res byte, err error) {
 	if r.rpos == r.rsize {
 		if r.final {
 			return 0, io.EOF
 		}
-		err = r.readNextPacket()
+		err = r.ReadNextPacket()
 		if err != nil {
 			return 0, err
 		}
@@ -183,7 +183,7 @@ func (r *tdsBuffer) ReadByte() (res byte, err error) {
 	return res, nil
 }
 
-func (r *tdsBuffer) byte() byte {
+func (r *TdsBuffer) byte() byte {
 	b, err := r.ReadByte()
 	if err != nil {
 		badStreamPanic(err)
@@ -191,36 +191,36 @@ func (r *tdsBuffer) byte() byte {
 	return b
 }
 
-func (r *tdsBuffer) ReadFull(buf []byte) {
+func (r *TdsBuffer) ReadFull(buf []byte) {
 	_, err := io.ReadFull(r, buf[:])
 	if err != nil {
 		badStreamPanic(err)
 	}
 }
 
-func (r *tdsBuffer) uint64() uint64 {
+func (r *TdsBuffer) uint64() uint64 {
 	var buf [8]byte
 	r.ReadFull(buf[:])
 	return binary.LittleEndian.Uint64(buf[:])
 }
 
-func (r *tdsBuffer) int32() int32 {
+func (r *TdsBuffer) int32() int32 {
 	return int32(r.uint32())
 }
 
-func (r *tdsBuffer) uint32() uint32 {
+func (r *TdsBuffer) uint32() uint32 {
 	var buf [4]byte
 	r.ReadFull(buf[:])
 	return binary.LittleEndian.Uint32(buf[:])
 }
 
-func (r *tdsBuffer) uint16() uint16 {
+func (r *TdsBuffer) uint16() uint16 {
 	var buf [2]byte
 	r.ReadFull(buf[:])
 	return binary.LittleEndian.Uint16(buf[:])
 }
 
-func (r *tdsBuffer) BVarChar() string {
+func (r *TdsBuffer) BVarChar() string {
 	return readBVarCharOrPanic(r)
 }
 
@@ -240,18 +240,18 @@ func readUsVarCharOrPanic(r io.Reader) string {
 	return s
 }
 
-func (r *tdsBuffer) UsVarChar() string {
+func (r *TdsBuffer) UsVarChar() string {
 	return readUsVarCharOrPanic(r)
 }
 
-func (r *tdsBuffer) Read(buf []byte) (copied int, err error) {
+func (r *TdsBuffer) Read(buf []byte) (copied int, err error) {
 	copied = 0
 	err = nil
 	if r.rpos == r.rsize {
 		if r.final {
 			return 0, io.EOF
 		}
-		err = r.readNextPacket()
+		err = r.ReadNextPacket()
 		if err != nil {
 			return
 		}

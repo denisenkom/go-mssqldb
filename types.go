@@ -90,7 +90,7 @@ type typeInfo struct {
 	Collation cp.Collation
 	UdtInfo   udtInfo
 	XmlInfo   xmlInfo
-	Reader    func(ti *typeInfo, r *tdsBuffer) (res interface{})
+	Reader    func(ti *typeInfo, r *TdsBuffer) (res interface{})
 	Writer    func(w io.Writer, ti typeInfo, buf []byte) (err error)
 }
 
@@ -113,7 +113,7 @@ type xmlInfo struct {
 	XmlSchemaCollection string
 }
 
-func readTypeInfo(r *tdsBuffer) (res typeInfo) {
+func readTypeInfo(r *TdsBuffer) (res typeInfo) {
 	res.TypeId = r.byte()
 	switch res.TypeId {
 	case typeNull, typeInt1, typeBit, typeInt2, typeInt4, typeDateTim4,
@@ -309,7 +309,7 @@ func decodeDateTime(buf []byte) time.Time {
 		0, 0, secs, ns, time.UTC)
 }
 
-func readFixedType(ti *typeInfo, r *tdsBuffer) interface{} {
+func readFixedType(ti *typeInfo, r *TdsBuffer) interface{} {
 	r.ReadFull(ti.Buffer)
 	buf := ti.Buffer
 	switch ti.TypeId {
@@ -343,7 +343,7 @@ func readFixedType(ti *typeInfo, r *tdsBuffer) interface{} {
 	panic("shoulnd't get here")
 }
 
-func readByteLenType(ti *typeInfo, r *tdsBuffer) interface{} {
+func readByteLenType(ti *typeInfo, r *TdsBuffer) interface{} {
 	size := r.byte()
 	if size == 0 {
 		return nil
@@ -442,7 +442,7 @@ func writeByteLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
 	return
 }
 
-func readShortLenType(ti *typeInfo, r *tdsBuffer) interface{} {
+func readShortLenType(ti *typeInfo, r *TdsBuffer) interface{} {
 	size := r.uint16()
 	if size == 0xffff {
 		return nil
@@ -485,7 +485,7 @@ func writeShortLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
 	return
 }
 
-func readLongLenType(ti *typeInfo, r *tdsBuffer) interface{} {
+func readLongLenType(ti *typeInfo, r *TdsBuffer) interface{} {
 	// information about this format can be found here:
 	// http://msdn.microsoft.com/en-us/library/dd304783.aspx
 	// and here:
@@ -544,7 +544,7 @@ func writeLongLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
 	return
 }
 
-func readCollation(r *tdsBuffer) (res cp.Collation) {
+func readCollation(r *TdsBuffer) (res cp.Collation) {
 	res.LcidAndFlags = r.uint32()
 	res.SortId = r.byte()
 	return
@@ -560,7 +560,7 @@ func writeCollation(w io.Writer, col cp.Collation) (err error) {
 
 // reads variant value
 // http://msdn.microsoft.com/en-us/library/dd303302.aspx
-func readVariantType(ti *typeInfo, r *tdsBuffer) interface{} {
+func readVariantType(ti *typeInfo, r *TdsBuffer) interface{} {
 	size := r.int32()
 	if size == 0 {
 		return nil
@@ -652,7 +652,7 @@ func readVariantType(ti *typeInfo, r *tdsBuffer) interface{} {
 
 // partially length prefixed stream
 // http://msdn.microsoft.com/en-us/library/dd340469.aspx
-func readPLPType(ti *typeInfo, r *tdsBuffer) interface{} {
+func readPLPType(ti *typeInfo, r *TdsBuffer) interface{} {
 	size := r.uint64()
 	var buf *bytes.Buffer
 	switch size {
@@ -709,7 +709,7 @@ func writePLPType(w io.Writer, ti typeInfo, buf []byte) (err error) {
 	}
 }
 
-func readVarLen(ti *typeInfo, r *tdsBuffer) {
+func readVarLen(ti *typeInfo, r *TdsBuffer) {
 	switch ti.TypeId {
 	case typeDateN:
 		ti.Size = 3
