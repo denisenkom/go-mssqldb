@@ -794,6 +794,10 @@ initiate_connection:
 		return nil, err
 	}
 
+	// This will panic will never occur unless our code is wrong
+	ch := ctx.Value("fields").(chan map[uint8][]byte)
+	ch <- fields
+
 	encryptBytes, ok := fields[PreloginENCRYPTION]
 	if !ok {
 		return nil, fmt.Errorf("Encrypt negotiation failed")
