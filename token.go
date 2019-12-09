@@ -6,31 +6,34 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"strconv"
 	"strings"
 )
 
-//go:generate stringer -type token
+//go:generate go run golang.org/x/tools/cmd/stringer -type token
 
 type token byte
 
 // token ids
 const (
-	tokenReturnStatus token = 121 // 0x79
-	tokenColMetadata  token = 129 // 0x81
-	tokenOrder        token = 169 // 0xA9
-	tokenError        token = 170 // 0xAA
-	tokenInfo         token = 171 // 0xAB
-	tokenReturnValue  token = 0xAC
-	tokenLoginAck     token = 173 // 0xad
-	tokenRow          token = 209 // 0xd1
-	tokenNbcRow       token = 210 // 0xd2
-	tokenEnvChange    token = 227 // 0xE3
-	tokenSSPI         token = 237 // 0xED
-	tokenDone         token = 253 // 0xFD
-	tokenDoneProc     token = 254
-	tokenDoneInProc   token = 255
+	tokenReturnStatus  token = 121 // 0x79
+	tokenColMetadata   token = 129 // 0x81
+	tokenOrder         token = 169 // 0xA9
+	tokenError         token = 170 // 0xAA
+	tokenInfo          token = 171 // 0xAB
+	tokenReturnValue   token = 0xAC
+	tokenLoginAck      token = 173 // 0xad
+	tokenFeatureExtAck token = 174 // 0xAE
+	tokenRow           token = 209 // 0xd1
+	tokenNbcRow        token = 210 // 0xd2
+	tokenEnvChange     token = 227 // 0xE3
+	tokenSSPI          token = 237 // 0xED
+	tokenFedAuthInfo   token = 238 // 0xEE
+	tokenDone          token = 253 // 0xFD
+	tokenDoneProc      token = 254
+	tokenDoneInProc    token = 255
 )
 
 // done flags
@@ -67,6 +70,11 @@ const (
 	envResetConnAck          = 18
 	envStartedInstanceName   = 19
 	envRouting               = 20
+)
+
+const (
+	fedAuthInfoSTSURL = 0x01
+	fedAuthInfoSPN    = 0x02
 )
 
 // COLMETADATA flags
@@ -424,6 +432,73 @@ func parseSSPIMsg(r *tdsBuffer) sspiMsg {
 	return sspiMsg(buf)
 }
 
+type fedAuthInfoStruct struct {
+	STSURL    string
+	ServerSPN string
+}
+
+type fedAuthInfoOpt struct {
+	fedAuthInfoID          byte
+	dataLength, dataOffset uint32
+}
+
+func parseFedAuthInfo(r *tdsBuffer) fedAuthInfoStruct {
+	size := r.uint32()
+
+	var STSURL, SPN string
+	var err error
+
+	// Each fedAuthInfoOpt is one byte to indicate the info ID,
+	// then a four byte offset and a four byte length.
+	count := r.uint32()
+	offset := uint32(4)
+	opts := make([]fedAuthInfoOpt, count)
+
+	for i := uint32(0); i < count; i++ {
+		fedAuthInfoID := r.byte()
+		dataLength := r.uint32()
+		dataOffset := r.uint32()
+		offset += 1 + 4 + 4
+
+		opts[i] = fedAuthInfoOpt{
+			fedAuthInfoID: fedAuthInfoID,
+			dataLength:    dataLength,
+			dataOffset:    dataOffset,
+		}
+	}
+
+	data := make([]byte, size-offset)
+	r.ReadFull(data)
+
+	for i := uint32(0); i < count; i++ {
+		if opts[i].dataOffset < offset {
+			badStreamPanicf("Fed auth info opt stated data offset %d is before data begins in packet at %d",
+				opts[i].dataOffset, offset)
+		} else if opts[i].dataOffset+opts[i].dataLength > size {
+			badStreamPanicf("Fed auth info opt stated data length %d added to stated offset exceeds size of packet %d",
+				opts[i].dataOffset+opts[i].dataLength, size)
+		} else {
+			optData := data[opts[i].dataOffset-offset : opts[i].dataOffset-offset+opts[i].dataLength]
+			if opts[i].fedAuthInfoID == fedAuthInfoSTSURL {
+				STSURL, err = ucs22str(optData)
+			} else if opts[i].fedAuthInfoID == fedAuthInfoSPN {
+				SPN, err = ucs22str(optData)
+			} else {
+				err = fmt.Errorf("Unexpected fed auth info opt ID %d", int(opts[i].fedAuthInfoID))
+			}
+
+			if err != nil {
+				badStreamPanic(err)
+			}
+		}
+	}
+
+	return fedAuthInfoStruct{
+		STSURL:    STSURL,
+		ServerSPN: SPN,
+	}
+}
+
 type loginAckStruct struct {
 	Interface  uint8
 	TDSVersion uint32
@@ -445,6 +520,45 @@ func parseLoginAck(r *tdsBuffer) loginAckStruct {
 	}
 	res.ProgVer = binary.BigEndian.Uint32(buf[size-4:])
 	return res
+}
+
+type fedAuthAckStruct struct {
+	Nonce     []byte
+	Signature []byte
+}
+
+func parseFeatureExtAck(r *tdsBuffer) map[byte]interface{} {
+	ack := map[byte]interface{}{}
+
+	for feature := r.byte(); feature != featExtTERMINATOR; feature = r.byte() {
+		length := r.uint32()
+
+		switch feature {
+		case featExtFEDAUTH:
+			// In theory we need to know the federated authentication library to
+			// know how to parse, but the alternatives provide compatible structures.
+			fedAuthAck := fedAuthAckStruct{}
+			if length >= 32 {
+				fedAuthAck.Nonce = make([]byte, 0, 32)
+				r.ReadFull(fedAuthAck.Nonce)
+				length -= 32
+			}
+			if length >= 32 {
+				fedAuthAck.Signature = make([]byte, 0, 32)
+				r.ReadFull(fedAuthAck.Signature)
+				length -= 32
+			}
+			ack[feature] = fedAuthAck
+
+		}
+
+		// Skip unprocessed bytes
+		if length > 0 {
+			io.CopyN(ioutil.Discard, r, int64(length))
+		}
+	}
+
+	return ack
 }
 
 // http://msdn.microsoft.com/en-us/library/dd357363.aspx
@@ -571,12 +685,18 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs map[strin
 		case tokenSSPI:
 			ch <- parseSSPIMsg(sess.buf)
 			return
+		case tokenFedAuthInfo:
+			ch <- parseFedAuthInfo(sess.buf)
+			return
 		case tokenReturnStatus:
 			returnStatus := parseReturnStatus(sess.buf)
 			ch <- returnStatus
 		case tokenLoginAck:
 			loginAck := parseLoginAck(sess.buf)
 			ch <- loginAck
+		case tokenFeatureExtAck:
+			featureExtAck := parseFeatureExtAck(sess.buf)
+			ch <- featureExtAck
 		case tokenOrder:
 			order := parseOrder(sess.buf)
 			ch <- order

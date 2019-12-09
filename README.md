@@ -54,10 +54,14 @@ Other supported formats are listed below.
   * true - Server certificate is not checked. Default is true if encrypt is not specified. If trust server certificate is true, driver accepts any certificate presented by the server and any host name in that certificate. In this mode, TLS is susceptible to man-in-the-middle attacks. This should be used only for testing.
 * `certificate` - The file that contains the public key certificate of the CA that signed the SQL Server certificate. The specified certificate overrides the go platform specific CA certificates.
 * `hostNameInCertificate` - Specifies the Common Name (CN) in the server certificate. Default value is the server host.
-* `ServerSPN` - The kerberos SPN (Service Principal Name) for the server. Default is MSSQLSvc/host:port.
+* `ServerSPN` - The Kerberos SPN (Service Principal Name) for the server. Default is MSSQLSvc/host:port.
 * `Workstation ID` - The workstation name (default is the host name)
 * `ApplicationIntent` - Can be given the value `ReadOnly` to initiate a read-only connection to an Availability Group listener. The `database` must be specified when connecting with `Application Intent` set to `ReadOnly`. 
-
+* `FedAuth` - The federated authentication scheme to use.
+  * `ActiveDirectoryApplication` - authenticates using an Azure Active Directory application client ID and client secret or certificate. Set the `user` to `client-ID@tenant-ID` and the `password` to the client secret. If using client certificates, provide the path to the PKCS#12 file containing the certificate and RSA private key in the `ClientCertPath` parameter, and set the `password` to the value needed to open the PKCS#12 file.
+  * `ActiveDirectoryMSI` - authenticates using the managed service identity (MSI) attached to the VM, or a specific user-assigned identity if a client ID is specified in the `user` field.
+  * `ActiveDirectoryPassword` - authenticates an Azure Active Directory user account in the form `user@domain.com` with a password. This method is not recommended for general use and does not support multi-factor authentication for accounts.
+  
 ### The connection string can be specified in one of three formats:
 
 

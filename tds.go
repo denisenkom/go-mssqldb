@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -89,24 +90,27 @@ const (
 	// 4.19.2 Out-of-Band Attention Signal: https://msdn.microsoft.com/en-us/library/dd305167.aspx
 	packAttention = 6
 
-	packBulkLoadBCP = 7
-	packTransMgrReq = 14
-	packNormal      = 15
-	packLogin7      = 16
-	packSSPIMessage = 17
-	packPrelogin    = 18
+	packBulkLoadBCP  = 7
+	packFedAuthToken = 8
+	packTransMgrReq  = 14
+	packNormal       = 15
+	packLogin7       = 16
+	packSSPIMessage  = 17
+	packPrelogin     = 18
 )
 
 // prelogin fields
 // http://msdn.microsoft.com/en-us/library/dd357559.aspx
 const (
-	preloginVERSION    = 0
-	preloginENCRYPTION = 1
-	preloginINSTOPT    = 2
-	preloginTHREADID   = 3
-	preloginMARS       = 4
-	preloginTRACEID    = 5
-	preloginTERMINATOR = 0xff
+	preloginVERSION         = 0
+	preloginENCRYPTION      = 1
+	preloginINSTOPT         = 2
+	preloginTHREADID        = 3
+	preloginMARS            = 4
+	preloginTRACEID         = 5
+	preloginFEDAUTHREQUIRED = 6
+	preloginNONCEOPT        = 7
+	preloginTERMINATOR      = 0xff
 )
 
 const (
@@ -114,6 +118,33 @@ const (
 	encryptOn     = 1 // Encryption is available and on.
 	encryptNotSup = 2 // Encryption is not available.
 	encryptReq    = 3 // Encryption is required.
+)
+
+const (
+	featExtSESSIONRECOVERY    byte = 0x01
+	featExtFEDAUTH            byte = 0x02
+	featExtCOLUMNENCRYPTION   byte = 0x04
+	featExtGLOBALTRANSACTIONS byte = 0x05
+	featExtAZURESQLSUPPORT    byte = 0x08
+	featExtDATACLASSIFICATION byte = 0x09
+	featExtUTF8SUPPORT        byte = 0x0A
+	featExtTERMINATOR         byte = 0xFF
+)
+
+// Federated authentication library affects the login data structure and message sequence.
+const (
+	fedAuthLibraryLiveIDCompactToken = 0x00
+	fedAuthLibrarySecurityToken      = 0x01
+	fedAuthLibraryADAL               = 0x02
+
+	fedAuthLibraryReserved = 0x7F
+)
+
+// Federated authentication ADAL workflow affects the mechanism used to authenticate.
+const (
+	fedAuthADALWorkflowPassword   = 0x01
+	fedAuthADALWorkflowIntegrated = 0x02
+	fedAuthADALWorkflowMSI        = 0x03
 )
 
 type tdsSession struct {
@@ -137,6 +168,7 @@ const (
 	logParams      = 16
 	logTransaction = 32
 	logDebug       = 64
+	logTraffic     = 128
 )
 
 type columnStruct struct {
@@ -238,6 +270,16 @@ const (
 	fIntSecurity   = 0x80
 )
 
+// OptionFlags3
+// http://msdn.microsoft.com/en-us/library/dd304019.aspx
+const (
+	fChangePassword           = 1
+	fSendYukonBinaryXML       = 2
+	fUserInstance             = 4
+	fUnknownCollationHandling = 8
+	fExtension                = 0x10
+)
+
 // TypeFlags
 const (
 	// 4 bits for fSQLType
@@ -246,29 +288,34 @@ const (
 )
 
 type login struct {
-	TDSVersion     uint32
-	PacketSize     uint32
-	ClientProgVer  uint32
-	ClientPID      uint32
-	ConnectionID   uint32
-	OptionFlags1   uint8
-	OptionFlags2   uint8
-	TypeFlags      uint8
-	OptionFlags3   uint8
-	ClientTimeZone int32
-	ClientLCID     uint32
-	HostName       string
-	UserName       string
-	Password       string
-	AppName        string
-	ServerName     string
-	CtlIntName     string
-	Language       string
-	Database       string
-	ClientID       [6]byte
-	SSPI           []byte
-	AtchDBFile     string
-	ChangePassword string
+	TDSVersion          uint32
+	PacketSize          uint32
+	ClientProgVer       uint32
+	ClientPID           uint32
+	ConnectionID        uint32
+	OptionFlags1        uint8
+	OptionFlags2        uint8
+	TypeFlags           uint8
+	OptionFlags3        uint8
+	ClientTimeZone      int32
+	ClientLCID          uint32
+	HostName            string
+	UserName            string
+	Password            string
+	AppName             string
+	ServerName          string
+	CtlIntName          string
+	Language            string
+	Database            string
+	ClientID            [6]byte
+	SSPI                []byte
+	AtchDBFile          string
+	ChangePassword      string
+	FedAuthLibrary      byte
+	FedAuthEcho         byte
+	FedAuthToken        string
+	FedAuthNonce        []byte
+	FedAuthADALWorkflow byte
 }
 
 type loginHeader struct {
@@ -295,7 +342,7 @@ type loginHeader struct {
 	ServerNameOffset     uint16
 	ServerNameLength     uint16
 	ExtensionOffset      uint16
-	ExtensionLenght      uint16
+	ExtensionLength      uint16
 	CtlIntNameOffset     uint16
 	CtlIntNameLength     uint16
 	LanguageOffset       uint16
@@ -357,42 +404,81 @@ func sendLogin(w *tdsBuffer, login login) error {
 	database := str2ucs2(login.Database)
 	atchdbfile := str2ucs2(login.AtchDBFile)
 	changepassword := str2ucs2(login.ChangePassword)
+	fedauthtoken := str2ucs2(login.FedAuthToken)
+
+	// Determine if any feature extensions need to be written so we know whether
+	// to include the option flag and offset to the data.
+	var featureExtLength uint32
+	fedAuth := login.FedAuthLibrary == fedAuthLibrarySecurityToken || login.FedAuthLibrary == fedAuthLibraryADAL
+	if login.FedAuthLibrary == fedAuthLibrarySecurityToken {
+		// Each feature extension record is 1 byte to indicate the type of the
+		// feature extension, four bytes for the data size, then the data size.
+		// For the SecurityToken data, the size is one byte to indicate that
+		// it's the SecurityToken library, four bytes for the token length,
+		// then the token bytes.
+		featureExtLength += uint32(1 + 4 + 1 + 4 + len(fedauthtoken))
+	} else if login.FedAuthLibrary == fedAuthLibraryADAL {
+		// In addition to the 1 + 4 bytes for the feature extension header,
+		// ADAL just requires one byte to indicate the library and one to
+		// set the workflow (password, integrated or MSI).
+		featureExtLength += uint32(1 + 4 + 1 + 1)
+	}
+
+	// If any feature extension records are written, a final single-byte terminator
+	// record must also be written, and the fExtension flag must be set.
+	if featureExtLength > 0 {
+		featureExtLength++
+		login.OptionFlags3 |= fExtension
+	} else {
+		login.OptionFlags3 &^= fExtension
+	}
+
 	hdr := loginHeader{
-		TDSVersion:           login.TDSVersion,
-		PacketSize:           login.PacketSize,
-		ClientProgVer:        login.ClientProgVer,
-		ClientPID:            login.ClientPID,
-		ConnectionID:         login.ConnectionID,
-		OptionFlags1:         login.OptionFlags1,
-		OptionFlags2:         login.OptionFlags2,
-		TypeFlags:            login.TypeFlags,
-		OptionFlags3:         login.OptionFlags3,
-		ClientTimeZone:       login.ClientTimeZone,
-		ClientLCID:           login.ClientLCID,
-		HostNameLength:       uint16(utf8.RuneCountInString(login.HostName)),
-		UserNameLength:       uint16(utf8.RuneCountInString(login.UserName)),
-		PasswordLength:       uint16(utf8.RuneCountInString(login.Password)),
-		AppNameLength:        uint16(utf8.RuneCountInString(login.AppName)),
-		ServerNameLength:     uint16(utf8.RuneCountInString(login.ServerName)),
-		CtlIntNameLength:     uint16(utf8.RuneCountInString(login.CtlIntName)),
-		LanguageLength:       uint16(utf8.RuneCountInString(login.Language)),
-		DatabaseLength:       uint16(utf8.RuneCountInString(login.Database)),
-		ClientID:             login.ClientID,
-		SSPILength:           uint16(len(login.SSPI)),
-		AtchDBFileLength:     uint16(utf8.RuneCountInString(login.AtchDBFile)),
-		ChangePasswordLength: uint16(utf8.RuneCountInString(login.ChangePassword)),
+		TDSVersion:       login.TDSVersion,
+		PacketSize:       login.PacketSize,
+		ClientProgVer:    login.ClientProgVer,
+		ClientPID:        login.ClientPID,
+		ConnectionID:     login.ConnectionID,
+		OptionFlags1:     login.OptionFlags1,
+		OptionFlags2:     login.OptionFlags2,
+		TypeFlags:        login.TypeFlags,
+		OptionFlags3:     login.OptionFlags3,
+		ClientTimeZone:   login.ClientTimeZone,
+		ClientLCID:       login.ClientLCID,
+		HostNameLength:   uint16(utf8.RuneCountInString(login.HostName)),
+		AppNameLength:    uint16(utf8.RuneCountInString(login.AppName)),
+		ServerNameLength: uint16(utf8.RuneCountInString(login.ServerName)),
+		CtlIntNameLength: uint16(utf8.RuneCountInString(login.CtlIntName)),
+		LanguageLength:   uint16(utf8.RuneCountInString(login.Language)),
+		DatabaseLength:   uint16(utf8.RuneCountInString(login.Database)),
+		ClientID:         login.ClientID,
+		SSPILength:       uint16(len(login.SSPI)),
+		AtchDBFileLength: uint16(utf8.RuneCountInString(login.AtchDBFile)),
 	}
 	offset := uint16(binary.Size(hdr))
 	hdr.HostNameOffset = offset
 	offset += uint16(len(hostname))
-	hdr.UserNameOffset = offset
-	offset += uint16(len(username))
-	hdr.PasswordOffset = offset
-	offset += uint16(len(password))
+
+	if !fedAuth {
+		hdr.UserNameOffset = offset
+		hdr.UserNameLength = uint16(utf8.RuneCountInString(login.UserName))
+		offset += uint16(len(username))
+		hdr.PasswordOffset = offset
+		hdr.PasswordLength = uint16(utf8.RuneCountInString(login.Password))
+		offset += uint16(len(password))
+	}
+
 	hdr.AppNameOffset = offset
 	offset += uint16(len(appname))
 	hdr.ServerNameOffset = offset
 	offset += uint16(len(servername))
+
+	if featureExtLength > 0 {
+		hdr.ExtensionOffset = offset
+		hdr.ExtensionLength = 4
+		offset += hdr.ExtensionLength
+	}
+
 	hdr.CtlIntNameOffset = offset
 	offset += uint16(len(ctlintname))
 	hdr.LanguageOffset = offset
@@ -403,9 +489,14 @@ func sendLogin(w *tdsBuffer, login login) error {
 	offset += uint16(len(login.SSPI))
 	hdr.AtchDBFileOffset = offset
 	offset += uint16(len(atchdbfile))
-	hdr.ChangePasswordOffset = offset
-	offset += uint16(len(changepassword))
-	hdr.Length = uint32(offset)
+
+	if !fedAuth {
+		hdr.ChangePasswordOffset = offset
+		hdr.ChangePasswordLength = uint16(utf8.RuneCountInString(login.ChangePassword))
+		offset += uint16(len(changepassword))
+	}
+
+	hdr.Length = uint32(offset) + featureExtLength
 	var err error
 	err = binary.Write(w, binary.LittleEndian, &hdr)
 	if err != nil {
@@ -415,13 +506,16 @@ func sendLogin(w *tdsBuffer, login login) error {
 	if err != nil {
 		return err
 	}
-	_, err = w.Write(username)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(password)
-	if err != nil {
-		return err
+
+	if !fedAuth {
+		_, err = w.Write(username)
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(password)
+		if err != nil {
+			return err
+		}
 	}
 	_, err = w.Write(appname)
 	if err != nil {
@@ -430,6 +524,12 @@ func sendLogin(w *tdsBuffer, login login) error {
 	_, err = w.Write(servername)
 	if err != nil {
 		return err
+	}
+	if featureExtLength > 0 {
+		err = binary.Write(w, binary.LittleEndian, uint32(offset))
+		if err != nil {
+			return err
+		}
 	}
 	_, err = w.Write(ctlintname)
 	if err != nil {
@@ -451,10 +551,61 @@ func sendLogin(w *tdsBuffer, login login) error {
 	if err != nil {
 		return err
 	}
-	_, err = w.Write(changepassword)
-	if err != nil {
-		return err
+
+	if !fedAuth {
+		_, err = w.Write(changepassword)
+		if err != nil {
+			return err
+		}
 	}
+
+	// Write the feature extension record for federated authentication, if in use
+	if login.FedAuthLibrary == fedAuthLibrarySecurityToken {
+		w.WriteByte(featExtFEDAUTH)
+		binary.Write(w, binary.LittleEndian, uint32(1+4+len(fedauthtoken)))
+		w.WriteByte(login.FedAuthLibrary<<1 | login.FedAuthEcho)
+		binary.Write(w, binary.LittleEndian, uint32(len(fedauthtoken)))
+		w.Write(fedauthtoken)
+	} else if login.FedAuthLibrary == fedAuthLibraryADAL {
+		w.WriteByte(featExtFEDAUTH)
+		binary.Write(w, binary.LittleEndian, uint32(1+1))
+		w.WriteByte(login.FedAuthLibrary<<1 | login.FedAuthEcho)
+		w.WriteByte(login.FedAuthADALWorkflow)
+	}
+	// Write the feature extension terminator if any feature extensions are written
+	if featureExtLength > 0 {
+		w.WriteByte(featExtTERMINATOR)
+	}
+	return w.FinishPacket()
+}
+
+// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/827d9632-2957-4d54-b9ea-384530ae79d0
+func sendFedAuthInfo(w *tdsBuffer, login login) (err error) {
+	fedauthtoken := str2ucs2(login.FedAuthToken)
+	tokenlen := len(fedauthtoken)
+	datalen := 4 + tokenlen + len(login.FedAuthNonce)
+
+	w.BeginPacket(packFedAuthToken, false)
+	err = binary.Write(w, binary.LittleEndian, uint32(datalen))
+	if err != nil {
+		return
+	}
+
+	err = binary.Write(w, binary.LittleEndian, uint32(tokenlen))
+	if err != nil {
+		return
+	}
+
+	_, err = w.Write(fedauthtoken)
+	if err != nil {
+		return
+	}
+
+	_, err = w.Write(login.FedAuthNonce)
+	if err != nil {
+		return
+	}
+
 	return w.FinishPacket()
 }
 
@@ -751,6 +902,10 @@ initiate_connection:
 		return nil, err
 	}
 
+	if p.logFlags&logTraffic != 0 {
+		conn = newConnLogger(conn, "TCP", log)
+	}
+
 	toconn := newTimeoutConn(conn, p.conn_timeout)
 
 	outbuf := newTdsBuffer(p.packetSize, toconn)
@@ -778,6 +933,10 @@ initiate_connection:
 		preloginMARS:       {0}, // MARS disabled
 	}
 
+	if p.fedAuthLibrary != fedAuthLibraryReserved {
+		fields[preloginFEDAUTHREQUIRED] = []byte{1}
+	}
+
 	err = writePrelogin(outbuf, fields)
 	if err != nil {
 		return nil, err
@@ -786,6 +945,21 @@ initiate_connection:
 	fields, err = readPrelogin(outbuf)
 	if err != nil {
 		return nil, err
+	}
+
+	// If the server returns the preloginFEDAUTHREQUIRED field, then federated authentication
+	// is supported. The actual value may be 0 or 1, where 0 means either SSPI or federated
+	// authentication is allowed, while 1 means only federated authentication is allowed.
+	var fedAuthEcho byte
+	if fedAuthSupport, ok := fields[preloginFEDAUTHREQUIRED]; ok {
+		if len(fedAuthSupport) == 1 {
+			// We need to be able to echo the value back to the server
+			fedAuthEcho = fedAuthSupport[0]
+		} else {
+			return nil, fmt.Errorf("Federated authentication flag length should be 1: is %d", len(fedAuthSupport))
+		}
+	} else if p.fedAuthLibrary != fedAuthLibraryReserved {
+		return nil, fmt.Errorf("Federated authentication is not supported by the server")
 	}
 
 	encryptBytes, ok := fields[preloginENCRYPTION]
@@ -811,6 +985,14 @@ initiate_connection:
 		if p.trustServerCertificate {
 			config.InsecureSkipVerify = true
 		}
+		if p.tlsKeyLogFile != "" {
+			if w, err := os.OpenFile(p.tlsKeyLogFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600); err == nil {
+				defer w.Close()
+				config.KeyLogWriter = w
+			} else {
+				return nil, fmt.Errorf("Cannot open TLS key log file %s: %v", p.tlsKeyLogFile, err)
+			}
+		}
 		config.ServerName = p.hostInCertificate
 		// fix for https://github.com/denisenkom/go-mssqldb/issues/166
 		// Go implementation of TLS payload size heuristic algorithm splits single TDS package to multiple TCP segments,
@@ -823,7 +1005,11 @@ initiate_connection:
 		tlsConn := tls.Client(&passthrough, &config)
 		err = tlsConn.Handshake()
 		passthrough.c = toconn
-		outbuf.transport = tlsConn
+		if sess.logFlags&logTraffic != 0 {
+			outbuf.transport = newConnLogger(tlsConn, "TLS", log)
+		} else {
+			outbuf.transport = tlsConn
+		}
 		if err != nil {
 			return nil, fmt.Errorf("TLS Handshake failed: %v", err)
 		}
@@ -835,23 +1021,54 @@ initiate_connection:
 	}
 
 	login := login{
-		TDSVersion:   verTDS74,
-		PacketSize:   uint32(outbuf.PackageSize()),
-		Database:     p.database,
-		OptionFlags2: fODBC, // to get unlimited TEXTSIZE
-		HostName:     p.workstation,
-		ServerName:   p.host,
-		AppName:      p.appname,
-		TypeFlags:    p.typeFlags,
+		TDSVersion:          verTDS74,
+		PacketSize:          uint32(outbuf.PackageSize()),
+		Database:            p.database,
+		OptionFlags2:        fODBC, // to get unlimited TEXTSIZE
+		HostName:            p.workstation,
+		ServerName:          p.host,
+		AppName:             p.appname,
+		TypeFlags:           p.typeFlags,
+		FedAuthLibrary:      p.fedAuthLibrary,
+		FedAuthEcho:         fedAuthEcho,
+		FedAuthADALWorkflow: p.fedAuthADALWorkflow,
 	}
 	auth, auth_ok := getAuth(p.user, p.password, p.serverSPN, p.workstation)
-	if auth_ok {
+	if login.FedAuthLibrary == fedAuthLibraryReserved && auth_ok {
+		if p.logFlags&logDebug != 0 {
+			log.Println("Starting SSPI login")
+		}
 		login.SSPI, err = auth.InitialBytes()
 		if err != nil {
 			return nil, err
 		}
 		login.OptionFlags2 |= fIntSecurity
 		defer auth.Free()
+	} else if login.FedAuthLibrary == fedAuthLibrarySecurityToken {
+		login.FedAuthToken, err = fedAuthGetAccessToken(ctx, "", p.aadTenantID, p, log)
+		if err != nil {
+			if p.logFlags&logDebug != 0 {
+				log.Printf("Failed to retrieve service principal token for federated authentication security token library: %v", err)
+			}
+			return nil, err
+		}
+		if p.logFlags&logDebug != 0 {
+			log.Println("Successfully obtained service principal token for federated authentication security token library")
+		}
+	} else if login.FedAuthLibrary == fedAuthLibraryADAL {
+		if login.FedAuthADALWorkflow == fedAuthADALWorkflowPassword {
+			if p.logFlags&logDebug != 0 {
+				log.Printf("Starting ADAL username/password workflow for user %s", p.user)
+			}
+			login.UserName = p.user
+			login.Password = p.password
+		} else if login.FedAuthADALWorkflow == fedAuthADALWorkflowMSI {
+			if p.logFlags&logDebug != 0 {
+				log.Println("Starting ADAL managed service identity (MSI) workflow")
+			}
+		} else {
+			return nil, fmt.Errorf("Unsupported ADAL workflow type 0x%02x", int(login.FedAuthADALWorkflow))
+		}
 	} else {
 		login.UserName = p.user
 		login.Password = p.password
@@ -884,6 +1101,20 @@ initiate_connection:
 						return nil, err
 					}
 					sspi_msg = nil
+				}
+			case fedAuthInfoStruct:
+				// For ADAL workflows this contains the STS URL and server SPN.
+				// If received outside of an ADAL workflow, ignore.
+				if login.FedAuthLibrary == fedAuthLibraryADAL {
+					login.FedAuthToken, err = fedAuthGetAccessToken(ctx, token.ServerSPN, token.STSURL, p, log)
+					if err != nil {
+						return nil, err
+					}
+					// Now need to send the token as a FEDINFO packet
+					err = sendFedAuthInfo(outbuf, login)
+					if err != nil {
+						return nil, err
+					}
 				}
 			case loginAckStruct:
 				success = true
