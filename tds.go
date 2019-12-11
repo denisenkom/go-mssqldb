@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/cyberark/secretless-broker/third_party/ctxtypes"
 	"io"
 	"io/ioutil"
 	"net"
@@ -843,6 +844,10 @@ initiate_connection:
 			}
 		}
 	}
+
+	// Intercept prelogin resopnse and send to secretless
+	preLoginResponse := ctx.Value(ctxtypes.PreLoginResponseKey).(chan map[uint8][]byte)
+	preLoginResponse <- fields
 
 	login := login{
 		TDSVersion:   verTDS74,
