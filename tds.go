@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/cyberark/secretless-broker/third_party/ctxtypes"
 	"io"
 	"io/ioutil"
 	"net"
@@ -794,6 +795,10 @@ initiate_connection:
 		return nil, err
 	}
 
+	// This will panic will never occur unless our code is wrong
+	ch := ctx.Value("fields").(chan map[uint8][]byte)
+	ch <- fields
+
 	encryptBytes, ok := fields[PreloginENCRYPTION]
 	if !ok {
 		return nil, fmt.Errorf("Encrypt negotiation failed")
@@ -839,6 +844,10 @@ initiate_connection:
 			}
 		}
 	}
+
+	// Intercept prelogin resopnse and send to secretless
+	preLoginResponse := ctx.Value(ctxtypes.PreLoginResponseKey).(chan map[uint8][]byte)
+	preLoginResponse <- fields
 
 	login := login{
 		TDSVersion:   verTDS74,
