@@ -466,6 +466,135 @@ func sendLogin(w *TdsBuffer, login login) error {
 	return w.FinishPacket()
 }
 
+// Login embeds login. This is a hack to expose login to the outside world while minimising
+// changes to code.
+type Login struct {
+	login
+}
+
+// offsetAfterHeader calculates an offset adjusted for reading from a buffer that starts
+// after the packet header.
+func offsetAfterHeader(offset uint16) int {
+	return headerSize + int(offset)
+}
+
+func readUcs2FromTds(
+	r *TdsBuffer,
+	numchars int,
+	offset uint16,
+) (res string, err error) {
+	r.rpos = offsetAfterHeader(offset)
+	return readUcs2(r, numchars)
+}
+
+// ReadLogin parses a TDS7 login packet.
+func ReadLogin(r *TdsBuffer) (*Login, error) {
+	var err error
+
+	packet_type, err := r.BeginRead()
+	if err != nil {
+		return nil, err
+	}
+
+	if packet_type != PackLogin7 {
+		return nil, errors.New(fmt.Sprintf("Invalid response, expected packet type %d", PackLogin7))
+	}
+
+	hdr := loginHeader{}
+
+	err = binary.Read(r, binary.LittleEndian, &hdr)
+	if err != nil {
+		return nil, err
+	}
+
+	hostname, err := readUcs2FromTds(r, int(hdr.HostNameLength), hdr.HostNameOffset)
+	if err != nil {
+		return nil, err
+	}
+
+	username, err := readUcs2FromTds(r, int(hdr.UserNameLength), hdr.UserNameOffset)
+	if err != nil {
+		return nil, err
+	}
+
+	password, err := readUcs2FromTds(r, int(hdr.PasswordLength), hdr.PasswordOffset)
+	if err != nil {
+		return nil, err
+	}
+
+	appname, err := readUcs2FromTds(r, int(hdr.AppNameLength), hdr.AppNameOffset)
+	if err != nil {
+		return nil, err
+	}
+
+	servername, err := readUcs2FromTds(r, int(hdr.ServerNameLength), hdr.ServerNameOffset)
+	if err != nil {
+		return nil, err
+	}
+
+	ctlintname, err := readUcs2FromTds(r, int(hdr.CtlIntNameLength), hdr.CtlIntNameOffset)
+	if err != nil {
+		return nil, err
+	}
+
+	language, err := readUcs2FromTds(r, int(hdr.LanguageLength), hdr.LanguageOffset)
+	if err != nil {
+		return nil, err
+	}
+
+	database, err := readUcs2FromTds(r, int(hdr.DatabaseLength), hdr.DatabaseOffset)
+	if err != nil {
+		return nil, err
+	}
+
+	r.rpos = offsetAfterHeader(hdr.SSPIOffset)
+	sspi := make([]byte, int(hdr.SSPILength))
+	_, err = io.ReadFull(r, sspi)
+	if err != nil {
+		return nil, err
+	}
+
+	atchdbfile, err := readUcs2FromTds(r, int(hdr.AtchDBFileLength), hdr.AtchDBFileOffset)
+	if err != nil {
+		return nil, err
+	}
+
+	changepassword, err := readUcs2FromTds(
+		r, int(hdr.ChangePasswordLength), hdr.ChangePasswordOffset,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Login{
+		login: login{
+			TDSVersion:     hdr.TDSVersion,
+			PacketSize:     hdr.PacketSize,
+			ClientProgVer:  hdr.ClientProgVer,
+			ClientPID:      hdr.ClientPID,
+			ConnectionID:   hdr.ConnectionID,
+			OptionFlags1:   hdr.OptionFlags1,
+			OptionFlags2:   hdr.OptionFlags2,
+			TypeFlags:      hdr.TypeFlags,
+			OptionFlags3:   hdr.OptionFlags3,
+			ClientTimeZone: hdr.ClientTimeZone,
+			ClientLCID:     hdr.ClientLCID,
+			HostName:       hostname,
+			UserName:       username,
+			Password:       password,
+			AppName:        appname,
+			ServerName:     servername,
+			CtlIntName:     ctlintname,
+			Language:       language,
+			Database:       database,
+			ClientID:       hdr.ClientID,
+			SSPI:           sspi,
+			AtchDBFile:     atchdbfile,
+			ChangePassword: changepassword,
+		},
+	}, nil
+}
+
 func readUcs2(r io.Reader, numchars int) (res string, err error) {
 	buf := make([]byte, numchars*2)
 	_, err = io.ReadFull(r, buf)
@@ -795,14 +924,6 @@ initiate_connection:
 		return nil, err
 	}
 
-	ch := ctx.Value("fields")
-
-	if ch != nil {
-		// This will panic will never occur unless our code is wrong
-		ch := ch.(chan map[uint8][]byte)
-		ch<- fields
-	}
-
 	encryptBytes, ok := fields[PreloginENCRYPTION]
 	if !ok {
 		return nil, fmt.Errorf("Encrypt negotiation failed")
@@ -849,19 +970,43 @@ initiate_connection:
 		}
 	}
 
-	// Intercept prelogin resopnse and send to secretless
-	preLoginResponse := ctx.Value(ctxtypes.PreLoginResponseKey).(chan map[uint8][]byte)
-	preLoginResponse <- fields
+	// Intercept prelogin response and send to secretless
+	if preLoginResponse := ctx.Value(ctxtypes.PreLoginResponseKey); preLoginResponse != nil {
+		// A panic will never occur here unless the calling code is wrong
+		preLoginResponse := preLoginResponse.(chan map[uint8][]byte)
+		preLoginResponse<- fields
+	}
+
+	// Initialise params
+	Database := p.database
+	HostName := p.workstation
+	ServerName := p.host
+	AppName := p.appname
+	TypeFlags := p.typeFlags
+
+	// Replaces params with values from the client Login
+	if clientLoginChan := ctx.Value(ctxtypes.ClientLoginKey); clientLoginChan != nil {
+		// A panic will never occur here unless the calling code is wrong
+		// TODO: perhaps there should be a timeout to this
+		//  suppose the channel was forever empty == leak
+		clientLogin := <- clientLoginChan.(chan Login)
+
+		Database = clientLogin.Database
+		HostName = clientLogin.HostName
+		ServerName = clientLogin.ServerName
+		AppName = clientLogin.AppName
+		TypeFlags = clientLogin.TypeFlags
+	}
 
 	login := login{
 		TDSVersion:   verTDS74,
 		PacketSize:   uint32(outbuf.PackageSize()),
-		Database:     p.database,
+		Database:     Database,
 		OptionFlags2: fODBC, // to get unlimited TEXTSIZE
-		HostName:     p.workstation,
-		ServerName:   p.host,
-		AppName:      p.appname,
-		TypeFlags:    p.typeFlags,
+		HostName:     HostName,
+		ServerName:   ServerName,
+		AppName:      AppName,
+		TypeFlags:    TypeFlags,
 	}
 	auth, auth_ok := getAuth(p.user, p.password, p.serverSPN, p.workstation)
 	if auth_ok {

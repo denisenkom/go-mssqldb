@@ -70,6 +70,159 @@ func TestSendLogin(t *testing.T) {
 	}
 }
 
+func TestReadLogin(t *testing.T) {
+	fail := func (name string, expected, actual interface{}) {
+		fmt.Println("Expected:", expected)
+		fmt.Println("Returned:", actual)
+		t.Errorf("input output don't match for %s", name)
+	}
+
+	buf := NewTdsBuffer(1024, new(MockTransport))
+	expectedLogin := login{
+		TDSVersion:     verTDS73,
+		PacketSize:     0x1000,
+		ClientProgVer:  0x01060100,
+		ClientPID:      100,
+		ConnectionID:   1111,
+		OptionFlags1:   0xe0,
+		OptionFlags2:   0xe2,
+		TypeFlags:      0xa0,
+		OptionFlags3:   0xe5,
+		ClientTimeZone: -4 * 60,
+		ClientLCID:     0x204,
+		HostName:       "subdev1",
+		UserName:       "test",
+		Password:       "testpwd",
+		AppName:        "appname",
+		ServerName:     "servername",
+		CtlIntName:     "library",
+		Language:       "en",
+		Database:       "database",
+		ClientID:       [6]byte{0x12, 0x34, 0x56, 0x78, 0x90, 0xab},
+		SSPI:           []byte{1, 2, 3},
+		AtchDBFile:     "filepath",
+		ChangePassword: "meow",
+	}
+	err := sendLogin(buf, expectedLogin)
+	if err != nil {
+		t.Error("sendLogin should succeed")
+		return
+	}
+
+	actualLogin, err := ReadLogin(buf)
+	if err != nil {
+		t.Error("ReadLogin should succeed")
+		return
+	}
+
+	// reset password because on sendLogin the password gets mangled before being sent
+	// over the wire
+	expectedLogin.Password = ""
+	actualLogin.Password = ""
+
+	if actualLogin.TDSVersion != expectedLogin.TDSVersion {
+		fail("TDSVersion", expectedLogin.TDSVersion, actualLogin.TDSVersion)
+	}
+
+	if actualLogin.PacketSize != expectedLogin.PacketSize {
+		fail("PacketSize", expectedLogin.PacketSize, actualLogin.PacketSize)
+	}
+
+	if actualLogin.ClientProgVer != expectedLogin.ClientProgVer {
+		fail(
+			"ClientProgVer",
+			expectedLogin.ClientProgVer,
+			actualLogin.ClientProgVer)
+	}
+
+	if actualLogin.ClientPID != expectedLogin.ClientPID {
+		fail("ClientPID", expectedLogin.ClientPID, actualLogin.ClientPID)
+	}
+
+	if actualLogin.ConnectionID != expectedLogin.ConnectionID {
+		fail("ConnectionID", expectedLogin.ConnectionID, actualLogin.ConnectionID)
+	}
+
+	if actualLogin.OptionFlags1 != expectedLogin.OptionFlags1 {
+		fail("OptionFlags1", expectedLogin.OptionFlags1, actualLogin.OptionFlags1)
+	}
+
+	if actualLogin.OptionFlags2 != expectedLogin.OptionFlags2 {
+		fail("OptionFlags2", expectedLogin.OptionFlags2, actualLogin.OptionFlags2)
+	}
+
+	if actualLogin.TypeFlags != expectedLogin.TypeFlags {
+		fail("TypeFlags", expectedLogin.TypeFlags, actualLogin.TypeFlags)
+	}
+
+	if actualLogin.OptionFlags3 != expectedLogin.OptionFlags3 {
+		fail("OptionFlags3", expectedLogin.OptionFlags3, actualLogin.OptionFlags3)
+	}
+
+	if actualLogin.ClientTimeZone != expectedLogin.ClientTimeZone {
+		fail(
+			"ClientTimeZone",
+			expectedLogin.ClientTimeZone,
+			actualLogin.ClientTimeZone)
+	}
+
+	if actualLogin.ClientLCID != expectedLogin.ClientLCID {
+		fail("ClientLCID", expectedLogin.ClientLCID, actualLogin.ClientLCID)
+	}
+
+	if actualLogin.HostName != expectedLogin.HostName {
+		fail("HostName", expectedLogin.HostName, actualLogin.HostName)
+	}
+
+	if actualLogin.UserName != expectedLogin.UserName {
+		fail("UserName", expectedLogin.UserName, actualLogin.UserName)
+	}
+
+	if actualLogin.Password != expectedLogin.Password {
+		fail("Password", expectedLogin.Password, actualLogin.Password)
+	}
+
+	if actualLogin.AppName != expectedLogin.AppName {
+		fail("AppName", expectedLogin.AppName, actualLogin.AppName)
+	}
+
+	if actualLogin.ServerName != expectedLogin.ServerName {
+		fail("ServerName", expectedLogin.ServerName, actualLogin.ServerName)
+	}
+
+	if actualLogin.CtlIntName != expectedLogin.CtlIntName {
+		fail("CtlIntName", expectedLogin.CtlIntName, actualLogin.CtlIntName)
+	}
+
+	if actualLogin.Language != expectedLogin.Language {
+		fail("Language", expectedLogin.Language, actualLogin.Language)
+	}
+
+	if actualLogin.Database != expectedLogin.Database {
+		fail("Database", expectedLogin.Database, actualLogin.Database)
+	}
+
+	if actualLogin.ClientID != expectedLogin.ClientID {
+		fail("ClientID", expectedLogin.ClientID, actualLogin.ClientID)
+	}
+
+	if !bytes.Equal(actualLogin.SSPI, expectedLogin.SSPI) {
+		fail("SSPI", expectedLogin.SSPI, actualLogin.SSPI)
+	}
+
+	if actualLogin.AtchDBFile != expectedLogin.AtchDBFile {
+		fail("AtchDBFile", expectedLogin.AtchDBFile, actualLogin.AtchDBFile)
+	}
+
+	if actualLogin.ChangePassword != expectedLogin.ChangePassword {
+		fail(
+			"ChangePassword",
+			expectedLogin.ChangePassword,
+			actualLogin.ChangePassword,
+		)
+	}
+}
+
 func TestSendSqlBatch(t *testing.T) {
 	checkConnStr(t)
 	p, err := parseConnectParams(makeConnStr(t).String())
