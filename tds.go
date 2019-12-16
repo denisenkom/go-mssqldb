@@ -795,9 +795,13 @@ initiate_connection:
 		return nil, err
 	}
 
-	// This will panic will never occur unless our code is wrong
-	ch := ctx.Value("fields").(chan map[uint8][]byte)
-	ch <- fields
+	ch := ctx.Value("fields")
+
+	if ch != nil {
+		// This will panic will never occur unless our code is wrong
+		ch := ch.(chan map[uint8][]byte)
+		ch<- fields
+	}
 
 	encryptBytes, ok := fields[PreloginENCRYPTION]
 	if !ok {
