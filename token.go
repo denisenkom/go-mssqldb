@@ -1,6 +1,7 @@
 package mssql
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -406,6 +407,30 @@ func parseDone(r *TdsBuffer) (res doneStruct) {
 	res.RowCount = r.uint64()
 	return res
 }
+func writeDoneToken(w *TdsBuffer, d doneStruct) error {
+	err := w.WriteByte(byte(tokenDone))
+	if err != nil {
+		return err
+	}
+
+	err = binary.Write(w, binary.LittleEndian, d.Status)
+	if err != nil {
+		return err
+	}
+	err = binary.Write(w, binary.LittleEndian, d.CurCmd)
+	if err != nil {
+		return err
+	}
+
+	// NOTE: only supports TDS 7.2
+	// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/3c06f110-98bd-4d5b-b836-b1ba66452cb7?redirectedfrom=MSDN
+	err = binary.Write(w, binary.LittleEndian, d.RowCount)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
 
 // https://msdn.microsoft.com/en-us/library/dd340553.aspx
 func parseDoneInProc(r *TdsBuffer) (res doneInProcStruct) {
@@ -424,6 +449,9 @@ func parseSSPIMsg(r *TdsBuffer) sspiMsg {
 	return sspiMsg(buf)
 }
 
+type LoginAckStruct struct {
+	LoginAck loginAckStruct
+}
 type loginAckStruct struct {
 	Interface  uint8
 	TDSVersion uint32
@@ -445,6 +473,77 @@ func parseLoginAck(r *TdsBuffer) loginAckStruct {
 	}
 	res.ProgVer = binary.BigEndian.Uint32(buf[size-4:])
 	return res
+}
+func writeLoginAckToken(w *TdsBuffer, l loginAckStruct) error {
+	var err error
+	buff := new(bytes.Buffer)
+
+	err = buff.WriteByte(l.Interface)
+	if err != nil {
+		return err
+	}
+
+	err = binary.Write(buff, binary.BigEndian, l.TDSVersion)
+	if err != nil {
+		return err
+	}
+
+	err = writeBVarChar(buff, l.ProgName)
+	if err != nil {
+		return err
+	}
+
+	err = binary.Write(buff, binary.BigEndian, l.ProgVer)
+	if err != nil {
+		return err
+	}
+
+	lBytes := buff.Bytes()
+
+	err = w.WriteByte(byte(tokenLoginAck))
+	if err != nil {
+		return err
+	}
+
+	err = binary.Write(w, binary.LittleEndian, uint16(len(lBytes)))
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(lBytes)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+// WriteLoginAck writes a login ack to TdsBuffer
+//
+// A valid value:
+//loginAckStruct{
+//	Interface:  1,
+//	TDSVersion: 0x74000004,
+//	ProgName:   "Microsoft SQL Server",
+//	ProgVer:    0x0e000ca6,
+//}
+func WriteLoginAck(w *TdsBuffer, l LoginAckStruct) error {
+	w.BeginPacket(PackReply, false)
+
+	err := writeLoginAckToken(w, l.LoginAck)
+	if err != nil {
+		return err
+	}
+
+	err = writeDoneToken(w, doneStruct{
+		Status:   doneFinal,
+		CurCmd:   0,
+		RowCount: 0,
+	})
+	if err != nil {
+		return err
+	}
+
+	return w.FinishPacket()
 }
 
 // http://msdn.microsoft.com/en-us/library/dd357363.aspx
@@ -500,6 +599,83 @@ func parseError72(r *TdsBuffer) (res Error) {
 	res.ProcName = r.BVarChar()
 	res.LineNo = r.int32()
 	return
+}
+func writeErrorToken(w *TdsBuffer,e Error) error {
+	var err error
+	buff := new(bytes.Buffer)
+
+	err = binary.Write(buff, binary.LittleEndian, e.Number)
+	if err != nil {
+		return err
+	}
+
+	err = buff.WriteByte(e.State)
+	if err != nil {
+		return err
+	}
+
+	err = buff.WriteByte(e.Class)
+	if err != nil {
+		return err
+	}
+
+	err = writeUsVarChar(buff, e.Message)
+	if err != nil {
+		return err
+	}
+
+	err = writeBVarChar(buff, e.ServerName)
+	if err != nil {
+		return err
+	}
+
+	err = writeBVarChar(buff, e.ProcName)
+	if err != nil {
+		return err
+	}
+
+	err = binary.Write(buff, binary.LittleEndian, e.LineNo)
+	if err != nil {
+		return err
+	}
+
+	eBytes := buff.Bytes()
+	err = w.WriteByte(byte(tokenError))
+	if err != nil {
+		return err
+	}
+
+	err = binary.Write(w, binary.LittleEndian, uint16(len(eBytes)))
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(eBytes)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func WriteError72(w *TdsBuffer, e Error) error {
+	w.BeginPacket(PackReply, false)
+
+	err := writeErrorToken(w, e)
+	if err != nil {
+		return err
+	}
+
+	err = writeDoneToken(w, doneStruct{
+		Status:   doneError,
+		CurCmd:   0,
+		RowCount: 0,
+	})
+	if err != nil {
+		return err
+	}
+
+	return w.FinishPacket()
 }
 
 // http://msdn.microsoft.com/en-us/library/dd304156.aspx

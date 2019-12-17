@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/cyberark/secretless-broker/third_party/ctxtypes"
 	"io"
 	"io/ioutil"
 	"net"
@@ -16,6 +15,8 @@ import (
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	"github.com/denisenkom/go-mssqldb/ctxtypes"
 )
 
 func parseInstances(msg []byte) map[string]map[string]string {
@@ -1051,12 +1052,28 @@ initiate_connection:
 				}
 			case loginAckStruct:
 				success = true
+				// Intercept loginAck and send to secretless
+				loginAckChan := ctx.Value(ctxtypes.ServerLoginAckKey)
+				if loginAckChan != nil {
+					// A panic will never occur here unless the calling code is wrong
+					loginAckChan.(chan LoginAckStruct) <- LoginAckStruct{LoginAck: token}
+				}
 				sess.loginAck = token
 			case error:
 				return nil, fmt.Errorf("Login error: %s", token.Error())
 			case doneStruct:
 				if token.isError() {
-					return nil, fmt.Errorf("Login error: %s", token.getError())
+					loginError := token.getError()
+					// Intercept error response and send to secretless
+					loginErrorChan := ctx.Value(ctxtypes.ServerErrorKey)
+					if loginErrorChan != nil {
+						// A panic will never occur here unless the calling code is wrong
+
+						// pass the raw error because it is of type Error
+						loginErrorChan.(chan Error) <- loginError
+					}
+
+					return nil, fmt.Errorf("Login error: %s", loginError)
 				}
 				goto loginEnd
 			}
