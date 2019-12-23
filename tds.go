@@ -100,13 +100,15 @@ const (
 // prelogin fields
 // http://msdn.microsoft.com/en-us/library/dd357559.aspx
 const (
-	preloginVERSION    = 0
-	preloginENCRYPTION = 1
-	preloginINSTOPT    = 2
-	preloginTHREADID   = 3
-	preloginMARS       = 4
-	preloginTRACEID    = 5
-	preloginTERMINATOR = 0xff
+	preloginVERSION         = 0
+	preloginENCRYPTION      = 1
+	preloginINSTOPT         = 2
+	preloginTHREADID        = 3
+	preloginMARS            = 4
+	preloginTRACEID         = 5
+	preloginFEDAUTHREQUIRED = 6
+	preloginNONCEOPT        = 7
+	preloginTERMINATOR      = 0xff
 )
 
 const (
@@ -245,6 +247,12 @@ const (
 	fReadOnlyIntent = 32
 )
 
+// OptionFlags3
+// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/773a62b6-ee89-4c02-9e5e-344882630aac
+const (
+	fExtension = 0x10
+)
+
 type login struct {
 	TDSVersion     uint32
 	PacketSize     uint32
@@ -269,6 +277,59 @@ type login struct {
 	SSPI           []byte
 	AtchDBFile     string
 	ChangePassword string
+	FeatureExt     *FeatureExt
+}
+
+type FeatureExt struct {
+	FedAuthSTS *featureExtFedAuthSTS
+}
+
+func (e *FeatureExt) toBytes() []byte {
+	if e == nil || e.FedAuthSTS == nil {
+		return nil
+	}
+	featureData := e.FedAuthSTS.toBytes()
+
+	d := make([]byte, 5)
+	d[0] = 0x02                                                    // FedAuth feature extension BYTE
+	binary.LittleEndian.PutUint32(d[1:], uint32(len(featureData))) // FeatureDataLen DWORD
+
+	d = append(d, featureData...) // FeatureData *BYTE
+	d = append(d, 0xff)           // Terminator
+	return d
+}
+
+type featureExtFedAuthSTS struct {
+	FedAuthEcho  bool
+	FedAuthToken string
+	Nonce        []byte
+}
+
+// ToBytes returns the FeatureData bytes for this feature
+func (e *featureExtFedAuthSTS) toBytes() []byte {
+	if e == nil {
+		return nil
+	}
+
+	options := byte(0x01) << 1 // 0x01 => STS bFedAuthLibrary 7BIT
+	if e.FedAuthEcho {
+		options |= 1 // fFedAuthEcho
+	}
+
+	d := make([]byte, 5)
+	d[0] = options
+
+	// looks like string in
+	// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/f88b63bb-b479-49e1-a87b-deda521da508
+	tokenBytes := str2ucs2(e.FedAuthToken)
+	binary.LittleEndian.PutUint32(d[1:], uint32(len(tokenBytes))) // Should be a signed int32, but since the length is relatively small, this should work
+	d = append(d, tokenBytes...)
+
+	if len(e.Nonce) == 32 {
+		d = append(d, e.Nonce...)
+	}
+
+	return d
 }
 
 type loginHeader struct {
@@ -295,7 +356,7 @@ type loginHeader struct {
 	ServerNameOffset     uint16
 	ServerNameLength     uint16
 	ExtensionOffset      uint16
-	ExtensionLenght      uint16
+	ExtensionLength      uint16
 	CtlIntNameOffset     uint16
 	CtlIntNameLength     uint16
 	LanguageOffset       uint16
@@ -357,6 +418,8 @@ func sendLogin(w *tdsBuffer, login login) error {
 	database := str2ucs2(login.Database)
 	atchdbfile := str2ucs2(login.AtchDBFile)
 	changepassword := str2ucs2(login.ChangePassword)
+	featureExt := login.FeatureExt.toBytes()
+
 	hdr := loginHeader{
 		TDSVersion:           login.TDSVersion,
 		PacketSize:           login.PacketSize,
@@ -405,7 +468,18 @@ func sendLogin(w *tdsBuffer, login login) error {
 	offset += uint16(len(atchdbfile))
 	hdr.ChangePasswordOffset = offset
 	offset += uint16(len(changepassword))
-	hdr.Length = uint32(offset)
+
+	featureExtOffset := uint32(0)
+	if featureExtLen := len(featureExt); featureExtLen > 0 {
+		hdr.OptionFlags3 |= fExtension
+		hdr.ExtensionOffset = offset
+		hdr.ExtensionLength = 4
+		offset += hdr.ExtensionLength // DWORD
+		featureExtOffset = uint32(offset)
+		hdr.Length = uint32(offset) + uint32(featureExtLen)
+	} else {
+		hdr.Length = uint32(offset)
+	}
 	var err error
 	err = binary.Write(w, binary.LittleEndian, &hdr)
 	if err != nil {
@@ -454,6 +528,16 @@ func sendLogin(w *tdsBuffer, login login) error {
 	_, err = w.Write(changepassword)
 	if err != nil {
 		return err
+	}
+	if featureExtOffset > 0 {
+		err = binary.Write(w, binary.LittleEndian, featureExtOffset)
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(featureExt)
+		if err != nil {
+			return err
+		}
 	}
 	return w.FinishPacket()
 }
@@ -852,6 +936,18 @@ initiate_connection:
 		}
 		login.OptionFlags2 |= fIntSecurity
 		defer auth.Free()
+	} else if p.accessToken != "" {
+		featurext := FeatureExt{
+			FedAuthSTS: &featureExtFedAuthSTS{
+				FedAuthEcho:  false,
+				FedAuthToken: p.accessToken,
+				Nonce:        fields[preloginNONCEOPT],
+			},
+		}
+		if b, ok := fields[preloginFEDAUTHREQUIRED]; ok {
+			featurext.FedAuthSTS.FedAuthEcho = (b[0] == 1)
+		}
+		login.FeatureExt = &featurext
 	} else {
 		login.UserName = p.user
 		login.Password = p.password

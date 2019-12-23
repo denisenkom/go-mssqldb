@@ -21,6 +21,7 @@ type connectParams struct {
 	database                  string
 	user                      string
 	password                  string
+	accessToken               string
 	dial_timeout              time.Duration
 	conn_timeout              time.Duration
 	keepAlive                 time.Duration
@@ -79,6 +80,7 @@ func parseConnectParams(dsn string) (connectParams, error) {
 	p.database = params["database"]
 	p.user = params["user id"]
 	p.password = params["password"]
+	p.accessToken = params["accesstoken"]
 
 	p.port = 0
 	strport, ok := params["port"]

@@ -17,20 +17,21 @@ type token byte
 
 // token ids
 const (
-	tokenReturnStatus token = 121 // 0x79
-	tokenColMetadata  token = 129 // 0x81
-	tokenOrder        token = 169 // 0xA9
-	tokenError        token = 170 // 0xAA
-	tokenInfo         token = 171 // 0xAB
-	tokenReturnValue  token = 0xAC
-	tokenLoginAck     token = 173 // 0xad
-	tokenRow          token = 209 // 0xd1
-	tokenNbcRow       token = 210 // 0xd2
-	tokenEnvChange    token = 227 // 0xE3
-	tokenSSPI         token = 237 // 0xED
-	tokenDone         token = 253 // 0xFD
-	tokenDoneProc     token = 254
-	tokenDoneInProc   token = 255
+	tokenReturnStatus  token = 121 // 0x79
+	tokenColMetadata   token = 129 // 0x81
+	tokenOrder         token = 169 // 0xA9
+	tokenError         token = 170 // 0xAA
+	tokenInfo          token = 171 // 0xAB
+	tokenReturnValue   token = 0xAC
+	tokenLoginAck      token = 173 // 0xad
+	tokenFeatureExtAck token = 174 // 0xae
+	tokenRow           token = 209 // 0xd1
+	tokenNbcRow        token = 210 // 0xd2
+	tokenEnvChange     token = 227 // 0xE3
+	tokenSSPI          token = 237 // 0xED
+	tokenDone          token = 253 // 0xFD
+	tokenDoneProc      token = 254
+	tokenDoneInProc    token = 255
 )
 
 // done flags
@@ -447,6 +448,18 @@ func parseLoginAck(r *tdsBuffer) loginAckStruct {
 	return res
 }
 
+func parseFeatureExtAck(r *tdsBuffer) {
+	for {
+		featureID := r.byte() // FeatureID
+		if featureID == 0xff {
+			break
+		}
+		size := r.uint32() // FeatureAckDataLen
+		d := make([]byte, size)
+		r.ReadFull(d)
+	}
+}
+
 // http://msdn.microsoft.com/en-us/library/dd357363.aspx
 func parseColMetadata72(r *tdsBuffer) (columns []columnStruct) {
 	count := r.uint16()
@@ -577,6 +590,8 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs map[strin
 		case tokenLoginAck:
 			loginAck := parseLoginAck(sess.buf)
 			ch <- loginAck
+		case tokenFeatureExtAck:
+			parseFeatureExtAck(sess.buf)
 		case tokenOrder:
 			order := parseOrder(sess.buf)
 			ch <- order
