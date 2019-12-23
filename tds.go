@@ -277,25 +277,52 @@ type login struct {
 	SSPI           []byte
 	AtchDBFile     string
 	ChangePassword string
-	FeatureExt     *FeatureExt
+	FeatureExt     featureExts
 }
 
-type FeatureExt struct {
-	FedAuthSTS *featureExtFedAuthSTS
+type featureExts struct {
+	features map[byte]featureExt
 }
 
-func (e *FeatureExt) toBytes() []byte {
-	if e == nil || e.FedAuthSTS == nil {
+type featureExt interface {
+	featureID() byte
+	toBytes() []byte
+}
+
+func (e *featureExts) Add(f featureExt) error {
+	if f == nil {
 		return nil
 	}
-	featureData := e.FedAuthSTS.toBytes()
+	id := f.featureID()
+	if _, exists := e.features[id]; exists {
+		f := "Login error: Feature with ID '%v' is already present in FeatureExt block."
+		return fmt.Errorf(f, id)
+	}
+	if e.features == nil {
+		e.features = make(map[byte]featureExt)
+	}
+	e.features[id] = f
+	return nil
+}
 
-	d := make([]byte, 5)
-	d[0] = 0x02                                                    // FedAuth feature extension BYTE
-	binary.LittleEndian.PutUint32(d[1:], uint32(len(featureData))) // FeatureDataLen DWORD
+func (e featureExts) toBytes() []byte {
+	if len(e.features) == 0 {
+		return nil
+	}
+	var d []byte
+	for featureID, f := range e.features {
+		featureData := f.toBytes()
 
-	d = append(d, featureData...) // FeatureData *BYTE
-	d = append(d, 0xff)           // Terminator
+		hdr := make([]byte, 5)
+		hdr[0] = featureID                                               // FedAuth feature extension BYTE
+		binary.LittleEndian.PutUint32(hdr[1:], uint32(len(featureData))) // FeatureDataLen DWORD
+		d = append(d, hdr...)
+
+		d = append(d, featureData...) // FeatureData *BYTE
+	}
+	if d != nil {
+		d = append(d, 0xff) // Terminator
+	}
 	return d
 }
 
@@ -305,7 +332,10 @@ type featureExtFedAuthSTS struct {
 	Nonce        []byte
 }
 
-// ToBytes returns the FeatureData bytes for this feature
+func (e *featureExtFedAuthSTS) featureID() byte {
+	return 0x02
+}
+
 func (e *featureExtFedAuthSTS) toBytes() []byte {
 	if e == nil {
 		return nil
@@ -937,17 +967,12 @@ initiate_connection:
 		login.OptionFlags2 |= fIntSecurity
 		defer auth.Free()
 	} else if p.accessToken != "" {
-		featurext := FeatureExt{
-			FedAuthSTS: &featureExtFedAuthSTS{
-				FedAuthEcho:  false,
-				FedAuthToken: p.accessToken,
-				Nonce:        fields[preloginNONCEOPT],
-			},
+		featurext := &featureExtFedAuthSTS{
+			FedAuthEcho:  fields[preloginFEDAUTHREQUIRED] != nil && fields[preloginFEDAUTHREQUIRED][0] == 1,
+			FedAuthToken: p.accessToken,
+			Nonce:        fields[preloginNONCEOPT],
 		}
-		if b, ok := fields[preloginFEDAUTHREQUIRED]; ok {
-			featurext.FedAuthSTS.FedAuthEcho = (b[0] == 1)
-		}
-		login.FeatureExt = &featurext
+		login.FeatureExt.Add(featurext)
 	} else {
 		login.UserName = p.user
 		login.Password = p.password
