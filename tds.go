@@ -83,7 +83,7 @@ const (
 // packet types
 // https://msdn.microsoft.com/en-us/library/dd304214.aspx
 const (
-	PackSQLBatch   packetType = 1
+	PackSQLBatch   PacketType = 1
 	PackRPCRequest            = 3
 	PackReply                 = 4
 
@@ -159,7 +159,7 @@ func writePrelogin(w *TdsBuffer, fields map[uint8][]byte) error {
 	return WritePreloginWithPacketType(w, fields, PackPrelogin)
 }
 
-func WritePreloginWithPacketType(w *TdsBuffer, fields map[uint8][]byte, packetType packetType) error {
+func WritePreloginWithPacketType(w *TdsBuffer, fields map[uint8][]byte, packetType PacketType) error {
 	var err error
 	w.BeginPacket(packetType, false)
 	offset := uint16(5*len(fields) + 1)
@@ -208,7 +208,7 @@ func readPrelogin(r *TdsBuffer) (map[uint8][]byte, error) {
 	return ReadPreloginWithPacketType(r, PackReply)
 }
 
-func ReadPreloginWithPacketType(r *TdsBuffer, expectedPacketType packetType) (map[uint8][]byte, error) {
+func ReadPreloginWithPacketType(r *TdsBuffer, expectedPacketType PacketType) (map[uint8][]byte, error) {
 	packet_type, err := r.BeginRead()
 	if err != nil {
 		return nil, err
@@ -990,7 +990,8 @@ initiate_connection:
 		// A panic will never occur here unless the calling code is wrong
 		// TODO: perhaps there should be a timeout to this
 		//  suppose the channel was forever empty == leak
-		clientLogin := <- clientLoginChan.(chan Login)
+		clientLoginRaw := <- clientLoginChan.(chan interface{})
+		clientLogin := clientLoginRaw.(*Login)
 
 		Database = clientLogin.Database
 		HostName = clientLogin.HostName

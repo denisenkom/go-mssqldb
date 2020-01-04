@@ -12,3 +12,4 @@ const ClientLoginKey ContextKey = "clientLogin"
 const ServerLoginAckKey ContextKey = "serverLoginAck"
 // ServerErrorKey is used to pass the server error
 const ServerErrorKey ContextKey = "serverError"
+
