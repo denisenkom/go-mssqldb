@@ -449,9 +449,12 @@ func parseSSPIMsg(r *TdsBuffer) sspiMsg {
 	return sspiMsg(buf)
 }
 
-type LoginAckStruct struct {
-	LoginAck loginAckStruct
+// LoginResponse embeds loginAckStruct. This is a hack to expose loginAckStruct to the
+// outside world while minimising changes to code.
+type LoginResponse struct {
+	loginAckStruct
 }
+
 type loginAckStruct struct {
 	Interface  uint8
 	TDSVersion uint32
@@ -517,7 +520,8 @@ func writeLoginAckToken(w *TdsBuffer, l loginAckStruct) error {
 
 	return nil
 }
-// WriteLoginAck writes a login ack to TdsBuffer
+
+// WriteLoginResponse writes a login ack via a TdsBuffer
 //
 // A valid value:
 //loginAckStruct{
@@ -526,10 +530,12 @@ func writeLoginAckToken(w *TdsBuffer, l loginAckStruct) error {
 //	ProgName:   "Microsoft SQL Server",
 //	ProgVer:    0x0e000ca6,
 //}
-func WriteLoginAck(w *TdsBuffer, l LoginAckStruct) error {
+func WriteLoginResponse(_w io.ReadWriteCloser, l LoginResponse) error {
+	w := NewIdempotentDefaultTdsBuffer(_w)
+
 	w.BeginPacket(PackReply, false)
 
-	err := writeLoginAckToken(w, l.LoginAck)
+	err := writeLoginAckToken(w, l.loginAckStruct)
 	if err != nil {
 		return err
 	}
@@ -658,7 +664,9 @@ func writeErrorToken(w *TdsBuffer,e Error) error {
 	return nil
 }
 
-func WriteError72(w *TdsBuffer, e Error) error {
+func WriteError72(_w io.ReadWriteCloser, e Error) error {
+	w := NewIdempotentDefaultTdsBuffer(_w)
+
 	w.BeginPacket(PackReply, false)
 
 	err := writeErrorToken(w, e)
