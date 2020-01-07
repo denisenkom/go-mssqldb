@@ -83,7 +83,7 @@ const (
 // packet types
 // https://msdn.microsoft.com/en-us/library/dd304214.aspx
 const (
-	PackSQLBatch   PacketType = 1
+	PackSQLBatch   packetType = 1
 	PackRPCRequest            = 3
 	PackReply                 = 4
 
@@ -159,9 +159,21 @@ func writePrelogin(w *TdsBuffer, fields map[uint8][]byte) error {
 	return WritePreloginWithPacketType(w, fields, PackPrelogin)
 }
 
-func WritePreloginWithPacketType(w *TdsBuffer, fields map[uint8][]byte, packetType PacketType) error {
+// WritePreloginWithPacketType writes a prelogin packet with a specific packet type
+//
+// There are two cases in which this method is called.
+// 1. called by outside code as just a io.ReadWriteCloser
+// 2. called by internal code as *TdsBuffer
+// For (2) it's efficient to avoid reallocating the *TdsBuffer by asserting on the type of the passed in value of _w
+func WritePreloginWithPacketType(
+	_w io.ReadWriteCloser,
+	fields map[uint8][]byte,
+	packetTypeValue uint8,
+) error {
+	w := NewIdempotentDefaultTdsBuffer(_w)
+
 	var err error
-	w.BeginPacket(packetType, false)
+	w.BeginPacket(packetType(packetTypeValue), false)
 	offset := uint16(5*len(fields) + 1)
 	keys := make(KeySlice, 0, len(fields))
 	for k, _ := range fields {
@@ -208,7 +220,31 @@ func readPrelogin(r *TdsBuffer) (map[uint8][]byte, error) {
 	return ReadPreloginWithPacketType(r, PackReply)
 }
 
-func ReadPreloginWithPacketType(r *TdsBuffer, expectedPacketType PacketType) (map[uint8][]byte, error) {
+
+// https://docs.microsoft.com/en-us/sql/database-engine/configure-windows/configure-the-network-packet-size-server-configuration-option
+// Default packet size remains at 4096 bytes
+const bufferSize uint16 = 4096
+
+// NewIdempotentDefaultTdsBuffer creates TDS buffer using the default packet size and
+// does not reallocate a TdsBuffer if the provided transport is a TdsBuffer
+func NewIdempotentDefaultTdsBuffer(transport io.ReadWriteCloser) *TdsBuffer {
+	buffer, ok := transport.(*TdsBuffer)
+	if !ok {
+		buffer = NewTdsBuffer(bufferSize, transport)
+	}
+
+	return buffer
+}
+
+// ReadPreloginWithPacketType reads a prelogin packet with an expected packet type
+//
+// There are two cases in which this method is called.
+// 1. called by outside code as just a io.ReadWriteCloser
+// 2. called by internal code as *TdsBuffer
+// For (2) it's efficient to avoid reallocating the *TdsBuffer by asserting on the type of the passed in value of _w
+func ReadPreloginWithPacketType(_r io.ReadWriteCloser, expectedPacketTypeValue uint8) (map[uint8][]byte, error) {
+	r := NewIdempotentDefaultTdsBuffer(_r)
+
 	packet_type, err := r.BeginRead()
 	if err != nil {
 		return nil, err
@@ -217,8 +253,8 @@ func ReadPreloginWithPacketType(r *TdsBuffer, expectedPacketType PacketType) (ma
 	if err != nil {
 		return nil, err
 	}
-	if packet_type != expectedPacketType {
-		return nil, errors.New(fmt.Sprintf("Invalid response, expected packet type %d", expectedPacketType))
+	if packet_type != packetType(expectedPacketTypeValue) {
+		return nil, errors.New(fmt.Sprintf("Invalid response, expected packet type %d", expectedPacketTypeValue))
 	}
 	offset := 0
 	results := map[uint8][]byte{}
@@ -489,7 +525,8 @@ func readUcs2FromTds(
 }
 
 // ReadLogin parses a TDS7 login packet.
-func ReadLogin(r *TdsBuffer) (*Login, error) {
+func ReadLogin(_r io.ReadWriteCloser) (*Login, error) {
+	r := NewIdempotentDefaultTdsBuffer(_r)
 	var err error
 
 	packet_type, err := r.BeginRead()

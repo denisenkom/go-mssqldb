@@ -81,7 +81,7 @@ func (c *tlsHandshakeConn) Read(b []byte) (n int, err error) {
 		c.continueRead = false
 	}
 	if !c.continueRead {
-		var packet PacketType
+		var packet packetType
 		packet, err = c.buf.BeginRead()
 		if err != nil {
 			err = fmt.Errorf("Cannot read handshake packet: %s", err.Error())

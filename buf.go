@@ -6,10 +6,10 @@ import (
 	"io"
 )
 
-type PacketType uint8
+type packetType uint8
 
 type header struct {
-	PacketType PacketType
+	PacketType packetType
 	Status     uint8
 	Size       uint16
 	Spid       uint16
@@ -30,14 +30,14 @@ type TdsBuffer struct {
 	wbuf        []byte
 	wpos        int
 	wPacketSeq  byte
-	wPacketType PacketType
+	wPacketType packetType
 
 	// Read fields.
 	rbuf        []byte
 	rpos        int
 	rsize       int
 	final       bool
-	rPacketType PacketType
+	rPacketType packetType
 
 	// afterFirst is assigned to right after TdsBuffer is created and
 	// before the first use. It is executed after the first packet is
@@ -114,7 +114,7 @@ func (w *TdsBuffer) WriteByte(b byte) error {
 	return nil
 }
 
-func (w *TdsBuffer) BeginPacket(packetType PacketType, resetSession bool) {
+func (w *TdsBuffer) BeginPacket(packetType packetType, resetSession bool) {
 	status := byte(0)
 	if resetSession {
 		switch packetType {
@@ -160,7 +160,7 @@ func (r *TdsBuffer) ReadNextPacket() error {
 	return nil
 }
 
-func (r *TdsBuffer) BeginRead() (PacketType, error) {
+func (r *TdsBuffer) BeginRead() (packetType, error) {
 	err := r.ReadNextPacket()
 	if err != nil {
 		return 0, err
@@ -259,4 +259,8 @@ func (r *TdsBuffer) Read(buf []byte) (copied int, err error) {
 	copied = copy(buf, r.rbuf[r.rpos:r.rsize])
 	r.rpos += copied
 	return
+}
+
+func (c *TdsBuffer) Close() error {
+	return c.transport.Close()
 }
