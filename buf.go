@@ -260,3 +260,7 @@ func (r *TdsBuffer) Read(buf []byte) (copied int, err error) {
 	r.rpos += copied
 	return
 }
+
+func (c *TdsBuffer) Close() error {
+	return c.transport.Close()
+}
