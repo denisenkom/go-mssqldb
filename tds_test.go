@@ -109,9 +109,9 @@ func TestReadLogin(t *testing.T) {
 		return
 	}
 
-	actualLogin, err := ReadLogin(buf)
+	actualLogin, err := ReadLoginRequest(buf)
 	if err != nil {
-		t.Error("ReadLogin should succeed")
+		t.Error("ReadLoginRequest should succeed")
 		return
 	}
 
