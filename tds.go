@@ -164,6 +164,11 @@ func WritePreloginResponse(w io.ReadWriteCloser, fields map[uint8][]byte) error 
 	return writePreloginWithPacketType(w, fields, PackReply)
 }
 
+// WritePreloginRequest writes the prelogin request to a buffer
+func WritePreloginRequest(w io.ReadWriteCloser, fields map[uint8][]byte) error {
+	return writePreloginWithPacketType(w, fields, PackPrelogin)
+}
+
 // writePreloginWithPacketType writes a prelogin packet with a specific packet type
 //
 // There are two cases in which this method is called.
@@ -280,8 +285,14 @@ func readPrelogin(r *TdsBuffer) (map[uint8][]byte, error) {
 	return readPreloginWithPacketType(r, PackReply)
 }
 
+// ReadPreloginRequest parses a pre-login request from a transport.
 func ReadPreloginRequest(r io.ReadWriteCloser) (map[uint8][]byte, error) {
 	return readPreloginWithPacketType(r, PackPrelogin)
+}
+
+// ReadPreloginResponse parses a pre-login response from a transport.
+func ReadPreloginResponse(r io.ReadWriteCloser) (map[uint8][]byte, error) {
+	return readPreloginWithPacketType(r, PackReply)
 }
 
 // OptionFlags2
@@ -398,6 +409,13 @@ func manglePassword(password string) []byte {
 		ucs2password[i] = ((ch<<4)&0xff | (ch >> 4)) ^ 0xA5
 	}
 	return ucs2password
+}
+
+// WriteLoginRequest writes a login request via a TdsBuffer.
+func WriteLoginRequest(_w io.ReadWriteCloser, login *LoginRequest) error {
+	w := NewIdempotentDefaultTdsBuffer(_w)
+
+	return sendLogin(w, login.login)
 }
 
 // http://msdn.microsoft.com/en-us/library/dd304019.aspx
@@ -642,6 +660,64 @@ func ReadLoginRequest(_r io.ReadWriteCloser) (*LoginRequest, error) {
 			ChangePassword: changepassword,
 		},
 	}, nil
+}
+
+// ReadLoginResponse parses a TDS7 login response packet.
+func ReadLoginResponse(_r io.ReadWriteCloser) (l *LoginResponse, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			switch x := r.(type) {
+			case string:
+				err = errors.New(x)
+			case error:
+				err = x
+			default:
+				err = errors.New("unknown panic")
+			}
+		}
+	}()
+
+	r := NewIdempotentDefaultTdsBuffer(_r)
+
+	_, err = r.BeginRead()
+	if err != nil {
+		return
+	}
+
+	r.byte()
+
+	res := parseLoginAck(r)
+
+	return &LoginResponse{loginAckStruct: res}, nil
+}
+
+// ReadError parses a TDS7 error packet.
+func ReadError(_r io.ReadWriteCloser) (protocolErr *Error, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			switch x := r.(type) {
+			case string:
+				err = errors.New(x)
+			case error:
+				err = x
+			default:
+				err = errors.New("unknown panic")
+			}
+		}
+	}()
+
+	r := NewIdempotentDefaultTdsBuffer(_r)
+
+	_, err = r.BeginRead()
+	if err != nil {
+		return
+	}
+
+	r.byte()
+
+	res := parseError72(r)
+
+	return &res, nil
 }
 
 func readUcs2(r io.Reader, numchars int) (res string, err error) {

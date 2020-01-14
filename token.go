@@ -530,7 +530,7 @@ func writeLoginAckToken(w *TdsBuffer, l loginAckStruct) error {
 //	ProgName:   "Microsoft SQL Server",
 //	ProgVer:    0x0e000ca6,
 //}
-func WriteLoginResponse(_w io.ReadWriteCloser, l LoginResponse) error {
+func WriteLoginResponse(_w io.ReadWriteCloser, l *LoginResponse) error {
 	w := NewIdempotentDefaultTdsBuffer(_w)
 
 	w.BeginPacket(PackReply, false)
