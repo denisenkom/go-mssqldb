@@ -662,18 +662,27 @@ func ReadLoginRequest(_r io.ReadWriteCloser) (*LoginRequest, error) {
 	}, nil
 }
 
+func recoverToError() error {
+	var err error
+	if r := recover(); r != nil {
+		switch x := r.(type) {
+		case string:
+			err = errors.New(x)
+		case error:
+			err = x
+		default:
+			err = errors.New("unknown panic")
+		}
+	}
+
+	return err
+}
+
 // ReadLoginResponse parses a TDS7 login response packet.
 func ReadLoginResponse(_r io.ReadWriteCloser) (l *LoginResponse, err error) {
 	defer func() {
-		if r := recover(); r != nil {
-			switch x := r.(type) {
-			case string:
-				err = errors.New(x)
-			case error:
-				err = x
-			default:
-				err = errors.New("unknown panic")
-			}
+		if panicErr := recoverToError(); panicErr != nil {
+			err = panicErr
 		}
 	}()
 
@@ -694,15 +703,8 @@ func ReadLoginResponse(_r io.ReadWriteCloser) (l *LoginResponse, err error) {
 // ReadError parses a TDS7 error packet.
 func ReadError(_r io.ReadWriteCloser) (protocolErr *Error, err error) {
 	defer func() {
-		if r := recover(); r != nil {
-			switch x := r.(type) {
-			case string:
-				err = errors.New(x)
-			case error:
-				err = x
-			default:
-				err = errors.New("unknown panic")
-			}
+		if panicErr := recoverToError(); panicErr != nil {
+			err = panicErr
 		}
 	}()
 
