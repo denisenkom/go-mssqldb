@@ -414,6 +414,9 @@ func TestBadConnect(t *testing.T) {
 	checkConnStr(t)
 	SetLogger(testLogger{t})
 	connURL := makeConnStr(t)
+	if connURL.Query().Get("accesstoken") != "" {
+		t.Skip("test DSN is using accesstoken")
+	}
 	connURL.User = url.UserPassword("baduser", "badpwd")
 	badDSN := connURL.String()
 
