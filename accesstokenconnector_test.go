@@ -1,8 +1,11 @@
 package mssql
 
 import (
+	"context"
 	"database/sql/driver"
+	"errors"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -63,5 +66,19 @@ func TestNewAccessTokenConnector(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestAccessTokenConnectorFailsToConnectIfNoAccessToken(t *testing.T) {
+	errorText := "This is a test"
+	dsn := "Server=server.database.windows.net;Database=db"
+	tp := func() (string, error) { return "", errors.New(errorText) }
+	sut, err := NewAccessTokenConnector(dsn, tp)
+	if err != nil {
+		t.Fatalf("expected err==nil, but got %+v", err)
+	}
+	_, err = sut.Connect(context.TODO())
+	if err == nil || !strings.Contains(err.Error(), errorText) {
+		t.Fatalf("expected error to contain %q, but got %q", errorText, err)
 	}
 }
