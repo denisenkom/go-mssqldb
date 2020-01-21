@@ -958,22 +958,22 @@ initiate_connection:
 		AppName:      p.appname,
 		TypeFlags:    p.typeFlags,
 	}
-	auth, auth_ok := getAuth(p.user, p.password, p.serverSPN, p.workstation)
-	if auth_ok {
-		login.SSPI, err = auth.InitialBytes()
-		if err != nil {
-			return nil, err
-		}
-		login.OptionFlags2 |= fIntSecurity
-		defer auth.Free()
-	} else if p.accessToken != "" {
+	auth, authOk := getAuth(p.user, p.password, p.serverSPN, p.workstation)
+	if p.accessToken != "" { // accesstoken ignores user/password
 		featurext := &featureExtFedAuthSTS{
 			FedAuthEcho:  fields[preloginFEDAUTHREQUIRED] != nil && fields[preloginFEDAUTHREQUIRED][0] == 1,
 			FedAuthToken: p.accessToken,
 			Nonce:        fields[preloginNONCEOPT],
 		}
 		login.FeatureExt.Add(featurext)
-	} else {
+	} else if authOk {
+		login.SSPI, err = auth.InitialBytes()
+		if err != nil {
+			return nil, err
+		}
+		login.OptionFlags2 |= fIntSecurity
+		defer auth.Free()
+	} else{
 		login.UserName = p.user
 		login.Password = p.password
 	}
