@@ -63,7 +63,7 @@ func createDatabaseIfNotExists() error {
 		return err
 	}
 
-	quoted := strings.ReplaceAll(*database, "]", "]]")
+	quoted := strings.Replace(*database, "]", "]]", -1)
 	sql := "IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = @p1)\n  CREATE DATABASE [" + quoted + "] ( SERVICE_OBJECTIVE = 'S0' )"
 	log.Printf("Exec: @p1 = '%s'\n%s\n", *database, sql)
 	_, err = conn.Exec(sql, *database)
@@ -98,7 +98,7 @@ func addExternalUserIfNotExists(user string) error {
 
 	defer conn.Close()
 
-	quoted := strings.ReplaceAll(user, "]", "]]")
+	quoted := strings.Replace(user, "]", "]]", -1)
 	sql := "IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = @p1)\n  CREATE USER [" + quoted + "] FROM EXTERNAL PROVIDER"
 	log.Printf("Exec: @p1 = '%s'\n%s\n", user, sql)
 	_, err = conn.Exec(sql, user)
