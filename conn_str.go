@@ -1,6 +1,7 @@
 package mssql
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -12,6 +13,12 @@ import (
 )
 
 const defaultServerPort = 1433
+
+const (
+	fedAuthActiveDirectoryPassword    = "ActiveDirectoryPassword"
+	fedAuthActiveDirectoryMSI         = "ActiveDirectoryMSI"
+	fedAuthActiveDirectoryApplication = "ActiveDirectoryApplication"
+)
 
 type connectParams struct {
 	logFlags                  uint64
@@ -37,6 +44,11 @@ type connectParams struct {
 	failOverPartner           string
 	failOverPort              uint64
 	packetSize                uint16
+	fedAuthLibrary            byte
+	fedAuthADALWorkflow       byte
+	aadTenantID               string
+	aadClientCertPath         string
+	tlsKeyLogFile             string
 }
 
 func parseConnectParams(dsn string) (connectParams, error) {
@@ -227,6 +239,45 @@ func parseConnectParams(dsn string) (connectParams, error) {
 			f := "Invalid tcp port '%v': %v"
 			return p, fmt.Errorf(f, failOverPort, err.Error())
 		}
+	}
+
+	p.fedAuthLibrary = fedAuthLibraryReserved
+	fedAuth, ok := params["fedauth"]
+	if ok {
+		switch {
+		case strings.EqualFold(fedAuth, fedAuthActiveDirectoryPassword):
+			p.fedAuthLibrary = fedAuthLibraryADAL
+			p.fedAuthADALWorkflow = fedAuthADALWorkflowPassword
+		case strings.EqualFold(fedAuth, fedAuthActiveDirectoryMSI):
+			p.fedAuthLibrary = fedAuthLibraryADAL
+			p.fedAuthADALWorkflow = fedAuthADALWorkflowMSI
+		case strings.EqualFold(fedAuth, fedAuthActiveDirectoryApplication):
+			p.fedAuthLibrary = fedAuthLibrarySecurityToken
+			p.aadClientCertPath = params["clientcertpath"]
+
+			// Split the user name into client id and tenant id at the @ symbol
+			at := strings.IndexRune(p.user, '@')
+			if at < 1 || at >= (len(p.user)-1) {
+				f := "Expecting user id to be clientID@tenantID: found '%s'"
+				return p, fmt.Errorf(f, p.user)
+			}
+
+			p.aadTenantID = p.user[at+1:]
+			p.user = p.user[0:at]
+		default:
+			f := "Invalid federated authentication type '%s': expected %s, %s or %s"
+			return p, fmt.Errorf(f, fedAuth, fedAuthActiveDirectoryPassword, fedAuthActiveDirectoryMSI, fedAuthActiveDirectoryApplication)
+		}
+
+		if p.disableEncryption {
+			f := "Encryption must not be disabled for federated authentication: encrypt='%s'"
+			return p, fmt.Errorf(f, encrypt)
+		}
+	}
+
+	p.tlsKeyLogFile, ok = params["tls key log file"]
+	if ok && p.tlsKeyLogFile != "" && p.disableEncryption {
+		return p, errors.New("Cannot set tlsKeyLogFile when encryption is disabled")
 	}
 
 	return p, nil

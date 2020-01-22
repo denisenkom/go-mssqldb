@@ -30,6 +30,8 @@ install:
   - go version
   - go env
   - go get -u github.com/golang-sql/civil
+  - go get -u golang.org/x/crypto/pkcs12
+  - go get -u github.com/Azure/go-autorest/autorest/adal
 
 build_script:
   - go build

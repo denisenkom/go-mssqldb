@@ -209,7 +209,8 @@ func TestTVP(t *testing.T) {
 	bFalse := false
 	floatValue64 := 0.123
 	floatValue32 := float32(-10.123)
-	timeNow := time.Now().UTC()
+	// Best datetime2 precision is 100 ns granularity
+	timeNow := time.Now().UTC().Truncate(100 * time.Nanosecond)
 	param1 := []TvptableRow{
 		{
 			PBinary:    []byte("ccc"),
@@ -462,7 +463,8 @@ func TestTVP_WithTag(t *testing.T) {
 	bFalse := false
 	floatValue64 := 0.123
 	floatValue32 := float32(-10.123)
-	timeNow := time.Now().UTC()
+	// Default (and maximum) datetime2 precision is 7 digits or 100ns
+	timeNow := time.Now().UTC().Truncate(100 * time.Nanosecond)
 	param1 := []TvptableRowWithSkipTag{
 		{
 			PBinary:    []byte("ccc"),
