@@ -1033,8 +1033,15 @@ initiate_connection:
 		FedAuthEcho:         fedAuthEcho,
 		FedAuthADALWorkflow: p.fedAuthADALWorkflow,
 	}
+
 	auth, auth_ok := getAuth(p.user, p.password, p.serverSPN, p.workstation)
-	if login.FedAuthLibrary == fedAuthLibraryReserved && auth_ok {
+	if p.fedAuthAccessToken != "" { // accesstoken ignores user/password
+		if p.logFlags&logDebug != 0 {
+			log.Println("Using provided access token")
+		}
+		login.FedAuthToken = p.fedAuthAccessToken
+		login.FedAuthLibrary = fedAuthLibrarySecurityToken
+	} else if login.FedAuthLibrary == fedAuthLibraryReserved && auth_ok {
 		if p.logFlags&logDebug != 0 {
 			log.Println("Starting SSPI login")
 		}

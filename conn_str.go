@@ -46,6 +46,7 @@ type connectParams struct {
 	packetSize                uint16
 	fedAuthLibrary            byte
 	fedAuthADALWorkflow       byte
+	fedAuthAccessToken               string
 	aadTenantID               string
 	aadClientCertPath         string
 	tlsKeyLogFile             string
