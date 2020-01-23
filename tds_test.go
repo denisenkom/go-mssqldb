@@ -118,6 +118,60 @@ func TestSendLoginWithFedAuthToken(t *testing.T) {
 	}
 }
 
+func TestSendLoginWithFedAuthADAL(t *testing.T) {
+	memBuf := new(MockTransport)
+	buf := newTdsBuffer(1024, memBuf)
+	login := login{
+		TDSVersion:     verTDS74,
+		PacketSize:     0x1000,
+		ClientProgVer:  0x01060100,
+		ClientPID:      100,
+		ClientTimeZone: -4 * 60,
+		ClientID:       [6]byte{0x12, 0x34, 0x56, 0x78, 0x90, 0xab},
+		OptionFlags1:   0xe0,
+		OptionFlags3:   8,
+		HostName:       "subdev1",
+		AppName:        "appname",
+		ServerName:     "servername",
+		CtlIntName:     "library",
+		Language:       "en",
+		Database:       "database",
+		ClientLCID:     0x204,
+
+		FedAuthLibrary:      fedAuthLibraryADAL,
+		FedAuthADALWorkflow: fedAuthADALWorkflowPassword,
+		UserName:            "username",
+		Password:            "AADpassword",
+	}
+
+	err := sendLogin(buf, login)
+	if err != nil {
+		t.Error("sendLogin should succeed")
+	}
+	ref := []byte{
+		16, 1, 0, 196, 0, 0, 1, 0, 188, 0, 0, 0, 4, 0, 0, 116, 0, 16,
+		0, 0, 0, 1, 6, 1, 100, 0, 0, 0, 0, 0, 0, 0, 224, 0, 0, 24, 16,
+		255, 255, 255, 4, 2, 0, 0, 94, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		108, 0, 7, 0, 122, 0, 10, 0, 142, 0, 4, 0, 146, 0, 7, 0, 160, 0,
+		2, 0, 164, 0, 8, 0, 18, 52, 86, 120, 144, 171, 180, 0, 0, 0,
+		180, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 115, 0, 117, 0, 98, 0,
+		100, 0, 101, 0, 118, 0, 49, 0, 97, 0, 112, 0, 112, 0, 110, 0,
+		97, 0, 109, 0, 101, 0, 115, 0, 101, 0, 114, 0, 118, 0, 101, 0,
+		114, 0, 110, 0, 97, 0, 109, 0, 101, 0, 180, 0, 0, 0, 108, 0, 105,
+		0, 98, 0, 114, 0, 97, 0, 114, 0, 121, 0, 101, 0, 110, 0, 100, 0,
+		97, 0, 116, 0, 97, 0, 98, 0, 97, 0, 115, 0, 101, 0, 2, 2, 0, 0,
+		0, 4, 1, 255}
+	out := memBuf.Bytes()
+	t.Logf("out= %+v", out)
+	if !bytes.Equal(ref, out) {
+		fmt.Println("Expected:")
+		fmt.Print(hex.Dump(ref))
+		fmt.Println("Returned:")
+		fmt.Print(hex.Dump(out))
+		t.Error("input output don't match")
+	}
+}
+
 func TestSendSqlBatch(t *testing.T) {
 	checkConnStr(t)
 	p, err := parseConnectParams(makeConnStr(t).String())
@@ -459,7 +513,7 @@ func TestSSPIAuth(t *testing.T) {
 
 func TestUcs22Str(t *testing.T) {
 	// Test valid input
-	s, err := ucs22str([]byte{0x31, 0, 0x32, 0, 0x33, 0})  // 123 in UCS2 encoding
+	s, err := ucs22str([]byte{0x31, 0, 0x32, 0, 0x33, 0}) // 123 in UCS2 encoding
 	if err != nil {
 		t.Errorf("ucs22str should not fail for valid ucs2 byte sequence: %s", err)
 	}
@@ -475,7 +529,7 @@ func TestUcs22Str(t *testing.T) {
 }
 
 func TestReadUcs2(t *testing.T) {
-	buf := bytes.NewBuffer([]byte{0x31, 0, 0x32, 0, 0x33, 0})  // 123 in UCS2 encoding
+	buf := bytes.NewBuffer([]byte{0x31, 0, 0x32, 0, 0x33, 0}) // 123 in UCS2 encoding
 	s, err := readUcs2(buf, 3)
 	if err != nil {
 		t.Errorf("readUcs2 should not fail for valid ucs2 byte sequence: %s", err)
@@ -493,7 +547,7 @@ func TestReadUcs2(t *testing.T) {
 
 func TestReadUsVarChar(t *testing.T) {
 	// should succeed for valid buffer
-	buf := bytes.NewBuffer([]byte{3, 0, 0x31, 0, 0x32, 0, 0x33, 0})  // 123 in UCS2 encoding with length prefix 3 uint16
+	buf := bytes.NewBuffer([]byte{3, 0, 0x31, 0, 0x32, 0, 0x33, 0}) // 123 in UCS2 encoding with length prefix 3 uint16
 	s, err := readUsVarChar(buf)
 	if err != nil {
 		t.Errorf("readUsVarChar should not fail for valid ucs2 byte sequence: %s", err)
