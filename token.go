@@ -539,12 +539,12 @@ func parseFeatureExtAck(r *tdsBuffer) map[byte]interface{} {
 			// know how to parse, but the alternatives provide compatible structures.
 			fedAuthAck := fedAuthAckStruct{}
 			if length >= 32 {
-				fedAuthAck.Nonce = make([]byte, 0, 32)
+				fedAuthAck.Nonce = make([]byte, 32)
 				r.ReadFull(fedAuthAck.Nonce)
 				length -= 32
 			}
 			if length >= 32 {
-				fedAuthAck.Signature = make([]byte, 0, 32)
+				fedAuthAck.Signature = make([]byte, 32)
 				r.ReadFull(fedAuthAck.Signature)
 				length -= 32
 			}
