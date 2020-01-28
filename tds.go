@@ -1113,7 +1113,7 @@ initiate_connection:
 
 	// Replaces params with values from the client LoginRequest
 	if connectInterceptor != nil && connectInterceptor.ClientLoginRequest != nil {
-		clientLoginRequest := <- connectInterceptor.ClientLoginRequest
+		clientLoginRequest := <-connectInterceptor.ClientLoginRequest
 		if clientLoginRequest == nil {
 			return nil, errors.New("Login error: ClientLoginRequest is nil")
 		}
@@ -1152,6 +1152,14 @@ initiate_connection:
 		return nil, err
 	}
 
+	// If this is in the context of secretless broker, then we can call it
+	// a day after sending the client login request to the server.
+	// The rest of the negotiation takes place out of this method (i.e.
+	// transparently, within a duplex pipe)
+	if connectInterceptor != nil {
+		return &sess, nil
+	}
+
 	// processing login response
 	success := false
 	for {
@@ -1178,10 +1186,6 @@ initiate_connection:
 				}
 			case loginAckStruct:
 				success = true
-				// Intercept loginAck and send to secretless
-				if connectInterceptor != nil && connectInterceptor.ServerLoginResponse != nil {
-					connectInterceptor.ServerLoginResponse <- &LoginResponse{loginAckStruct: token}
-				}
 				sess.loginAck = token
 			case error:
 				return nil, errs.Wrap(token, "Login error")
