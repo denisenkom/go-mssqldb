@@ -14,8 +14,6 @@ type ConnectInterceptor struct {
 	ServerPreLoginResponse chan map[uint8][]byte
 	// ClientLoginRequest is used to pass the client LoginRequest
 	ClientLoginRequest chan *LoginRequest
-	// ServerLoginResponse is used to pass the server LoginAck
-	ServerLoginResponse chan *LoginResponse
 }
 
 // NewConnectInterceptor is a constructor for a blank ConnectInterceptor
@@ -25,8 +23,6 @@ func NewConnectInterceptor() *ConnectInterceptor {
 		ServerPreLoginResponse: make(chan map[uint8][]byte),
 		// Create a channel for sending the client login to the driver through the context
 		ClientLoginRequest: make(chan *LoginRequest),
-		// Create a channel for receiving a server loginAck from the driver through the context
-		ServerLoginResponse: make(chan *LoginResponse),
 	}
 }
 
