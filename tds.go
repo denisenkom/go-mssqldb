@@ -313,29 +313,31 @@ const (
 )
 
 type login struct {
-	TDSVersion     uint32
-	PacketSize     uint32
-	ClientProgVer  uint32
-	ClientPID      uint32
-	ConnectionID   uint32
-	OptionFlags1   uint8
-	OptionFlags2   uint8
-	TypeFlags      uint8
-	OptionFlags3   uint8
-	ClientTimeZone int32
-	ClientLCID     uint32
-	HostName       string
-	UserName       string
-	Password       string
-	AppName        string
-	ServerName     string
-	CtlIntName     string
-	Language       string
-	Database       string
-	ClientID       [6]byte
-	SSPI           []byte
-	AtchDBFile     string
-	ChangePassword string
+	TDSVersion       uint32
+	PacketSize       uint32
+	ClientProgVer    uint32
+	ClientPID        uint32
+	ConnectionID     uint32
+	OptionFlags1     uint8
+	OptionFlags2     uint8
+	TypeFlags        uint8
+	OptionFlags3     uint8
+	ClientTimeZone   int32
+	ClientLCID       uint32
+	HostName         string
+	UserName         string
+	Password         string
+	AppName          string
+	ServerName       string
+	Extension        []byte
+	FeatureExtension []byte
+	CtlIntName       string
+	Language         string
+	Database         string
+	ClientID         [6]byte
+	SSPI             []byte
+	AtchDBFile       string
+	ChangePassword   string
 }
 
 type loginHeader struct {
@@ -362,7 +364,7 @@ type loginHeader struct {
 	ServerNameOffset     uint16
 	ServerNameLength     uint16
 	ExtensionOffset      uint16
-	ExtensionLenght      uint16
+	ExtensionLength      uint16
 	CtlIntNameOffset     uint16
 	CtlIntNameLength     uint16
 	LanguageOffset       uint16
@@ -426,6 +428,8 @@ func sendLogin(w *TdsBuffer, login login) error {
 	password := manglePassword(login.Password)
 	appname := str2ucs2(login.AppName)
 	servername := str2ucs2(login.ServerName)
+	extension := login.Extension
+	featureExt := login.FeatureExtension
 	ctlintname := str2ucs2(login.CtlIntName)
 	language := str2ucs2(login.Language)
 	database := str2ucs2(login.Database)
@@ -448,6 +452,7 @@ func sendLogin(w *TdsBuffer, login login) error {
 		PasswordLength:       uint16(utf8.RuneCountInString(login.Password)),
 		AppNameLength:        uint16(utf8.RuneCountInString(login.AppName)),
 		ServerNameLength:     uint16(utf8.RuneCountInString(login.ServerName)),
+		ExtensionLength:      uint16(len(login.Extension)),
 		CtlIntNameLength:     uint16(utf8.RuneCountInString(login.CtlIntName)),
 		LanguageLength:       uint16(utf8.RuneCountInString(login.Language)),
 		DatabaseLength:       uint16(utf8.RuneCountInString(login.Database)),
@@ -467,6 +472,8 @@ func sendLogin(w *TdsBuffer, login login) error {
 	offset += uint16(len(appname))
 	hdr.ServerNameOffset = offset
 	offset += uint16(len(servername))
+	hdr.ExtensionOffset = offset
+	offset += uint16(len(extension))
 	hdr.CtlIntNameOffset = offset
 	offset += uint16(len(ctlintname))
 	hdr.LanguageOffset = offset
@@ -479,6 +486,13 @@ func sendLogin(w *TdsBuffer, login login) error {
 	offset += uint16(len(atchdbfile))
 	hdr.ChangePasswordOffset = offset
 	offset += uint16(len(changepassword))
+
+	// Update the first 4 bytes so they point to featureExt offset
+	if len(extension) > 0 {
+		binary.LittleEndian.PutUint32(extension, uint32(offset))
+		offset += uint16(len(featureExt))
+	}
+
 	hdr.Length = uint32(offset)
 	var err error
 	err = binary.Write(w, binary.LittleEndian, &hdr)
@@ -505,6 +519,10 @@ func sendLogin(w *TdsBuffer, login login) error {
 	if err != nil {
 		return err
 	}
+	_, err = w.Write(extension)
+	if err != nil {
+		return err
+	}
 	_, err = w.Write(ctlintname)
 	if err != nil {
 		return err
@@ -526,6 +544,10 @@ func sendLogin(w *TdsBuffer, login login) error {
 		return err
 	}
 	_, err = w.Write(changepassword)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(featureExt)
 	if err != nil {
 		return err
 	}
@@ -599,6 +621,16 @@ func ReadLoginRequest(_r io.ReadWriteCloser) (*LoginRequest, error) {
 		return nil, err
 	}
 
+	r.rpos = offsetAfterHeader(hdr.ExtensionOffset)
+	var extension []byte
+	if int(hdr.ExtensionLength) > 0 {
+		extension = make([]byte, int(hdr.ExtensionLength))
+		_, err = io.ReadFull(r, extension)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	ctlintname, err := readUcs2FromTds(r, int(hdr.CtlIntNameLength), hdr.CtlIntNameOffset)
 	if err != nil {
 		return nil, err
@@ -615,10 +647,13 @@ func ReadLoginRequest(_r io.ReadWriteCloser) (*LoginRequest, error) {
 	}
 
 	r.rpos = offsetAfterHeader(hdr.SSPIOffset)
-	sspi := make([]byte, int(hdr.SSPILength))
-	_, err = io.ReadFull(r, sspi)
-	if err != nil {
-		return nil, err
+	var sspi []byte
+	if hdr.SSPILength > 0 {
+		sspi = make([]byte, int(hdr.SSPILength))
+		_, err = io.ReadFull(r, sspi)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	atchdbfile, err := readUcs2FromTds(r, int(hdr.AtchDBFileLength), hdr.AtchDBFileOffset)
@@ -633,31 +668,43 @@ func ReadLoginRequest(_r io.ReadWriteCloser) (*LoginRequest, error) {
 		return nil, err
 	}
 
+	var featureExtension []byte
+	if len(extension) > 0 {
+		r.rpos = offsetAfterHeader(uint16(binary.LittleEndian.Uint32(extension)))
+		featureExtension = make([]byte, r.rsize-r.rpos)
+		_, err = io.ReadFull(r, featureExtension)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &LoginRequest{
 		login: login{
-			TDSVersion:     hdr.TDSVersion,
-			PacketSize:     hdr.PacketSize,
-			ClientProgVer:  hdr.ClientProgVer,
-			ClientPID:      hdr.ClientPID,
-			ConnectionID:   hdr.ConnectionID,
-			OptionFlags1:   hdr.OptionFlags1,
-			OptionFlags2:   hdr.OptionFlags2,
-			TypeFlags:      hdr.TypeFlags,
-			OptionFlags3:   hdr.OptionFlags3,
-			ClientTimeZone: hdr.ClientTimeZone,
-			ClientLCID:     hdr.ClientLCID,
-			HostName:       hostname,
-			UserName:       username,
-			Password:       password,
-			AppName:        appname,
-			ServerName:     servername,
-			CtlIntName:     ctlintname,
-			Language:       language,
-			Database:       database,
-			ClientID:       hdr.ClientID,
-			SSPI:           sspi,
-			AtchDBFile:     atchdbfile,
-			ChangePassword: changepassword,
+			TDSVersion:       hdr.TDSVersion,
+			PacketSize:       hdr.PacketSize,
+			ClientProgVer:    hdr.ClientProgVer,
+			ClientPID:        hdr.ClientPID,
+			ConnectionID:     hdr.ConnectionID,
+			OptionFlags1:     hdr.OptionFlags1,
+			OptionFlags2:     hdr.OptionFlags2,
+			TypeFlags:        hdr.TypeFlags,
+			OptionFlags3:     hdr.OptionFlags3,
+			ClientTimeZone:   hdr.ClientTimeZone,
+			ClientLCID:       hdr.ClientLCID,
+			HostName:         hostname,
+			UserName:         username,
+			Password:         password,
+			AppName:          appname,
+			ServerName:       servername,
+			Extension:        extension,
+			FeatureExtension: featureExtension,
+			CtlIntName:       ctlintname,
+			Language:         language,
+			Database:         database,
+			ClientID:         hdr.ClientID,
+			SSPI:             sspi,
+			AtchDBFile:       atchdbfile,
+			ChangePassword:   changepassword,
 		},
 	}, nil
 }
@@ -1111,20 +1158,6 @@ initiate_connection:
 	AppName := p.appname
 	TypeFlags := p.typeFlags
 
-	// Replaces params with values from the client LoginRequest
-	if connectInterceptor != nil && connectInterceptor.ClientLoginRequest != nil {
-		clientLoginRequest := <-connectInterceptor.ClientLoginRequest
-		if clientLoginRequest == nil {
-			return nil, errors.New("Login error: ClientLoginRequest is nil")
-		}
-
-		Database = clientLoginRequest.Database
-		HostName = clientLoginRequest.HostName
-		ServerName = clientLoginRequest.ServerName
-		AppName = clientLoginRequest.AppName
-		TypeFlags = clientLoginRequest.TypeFlags
-	}
-
 	login := login{
 		TDSVersion:   verTDS74,
 		PacketSize:   uint32(outbuf.PackageSize()),
@@ -1135,6 +1168,41 @@ initiate_connection:
 		AppName:      AppName,
 		TypeFlags:    TypeFlags,
 	}
+
+	// Replaces params with values from the client LoginRequest
+	if connectInterceptor != nil && connectInterceptor.ClientLoginRequest != nil {
+		clientLoginRequest := <-connectInterceptor.ClientLoginRequest
+		if clientLoginRequest == nil {
+			return nil, errors.New("Login error: ClientLoginRequest is nil")
+		}
+
+		login.TDSVersion = clientLoginRequest.TDSVersion
+		login.PacketSize = clientLoginRequest.PacketSize
+		login.ClientProgVer = clientLoginRequest.ClientProgVer
+		login.ClientPID = clientLoginRequest.ClientPID
+		login.ConnectionID = clientLoginRequest.ConnectionID
+		login.OptionFlags1 = clientLoginRequest.OptionFlags1
+		login.OptionFlags2 = clientLoginRequest.OptionFlags2
+		login.TypeFlags = clientLoginRequest.TypeFlags
+		login.OptionFlags3 = clientLoginRequest.OptionFlags3
+		login.ClientTimeZone = clientLoginRequest.ClientTimeZone
+		login.ClientLCID = clientLoginRequest.ClientLCID
+		login.HostName = clientLoginRequest.HostName
+		login.UserName = clientLoginRequest.UserName
+		login.Password = clientLoginRequest.Password
+		login.AppName = clientLoginRequest.AppName
+		login.ServerName = clientLoginRequest.ServerName
+		login.Extension = clientLoginRequest.Extension
+		login.CtlIntName = clientLoginRequest.CtlIntName
+		login.Language = clientLoginRequest.Language
+		login.Database = clientLoginRequest.Database
+		login.ClientID = clientLoginRequest.ClientID
+		login.SSPI = clientLoginRequest.SSPI
+		login.AtchDBFile = clientLoginRequest.AtchDBFile
+		login.ChangePassword = clientLoginRequest.ChangePassword
+		login.FeatureExtension = clientLoginRequest.FeatureExtension
+	}
+
 	auth, auth_ok := getAuth(p.user, p.password, p.serverSPN, p.workstation)
 	if auth_ok {
 		login.SSPI, err = auth.InitialBytes()
