@@ -3,12 +3,15 @@
 package mssql
 
 import (
+	"bytes"
 	"crypto/des"
+	"crypto/hmac"
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"strings"
+	"time"
 	"unicode/utf16"
 
 	"golang.org/x/crypto/md4"
@@ -86,6 +89,20 @@ func utf16le(val string) []byte {
 	return v
 }
 
+func decodeUTF16le(val []byte) (string, error) {
+	byteLength := len(val)
+	if byteLength % 2 != 0 {
+		return "", errorInvalidUTF16ByteArray
+	}
+
+	ints := make([]uint16, len(val)/2)
+	if err := binary.Read(bytes.NewReader(val), binary.LittleEndian, &ints); err != nil {
+		return "", err
+	}
+
+	return string(utf16.Decode(ints)), nil
+}
+
 func (auth *ntlmAuth) InitialBytes() ([]byte, error) {
 	domain_len := len(auth.Domain)
 	workstation_len := len(auth.Workstation)
@@ -111,6 +128,8 @@ func (auth *ntlmAuth) InitialBytes() ([]byte, error) {
 }
 
 var errorNTLM = errors.New("NTLM protocol error")
+var errorInvalidServerType2Message = errors.New("the server responded with an invalid type 2 message")
+var errorInvalidUTF16ByteArray = errors.New("unable to decode invalid UTF16 byte array")
 
 func createDesKey(bytes, material []byte) {
 	material[0] = bytes[0]
@@ -198,6 +217,84 @@ func ntlmSessionResponse(clientNonce [8]byte, serverChallenge [8]byte, password 
 	return response(hash, passwordHash)
 }
 
+func ntlmHashNoPadding(val string) []byte {
+	hash := make([]byte, 16)
+	h := md4.New()
+	h.Write(utf16le(val))
+	h.Sum(hash[:0])
+
+	return hash
+}
+
+func hmacMD5(passwordHash, data []byte) []byte {
+	hmacEntity := hmac.New(md5.New, passwordHash)
+	hmacEntity.Write(data)
+
+	return hmacEntity.Sum(nil)
+}
+
+func getTargetInformationData(bytes []byte) (infoBytes []byte, target string, err error) {
+	type2MessageLength := len(bytes)
+	targetNameAllocated := binary.LittleEndian.Uint16(bytes[14:16])
+	targetNameOffset := binary.LittleEndian.Uint32(bytes[16:20])
+	if type2MessageLength < int(targetNameOffset + uint32(targetNameAllocated)) {
+		return nil, target, errorInvalidServerType2Message
+	}
+
+	target, err = decodeUTF16le(bytes[targetNameOffset:targetNameOffset+uint32(targetNameAllocated)])
+	if err != nil {
+		return nil, target, err
+	}
+
+	targetInformationAllocated := binary.LittleEndian.Uint16(bytes[42:44])
+	targetInformationDataOffset := binary.LittleEndian.Uint32(bytes[44:48])
+	if type2MessageLength < int(targetInformationDataOffset + uint32(targetInformationAllocated)) {
+		return nil, target, errorInvalidServerType2Message
+	}
+
+	targetInformationBytes := make([]byte, targetInformationAllocated)
+	copy(targetInformationBytes, bytes[targetInformationDataOffset:targetInformationDataOffset+uint32(targetInformationAllocated)])
+
+	return targetInformationBytes, target, nil
+}
+
+func getNTLMV2Response(target, username, password string, challenge, nonce [8]byte, targetInformation []byte, timestamp time.Time) []byte {
+	ntlmHash := ntlmHashNoPadding(password)
+	usernameAndTargetBytes := utf16le(strings.ToUpper(username) + target)
+	ntlmV2Hash := hmacMD5(ntlmHash, usernameAndTargetBytes)
+	targetInfoLength := len(targetInformation)
+	blob := make([]byte, 32+targetInfoLength)
+	binary.BigEndian.PutUint32(blob[:4], 0x01010000)
+	binary.BigEndian.PutUint32(blob[4:8], 0x00000000)
+	binary.BigEndian.PutUint64(blob[8:16], uint64(timestamp.UnixNano()))
+	copy(blob[16:24], nonce[:])
+	binary.BigEndian.PutUint32(blob[24:28], 0x00000000)
+	copy(blob[28:], targetInformation)
+	binary.BigEndian.PutUint32(blob[28+targetInfoLength:], 0x00000000)
+	challengeLength := len(challenge)
+	blobLength := len(blob)
+	challengeAndBlob := make([]byte, challengeLength + blobLength)
+	copy(challengeAndBlob[:challengeLength], challenge[:])
+	copy(challengeAndBlob[challengeLength:], blob)
+	finalKey := hmacMD5(ntlmV2Hash, challengeAndBlob)
+	response := append(finalKey, blob...)
+
+	return response
+}
+
+func getLMV2Response(target, username, password string, challenge, nonce [8]byte) []byte {
+	ntlmHash := ntlmHashNoPadding(password)
+	usernameAndTargetBytes := utf16le(strings.ToUpper(username) + target)
+	ntlmV2hash := hmacMD5(ntlmHash, usernameAndTargetBytes)
+	challengeAndNonce := make([]byte, 16)
+	copy(challengeAndNonce[:8], challenge[:])
+	copy(challengeAndNonce[8:], nonce[:])
+	hashed := hmacMD5(ntlmV2hash, challengeAndNonce)
+	hashed = append(hashed, nonce[:]...)
+
+	return hashed
+}
+
 func (auth *ntlmAuth) NextBytes(bytes []byte) ([]byte, error) {
 	if string(bytes[0:8]) != "NTLMSSP\x00" {
 		return nil, errorNTLM
@@ -212,11 +309,22 @@ func (auth *ntlmAuth) NextBytes(bytes []byte) ([]byte, error) {
 	var lm, nt []byte
 	if (flags & _NEGOTIATE_EXTENDED_SESSIONSECURITY) != 0 {
 		nonce := clientChallenge()
-		var lm_bytes [24]byte
-		copy(lm_bytes[:8], nonce[:])
-		lm = lm_bytes[:]
-		nt_bytes := ntlmSessionResponse(nonce, challenge, auth.Password)
-		nt = nt_bytes[:]
+		if (flags & _NEGOTIATE_TARGET_INFO) != 0 {
+			timestamp := time.Now()
+			targetInformationBytes, target, err := getTargetInformationData(bytes)
+			if err != nil {
+				return nil, err
+			}
+
+			nt = getNTLMV2Response(target, auth.UserName, auth.Password, challenge, nonce, targetInformationBytes, timestamp)
+			lm = getLMV2Response(target, auth.UserName, auth.Password, challenge, nonce)
+		} else {
+			var lm_bytes [24]byte
+			copy(lm_bytes[:8], nonce[:])
+			lm = lm_bytes[:]
+			nt_bytes := ntlmSessionResponse(nonce, challenge, auth.Password)
+			nt = nt_bytes[:]
+		}
 	} else {
 		lm_bytes := lmResponse(challenge, auth.Password)
 		lm = lm_bytes[:]
