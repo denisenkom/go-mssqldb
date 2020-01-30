@@ -1,0 +1,2 @@
+ignore:
+  - token_string.go
