@@ -405,6 +405,10 @@ func ucs22str(s []byte) (string, error) {
 	return string(utf16.Decode(buf)), nil
 }
 
+func ManglePassword(password string) []byte {
+	return manglePassword(password)
+}
+
 func manglePassword(password string) []byte {
 	var ucs2password []byte = str2ucs2(password)
 	for i, ch := range ucs2password {
@@ -606,10 +610,13 @@ func ReadLoginRequest(_r io.ReadWriteCloser) (*LoginRequest, error) {
 		return nil, err
 	}
 
-	password, err := readUcs2FromTds(r, int(hdr.PasswordLength), hdr.PasswordOffset)
+	r.rpos = offsetAfterHeader(hdr.PasswordOffset)
+	passwordBytes := make([]byte, int(hdr.PasswordLength) * 2)
+	_, err = r.Read(passwordBytes)
 	if err != nil {
 		return nil, err
 	}
+	password := string(passwordBytes)
 
 	appname, err := readUcs2FromTds(r, int(hdr.AppNameLength), hdr.AppNameOffset)
 	if err != nil {
