@@ -17,6 +17,15 @@ func TestInvalidConnectionString(t *testing.T) {
 		"trustservercertificate=invalid",
 		"failoverport=invalid",
 		"applicationintent=ReadOnly",
+		"encrypt=DISABLE;tls key log file=key.log",
+
+		// AAD
+		"fedauth=ActiveDirectoryApplication;user id=clientidwithouttenantid;clientcertpath=/secrets/spn.pem",
+		"fedauth=UnknownType",
+		// encryption cannot be disabled for AAD
+		"encrypt=DISABLE;fedauth=ActiveDirectoryPassword;user id=tester@tenant.com;password=secret",
+		"encrypt=DISABLE;fedauth=ActiveDirectoryMSI",
+		"encrypt=DISABLE;fedauth=ActiveDirectoryApplication;user id=clientid@tenantid;clientcertpath=/secrets/spn.pem",
 
 		// ODBC mode
 		"odbc:password={",
@@ -73,6 +82,17 @@ func TestValidConnectionString(t *testing.T) {
 		{"log=64;packet size=300", func(p connectParams) bool { return p.logFlags == 64 && p.packetSize == 512 }},
 		{"log=64;packet size=8192", func(p connectParams) bool { return p.logFlags == 64 && p.packetSize == 8192 }},
 		{"log=64;packet size=48000", func(p connectParams) bool { return p.logFlags == 64 && p.packetSize == 32767 }},
+
+		// AAD
+		{"fedauth=ActiveDirectoryPassword;user id=tester@tenant.com;password=secret", func(p connectParams) bool {
+			return p.fedAuthLibrary == fedAuthLibraryADAL && p.fedAuthADALWorkflow == fedAuthADALWorkflowPassword
+		}},
+		{"fedauth=ActiveDirectoryMSI", func(p connectParams) bool {
+			return p.fedAuthLibrary == fedAuthLibraryADAL && p.fedAuthADALWorkflow == fedAuthADALWorkflowMSI
+		}},
+		{"fedauth=ActiveDirectoryApplication;user id=clientid@tenantid;clientcertpath=/secrets/spn.pem", func(p connectParams) bool {
+			return p.fedAuthLibrary == fedAuthLibrarySecurityToken && p.user == "clientid" && p.aadTenantID == "tenantid" && p.aadClientCertPath == "/secrets/spn.pem"
+		}},
 
 		// those are supported currently, but maybe should not be
 		{"someparam", func(p connectParams) bool { return true }},
