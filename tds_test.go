@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
-	"fmt"
 	"net/url"
 	"os"
 	"runtime"
@@ -62,11 +61,11 @@ func TestSendLogin(t *testing.T) {
 		116, 0, 104, 0}
 	out := memBuf.Bytes()
 	if !bytes.Equal(ref, out) {
-		fmt.Println("Expected:")
-		fmt.Print(hex.Dump(ref))
-		fmt.Println("Returned:")
-		fmt.Print(hex.Dump(out))
-		t.Error("input output don't match")
+		t.Log("Expected:")
+		t.Log(hex.Dump(ref))
+		t.Log("Returned:")
+		t.Log(hex.Dump(out))
+		t.Fatal("input output don't match")
 	}
 }
 
@@ -111,11 +110,11 @@ func TestSendLoginWithFeatureExt(t *testing.T) {
 		116, 0, 104, 0, 116, 0, 111, 0, 107, 0, 101, 0, 110, 0, 255}
 	out := memBuf.Bytes()
 	if !bytes.Equal(ref, out) {
-		fmt.Println("Expected:")
-		fmt.Print(hex.Dump(ref))
-		fmt.Println("Returned:")
-		fmt.Print(hex.Dump(out))
-		t.Error("input output don't match")
+		t.Log("Expected:")
+		t.Log(hex.Dump(ref))
+		t.Log("Returned:")
+		t.Log(hex.Dump(out))
+		t.Fatal("input output don't match")
 	}
 }
 
@@ -158,7 +157,7 @@ loop:
 		case []interface{}:
 			lastRow = token
 		default:
-			fmt.Println("unknown token", tok)
+			t.Log("unknown token", tok)
 		}
 	}
 
