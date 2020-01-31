@@ -962,7 +962,7 @@ initiate_connection:
 	switch {
 	case p.fedAuthAccessToken != "": // accesstoken ignores user/password
 		featurext := &featureExtFedAuthSTS{
-			FedAuthEcho:  fields[preloginFEDAUTHREQUIRED] != nil && fields[preloginFEDAUTHREQUIRED][0] == 1,
+			FedAuthEcho:  len(fields[preloginFEDAUTHREQUIRED]) > 0 && fields[preloginFEDAUTHREQUIRED][0] == 1,
 			FedAuthToken: p.fedAuthAccessToken,
 			Nonce:        fields[preloginNONCEOPT],
 		}
