@@ -24,9 +24,12 @@ func TestNewAccessTokenConnector(t *testing.T) {
 		want    func(driver.Connector) error
 		wantErr bool
 	}{
-		{"Happy path",
-			args{dsn, tp},
-			func(c driver.Connector) error {
+		{
+			name: "Happy path",
+			args: args{
+				dsn:           dsn,
+				tokenProvider: tp},
+			want: func(c driver.Connector) error {
 				tc, ok := c.(*accessTokenConnector)
 				if !ok {
 					return fmt.Errorf("Expected driver to be of type *accessTokenConnector, but got %T", c)
@@ -47,12 +50,15 @@ func TestNewAccessTokenConnector(t *testing.T) {
 				}
 				return nil
 			},
-			false,
+			wantErr: false,
 		},
-		{"Nil tokenProvider gives error",
-			args{dsn, nil},
-			nil,
-			true,
+		{
+			name: "Nil tokenProvider gives error",
+			args: args{
+				dsn:           dsn,
+				tokenProvider: nil},
+			want:    nil,
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
