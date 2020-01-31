@@ -500,16 +500,16 @@ func sendLogin(w *tdsBuffer, login login) error {
 	offset += uint16(len(changepassword))
 
 	featureExtOffset := uint32(0)
-	if featureExtLen := len(featureExt); featureExtLen > 0 {
+	featureExtLen := len(featureExt)
+	if featureExtLen > 0 {
 		hdr.OptionFlags3 |= fExtension
 		hdr.ExtensionOffset = offset
 		hdr.ExtensionLength = 4
 		offset += hdr.ExtensionLength // DWORD
 		featureExtOffset = uint32(offset)
-		hdr.Length = uint32(offset) + uint32(featureExtLen)
-	} else {
-		hdr.Length = uint32(offset)
 	}
+	hdr.Length = uint32(offset) + uint32(featureExtLen)
+
 	var err error
 	err = binary.Write(w, binary.LittleEndian, &hdr)
 	if err != nil {
@@ -959,21 +959,22 @@ initiate_connection:
 		TypeFlags:    p.typeFlags,
 	}
 	auth, authOk := getAuth(p.user, p.password, p.serverSPN, p.workstation)
-	if p.accessToken != "" { // accesstoken ignores user/password
+	switch {
+	case p.accessToken != "": // accesstoken ignores user/password
 		featurext := &featureExtFedAuthSTS{
 			FedAuthEcho:  fields[preloginFEDAUTHREQUIRED] != nil && fields[preloginFEDAUTHREQUIRED][0] == 1,
 			FedAuthToken: p.accessToken,
 			Nonce:        fields[preloginNONCEOPT],
 		}
 		login.FeatureExt.Add(featurext)
-	} else if authOk {
+	case authOk:
 		login.SSPI, err = auth.InitialBytes()
 		if err != nil {
 			return nil, err
 		}
 		login.OptionFlags2 |= fIntSecurity
 		defer auth.Free()
-	} else{
+	default:
 		login.UserName = p.user
 		login.Password = p.password
 	}

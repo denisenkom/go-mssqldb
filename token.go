@@ -448,16 +448,20 @@ func parseLoginAck(r *tdsBuffer) loginAckStruct {
 	return res
 }
 
+// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/2eb82f8e-11f0-46dc-b42d-27302fa4701a
 func parseFeatureExtAck(r *tdsBuffer) {
-	for {
+	// at most 1 featureAck per feature in featureExt
+	// go-mssqldb will add at most 1 feature, the spec defines 7 different features
+	for i := 0; i < 8; i++ {
 		featureID := r.byte() // FeatureID
 		if featureID == 0xff {
-			break
+			return
 		}
 		size := r.uint32() // FeatureAckDataLen
 		d := make([]byte, size)
 		r.ReadFull(d)
 	}
+	panic("parsed more than 7 featureAck's, protocol implementation error?")
 }
 
 // http://msdn.microsoft.com/en-us/library/dd357363.aspx
