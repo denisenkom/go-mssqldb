@@ -960,10 +960,10 @@ initiate_connection:
 	}
 	auth, authOk := getAuth(p.user, p.password, p.serverSPN, p.workstation)
 	switch {
-	case p.accessToken != "": // accesstoken ignores user/password
+	case p.fedAuthAccessToken != "": // accesstoken ignores user/password
 		featurext := &featureExtFedAuthSTS{
 			FedAuthEcho:  fields[preloginFEDAUTHREQUIRED] != nil && fields[preloginFEDAUTHREQUIRED][0] == 1,
-			FedAuthToken: p.accessToken,
+			FedAuthToken: p.fedAuthAccessToken,
 			Nonce:        fields[preloginNONCEOPT],
 		}
 		login.FeatureExt.Add(featurext)

@@ -42,7 +42,7 @@ func NewAccessTokenConnector(dsn string, tokenProvider func() (string, error)) (
 // Connect returns a new database connection
 func (c *accessTokenConnector) Connect(ctx context.Context) (driver.Conn, error) {
 	var err error
-	c.Connector.params.accessToken, err = c.accessTokenProvider()
+	c.Connector.params.fedAuthAccessToken, err = c.accessTokenProvider()
 	if err != nil {
 		return nil, fmt.Errorf("mssql: error retrieving access token: %+v", err)
 	}

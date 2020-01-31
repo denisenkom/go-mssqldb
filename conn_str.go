@@ -21,7 +21,6 @@ type connectParams struct {
 	database                  string
 	user                      string
 	password                  string
-	accessToken               string
 	dial_timeout              time.Duration
 	conn_timeout              time.Duration
 	keepAlive                 time.Duration
@@ -38,6 +37,7 @@ type connectParams struct {
 	failOverPartner           string
 	failOverPort              uint64
 	packetSize                uint16
+	fedAuthAccessToken        string
 }
 
 func parseConnectParams(dsn string) (connectParams, error) {
