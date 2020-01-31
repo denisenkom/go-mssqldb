@@ -106,6 +106,26 @@ Other supported formats are listed below.
   * `odbc:server=localhost;user id=sa;password={foo{bar}` // Literal `{`, password is "foo{bar"
   * `odbc:server=localhost;user id=sa;password={foo}}bar}` // Escaped `} with `}}`, password is "foo}bar"
 
+### Azure Active Directory authentication - preview
+
+The configuration of functionality might change in the future.
+
+Azure Active Directory (AAD) access tokens are relatively short lived and need to be 
+valid when a new connection is made. Authentication is supported using a callback func that
+provides a fresh and valid token using a connector:
+``` golang
+conn, err := mssql.NewAccessTokenConnector(
+  "Server=test.database.windows.net;Database=testdb",
+  tokenProvider)
+if err != nil {
+	// handle errors in DSN
+}
+db := sql.OpenDB(conn)
+```
+Where `tokenProvider` is a function that returns a fresh access token or an error. None of these statements
+actually trigger the retrieval of a token, this happens when the first statment is issued and a connection
+is created.
+
 ## Executing Stored Procedures
 
 To run a stored procedure, set the query text to the procedure name:
