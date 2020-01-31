@@ -50,13 +50,7 @@ func main() {
 	conn := sql.OpenDB(connector)
 	defer conn.Close()
 
-	stmt, err := conn.Prepare("select 1, 'abc'")
-	if err != nil {
-		log.Fatal("Prepare failed:", err.Error())
-	}
-	defer stmt.Close()
-
-	row := stmt.QueryRow()
+	row := conn.QueryRow("select 1, 'abc'")
 	var somenumber int64
 	var somechars string
 	err = row.Scan(&somenumber, &somechars)
