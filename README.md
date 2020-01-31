@@ -110,9 +110,9 @@ Other supported formats are listed below.
 
 The configuration of functionality might change in the future.
 
-Azure Active Directory (AAD) is supported through the `accesstoken` parameter in the DSN. However,
-since access tokens are relatively short lived and need to be valid when a new connection is made,
-a better way to provide them is using a connector:
+Azure Active Directory (AAD) access tokens are relatively short lived and need to be 
+valid when a new connection is made. Authentication is supported using a callback func that
+provides a fresh and valid token using a connector:
 ``` golang
 conn, err := mssql.NewAccessTokenConnector(
   "Server=test.database.windows.net;Database=testdb",

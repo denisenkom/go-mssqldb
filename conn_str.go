@@ -80,7 +80,6 @@ func parseConnectParams(dsn string) (connectParams, error) {
 	p.database = params["database"]
 	p.user = params["user id"]
 	p.password = params["password"]
-	p.accessToken = params["accesstoken"]
 
 	p.port = 0
 	strport, ok := params["port"]
