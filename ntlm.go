@@ -286,7 +286,7 @@ func getNTLMv2TargetInfoFields(type2Message []byte) (info []byte, target string,
 	targetNameAllocated := binary.LittleEndian.Uint16(type2Message[14:16])
 	targetNameOffset := binary.LittleEndian.Uint32(type2Message[16:20])
 	endOfOffset := int(targetNameOffset + uint32(targetNameAllocated))
-	if type2MessageLength < int(targetNameOffset + uint32(targetNameAllocated)) {
+	if type2MessageLength < endOfOffset {
 		return nil, target, fmt.Errorf(type2MessageError, type2MessageLength, endOfOffset)
 	}
 
@@ -298,7 +298,7 @@ func getNTLMv2TargetInfoFields(type2Message []byte) (info []byte, target string,
 	targetInformationAllocated := binary.LittleEndian.Uint16(type2Message[42:44])
 	targetInformationDataOffset := binary.LittleEndian.Uint32(type2Message[44:48])
 	endOfOffset = int(targetInformationDataOffset + uint32(targetInformationAllocated))
-	if type2MessageLength < int(targetInformationDataOffset + uint32(targetInformationAllocated)) {
+	if type2MessageLength < endOfOffset {
 		return nil, target, fmt.Errorf(type2MessageError, type2MessageLength, endOfOffset)
 	}
 
