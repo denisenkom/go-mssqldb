@@ -3,8 +3,10 @@
 package mssql
 
 import (
+	"bytes"
 	"encoding/hex"
 	"testing"
+	"time"
 )
 
 func TestLMOWFv1(t *testing.T) {
@@ -72,5 +74,58 @@ func TestNTLMSessionResponse(t *testing.T) {
 	}
 	if nt != val {
 		t.Errorf("got:\n%sexpected:\n%s", hex.Dump(nt[:]), hex.Dump(val[:]))
+	}
+}
+
+func TestNTLMV2Response(t *testing.T) {
+	target := "DOMAIN"
+	username := "user"
+	password := "SecREt01"
+	challenge := [8]byte{ 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef}
+	targetInformationBlock, _ := hex.DecodeString("02000c0044004f004d00410049004e0001000c005300450052005600450052000400140064006f006d00610069006e002e0063006f006d00030022007300650072007600650072002e0064006f006d00610069006e002e0063006f006d0000000000")
+	nonceBytes, _ := hex.DecodeString("ffffff0011223344")
+	var nonce [8]byte
+	copy(nonce[:8], nonceBytes[:])
+	timestamp, err := time.Parse(time.RFC3339, "2006-01-02T15:04:05Z")
+	if err != nil {
+		panic(err)
+	}
+
+	expectedNTLMV2Response, _ := hex.DecodeString("5c788afec59c1fef3f90bf6ea419c02501010000000000000fc4a4d5fdf6b200ffffff00112233440000000002000c0044004f004d00410049004e0001000c005300450052005600450052000400140064006f006d00610069006e002e0063006f006d00030022007300650072007600650072002e0064006f006d00610069006e002e0063006f006d000000000000000000")
+	expectedLMV2Response, _ := hex.DecodeString("d6e6152ea25d03b7c6ba6629c2d6aaf0ffffff0011223344")
+	ntlmV2Response, lmV2Response := getNTLMv2AndLMv2ResponsePayloads(target, username, password, challenge, nonce, targetInformationBlock, timestamp)
+	if bytes.Compare(ntlmV2Response, expectedNTLMV2Response) != 0 {
+		t.Errorf("got:\n%s\nexpected:\n%s", hex.Dump(ntlmV2Response), hex.Dump(expectedNTLMV2Response))
+	}
+
+	if bytes.Compare(lmV2Response, expectedLMV2Response) != 0 {
+		t.Errorf("got:\n%s\nexpected:\n%s", hex.Dump(ntlmV2Response), hex.Dump(expectedNTLMV2Response))
+	}
+}
+
+func TestGetNTLMv2TargetInfoFields(t *testing.T) {
+	type2Message, _ := hex.DecodeString("4e544c4d53535000020000000600060038000000058289026999bc21067c77f40000000000000000ac00ac003e0000000a0039380000000f4600570042000200060046005700420001000c00590037004100410041003400040022006000700065002e00610058006e0071006e0070006e00650074002e0063006f006d00030030007900370041004100410034002e006000700065002e00610058006e0071006e0070006e00650074002e0063006f006d00050024006100610058006d002e00610058006e0071006e0070006e00650074002e0063006f006d00070008007d9647e8aed6d50100000000")
+	info, target, err := getNTLMv2TargetInfoFields(type2Message)
+	if err != nil {
+		t.Errorf("got:\n%e\nexpected:\nnil", err)
+	}
+
+	expectedTarget := "FWB"
+	if target != expectedTarget {
+		t.Errorf("got:\n%s\nexpected:\n%s", target, expectedTarget)
+	}
+
+	expectedResponseLength := 172
+	responseLength := len(info)
+	if responseLength != expectedResponseLength {
+		t.Errorf("got:\n%d\nexpected:\n%d", responseLength, expectedResponseLength)
+	}
+}
+
+func TestGetNTLMv2TargetInfoFieldsInvalidMessage(t *testing.T) {
+	type2Message, _ := hex.DecodeString("4e544c4d53535000020000000600060038000000058289026999bc21067c77f40000000000000000ac00ac003e0000000a0039380000000f4600570042000200060046005700420001000c00590037004100410041003400040022006000700065002e00610058006e0071006e0070006e00650074002e0063006f006d00030030007900370041004100410034002e006000700065002e00610058006e0071006e0070006e00650074002e0063006f006d00050024006100610058006d002e00610058006e0071006e0070006e00650074002e0063006f006d00070008007")
+	_, _, err := getNTLMv2TargetInfoFields(type2Message)
+	if err == nil {
+		t.Error("expected to get an error")
 	}
 }
