@@ -26,6 +26,7 @@ type connectParams struct {
 	disableEncryption         bool
 	trustServerCertificate    bool
 	certificate               string
+	rawCertificate            string
 	hostInCertificate         string
 	hostInCertificateProvided bool
 	serverSPN                 string
@@ -171,6 +172,7 @@ func parseConnectParams(dsn string) (connectParams, error) {
 		}
 	}
 	p.certificate = params["certificate"]
+	p.rawCertificate = params["rawcertificate"]
 	p.hostInCertificate, ok = params["hostnameincertificate"]
 	if ok {
 		p.hostInCertificateProvided = true
