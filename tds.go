@@ -611,7 +611,7 @@ func ReadLoginRequest(_r io.ReadWriteCloser) (*LoginRequest, error) {
 	}
 
 	r.rpos = offsetAfterHeader(hdr.PasswordOffset)
-	passwordBytes := make([]byte, int(hdr.PasswordLength) * 2)
+	passwordBytes := make([]byte, int(hdr.PasswordLength)*2)
 	_, err = r.Read(passwordBytes)
 	if err != nil {
 		return nil, err
@@ -1125,6 +1125,10 @@ initiate_connection:
 			}
 			certs := x509.NewCertPool()
 			certs.AppendCertsFromPEM(pem)
+			config.RootCAs = certs
+		} else if len(p.rawCertificate) > 0 {
+			certs := x509.NewCertPool()
+			certs.AppendCertsFromPEM([]byte(p.rawCertificate))
 			config.RootCAs = certs
 		}
 		if p.trustServerCertificate {
