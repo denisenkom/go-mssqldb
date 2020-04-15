@@ -25,6 +25,7 @@ type connectParams struct {
 	encrypt                   bool
 	disableEncryption         bool
 	trustServerCertificate    bool
+	disableVerifyHostname     bool
 	certificate               string
 	rawCertificate            string
 	hostInCertificate         string
@@ -169,6 +170,16 @@ func parseConnectParams(dsn string) (connectParams, error) {
 		if err != nil {
 			f := "Invalid trust server certificate '%s': %s"
 			return p, fmt.Errorf(f, trust, err.Error())
+		}
+	}
+
+	disableVerifyHostname, ok := params["disableverifyhostname"]
+	if ok {
+		var err error
+		p.disableVerifyHostname, err = strconv.ParseBool(disableVerifyHostname)
+		if err != nil {
+			f := "Invalid disable verify hostname '%s': %s"
+			return p, fmt.Errorf(f, disableVerifyHostname, err.Error())
 		}
 	}
 	p.certificate = params["certificate"]

@@ -1134,6 +1134,9 @@ initiate_connection:
 		if p.trustServerCertificate {
 			config.InsecureSkipVerify = true
 		}
+		if p.disableVerifyHostname {
+			config.InsecureSkipVerify = true
+		}
 		config.ServerName = p.hostInCertificate
 		// fix for https://github.com/denisenkom/go-mssqldb/issues/166
 		// Go implementation of TLS payload size heuristic algorithm splits single TDS package to multiple TCP segments,
@@ -1145,6 +1148,26 @@ initiate_connection:
 		passthrough := passthroughConn{c: &handshakeConn}
 		tlsConn := tls.Client(&passthrough, &config)
 		err = tlsConn.Handshake()
+
+		if err == nil && // No handshake error
+			!p.trustServerCertificate && // Not forcibly trusting server certificate
+			p.disableVerifyHostname { // Needs to carry out manual verification
+
+			certs := tlsConn.ConnectionState().PeerCertificates
+			opts := x509.VerifyOptions{
+				DNSName:       tlsConn.ConnectionState().ServerName,
+				Intermediates: x509.NewCertPool(),
+				Roots:         config.RootCAs,
+			}
+			for i, cert := range certs {
+				if i == 0 {
+					continue
+				}
+				opts.Intermediates.AddCert(cert)
+			}
+			_, err = certs[0].Verify(opts)
+		}
+
 		passthrough.c = toconn
 		outbuf.transport = tlsConn
 		if err != nil {
