@@ -257,7 +257,7 @@ func negotiateExtendedSessionSecurity(flags uint32, message []byte, challenge [8
 	// Official specification: https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-nlmp/b38c36ed-2804-4868-a9ff-8dd3182128e4
 	// Unofficial walk through referenced by https://www.freetds.org/userguide/domains.htm: http://davenport.sourceforge.net/ntlm.html
 	if (flags & _NEGOTIATE_TARGET_INFO) != 0 {
-		targetInfoFields, _, err := getNTLMv2TargetInfoFields(message)
+		targetInfoFields, err := getNTLMv2TargetInfoFields(message)
 		if err != nil {
 			return lm, nt, err
 		}
@@ -276,36 +276,31 @@ func negotiateExtendedSessionSecurity(flags uint32, message []byte, challenge [8
 	return lm, nt, nil
 }
 
-func getNTLMv2TargetInfoFields(type2Message []byte) (info []byte, target string, err error) {
+func getNTLMv2TargetInfoFields(type2Message []byte) (info []byte, err error) {
 	type2MessageError := "mssql: while parsing NTLMv2 type 2 message, length %d too small for offset %d"
 	type2MessageLength := len(type2Message)
 	if type2MessageLength < 20 {
-		return nil, target, fmt.Errorf(type2MessageError, type2MessageLength, 20)
+		return nil, fmt.Errorf(type2MessageError, type2MessageLength, 20)
 	}
 
 	targetNameAllocated := binary.LittleEndian.Uint16(type2Message[14:16])
 	targetNameOffset := binary.LittleEndian.Uint32(type2Message[16:20])
 	endOfOffset := int(targetNameOffset + uint32(targetNameAllocated))
 	if type2MessageLength < endOfOffset {
-		return nil, target, fmt.Errorf(type2MessageError, type2MessageLength, endOfOffset)
-	}
-
-	target, err = ucs22str(type2Message[targetNameOffset : targetNameOffset+uint32(targetNameAllocated)])
-	if err != nil {
-		return nil, target, err
+		return nil, fmt.Errorf(type2MessageError, type2MessageLength, endOfOffset)
 	}
 
 	targetInformationAllocated := binary.LittleEndian.Uint16(type2Message[42:44])
 	targetInformationDataOffset := binary.LittleEndian.Uint32(type2Message[44:48])
 	endOfOffset = int(targetInformationDataOffset + uint32(targetInformationAllocated))
 	if type2MessageLength < endOfOffset {
-		return nil, target, fmt.Errorf(type2MessageError, type2MessageLength, endOfOffset)
+		return nil, fmt.Errorf(type2MessageError, type2MessageLength, endOfOffset)
 	}
 
 	targetInformationBytes := make([]byte, targetInformationAllocated)
 	copy(targetInformationBytes, type2Message[targetInformationDataOffset:targetInformationDataOffset+uint32(targetInformationAllocated)])
 
-	return targetInformationBytes, target, nil
+	return targetInformationBytes, nil
 }
 
 func buildNTLMResponsePayload(lm, nt []byte, flags uint32, domain, workstation, username string) ([]byte, error) {
