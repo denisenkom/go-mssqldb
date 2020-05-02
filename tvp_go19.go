@@ -243,7 +243,6 @@ func (tvp TVP) createZeroType(fieldVal interface{}) interface{} {
 	const (
 		defaultBool    = false
 		defaultFloat64 = float64(0)
-		defaultInt32   = int32(0)
 		defaultInt64   = int64(0)
 		defaultString  = ""
 	)
@@ -253,12 +252,8 @@ func (tvp TVP) createZeroType(fieldVal interface{}) interface{} {
 		return defaultBool
 	case sql.NullFloat64:
 		return defaultFloat64
-	case sql.NullInt32:
-		return defaultInt32
 	case sql.NullInt64:
 		return defaultInt64
-	case sql.NullTime:
-		return time.Time{}
 	case sql.NullString:
 		return defaultString
 	}
@@ -282,17 +277,7 @@ func (tvp TVP) verifyStandardTypeOnNull(buf *bytes.Buffer, tvpVal interface{}) b
 			binary.Write(buf, binary.LittleEndian, defaultNull)
 			return true
 		}
-	case sql.NullInt32:
-		if !val.Valid {
-			binary.Write(buf, binary.LittleEndian, defaultNull)
-			return true
-		}
 	case sql.NullInt64:
-		if !val.Valid {
-			binary.Write(buf, binary.LittleEndian, defaultNull)
-			return true
-		}
-	case sql.NullTime:
 		if !val.Valid {
 			binary.Write(buf, binary.LittleEndian, defaultNull)
 			return true

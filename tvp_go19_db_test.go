@@ -35,25 +35,17 @@ func TestTVPGoSQLTypesWithStandardType(t *testing.T) {
 			p_floatNull64       FLOAT,
 			s_float64           FLOAT,
 			s_floatNull64       FLOAT,
-			p_int               INT,
-			p_intNull           INT,
-			s_int               INT,
-			s_intNull           INT,
 			p_bigint            BIGINT,
 			p_bigintNull        BIGINT,
 			s_bigint            BIGINT,
 			s_bigintNull        BIGINT,
-			p_time 				datetime2,
-			p_timeNull			datetime2,
-			s_time 				datetime2,
-			s_timeNull			datetime2,
 			p_nvarchar 			NVARCHAR(100),
 			p_nvarcharNull 		NVARCHAR(100),
 			s_nvarchar 			NVARCHAR(100),
 			s_nvarcharNull 		NVARCHAR(100)		
 		); `
 
-	sqltextdroptable := `DROP TYPE spwithtvpGoSQLTypesWithStandardType;`
+	sqltextdroptable := `DROP TYPE tvpGoSQLTypesWithStandardType;`
 
 	sqltextcreatesp := `
 	CREATE PROCEDURE spwithtvpGoSQLTypesWithStandardType
@@ -77,25 +69,17 @@ func TestTVPGoSQLTypesWithStandardType(t *testing.T) {
 		PFloat64Null sql.NullFloat64
 		SFloat64     float64
 		SFloat64Null *float64
-		PInt32       sql.NullInt32
-		PInt32Null   sql.NullInt32
-		SInt32       int32
-		SInt32Null   *int32
 		PInt64       sql.NullInt64
 		PInt64Null   sql.NullInt64
 		SInt64       int64
 		SInt64Null   *int64
-		PTime        sql.NullTime
-		PTimeNull    sql.NullTime
-		STime        time.Time
-		STimeNull    *time.Time
 		PString      sql.NullString
 		PStringNull  sql.NullString
 		SString      string
 		SStringNull  *string
 	}
 
-	sqltextdropsp := `DROP PROCEDURE spwithtvpGoSQLTypes;`
+	sqltextdropsp := `DROP PROCEDURE spwithtvpGoSQLTypesWithStandardType;`
 
 	_, err = db.ExecContext(ctx, sqltextcreatetable)
 	if err != nil {
@@ -110,11 +94,9 @@ func TestTVPGoSQLTypesWithStandardType(t *testing.T) {
 	defer db.ExecContext(ctx, sqltextdropsp)
 
 	nvarchar := "bbb"
-	i32 := int32(3)
 	i64 := int64(4)
 	bTrue := true
 	floatValue64 := 0.123
-	timeNow := time.Now().UTC()
 	param1 := []TvpGoSQLTypes{
 		{
 			PBool: sql.NullBool{
@@ -127,21 +109,11 @@ func TestTVPGoSQLTypesWithStandardType(t *testing.T) {
 				Valid:   true,
 			},
 			PFloat64Null: sql.NullFloat64{},
-			PInt32: sql.NullInt32{
-				Int32: 666,
-				Valid: true,
-			},
-			PInt32Null: sql.NullInt32{},
 			PInt64: sql.NullInt64{
 				Int64: 777,
 				Valid: true,
 			},
 			PInt64Null: sql.NullInt64{},
-			PTime: sql.NullTime{
-				Time:  timeNow,
-				Valid: true,
-			},
-			PTimeNull: sql.NullTime{},
 			PString: sql.NullString{
 				String: "test=tvp",
 				Valid:  true,
@@ -157,18 +129,10 @@ func TestTVPGoSQLTypesWithStandardType(t *testing.T) {
 			PFloat64Null: sql.NullFloat64{},
 			SFloat64:     1.1,
 			SFloat64Null: nil,
-			PInt32:       sql.NullInt32{},
-			PInt32Null:   sql.NullInt32{},
-			SInt32:       1,
-			SInt32Null:   nil,
 			PInt64:       sql.NullInt64{},
 			PInt64Null:   sql.NullInt64{},
 			SInt64:       1,
 			SInt64Null:   nil,
-			PTime:        sql.NullTime{},
-			PTimeNull:    sql.NullTime{},
-			STime:        timeNow,
-			STimeNull:    nil,
 			PString:      sql.NullString{},
 			PStringNull:  sql.NullString{},
 			SString:      "any",
@@ -189,13 +153,6 @@ func TestTVPGoSQLTypesWithStandardType(t *testing.T) {
 			PFloat64Null: sql.NullFloat64{},
 			SFloat64:     3.4,
 			SFloat64Null: &floatValue64,
-			PInt32: sql.NullInt32{
-				Int32: 99923,
-				Valid: true,
-			},
-			PInt32Null: sql.NullInt32{},
-			SInt32:     421,
-			SInt32Null: &i32,
 			PInt64: sql.NullInt64{
 				Int64: 32423,
 				Valid: true,
@@ -203,13 +160,6 @@ func TestTVPGoSQLTypesWithStandardType(t *testing.T) {
 			PInt64Null: sql.NullInt64{},
 			SInt64:     9738847389,
 			SInt64Null: &i64,
-			PTime: sql.NullTime{
-				Time:  time.Now().UTC(),
-				Valid: true,
-			},
-			PTimeNull: sql.NullTime{},
-			STime:     time.Now().UTC(),
-			STimeNull: &timeNow,
 			PString: sql.NullString{
 				String: "jifdijrgio",
 				Valid:  true,
@@ -253,18 +203,10 @@ func TestTVPGoSQLTypesWithStandardType(t *testing.T) {
 			&val.PFloat64Null,
 			&val.SFloat64,
 			&val.SFloat64Null,
-			&val.PInt32,
-			&val.PInt32Null,
-			&val.SInt32,
-			&val.SInt32Null,
 			&val.PInt64,
 			&val.PInt64Null,
 			&val.SInt64,
 			&val.SInt64Null,
-			&val.PTime,
-			&val.PTimeNull,
-			&val.STime,
-			&val.STimeNull,
 			&val.PString,
 			&val.PStringNull,
 			&val.SString,
@@ -328,12 +270,8 @@ func TestTVPGoSQLTypes(t *testing.T) {
 			p_bitNull           BIT,	
 			p_float64           FLOAT,
 			p_floatNull64       FLOAT,
-			p_int               INT,
-			p_intNull           INT,
 			p_bigint            BIGINT,
 			p_bigintNull        BIGINT,
-			p_time 				datetime2,
-			p_timeNull			datetime2,
 			p_nvarchar 			NVARCHAR(100),
 			p_nvarcharNull 		NVARCHAR(100)		
 		); `
@@ -358,12 +296,8 @@ func TestTVPGoSQLTypes(t *testing.T) {
 		PBoolNull    sql.NullBool
 		PFloat64     sql.NullFloat64
 		PFloat64Null sql.NullFloat64
-		PInt32       sql.NullInt32
-		PInt32Null   sql.NullInt32
 		PInt64       sql.NullInt64
 		PInt64Null   sql.NullInt64
-		PTime        sql.NullTime
-		PTimeNull    sql.NullTime
 		PString      sql.NullString
 		PStringNull  sql.NullString
 	}
@@ -381,8 +315,6 @@ func TestTVPGoSQLTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.ExecContext(ctx, sqltextdropsp)
-
-	timeNow := time.Now().UTC()
 	param1 := []TvpGoSQLTypes{
 		{
 			PBool: sql.NullBool{
@@ -395,21 +327,11 @@ func TestTVPGoSQLTypes(t *testing.T) {
 				Valid:   true,
 			},
 			PFloat64Null: sql.NullFloat64{},
-			PInt32: sql.NullInt32{
-				Int32: 666,
-				Valid: true,
-			},
-			PInt32Null: sql.NullInt32{},
 			PInt64: sql.NullInt64{
 				Int64: 777,
 				Valid: true,
 			},
 			PInt64Null: sql.NullInt64{},
-			PTime: sql.NullTime{
-				Time:  timeNow,
-				Valid: true,
-			},
-			PTimeNull: sql.NullTime{},
 			PString: sql.NullString{
 				String: "test=tvp",
 				Valid:  true,
@@ -446,12 +368,8 @@ func TestTVPGoSQLTypes(t *testing.T) {
 			&val.PBoolNull,
 			&val.PFloat64,
 			&val.PFloat64Null,
-			&val.PInt32,
-			&val.PInt32Null,
 			&val.PInt64,
 			&val.PInt64Null,
-			&val.PTime,
-			&val.PTimeNull,
 			&val.PString,
 			&val.PStringNull,
 		)
