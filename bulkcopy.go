@@ -394,7 +394,12 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 	case typeVarChar, typeBigVarChar, typeText, typeChar, typeBigChar:
 		switch val := val.(type) {
 		case string:
-			res.buffer = []byte(val)
+			vr := []rune(val)
+			vb := make([]byte, len(vr))
+			for i := range vr {
+				vb[i] = byte(vr[i])
+			}
+			res.buffer = vb
 		case []byte:
 			res.buffer = val
 		default:
