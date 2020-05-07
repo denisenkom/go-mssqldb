@@ -1011,10 +1011,10 @@ initiate_connection:
 				success = true
 				sess.loginAck = token
 			case error:
-				return nil, fmt.Errorf("Login error: %s", token.Error())
+				return nil, token
 			case doneStruct:
 				if token.isError() {
-					return nil, fmt.Errorf("Login error: %s", token.getError())
+					return nil, token.getError()
 				}
 				goto loginEnd
 			}
