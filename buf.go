@@ -48,8 +48,8 @@ type tdsBuffer struct {
 func newTdsBuffer(bufsize uint16, transport io.ReadWriteCloser) *tdsBuffer {
 	return &tdsBuffer{
 		packetSize: int(bufsize),
-		wbuf:       make([]byte, 1<<16),
-		rbuf:       make([]byte, 1<<16),
+		wbuf:       make([]byte, bufsize),
+		rbuf:       make([]byte, bufsize),
 		rpos:       8,
 		transport:  transport,
 	}

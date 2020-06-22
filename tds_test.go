@@ -174,7 +174,7 @@ loop:
 	}
 }
 
-func checkConnStr(t *testing.T) {
+func checkConnStr(t testing.TB) {
 	if len(os.Getenv("SQLSERVER_DSN")) > 0 {
 		return
 	}
@@ -186,7 +186,7 @@ func checkConnStr(t *testing.T) {
 
 // makeConnStr returns a URL struct so it may be modified by various
 // tests before used as a DSN.
-func makeConnStr(t *testing.T) *url.URL {
+func makeConnStr(t testing.TB) *url.URL {
 	dsn := os.Getenv("SQLSERVER_DSN")
 	if len(dsn) > 0 {
 		parsed, err := url.Parse(dsn)
@@ -213,7 +213,7 @@ func makeConnStr(t *testing.T) *url.URL {
 }
 
 type testLogger struct {
-	t *testing.T
+	t testing.TB
 }
 
 func (l testLogger) Printf(format string, v ...interface{}) {
@@ -532,5 +532,83 @@ func TestReadBVarByte(t *testing.T) {
 	s, err = readBVarByte(memBuf)
 	if err == nil {
 		t.Error("readUsVarByte should fail on short buffer, but it didn't")
+	}
+}
+
+func BenchmarkPacketSize(b *testing.B) {
+	checkConnStr(b)
+	p, err := parseConnectParams(makeConnStr(b).String())
+	if err != nil {
+		b.Error("parseConnectParams failed:", err.Error())
+		return
+	}
+
+	benchmarks := []struct {
+		name       string
+		packetSize uint16
+	}{
+		{name: "PacketSize 2048", packetSize: 2048},
+		{name: "PacketSize 4096", packetSize: 4096},
+		{name: "PacketSize 8192", packetSize: 8192},
+		{name: "PacketSize 16384", packetSize: 16384},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				p.packetSize = bm.packetSize
+				runBatch(b, p)
+			}
+		})
+	}
+
+}
+
+func runBatch(t testing.TB, p connectParams) {
+	conn, err := connect(context.Background(), nil, optionalLogger{testLogger{t}}, p)
+	if err != nil {
+		t.Error("Open connection failed:", err.Error())
+		return
+	}
+	defer conn.buf.transport.Close()
+
+	headers := []headerStruct{
+		{hdrtype: dataStmHdrTransDescr,
+			data: transDescrHdr{0, 1}.pack()},
+	}
+	err = sendSqlBatch72(conn.buf, "select 1", headers, true)
+	if err != nil {
+		t.Error("Sending sql batch failed", err.Error())
+		return
+	}
+
+	ch := make(chan tokenStruct, 5)
+	go processResponse(context.Background(), conn, ch, nil)
+
+	var lastRow []interface{}
+loop:
+	for tok := range ch {
+		switch token := tok.(type) {
+		case doneStruct:
+			break loop
+		case []columnStruct:
+			conn.columns = token
+		case []interface{}:
+			lastRow = token
+		default:
+			t.Log("unknown token", tok)
+		}
+	}
+
+	if len(lastRow) == 0 {
+		t.Fatal("expected row but no row set")
+	}
+
+	switch value := lastRow[0].(type) {
+	case int32:
+		if value != 1 {
+			t.Error("Invalid value returned, should be 1", value)
+			return
+		}
 	}
 }
