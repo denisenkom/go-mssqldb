@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"log"
 
-	mssql "github.com/denisenkom/go-mssqldb"
+	mssql "mssql"
 )
 
 // This example shows how to use tvp type

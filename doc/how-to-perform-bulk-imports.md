@@ -5,7 +5,7 @@ To use the bulk imports feature in go-mssqldb, you need to import the sql and go
 ```
 import (
     "database/sql"
-    "github.com/denisenkom/go-mssqldb"
+    "mssql"
 )
 ```
 
