@@ -934,7 +934,21 @@ initiate_connection:
 		// setting up connection handler which will allow wrapping of TLS handshake packets inside TDS stream
 		handshakeConn := tlsHandshakeConn{buf: outbuf}
 		passthrough := passthroughConn{c: &handshakeConn}
-		tlsConn := tls.Client(&passthrough, &config)
+		var tlsConn *tls.Conn
+		if c.NewTLSConn != nil {
+			// TODO modify NewTLSConn to also return an err? and bail if err?
+			// TODO should NewTLSConn have a config argument? it will be
+			//      passed initialized, which might be odd?
+			//      the rationale being, if you set NewTLSConn, you should
+			//      known what you are doing, and it should only be
+			//      c.NewTLSConn(&passthrough)? But then again... how to
+			//      access connectParams for getting, at least,
+			//      p.hostInCertificate?
+			tlsConn = c.NewTLSConn(&passthrough, &config)
+		} else {
+			tlsConn = tls.Client(&passthrough, &config)
+		}
+		// TODO err when tlsConn is nil?
 		err = tlsConn.Handshake()
 		passthrough.c = toconn
 		outbuf.transport = tlsConn
