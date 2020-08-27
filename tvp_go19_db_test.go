@@ -209,7 +209,9 @@ func TestTVP(t *testing.T) {
 	bFalse := false
 	floatValue64 := 0.123
 	floatValue32 := float32(-10.123)
-	timeNow := time.Now().UTC()
+	// SQL Server's datetime2 has maximum precision of 7 digits, so for end-to-end
+	// equality comparison we must not test with any finer resolution than 100 nsec.
+	datetime2Value := time.Date(2020, 8, 26, 23, 59, 39, 100, time.UTC)
 	param1 := []TvptableRow{
 		{
 			PBinary:    []byte("ccc"),
@@ -224,7 +226,7 @@ func TestTVP(t *testing.T) {
 			PBit:       bFalse,
 			PFloat32:   floatValue32,
 			PFloat64:   floatValue64,
-			DTime:      timeNow,
+			DTime:      datetime2Value,
 			Pint:       355,
 		},
 		{
@@ -255,8 +257,8 @@ func TestTVP(t *testing.T) {
 			PBitNull:      &bFalse,
 			PFloatNull32:  &floatValue32,
 			PFloatNull64:  &floatValue64,
-			DTime:         timeNow,
-			DTimeNull:     &timeNow,
+			DTime:         datetime2Value,
+			DTimeNull:     &datetime2Value,
 			PintNull:      &i,
 		},
 		{
@@ -281,7 +283,7 @@ func TestTVP(t *testing.T) {
 			PBitNull:      &bFalse,
 			PFloatNull32:  &floatValue32,
 			PFloatNull64:  &floatValue64,
-			DTimeNull:     &timeNow,
+			DTimeNull:     &datetime2Value,
 			PintNull:      &i,
 		},
 	}
@@ -462,7 +464,9 @@ func TestTVP_WithTag(t *testing.T) {
 	bFalse := false
 	floatValue64 := 0.123
 	floatValue32 := float32(-10.123)
-	timeNow := time.Now().UTC()
+	// SQL Server's datetime2 has maximum precision of 7 digits, so for end-to-end
+	// equality comparison we must not test with any finer resolution than 100 nsec.
+	datetime2Value := time.Date(2020, 8, 26, 23, 59, 39, 100, time.UTC)
 	param1 := []TvptableRowWithSkipTag{
 		{
 			PBinary:    []byte("ccc"),
@@ -477,7 +481,7 @@ func TestTVP_WithTag(t *testing.T) {
 			PBit:       bFalse,
 			PFloat32:   floatValue32,
 			PFloat64:   floatValue64,
-			DTime:      timeNow,
+			DTime:      datetime2Value,
 			Pint:       i,
 			PintNull:   &i,
 		},
@@ -510,8 +514,8 @@ func TestTVP_WithTag(t *testing.T) {
 			PBitNull:      &bFalse,
 			PFloatNull32:  &floatValue32,
 			PFloatNull64:  &floatValue64,
-			DTime:         timeNow,
-			DTimeNull:     &timeNow,
+			DTime:         datetime2Value,
+			DTimeNull:     &datetime2Value,
 			Pint:          969,
 		},
 		{
@@ -536,7 +540,7 @@ func TestTVP_WithTag(t *testing.T) {
 			PBitNull:      &bFalse,
 			PFloatNull32:  &floatValue32,
 			PFloatNull64:  &floatValue64,
-			DTimeNull:     &timeNow,
+			DTimeNull:     &datetime2Value,
 			PintNull:      &i,
 		},
 	}
