@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"flag"
 	"fmt"
@@ -63,7 +64,7 @@ func main() {
 	fmt.Printf("bye\n")
 }
 
-func getMSITokenProvider() (func() (string, error), error) {
+func getMSITokenProvider() (func(ctx context.Context) (string, error), error) {
 	msiEndpoint, err := adal.GetMSIEndpoint()
 	if err != nil {
 		return nil, err
@@ -74,8 +75,8 @@ func getMSITokenProvider() (func() (string, error), error) {
 		return nil, err
 	}
 
-	return func() (string, error) {
-		msi.EnsureFresh()
+	return func(ctx context.Context) (string, error) {
+		msi.EnsureFreshContext(ctx)
 		token := msi.OAuthToken()
 		return token, nil
 	}, nil
