@@ -16,13 +16,13 @@ var _ driver.Connector = &accessTokenConnector{}
 type accessTokenConnector struct {
 	Connector
 
-	accessTokenProvider func() (string, error)
+	accessTokenProvider func(ctx context.Context) (string, error)
 }
 
 // NewAccessTokenConnector creates a new connector from a DSN and a token provider.
 // The token provider func will be called when a new connection is requested and should return a valid access token.
 // The returned connector may be used with sql.OpenDB.
-func NewAccessTokenConnector(dsn string, tokenProvider func() (string, error)) (driver.Connector, error) {
+func NewAccessTokenConnector(dsn string, tokenProvider func(ctx context.Context) (string, error)) (driver.Connector, error) {
 	if tokenProvider == nil {
 		return nil, errors.New("mssql: tokenProvider cannot be nil")
 	}
@@ -42,7 +42,7 @@ func NewAccessTokenConnector(dsn string, tokenProvider func() (string, error)) (
 // Connect returns a new database connection
 func (c *accessTokenConnector) Connect(ctx context.Context) (driver.Conn, error) {
 	var err error
-	c.Connector.params.fedAuthAccessToken, err = c.accessTokenProvider()
+	c.Connector.params.fedAuthAccessToken, err = c.accessTokenProvider(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("mssql: error retrieving access token: %+v", err)
 	}
