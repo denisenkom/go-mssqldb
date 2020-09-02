@@ -13,10 +13,10 @@ import (
 
 func TestNewAccessTokenConnector(t *testing.T) {
 	dsn := "Server=server.database.windows.net;Database=db"
-	tp := func() (string, error) { return "token", nil }
+	tp := func(ctx context.Context) (string, error) { return "token", nil }
 	type args struct {
 		dsn           string
-		tokenProvider func() (string, error)
+		tokenProvider func(ctx context.Context) (string, error)
 	}
 	tests := []struct {
 		name    string
@@ -44,7 +44,7 @@ func TestNewAccessTokenConnector(t *testing.T) {
 				if tc.accessTokenProvider == nil {
 					return fmt.Errorf("Expected tokenProvider to not be nil")
 				}
-				t, err := tc.accessTokenProvider()
+				t, err := tc.accessTokenProvider(context.TODO())
 				if t != "token" || err != nil {
 					return fmt.Errorf("Unexpected results from tokenProvider: %v, %v", t, err)
 				}
@@ -80,7 +80,7 @@ func TestNewAccessTokenConnector(t *testing.T) {
 func TestAccessTokenConnectorFailsToConnectIfNoAccessToken(t *testing.T) {
 	errorText := "This is a test"
 	dsn := "Server=server.database.windows.net;Database=db"
-	tp := func() (string, error) { return "", errors.New(errorText) }
+	tp := func(ctx context.Context) (string, error) { return "", errors.New(errorText) }
 	sut, err := NewAccessTokenConnector(dsn, tp)
 	if err != nil {
 		t.Fatalf("expected err==nil, but got %+v", err)
