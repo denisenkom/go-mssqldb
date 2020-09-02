@@ -76,7 +76,7 @@ func getMSITokenProvider() (func(ctx context.Context) (string, error), error) {
 	}
 
 	return func(ctx context.Context) (string, error) {
-		msi.EnsureFreshContext(ctx)
+		msi.EnsureFreshWithContext(ctx)
 		token := msi.OAuthToken()
 		return token, nil
 	}, nil
