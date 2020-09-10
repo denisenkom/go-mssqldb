@@ -29,16 +29,16 @@ environment:
     - SQLINSTANCE: SQL2012SP1
     - SQLINSTANCE: SQL2008R2SP2
 
-    #  Go 1.14 and SQL2019 are available on the Visual Studio 2019 image only
-    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
-      GOVERSION: 114
-      SQLINSTANCE: SQL2017
+    #  Go 1.14+ and SQL2019 are available on the Visual Studio 2019 image only
     - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
       GOVERSION: 114
       SQLINSTANCE: SQL2019
-
-    # TODO: add Go 1.15
-    # the latest version of Go is 1.15, but it is not available on AppVeyor (2020-08-28)
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
+      GOVERSION: 115
+      SQLINSTANCE: SQL2019
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
+      GOVERSION: 115
+      SQLINSTANCE: SQL2017
 
 install:
   - set GOROOT=c:\go%GOVERSION%
