@@ -585,6 +585,7 @@ func TestTwoQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal("First exec failed", err)
 	}
+	defer rows.Close()
 	if !rows.Next() {
 		t.Fatal("First query didn't return row")
 	}
@@ -595,10 +596,14 @@ func TestTwoQueries(t *testing.T) {
 	if i != 1 {
 		t.Fatalf("Wrong value returned %d, should be 1", i)
 	}
+	if rows.Next() {
+		t.Fatal("First query returns too many rows")
+	}
 
 	if rows, err = conn.Query("select 2"); err != nil {
 		t.Fatal("Second query failed", err)
 	}
+	defer rows.Close()
 	if !rows.Next() {
 		t.Fatal("Second query didn't return row")
 	}
@@ -607,6 +612,9 @@ func TestTwoQueries(t *testing.T) {
 	}
 	if i != 2 {
 		t.Fatalf("Wrong value returned %d, should be 2", i)
+	}
+	if rows.Next() {
+		t.Fatal("Second query returns too many rows")
 	}
 }
 
@@ -1463,6 +1471,7 @@ func TestColumnTypeIntrospection(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Query failed with unexpected error %s", err)
 		}
+		defer rows.Close()
 		ct, err := rows.ColumnTypes()
 		if err != nil {
 			t.Fatalf("Query failed with unexpected error %s", err)
