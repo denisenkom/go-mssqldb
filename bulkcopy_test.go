@@ -108,6 +108,10 @@ func TestBulkcopy(t *testing.T) {
 	t.Log("Preparing copy in statement")
 
 	stmt, err := conn.PrepareContext(ctx, CopyIn(tableName, BulkOptions{}, columns...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stmt.Close()
 
 	for i := 0; i < 10; i++ {
 		t.Logf("Executing copy in statement %d time with %d values", i+1, len(values))

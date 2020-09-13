@@ -207,6 +207,8 @@ func TestReturnStatusWithQuery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rows.Close()
+
 	var str string
 	for rows.Next() {
 		err = rows.Scan(&str)

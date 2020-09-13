@@ -337,20 +337,22 @@ func TestMultipleQueryClose(t *testing.T) {
 	}
 	defer stmt.Close()
 
-	rows, err := stmt.Query()
-	if err != nil {
-		t.Error("Query failed:", err.Error())
-		return
-	}
-	rows.Close()
+	func() {
+		rows, err := stmt.Query()
+		if err != nil {
+			t.Fatal("Query failed:", err.Error())
+		}
+		defer rows.Close()
+	}()
 
-	rows, err = stmt.Query()
-	if err != nil {
-		t.Error("Query failed:", err.Error())
-		return
-	}
-	defer rows.Close()
-	checkSimpleQuery(rows, t)
+	func() {
+		rows, err := stmt.Query()
+		if err != nil {
+			t.Fatal("Query failed:", err.Error())
+		}
+		defer rows.Close()
+		checkSimpleQuery(rows, t)
+	}()
 }
 
 func TestPing(t *testing.T) {

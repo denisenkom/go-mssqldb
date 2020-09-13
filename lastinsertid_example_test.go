@@ -55,6 +55,7 @@ func ExampleLastInsertId() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer rows.Close()
 	var lastInsertId1 int64
 	for rows.Next() {
 		rows.Scan(&lastInsertId1)
