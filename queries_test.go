@@ -1807,6 +1807,7 @@ func TestQueryCancelLowLevel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query failed with error %v", err)
 	}
+	defer rows.Close()
 
 	values := []driver.Value{nil}
 	err = rows.Next(values)
