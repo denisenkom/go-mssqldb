@@ -621,12 +621,22 @@ loop:
 		case doneStruct:
 			if token.isError() {
 				cancel()
+
+				// make sure tokchan is closed
+				for range tokchan {
+				}
+
 				return nil, s.c.checkBadConn(token.getError())
 			}
 		case ReturnStatus:
 			s.c.setReturnStatus(token)
 		case error:
 			cancel()
+
+			// make sure tokchan is closed
+			for range tokchan {
+			}
+
 			return nil, s.c.checkBadConn(token)
 		}
 	}
