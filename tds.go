@@ -1016,6 +1016,11 @@ initiate_connection:
 				if token.isError() {
 					return nil, fmt.Errorf("Login error: %s", token.getError())
 				}
+
+				// make sure tokchan is closed
+				for range tokchan {
+				}
+
 				goto loginEnd
 			}
 		}

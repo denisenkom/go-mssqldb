@@ -204,17 +204,21 @@ func (c *Conn) simpleProcessResp(ctx context.Context) error {
 	tokchan := make(chan tokenStruct, 5)
 	go processResponse(ctx, c.sess, tokchan, c.outs)
 	c.clearOuts()
+
+	var err error
 	for tok := range tokchan {
 		switch token := tok.(type) {
 		case doneStruct:
-			if token.isError() {
-				return c.checkBadConn(token.getError())
+			if token.isError() && err != nil {
+				err = c.checkBadConn(token.getError())
 			}
 		case error:
-			return c.checkBadConn(token)
+			if err != nil {
+				err = c.checkBadConn(token)
+			}
 		}
 	}
-	return nil
+	return err
 }
 
 func (c *Conn) Commit() error {
@@ -686,9 +690,12 @@ type Rows struct {
 
 func (rc *Rows) Close() error {
 	rc.cancel()
-	for _ = range rc.tokchan {
+
+	// make sure tokchan is closed
+	for range rc.tokchan {
 	}
 	rc.tokchan = nil
+
 	return nil
 }
 

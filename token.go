@@ -814,8 +814,16 @@ func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct,
 			case parseRespIterContinue:
 				// Nothing, continue to next token.
 			case parseRespIterNext:
+				// make sure tokChan is closed
+				for range tokChan {
+				}
+
 				break tokensLoop
 			case parseRespIterDone:
+				// make sure tokChan is closed
+				for range tokChan {
+				}
+
 				return
 			}
 		}

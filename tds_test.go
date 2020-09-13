@@ -145,6 +145,11 @@ func TestSendSqlBatch(t *testing.T) {
 
 	ch := make(chan tokenStruct, 5)
 	go processResponse(context.Background(), conn, ch, nil)
+	defer func() {
+		// make share ch is closed
+		for range ch {
+		}
+	}()
 
 	var lastRow []interface{}
 loop:
