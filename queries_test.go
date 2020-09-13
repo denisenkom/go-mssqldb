@@ -936,6 +936,7 @@ func TestIgnoreEmptyResults(t *testing.T) {
 	if err != nil {
 		t.Fatal("Query failed", err.Error())
 	}
+	defer rows.Close()
 	if !rows.Next() {
 		t.Fatal("Query didn't return row")
 	}
