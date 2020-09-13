@@ -209,11 +209,11 @@ func (c *Conn) simpleProcessResp(ctx context.Context) error {
 	for tok := range tokchan {
 		switch token := tok.(type) {
 		case doneStruct:
-			if token.isError() && err != nil {
+			if token.isError() && err == nil {
 				err = c.checkBadConn(token.getError())
 			}
 		case error:
-			if err != nil {
+			if err == nil {
 				err = c.checkBadConn(token)
 			}
 		}
