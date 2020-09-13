@@ -666,14 +666,19 @@ func (s *Stmt) processExec(ctx context.Context) (res driver.Result, err error) {
 			if token.Status&doneCount != 0 {
 				rowCount += int64(token.RowCount)
 			}
-			if token.isError() {
-				return nil, token.getError()
+			if token.isError() && err == nil {
+				err = token.getError()
 			}
 		case ReturnStatus:
 			s.c.setReturnStatus(token)
 		case error:
-			return nil, token
+			if err == nil {
+				err = token
+			}
 		}
+	}
+	if err != nil {
+		return nil, err
 	}
 	return &Result{s.c, rowCount}, nil
 }
