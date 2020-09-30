@@ -19,6 +19,7 @@ type Error struct {
 	LineNo     int32
 }
 
+// Error returns the SQL Server error message.
 func (e Error) Error() string {
 	return "mssql: " + e.Message
 }
@@ -28,34 +29,42 @@ func (e Error) SQLErrorNumber() int32 {
 	return e.Number
 }
 
+// SQLErrorState returns the SQL Server error state.
 func (e Error) SQLErrorState() uint8 {
 	return e.State
 }
 
+// SQLErrorClass returns the SQL Server error class.
 func (e Error) SQLErrorClass() uint8 {
 	return e.Class
 }
 
+// SQLErrorMessage returns the SQL Server error message.
 func (e Error) SQLErrorMessage() string {
 	return e.Message
 }
 
+// SQLErrorServerName returns the SQL Server name.
 func (e Error) SQLErrorServerName() string {
 	return e.ServerName
 }
 
+// SQLErrorProcName returns the procedure name.
 func (e Error) SQLErrorProcName() string {
 	return e.ProcName
 }
 
+// SQLErrorLineNo returns the error line number.
 func (e Error) SQLErrorLineNo() int32 {
 	return e.LineNo
 }
 
+// StreamError represents TDS stream error.
 type StreamError struct {
 	Message string
 }
 
+// Error returns the TDS stream error message.
 func (e StreamError) Error() string {
 	return e.Message
 }

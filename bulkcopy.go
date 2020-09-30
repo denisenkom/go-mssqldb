@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/denisenkom/go-mssqldb/internal/decimal"
+	"github.com/denisenkom/go-mssqldb/internal/mssqltypes"
 )
 
 type Bulk struct {
@@ -490,24 +490,24 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 	case typeDecimal, typeDecimalN, typeNumeric, typeNumericN:
 		prec := col.ti.Prec
 		scale := col.ti.Scale
-		var dec decimal.Decimal
+		var dec mssqltypes.Decimal
 		switch v := val.(type) {
 		case int:
-			dec = decimal.Int64ToDecimalScale(int64(v), 0)
+			dec = mssqltypes.Int64ToDecimalScale(int64(v), 0)
 		case int8:
-			dec = decimal.Int64ToDecimalScale(int64(v), 0)
+			dec = mssqltypes.Int64ToDecimalScale(int64(v), 0)
 		case int16:
-			dec = decimal.Int64ToDecimalScale(int64(v), 0)
+			dec = mssqltypes.Int64ToDecimalScale(int64(v), 0)
 		case int32:
-			dec = decimal.Int64ToDecimalScale(int64(v), 0)
+			dec = mssqltypes.Int64ToDecimalScale(int64(v), 0)
 		case int64:
-			dec = decimal.Int64ToDecimalScale(int64(v), 0)
+			dec = mssqltypes.Int64ToDecimalScale(int64(v), 0)
 		case float32:
-			dec, err = decimal.Float64ToDecimalScale(float64(v), scale)
+			dec, err = mssqltypes.Float64ToDecimalScale(float64(v), scale)
 		case float64:
-			dec, err = decimal.Float64ToDecimalScale(float64(v), scale)
+			dec, err = mssqltypes.Float64ToDecimalScale(float64(v), scale)
 		case string:
-			dec, err = decimal.StringToDecimalScale(v, scale)
+			dec, err = mssqltypes.StringToDecimalScale(v, scale)
 		default:
 			return res, fmt.Errorf("unknown value for decimal: %T %#v", v, v)
 		}
