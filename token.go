@@ -704,18 +704,14 @@ func (ts *parseResp) sendAttention(ch chan tokenStruct) parseRespIter {
 }
 
 func (ts *parseResp) dlog(msg string) {
-	// logging from goroutine is disabled to prevent
-	// data race detection from firing
-	// The race is probably happening when
-	// test logger changes between tests.
-	/*if ts.sess.logFlags&logDebug != 0 {
+	if ts.sess.logFlags&logDebug != 0 {
 		ts.sess.log.Println(msg)
-	}*/
+	}
 }
 func (ts *parseResp) dlogf(f string, v ...interface{}) {
-	/*if ts.sess.logFlags&logDebug != 0 {
+	if ts.sess.logFlags&logDebug != 0 {
 		ts.sess.log.Printf(f, v...)
-	}*/
+	}
 }
 
 func (ts *parseResp) iter(ctx context.Context, ch chan tokenStruct, tokChan chan tokenStruct) parseRespIter {
