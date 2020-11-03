@@ -227,12 +227,18 @@ func (l testLogger) Println(v ...interface{}) {
 func TestConnect(t *testing.T) {
 	checkConnStr(t)
 	SetLogger(testLogger{t})
-	conn, err := sql.Open("mssql", makeConnStr(t).String())
+	conn, err := sql.Open("mssql", os.Getenv("SQLSERVER_DSN"))
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
 		return
 	}
 	defer conn.Close()
+	row := conn.QueryRow("select 1")
+	var val int
+	err = row.Scan(&val)
+	if err != nil {
+		t.Error("Scan failed:", err.Error())
+	}
 }
 
 func simpleQuery(conn *sql.DB, t *testing.T) (stmt *sql.Stmt) {
