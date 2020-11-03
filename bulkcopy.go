@@ -44,8 +44,9 @@ type BulkOptions struct {
 type DataValue interface{}
 
 const (
-	sqlDateFormat = "2006-01-02"
-	sqlTimeFormat = "2006-01-02 15:04:05.999999999Z07:00"
+	sqlDateFormat     = "2006-01-02"
+	sqlDateTimeFormat = "2006-01-02 15:04:05.999999999Z07:00"
+	sqlTimeFormat     = "15:04:05.9999999"
 )
 
 func (cn *Conn) CreateBulk(table string, columns []string) (_ *Bulk) {
@@ -421,7 +422,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 			res.ti.Size = len(res.buffer)
 		case string:
 			var t time.Time
-			if t, err = time.Parse(sqlTimeFormat, val); err != nil {
+			if t, err = time.Parse(sqlDateTimeFormat, val); err != nil {
 				return res, fmt.Errorf("bulk: unable to convert string to date: %v", err)
 			}
 			res.buffer = encodeDateTime2(t, int(col.ti.Scale))
@@ -437,7 +438,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 			res.ti.Size = len(res.buffer)
 		case string:
 			var t time.Time
-			if t, err = time.Parse(sqlTimeFormat, val); err != nil {
+			if t, err = time.Parse(sqlDateTimeFormat, val); err != nil {
 				return res, fmt.Errorf("bulk: unable to convert string to date: %v", err)
 			}
 			res.buffer = encodeDateTimeOffset(t, int(col.ti.Scale))
@@ -468,7 +469,7 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 		case time.Time:
 			t = val
 		case string:
-			if t, err = time.Parse(sqlTimeFormat, val); err != nil {
+			if t, err = time.Parse(sqlDateTimeFormat, val); err != nil {
 				return res, fmt.Errorf("bulk: unable to convert string to date: %v", err)
 			}
 		default:
@@ -485,7 +486,22 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 		} else {
 			err = fmt.Errorf("mssql: invalid size of column %d", col.ti.Size)
 		}
-
+	case typeTimeN:
+		var t time.Time
+		switch val := val.(type) {
+		case time.Time:
+			res.buffer = encodeTime(val.Hour(), val.Minute(), val.Second(), val.Nanosecond(), int(col.ti.Scale))
+			res.ti.Size = len(res.buffer)
+		case string:
+			if t, err = time.Parse(sqlTimeFormat, val); err != nil {
+				return res, fmt.Errorf("bulk: unable to convert string to time: %v", err)
+			}
+			res.buffer = encodeTime(t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), int(col.ti.Scale))
+			res.ti.Size = len(res.buffer)
+		default:
+			err = fmt.Errorf("mssql: invalid type for time column: %T %s", val, val)
+			return
+		}
 	// case typeMoney, typeMoney4, typeMoneyN:
 	case typeDecimal, typeDecimalN, typeNumeric, typeNumericN:
 		prec := col.ti.Prec
