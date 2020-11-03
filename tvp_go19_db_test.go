@@ -303,10 +303,10 @@ func TestTVP(t *testing.T) {
 		sql.Named("param2", tvpTypeEmpty),
 		sql.Named("param3", "test"),
 	)
-
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rows.Close()
 
 	var result1 []TvptableRow
 	for rows.Next() {
@@ -560,10 +560,10 @@ func TestTVP_WithTag(t *testing.T) {
 		sql.Named("param2", tvpTypeEmpty),
 		sql.Named("param3", "test"),
 	)
-
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rows.Close()
 
 	var result1 []TvptableRowWithSkipTag
 	for rows.Next() {
@@ -690,17 +690,16 @@ func TestTVPSchema(t *testing.T) {
 		sql.Named("param1", tvpType),
 	)
 	if err != nil {
-		log.Println(err)
-		return
+		t.Fatal(err)
 	}
+	defer rows.Close()
 
 	tvpResult := make([]TvpExample, 0)
 	for rows.Next() {
 		tvpExemple := TvpExample{}
 		err = rows.Scan(&tvpExemple.Message)
 		if err != nil {
-			log.Println(err)
-			return
+			t.Fatal(err)
 		}
 		tvpResult = append(tvpResult, tvpExemple)
 	}

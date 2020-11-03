@@ -145,6 +145,11 @@ func TestSendSqlBatch(t *testing.T) {
 
 	ch := make(chan tokenStruct, 5)
 	go processResponse(context.Background(), conn, ch, nil)
+	defer func() {
+		// make share ch is closed
+		for range ch {
+		}
+	}()
 
 	var lastRow []interface{}
 loop:
@@ -338,20 +343,22 @@ func TestMultipleQueryClose(t *testing.T) {
 	}
 	defer stmt.Close()
 
-	rows, err := stmt.Query()
-	if err != nil {
-		t.Error("Query failed:", err.Error())
-		return
-	}
-	rows.Close()
+	func() {
+		rows, err := stmt.Query()
+		if err != nil {
+			t.Fatal("Query failed:", err.Error())
+		}
+		defer rows.Close()
+	}()
 
-	rows, err = stmt.Query()
-	if err != nil {
-		t.Error("Query failed:", err.Error())
-		return
-	}
-	defer rows.Close()
-	checkSimpleQuery(rows, t)
+	func() {
+		rows, err := stmt.Query()
+		if err != nil {
+			t.Fatal("Query failed:", err.Error())
+		}
+		defer rows.Close()
+		checkSimpleQuery(rows, t)
+	}()
 }
 
 func TestPing(t *testing.T) {

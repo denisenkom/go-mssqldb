@@ -60,6 +60,7 @@ END;
 		if err != nil {
 			t.Error(err)
 		}
+		defer rows.Close()
 		// reading first row
 		if !rows.Next() {
 			t.Error("Next returned false")
@@ -947,10 +948,10 @@ with
 					}
 					return
 				}
+				defer rows.Close()
 				for rows.Next() {
 					// Nothing.
 				}
-				rows.Close()
 			})
 		}
 	}

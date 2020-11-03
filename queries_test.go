@@ -622,8 +622,9 @@ func TestError(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
 
-	_, err := conn.Query("exec bad")
+	row, err := conn.Query("exec bad")
 	if err == nil {
+		defer row.Close()
 		t.Fatal("Query should fail")
 	}
 
@@ -645,6 +646,7 @@ func TestQueryNoRows(t *testing.T) {
 	if rows, err = conn.Query("create table #abc (fld int)"); err != nil {
 		t.Fatal("Query failed", err)
 	}
+	defer rows.Close()
 	if rows.Next() {
 		t.Fatal("Query shoulnd't return any rows")
 	}
@@ -697,6 +699,7 @@ func TestOrderBy(t *testing.T) {
 	if err != nil {
 		t.Fatal("Query failed", err)
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var fld1 int32
@@ -880,7 +883,9 @@ func TestUniqueIdentifierParam(t *testing.T) {
 func TestBigQuery(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
-	rows, err := conn.Query(`WITH n(n) AS
+
+	func() {
+		rows, err := conn.Query(`WITH n(n) AS
 		(
 		    SELECT 1
 		    UNION ALL
@@ -888,13 +893,15 @@ func TestBigQuery(t *testing.T) {
 		)
 		SELECT n, @@version FROM n ORDER BY n
 		OPTION (MAXRECURSION 10000);`)
-	if err != nil {
-		t.Fatal("cannot exec query", err)
-	}
-	rows.Next()
-	rows.Close()
+		if err != nil {
+			t.Fatal("cannot exec query", err)
+		}
+		defer rows.Close()
+		rows.Next()
+	}()
+
 	var res int
-	err = conn.QueryRow("select 0").Scan(&res)
+	err := conn.QueryRow("select 0").Scan(&res)
 	if err != nil {
 		t.Fatal("cannot scan value", err)
 	}
@@ -936,6 +943,7 @@ func TestIgnoreEmptyResults(t *testing.T) {
 	if err != nil {
 		t.Fatal("Query failed", err.Error())
 	}
+	defer rows.Close()
 	if !rows.Next() {
 		t.Fatal("Query didn't return row")
 	}
@@ -1039,17 +1047,20 @@ func TestConnectionClosing(t *testing.T) {
 			return
 		}
 
-		stmt, err := pool.Query("select 1")
-		if err != nil {
-			t.Fatalf("Query failed with unexpected error %s", err)
-		}
-		for stmt.Next() {
-			var val interface{}
-			err := stmt.Scan(&val)
+		func() {
+			rows, err := pool.Query("select 1")
 			if err != nil {
 				t.Fatalf("Query failed with unexpected error %s", err)
 			}
-		}
+			defer rows.Close()
+			for rows.Next() {
+				var val interface{}
+				err := rows.Scan(&val)
+				if err != nil {
+					t.Fatalf("Query failed with unexpected error %s", err)
+				}
+			}
+		}()
 	}
 }
 
@@ -1536,6 +1547,7 @@ func TestColumnIntrospection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query failed with unexpected error %s", err)
 	}
+	defer rows.Close()
 
 	ct, err := rows.ColumnTypes()
 	if err != nil {
@@ -1595,19 +1607,27 @@ func TestContext(t *testing.T) {
 		t.Errorf("BeginTx failed with unexpected error %s", err)
 		return
 	}
-	rows, err := tx.QueryContext(ctx, "DBCC USEROPTIONS")
-	properties := make(map[string]string)
-	for rows.Next() {
-		var name, value string
-		if err = rows.Scan(&name, &value); err != nil {
-			t.Errorf("Scan failed with unexpected error %s", err)
-		}
-		properties[name] = value
-	}
+	defer tx.Rollback()
 
-	if properties["isolation level"] != "serializable" {
-		t.Errorf("Expected isolation level to be serializable but it is %s", properties["isolation level"])
-	}
+	// check the isolation level
+	func() {
+		rows, err := tx.QueryContext(ctx, "DBCC USEROPTIONS")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		properties := make(map[string]string)
+		for rows.Next() {
+			var name, value string
+			if err = rows.Scan(&name, &value); err != nil {
+				t.Errorf("Scan failed with unexpected error %s", err)
+			}
+			properties[name] = value
+		}
+		if properties["isolation level"] != "serializable" {
+			t.Errorf("Expected isolation level to be serializable but it is %s", properties["isolation level"])
+		}
+	}()
 
 	row := tx.QueryRowContext(ctx, "select 1")
 	var val int64
@@ -1624,11 +1644,12 @@ func TestContext(t *testing.T) {
 		return
 	}
 
-	_, err = tx.PrepareContext(ctx, "select 1")
+	stmt, err := tx.PrepareContext(ctx, "select 1")
 	if err != nil {
 		t.Errorf("PrepareContext failed with unexpected error %s", err)
 		return
 	}
+	defer stmt.Close()
 }
 
 func TestBeginTxtReadOnlyNotSupported(t *testing.T) {
@@ -1673,6 +1694,7 @@ func TestConn_BeginTx(t *testing.T) {
 	if err != nil {
 		t.Fatal("select failed with error", err)
 	}
+	defer rows.Close()
 	values := []int64{}
 	for rows.Next() {
 		var val int64
@@ -1806,6 +1828,7 @@ func TestQueryCancelLowLevel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query failed with error %v", err)
 	}
+	defer rows.Close()
 
 	values := []driver.Value{nil}
 	err = rows.Next(values)
