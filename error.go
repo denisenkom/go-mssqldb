@@ -71,3 +71,16 @@ func badStreamPanic(err error) {
 func badStreamPanicf(format string, v ...interface{}) {
 	panic(streamErrorf(format, v...))
 }
+
+type ConnectionError struct {
+	Message string
+	Err     error
+}
+
+func (c ConnectionError) Error() string {
+	return fmt.Sprintf("%s: %v", c.Message, c.Err)
+}
+
+func connectionError(message string, err error) ConnectionError {
+	return ConnectionError{Message: message, Err: err}
+}
