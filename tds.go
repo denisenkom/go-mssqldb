@@ -1014,7 +1014,7 @@ initiate_connection:
 				return nil, fmt.Errorf("Login error: %w", token.Error())
 			case doneStruct:
 				if token.isError() {
-					return nil, fmt.Errorf("Login error: %w", token.Error())
+					return nil, fmt.Errorf("Login error: %w", token.getError())
 				}
 				goto loginEnd
 			}
