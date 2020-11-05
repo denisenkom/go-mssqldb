@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
+	"net"
 	"net/url"
 	"os"
 	"runtime"
@@ -207,12 +208,10 @@ func (l testLogger) Println(v ...interface{}) {
 	l.t.Log(v...)
 }
 
-func TestConnect(t *testing.T) {
-	checkConnStr(t)
-	SetLogger(testLogger{t})
-	conn, err := sql.Open("mssql", os.Getenv("SQLSERVER_DSN"))
+func testConnection(t *testing.T, connStr string) {
+	conn, err := sql.Open("mssql", connStr)
 	if err != nil {
-		t.Error("Open connection failed:", err.Error())
+		t.Fatal("Open connection failed:", err.Error())
 		return
 	}
 	defer conn.Close()
@@ -220,8 +219,24 @@ func TestConnect(t *testing.T) {
 	var val int
 	err = row.Scan(&val)
 	if err != nil {
-		t.Error("Scan failed:", err.Error())
+		t.Fatal("Scan failed:", err.Error())
 	}
+}
+
+func TestConnect(t *testing.T) {
+	checkConnStr(t)
+	SetLogger(testLogger{t})
+	testConnection(t, os.Getenv("SQLSERVER_DSN"))
+}
+
+func TestConnectViaIp(t *testing.T) {
+	params := testConnParams(t)
+	ips, err := net.LookupIP(params.host)
+	if err != nil {
+		t.Fatal("Unable to lookup IP", err)
+	}
+	params.host = ips[0].String()
+	testConnection(t, params.toUrl().String())
 }
 
 func simpleQuery(conn *sql.DB, t *testing.T) (stmt *sql.Stmt) {

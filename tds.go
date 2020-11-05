@@ -770,12 +770,13 @@ type auth interface {
 // use the first one that allows a connection.
 func dialConnection(ctx context.Context, c *Connector, p connectParams) (conn net.Conn, err error) {
 	var ips []net.IP
-	ips, err = net.LookupIP(p.host)
-	if err != nil {
-		ip := net.ParseIP(p.host)
-		if ip == nil {
-			return nil, err
+	ip := net.ParseIP(p.host)
+	if ip == nil {
+		ips, err = net.LookupIP(p.host)
+		if err != nil {
+			return
 		}
+	} else {
 		ips = []net.IP{ip}
 	}
 	if len(ips) == 1 {
