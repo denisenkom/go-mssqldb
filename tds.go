@@ -210,8 +210,11 @@ func readPrelogin(r *tdsBuffer) (map[uint8][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if packet_type != 4 {
+	if packet_type != packReply {
 		return nil, errors.New("Invalid respones, expected packet type 4, PRELOGIN RESPONSE")
+	}
+	if len(struct_buf) == 0 {
+		return nil, errors.New("invalid empty PRELOGIN response, it must contain at least one byte")
 	}
 	offset := 0
 	results := map[uint8][]byte{}
