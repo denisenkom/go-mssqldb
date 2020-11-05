@@ -1,6 +1,8 @@
 package mssql
 
 import (
+	"os"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -164,5 +166,54 @@ func TestSplitConnectionStringURL(t *testing.T) {
 	_, err := splitConnectionStringURL("http://bad")
 	if err == nil {
 		t.Error("Connection string with invalid scheme should fail to parse but it didn't")
+	}
+}
+
+// returns parsed connection parameters derived from
+// environment variables
+func testConnParams(t testing.TB) connectParams {
+	dsn := os.Getenv("SQLSERVER_DSN")
+	const logFlags = 127
+	if len(dsn) > 0 {
+		params, err := parseConnectParams(dsn)
+		if err != nil {
+			t.Fatal("unable to parse SQLSERVER_DSN", err)
+		}
+		params.logFlags = logFlags
+		return params
+	}
+	return connectParams{
+		host: os.Getenv("HOST"),
+		instance: os.Getenv("INSTANCE"),
+		database: os.Getenv("DATABASE"),
+		user: os.Getenv("SQLUSER"),
+		password: os.Getenv("SQLPASSWORD"),
+		logFlags: logFlags,
+	}
+}
+
+func TestConnParseRoundTripFixed(t *testing.T) {
+	connStr := "sqlserver://sa:sa@localhost/sqlexpress?database=master&log=127"
+	params, err := parseConnectParams(connStr)
+	if err != nil {
+		t.Fatal("Test URL is not valid", err)
+	}
+	rtParams, err := parseConnectParams(params.toUrl().String())
+	if err != nil {
+		t.Fatal("Params after roundtrip are not valid", err)
+	}
+	if !reflect.DeepEqual(params, rtParams) {
+		t.Fatal("Parameters do not match after roundtrip", params, rtParams)
+	}
+}
+
+func TestConnParseRoundTripFromEnv(t *testing.T) {
+	params := testConnParams(t)
+	rtParams, err := parseConnectParams(params.toUrl().String())
+	if err != nil {
+		t.Fatal("Params after roundtrip are not valid", err)
+	}
+	if !reflect.DeepEqual(params, rtParams) {
+		t.Fatal("Parameters do not match after roundtrip", params, rtParams)
 	}
 }

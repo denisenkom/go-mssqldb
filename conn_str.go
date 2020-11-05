@@ -233,6 +233,30 @@ func parseConnectParams(dsn string) (connectParams, error) {
 	return p, nil
 }
 
+// convert connectionParams to url style connection string
+// used mostly for testing
+func (p connectParams) toUrl() *url.URL {
+	q := url.Values{}
+	if p.database != "" {
+		q.Add("database", p.database)
+	}
+	if p.logFlags != 0 {
+		q.Add("log", strconv.FormatUint(p.logFlags, 10))
+	}
+	res := url.URL{
+		Scheme: "sqlserver",
+		Host: p.host,
+		User: url.UserPassword(p.user, p.password),
+	}
+	if p.instance != "" {
+		res.Path = p.instance
+	}
+	if len(q) > 0 {
+		res.RawQuery = q.Encode()
+	}
+	return &res
+}
+
 func splitConnectionString(dsn string) (res map[string]string) {
 	res = map[string]string{}
 	parts := strings.Split(dsn, ";")
