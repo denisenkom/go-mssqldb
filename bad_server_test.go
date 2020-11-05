@@ -91,18 +91,24 @@ func TestBadServerEmptyPreLoginPacket(t *testing.T) {
 
 func TestBadServerPreLoginPacketWithNoEntries(t *testing.T) {
 	testBadServer(t, func(conn net.Conn) {
-		content := []byte {preloginTERMINATOR}
-		err := binary.Write(conn, binary.BigEndian, header{
-			PacketType: packReply,
-			Size: uint16(headerSize + len(content)),
-			Status: 1, // indicate final packet
-		})
+		buf := newTdsBuffer(1024, conn)
+		fields := map[uint8][]byte{}
+		err := writePrelogin(packReply, buf, fields)
 		if err != nil {
-			t.Fatal("Writing header failed", err)
+			t.Fatal("Writing PRELOGIN packet failed", err)
 		}
-		_, err = conn.Write(content)
+	})
+}
+
+func TestBadServerPreLoginPacketWithJustEncryptionField(t *testing.T) {
+	testBadServer(t, func(conn net.Conn) {
+		buf := newTdsBuffer(1024, conn)
+		fields := map[uint8][]byte{
+			preloginENCRYPTION: {encryptNotSup},
+		}
+		err := writePrelogin(packReply, buf, fields)
 		if err != nil {
-			t.Fatal("Writing PRELOGIN content failed", err)
+			t.Fatal("Writing PRELOGIN packet failed", err)
 		}
 	})
 }

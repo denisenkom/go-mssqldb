@@ -155,10 +155,10 @@ func (p keySlice) Less(i, j int) bool { return p[i] < p[j] }
 func (p keySlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 // http://msdn.microsoft.com/en-us/library/dd357559.aspx
-func writePrelogin(w *tdsBuffer, fields map[uint8][]byte) error {
+func writePrelogin(packetType packetType, w *tdsBuffer, fields map[uint8][]byte) error {
 	var err error
 
-	w.BeginPacket(packPrelogin, false)
+	w.BeginPacket(packetType, false)
 	offset := uint16(5*len(fields) + 1)
 	keys := make(keySlice, 0, len(fields))
 	for k, _ := range fields {
@@ -902,7 +902,7 @@ initiate_connection:
 		preloginMARS:       {0}, // MARS disabled
 	}
 
-	err = writePrelogin(outbuf, fields)
+	err = writePrelogin(packPrelogin, outbuf, fields)
 	if err != nil {
 		return nil, err
 	}
