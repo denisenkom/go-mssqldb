@@ -415,23 +415,18 @@ func TestSecureConnection(t *testing.T) {
 	}
 }
 
-func TestBadConnect(t *testing.T) {
-	checkConnStr(t)
-	SetLogger(testLogger{t})
-	connURL := makeConnStr(t)
-	connURL.User = url.UserPassword("baduser", "badpwd")
-	badDSN := connURL.String()
+func TestBadCredentials(t *testing.T) {
+	params := testConnParams(t)
+	params.password = "padpwd"
+	params.user = "baduser"
+	testConnectionBad(t, params.toUrl().String())
+}
 
-	conn, err := sql.Open("mssql", badDSN)
-	if err != nil {
-		t.Error("Open connection failed:", err.Error())
-	}
-	defer conn.Close()
-
-	err = conn.Ping()
-	if err == nil {
-		t.Error("Ping should fail for connection: ", badDSN)
-	}
+func TestBadHost(t *testing.T) {
+	params := testConnParams(t)
+	params.host = "badhost"
+	params.instance = ""
+	testConnectionBad(t, params.toUrl().String())
 }
 
 func TestSSPIAuth(t *testing.T) {

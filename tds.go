@@ -994,7 +994,6 @@ initiate_connection:
 	}
 
 	// processing login response
-	success := false
 	for {
 		tokchan := make(chan tokenStruct, 5)
 		go processResponse(context.Background(), &sess, tokchan, nil)
@@ -1018,7 +1017,6 @@ initiate_connection:
 					sspi_msg = nil
 				}
 			case loginAckStruct:
-				success = true
 				sess.loginAck = token
 			case error:
 				return nil, fmt.Errorf("Login error: %s", token.Error())
@@ -1036,9 +1034,6 @@ initiate_connection:
 		}
 	}
 loginEnd:
-	if !success {
-		return nil, fmt.Errorf("Login failed")
-	}
 	if sess.routedServer != "" {
 		toconn.Close()
 		p.host = sess.routedServer
