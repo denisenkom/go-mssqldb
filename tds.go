@@ -119,6 +119,7 @@ const (
 )
 
 type tdsSession struct {
+	conn         net.Conn
 	buf          *tdsBuffer
 	loginAck     loginAckStruct
 	database     string
@@ -875,6 +876,7 @@ initiate_connection:
 
 	outbuf := newTdsBuffer(p.packetSize, toconn)
 	sess := tdsSession{
+		conn: 	  toconn,
 		buf:      outbuf,
 		log:      log,
 		logFlags: p.logFlags,
@@ -991,44 +993,41 @@ initiate_connection:
 
 	// processing login response
 	success := false
+	rdr, err := beginRead(&sess, nil, dialCtx)
+	if err != nil {
+		return nil, err
+	}
 	for {
-		tokchan := make(chan tokenStruct, 5)
-		go processResponse(context.Background(), &sess, tokchan, nil)
-		for tok := range tokchan {
-			switch token := tok.(type) {
-			case sspiMsg:
-				sspi_msg, err := auth.NextBytes(token)
+		tok := rdr.readNextToken()
+		switch token := tok.(type) {
+		case sspiMsg:
+			sspi_msg, err := auth.NextBytes(token)
+			if err != nil {
+					  return nil, err
+					  }
+			if sspi_msg != nil && len(sspi_msg) > 0 {
+				outbuf.BeginPacket(packSSPIMessage, false)
+				_, err = outbuf.Write(sspi_msg)
 				if err != nil {
-					return nil, err
-				}
-				if sspi_msg != nil && len(sspi_msg) > 0 {
-					outbuf.BeginPacket(packSSPIMessage, false)
-					_, err = outbuf.Write(sspi_msg)
-					if err != nil {
-						return nil, err
-					}
-					err = outbuf.FinishPacket()
-					if err != nil {
-						return nil, err
-					}
-					sspi_msg = nil
-				}
-			case loginAckStruct:
-				success = true
-				sess.loginAck = token
-			case error:
-				return nil, fmt.Errorf("Login error: %s", token.Error())
-			case doneStruct:
-				if token.isError() {
-					return nil, fmt.Errorf("Login error: %s", token.getError())
-				}
-
-				// make sure tokchan is closed
-				for range tokchan {
-				}
-
-				goto loginEnd
+						  return nil, err
+						  }
+				err = outbuf.FinishPacket()
+				if err != nil {
+						  return nil, err
+						  }
+				sspi_msg = nil
 			}
+		case loginAckStruct:
+			success = true
+			sess.loginAck = token
+		case error:
+			return nil, fmt.Errorf("Login error: %s", token.Error())
+		case doneStruct:
+			if token.isError() {
+						   return nil, fmt.Errorf("Login error: %s", token.getError())
+						   }
+			goto loginEnd
+
 		}
 	}
 loginEnd:

@@ -143,17 +143,16 @@ func TestSendSqlBatch(t *testing.T) {
 		return
 	}
 
-	ch := make(chan tokenStruct, 5)
-	go processResponse(context.Background(), conn, ch, nil)
-	defer func() {
-		// make share ch is closed
-		for range ch {
-		}
-	}()
+	rdr, err := beginRead(conn, nil, context.Background())
+	if err != nil {
+		t.Error("Failed to begin reading response", err.Error())
+		return
+	}
 
 	var lastRow []interface{}
 loop:
-	for tok := range ch {
+	for !rdr.finished {
+		tok := rdr.readNextToken()
 		switch token := tok.(type) {
 		case doneStruct:
 			break loop
@@ -595,12 +594,17 @@ func runBatch(t testing.TB, p connectParams) {
 		return
 	}
 
-	ch := make(chan tokenStruct, 5)
-	go processResponse(context.Background(), conn, ch, nil)
+	rdr, err := beginRead(conn, nil, context.Background())
+	if err != nil {
+		t.Error("Sending sql batch failed", err.Error())
+		return
+	}
+
 
 	var lastRow []interface{}
 loop:
-	for tok := range ch {
+	for !rdr.finished {
+		tok := rdr.readNextToken()
 		switch token := tok.(type) {
 		case doneStruct:
 			break loop

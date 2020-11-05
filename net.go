@@ -51,15 +51,15 @@ func (c timeoutConn) RemoteAddr() net.Addr {
 }
 
 func (c timeoutConn) SetDeadline(t time.Time) error {
-	panic("Not implemented")
+	return c.c.SetDeadline(t)
 }
 
 func (c timeoutConn) SetReadDeadline(t time.Time) error {
-	panic("Not implemented")
+	return c.c.SetReadDeadline(t)
 }
 
 func (c timeoutConn) SetWriteDeadline(t time.Time) error {
-	panic("Not implemented")
+	return c.c.SetWriteDeadline(t)
 }
 
 // this connection is used during TLS Handshake

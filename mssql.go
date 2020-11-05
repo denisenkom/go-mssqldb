@@ -201,12 +201,15 @@ func (c *Conn) clearOuts() {
 }
 
 func (c *Conn) simpleProcessResp(ctx context.Context) error {
-	tokchan := make(chan tokenStruct, 5)
-	go processResponse(ctx, c.sess, tokchan, c.outs)
+	rdr, err := beginRead(c.sess, c.outs, ctx)
+	if err != nil {
+		c.connectionGood = false
+		return err
+	}
 	c.clearOuts()
 
-	var err error
-	for tok := range tokchan {
+	for !rdr.finished {
+		tok := rdr.readNextToken()
 		switch token := tok.(type) {
 		case doneStruct:
 			if token.isError() && err == nil {
@@ -599,14 +602,18 @@ func (s *Stmt) queryContext(ctx context.Context, args []namedValue) (rows driver
 }
 
 func (s *Stmt) processQueryResponse(ctx context.Context) (res driver.Rows, err error) {
-	tokchan := make(chan tokenStruct, 5)
 	ctx, cancel := context.WithCancel(ctx)
-	go processResponse(ctx, s.c.sess, tokchan, s.c.outs)
+	rdr, err := beginRead(s.c.sess, s.c.outs, ctx)
+	if err != nil {
+		s.c.connectionGood = false
+		return nil, err
+	}
 	s.c.clearOuts()
 	// process metadata
 	var cols []columnStruct
 loop:
-	for tok := range tokchan {
+	for !rdr.finished {
+		tok := rdr.readNextToken()
 		switch token := tok.(type) {
 		// By ignoring DONE token we effectively
 		// skip empty result-sets.
@@ -623,8 +630,8 @@ loop:
 				cancel()
 
 				// make sure tokchan is closed
-				for range tokchan {
-				}
+				/*for range tokchan {
+				}*/
 
 				return nil, s.c.checkBadConn(token.getError())
 			}
@@ -634,13 +641,13 @@ loop:
 			cancel()
 
 			// make sure tokchan is closed
-			for range tokchan {
-			}
+			/*for range tokchan {
+			}*/
 
 			return nil, s.c.checkBadConn(token)
 		}
 	}
-	res = &Rows{stmt: s, tokchan: tokchan, cols: cols, cancel: cancel}
+	res = &Rows{stmt: s, tokenReader: rdr, cols: cols, cancel: cancel}
 	return
 }
 
@@ -662,11 +669,15 @@ func (s *Stmt) exec(ctx context.Context, args []namedValue) (res driver.Result, 
 }
 
 func (s *Stmt) processExec(ctx context.Context) (res driver.Result, err error) {
-	tokchan := make(chan tokenStruct, 5)
-	go processResponse(ctx, s.c.sess, tokchan, s.c.outs)
+	rdr, err := beginRead(s.c.sess, s.c.outs, ctx)
+	if err != nil {
+		s.c.connectionGood = false
+		return
+	}
 	s.c.clearOuts()
 	var rowCount int64
-	for token := range tokchan {
+	for !rdr.finished {
+		token := rdr.readNextToken()
 		switch token := token.(type) {
 		case doneInProcStruct:
 			if token.Status&doneCount != 0 {
@@ -699,6 +710,7 @@ type Rows struct {
 	tokchan chan tokenStruct
 
 	nextCols []columnStruct
+	tokenReader tokenReader
 
 	cancel func()
 }
@@ -706,10 +718,18 @@ type Rows struct {
 func (rc *Rows) Close() error {
 	rc.cancel()
 
-	// make sure tokchan is closed
-	for range rc.tokchan {
+	if (rc.tokchan == nil) {
+		// read all response tokens
+		for !rc.tokenReader.finished {
+			rc.tokenReader.readNextToken()
+		}
+
+	} else {
+		// make sure tokchan is closed
+		for range rc.tokchan {
+		}
+		rc.tokchan = nil
 	}
-	rc.tokchan = nil
 
 	return nil
 }
@@ -729,24 +749,49 @@ func (rc *Rows) Next(dest []driver.Value) error {
 	if rc.nextCols != nil {
 		return io.EOF
 	}
-	for tok := range rc.tokchan {
-		switch tokdata := tok.(type) {
-		case []columnStruct:
-			rc.nextCols = tokdata
-			return io.EOF
-		case []interface{}:
-			for i := range dest {
-				dest[i] = tokdata[i]
+	if rc.tokchan == nil {
+		for !rc.tokenReader.finished {
+			tok := rc.tokenReader.readNextToken()
+			switch tokdata := tok.(type) {
+			case []columnStruct:
+				rc.nextCols = tokdata
+				return io.EOF
+			case []interface{}:
+				for i := range dest {
+					dest[i] = tokdata[i]
+				}
+				return nil
+			case doneStruct:
+				if tokdata.isError() {
+					return rc.stmt.c.checkBadConn(tokdata.getError())
+				}
+			case ReturnStatus:
+				rc.stmt.c.setReturnStatus(tokdata)
+			case error:
+				return rc.stmt.c.checkBadConn(tokdata)
 			}
-			return nil
-		case doneStruct:
-			if tokdata.isError() {
-				return rc.stmt.c.checkBadConn(tokdata.getError())
+		}
+
+	} else {
+		for tok := range rc.tokchan {
+			switch tokdata := tok.(type) {
+			case []columnStruct:
+				rc.nextCols = tokdata
+				return io.EOF
+			case []interface{}:
+				for i := range dest {
+					dest[i] = tokdata[i]
+				}
+				return nil
+			case doneStruct:
+				if tokdata.isError() {
+					return rc.stmt.c.checkBadConn(tokdata.getError())
+				}
+			case ReturnStatus:
+				rc.stmt.c.setReturnStatus(tokdata)
+			case error:
+				return rc.stmt.c.checkBadConn(tokdata)
 			}
-		case ReturnStatus:
-			rc.stmt.c.setReturnStatus(tokdata)
-		case error:
-			return rc.stmt.c.checkBadConn(tokdata)
 		}
 	}
 	return io.EOF
