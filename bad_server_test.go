@@ -91,7 +91,7 @@ func TestBadServerEmptyPreLoginPacket(t *testing.T) {
 
 func TestBadServerPreLoginPacketWithNoEntries(t *testing.T) {
 	testBadServer(t, func(conn net.Conn) {
-		buf := newTdsBuffer(1024, conn)
+		buf := newTdsBuffer(defaultPacketSize, conn)
 		fields := map[uint8][]byte{}
 		err := writePrelogin(packReply, buf, fields)
 		if err != nil {
@@ -102,7 +102,7 @@ func TestBadServerPreLoginPacketWithNoEntries(t *testing.T) {
 
 func TestBadServerPreLoginPacketWithJustEncryptionField(t *testing.T) {
 	testBadServer(t, func(conn net.Conn) {
-		buf := newTdsBuffer(1024, conn)
+		buf := newTdsBuffer(defaultPacketSize, conn)
 		fields := map[uint8][]byte{
 			preloginENCRYPTION: {encryptNotSup},
 		}
@@ -110,5 +110,41 @@ func TestBadServerPreLoginPacketWithJustEncryptionField(t *testing.T) {
 		if err != nil {
 			t.Fatal("Writing PRELOGIN packet failed", err)
 		}
+	})
+}
+
+func TestBadServerNoLoginResponse(t *testing.T) {
+	testBadServer(t, func(conn net.Conn) {
+		inBuf := newTdsBuffer(defaultPacketSize, conn)
+		outBuf := newTdsBuffer(defaultPacketSize, conn)
+
+		// read prelogin request
+		packetType, err := inBuf.BeginRead()
+		if err != nil {
+			t.Fatal("Failed to read PRELOGIN request", err)
+		}
+		if packetType != packPrelogin {
+			t.Fatal("Client sent non PRELOGIN request packet type", packetType)
+		}
+
+		// write prelogin response
+		fields := map[uint8][]byte{
+			preloginENCRYPTION: {encryptNotSup},
+		}
+		err = writePrelogin(packReply, outBuf, fields)
+		if err != nil {
+			t.Fatal("Writing PRELOGIN packet failed", err)
+		}
+
+		// read login request
+		packetType, err = inBuf.BeginRead()
+		if err != nil {
+			t.Fatal("Failed to read LOGIN request", err)
+		}
+		if packetType != packLogin7 {
+			t.Fatal("Client sent non LOGIN request packet type", packetType)
+		}
+
+		// not sending login response
 	})
 }

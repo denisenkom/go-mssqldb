@@ -40,6 +40,9 @@ type connectParams struct {
 	fedAuthAccessToken        string
 }
 
+// default packet size for TDS buffer
+const defaultPacketSize = 4096
+
 func parseConnectParams(dsn string) (connectParams, error) {
 	var p connectParams
 
@@ -93,8 +96,7 @@ func parseConnectParams(dsn string) (connectParams, error) {
 	}
 
 	// https://docs.microsoft.com/en-us/sql/database-engine/configure-windows/configure-the-network-packet-size-server-configuration-option
-	// Default packet size remains at 4096 bytes
-	p.packetSize = 4096
+	p.packetSize = defaultPacketSize
 	strpsize, ok := params["packet size"]
 	if ok {
 		var err error
