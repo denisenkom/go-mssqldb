@@ -150,6 +150,8 @@ func (r *tdsBuffer) readNextPacket() error {
 		return errors.New("invalid packet size, it is shorter than header size")
 	}
 	_, err = io.ReadFull(r.transport, r.rbuf[headerSize:h.Size])
+	//s := base64.StdEncoding.EncodeToString(r.rbuf[headerSize:h.Size])
+	//fmt.Print(s)
 	if err != nil {
 		return err
 	}
@@ -181,6 +183,10 @@ func (r *tdsBuffer) ReadByte() (res byte, err error) {
 	res = r.rbuf[r.rpos]
 	r.rpos++
 	return res, nil
+}
+
+func (r *tdsBuffer) isEof() bool {
+	return r.final && r.rpos == r.rsize
 }
 
 func (r *tdsBuffer) byte() byte {

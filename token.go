@@ -557,7 +557,7 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs map[strin
 	}
 	var columns []columnStruct
 	errs := make([]Error, 0, 5)
-	for {
+	for tokens := 0; ; tokens += 1{
 		token := token(sess.buf.byte())
 		if sess.logFlags&logDebug != 0 {
 			sess.log.Printf("got token %v", token)
@@ -672,13 +672,17 @@ type parseResp struct {
 }
 
 func (ts *parseResp) sendAttention(ch chan tokenStruct) parseRespIter {
-	if err := sendAttention(ts.sess.buf); err != nil {
-		ts.dlogf("failed to send attention signal %v", err)
-		ch <- err
+	if ts.sess.buf.final {
 		return parseRespIterDone
+	} else {
+		if err := sendAttention(ts.sess.buf); err != nil {
+			ts.dlogf("failed to send attention signal %v", err)
+			ch <- err
+			return parseRespIterDone
+		}
+		ts.state = parseRespStateCancel
+		return parseRespIterContinue
 	}
-	ts.state = parseRespStateCancel
-	return parseRespIterContinue
 }
 
 func (ts *parseResp) dlog(msg string) {
