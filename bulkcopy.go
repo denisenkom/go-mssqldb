@@ -234,24 +234,13 @@ func (b *Bulk) Done() (rowcount int64, err error) {
 
 	buf.FinishPacket()
 
-	tokchan := make(chan tokenStruct, 5)
-	go processResponse(b.ctx, b.cn.sess, tokchan, nil)
-
-	var rowCount int64
-	for token := range tokchan {
-		switch token := token.(type) {
-		case doneStruct:
-			if token.Status&doneCount != 0 {
-				rowCount = int64(token.RowCount)
-			}
-			if token.isError() {
-				return 0, token.getError()
-			}
-		case error:
-			return 0, b.cn.checkBadConn(token)
-		}
+	reader := startReading(b.cn.sess, b.ctx, nil)
+	err = reader.iterateResponse()
+	if err != nil {
+		return 0, b.cn.checkBadConn(err)
 	}
-	return rowCount, nil
+
+	return reader.rowCount, nil
 }
 
 func (b *Bulk) createColMetadata() []byte {

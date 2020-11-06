@@ -129,6 +129,7 @@ type tdsSession struct {
 	log          optionalLogger
 	routedServer string
 	routedPort   uint16
+	returnStatus *ReturnStatus
 }
 
 const (
@@ -994,46 +995,45 @@ initiate_connection:
 	}
 
 	// processing login response
+	reader := startReading(&sess, ctx, nil)
 	for {
-		tokchan := make(chan tokenStruct, 5)
-		go processResponse(context.Background(), &sess, tokchan, nil)
-		for tok := range tokchan {
-			switch token := tok.(type) {
-			case sspiMsg:
-				sspi_msg, err := auth.NextBytes(token)
-				if err != nil {
-					return nil, err
-				}
-				if len(sspi_msg) > 0 {
-					outbuf.BeginPacket(packSSPIMessage, false)
-					_, err = outbuf.Write(sspi_msg)
+		tok, err := reader.nextToken()
+		if err == nil {
+			if tok == nil {
+				break
+			} else {
+				switch token := tok.(type) {
+				case sspiMsg:
+					sspi_msg, err := auth.NextBytes(token)
 					if err != nil {
 						return nil, err
 					}
-					err = outbuf.FinishPacket()
-					if err != nil {
-						return nil, err
+					if len(sspi_msg) > 0 {
+						outbuf.BeginPacket(packSSPIMessage, false)
+						_, err = outbuf.Write(sspi_msg)
+						if err != nil {
+							return nil, err
+						}
+						err = outbuf.FinishPacket()
+						if err != nil {
+							return nil, err
+						}
+						sspi_msg = nil
 					}
-					sspi_msg = nil
+				case loginAckStruct:
+					sess.loginAck = token
+				/*case error:
+					return nil, fmt.Errorf("login error: %s", token.Error())*/
+				case doneStruct:
+					if token.isError() {
+						return nil, fmt.Errorf("login error: %s", token.getError())
+					}
 				}
-			case loginAckStruct:
-				sess.loginAck = token
-			case error:
-				return nil, fmt.Errorf("login error: %s", token.Error())
-			case doneStruct:
-				if token.isError() {
-					return nil, fmt.Errorf("login error: %s", token.getError())
-				}
-
-				// make sure tokchan is closed
-				for range tokchan {
-				}
-
-				goto loginEnd
 			}
+		} else {
+			return nil, err
 		}
 	}
-loginEnd:
 	if sess.routedServer != "" {
 		toconn.Close()
 		p.host = sess.routedServer
@@ -1044,4 +1044,10 @@ loginEnd:
 		goto initiate_connection
 	}
 	return &sess, nil
+}
+
+func (sess *tdsSession) setReturnStatus(status ReturnStatus) {
+	if sess.returnStatus != nil {
+		*sess.returnStatus = status
+	}
 }

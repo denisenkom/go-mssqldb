@@ -144,34 +144,18 @@ func TestSendSqlBatch(t *testing.T) {
 		return
 	}
 
-	ch := make(chan tokenStruct, 5)
-	go processResponse(context.Background(), conn, ch, nil)
-	defer func() {
-		// make share ch is closed
-		for range ch {
-		}
-	}()
+	reader := startReading(conn, context.Background(), nil)
 
-	var lastRow []interface{}
-loop:
-	for tok := range ch {
-		switch token := tok.(type) {
-		case doneStruct:
-			break loop
-		case []columnStruct:
-			conn.columns = token
-		case []interface{}:
-			lastRow = token
-		default:
-			t.Log("unknown token", tok)
-		}
+	err = reader.iterateResponse()
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	if len(lastRow) == 0 {
+	if len(reader.lastRow) == 0 {
 		t.Fatal("expected row but no row set")
 	}
 
-	switch value := lastRow[0].(type) {
+	switch value := reader.lastRow[0].(type) {
 	case int32:
 		if value != 1 {
 			t.Error("Invalid value returned, should be 1", value)
@@ -221,12 +205,15 @@ func testConnection(t *testing.T, connStr string) {
 	if err != nil {
 		t.Fatal("Scan failed:", err.Error())
 	}
+	if val != 1 {
+		t.Fatalf("returned value %d does not match 1", val)
+	}
 }
 
 func TestConnect(t *testing.T) {
-	checkConnStr(t)
+	params := testConnParams(t)
 	SetLogger(testLogger{t})
-	testConnection(t, os.Getenv("SQLSERVER_DSN"))
+	testConnection(t, params.toUrl().String())
 }
 
 func TestConnectViaIp(t *testing.T) {
@@ -562,7 +549,6 @@ func BenchmarkPacketSize(b *testing.B) {
 			}
 		})
 	}
-
 }
 
 func runBatch(t testing.TB, p connectParams) {
@@ -583,29 +569,18 @@ func runBatch(t testing.TB, p connectParams) {
 		return
 	}
 
-	ch := make(chan tokenStruct, 5)
-	go processResponse(context.Background(), conn, ch, nil)
+	reader := startReading(conn, context.Background(), nil)
 
-	var lastRow []interface{}
-loop:
-	for tok := range ch {
-		switch token := tok.(type) {
-		case doneStruct:
-			break loop
-		case []columnStruct:
-			conn.columns = token
-		case []interface{}:
-			lastRow = token
-		default:
-			t.Log("unknown token", tok)
-		}
+	err = reader.iterateResponse()
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	if len(lastRow) == 0 {
+	if len(reader.lastRow) == 0 {
 		t.Fatal("expected row but no row set")
 	}
 
-	switch value := lastRow[0].(type) {
+	switch value := reader.lastRow[0].(type) {
 	case int32:
 		if value != 1 {
 			t.Error("Invalid value returned, should be 1", value)
