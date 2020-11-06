@@ -665,7 +665,7 @@ func readPLPType(ti *typeInfo, r *tdsBuffer) interface{} {
 	default:
 		buf = bytes.NewBuffer(make([]byte, 0, size))
 	}
-	for true {
+	for {
 		chunksize := r.uint32()
 		if chunksize == 0 {
 			break
@@ -811,7 +811,6 @@ func readVarLen(ti *typeInfo, r *tdsBuffer) {
 	default:
 		badStreamPanicf("Invalid type %d", ti.TypeId)
 	}
-	return
 }
 
 func decodeMoney(buf []byte) []byte {
@@ -838,8 +837,7 @@ func decodeGuid(buf []byte) []byte {
 }
 
 func decodeDecimal(prec uint8, scale uint8, buf []byte) []byte {
-	var sign uint8
-	sign = buf[0]
+	sign := buf[0]
 	var dec decimal.Decimal
 	dec.SetPositive(sign != 0)
 	dec.SetPrec(prec)
@@ -1191,7 +1189,7 @@ func makeDecl(ti typeInfo) string {
 		return fmt.Sprintf("char(%d)", ti.Size)
 	case typeBigVarChar, typeVarChar:
 		if ti.Size > 8000 || ti.Size == 0 {
-			return fmt.Sprintf("varchar(max)")
+			return "varchar(max)"
 		} else {
 			return fmt.Sprintf("varchar(%d)", ti.Size)
 		}

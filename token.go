@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"strconv"
-	"strings"
 )
 
 //go:generate stringer -type token
@@ -104,26 +103,6 @@ func (d doneStruct) getError() Error {
 }
 
 type doneInProcStruct doneStruct
-
-var doneFlags2str = map[uint16]string{
-	doneFinal:    "final",
-	doneMore:     "more",
-	doneError:    "error",
-	doneInxact:   "inxact",
-	doneCount:    "count",
-	doneAttn:     "attn",
-	doneSrvError: "srverror",
-}
-
-func doneFlags2Str(flags uint16) string {
-	strs := make([]string, 0, len(doneFlags2str))
-	for flag, tag := range doneFlags2str {
-		if flags&flag != 0 {
-			strs = append(strs, tag)
-		}
-	}
-	return strings.Join(strs, "|")
-}
 
 // ENVCHANGE stream
 // http://msdn.microsoft.com/en-us/library/dd303449.aspx
@@ -380,9 +359,8 @@ func processEnvChg(sess *tdsSession) {
 		default:
 			// ignore rest of records because we don't know how to skip those
 			sess.log.Printf("WARN: Unknown ENVCHANGE record detected with type id = %d\n", envtype)
-			break
+			return
 		}
-
 	}
 }
 

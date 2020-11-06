@@ -22,12 +22,6 @@ func driverWithProcess(t *testing.T) *Driver {
 		processQueryText: true,
 	}
 }
-func driverNoProcess(t *testing.T) *Driver {
-	return &Driver{
-		log:              optionalLogger{testLogger{t}},
-		processQueryText: false,
-	}
-}
 
 func TestSelect(t *testing.T) {
 	conn := open(t)
@@ -1151,10 +1145,10 @@ func TestCommitTranError(t *testing.T) {
 
 	// reopen connection
 	conn, err = drv.open(context.Background(), makeConnStr(t).String())
-	defer conn.Close()
 	if err != nil {
 		t.Fatalf("Open failed with error %v", err)
 	}
+	defer conn.Close()
 	// should fail because there is no transaction
 	err = conn.Commit()
 	switch err {
@@ -1209,7 +1203,12 @@ func TestRollbackTranError(t *testing.T) {
 
 	// reopen connection
 	conn, err = drv.open(context.Background(), makeConnStr(t).String())
-	defer conn.Close()
+	defer func() {
+		err = conn.Close()
+		if err != nil {
+			t.Fatal("Close failed", err)
+		}
+	}()
 	if err != nil {
 		t.Fatalf("Open failed with error %v", err)
 	}
@@ -2140,17 +2139,20 @@ func TestDisconnect2(t *testing.T) {
 		}
 		db, err := sql.Open("sqlserver", makeConnStr(t).String())
 		if err != nil {
-			t.Fatal(err)
+			t.Log(err)
+			return
 		}
 
 		if err := db.PingContext(ctx); err != nil {
-			t.Fatal(err)
+			t.Log(err)
+			return
 		}
 		defer db.Close()
 
 		_, err = db.ExecContext(ctx, `SET LOCK_TIMEOUT 1800;`)
 		if err != nil {
-			t.Fatal(err)
+			t.Log(err)
+			return
 		}
 		close(waitDisrupt)
 

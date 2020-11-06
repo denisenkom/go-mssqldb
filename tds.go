@@ -81,20 +81,20 @@ const (
 // packet types
 // https://msdn.microsoft.com/en-us/library/dd304214.aspx
 const (
-	packSQLBatch   packetType = 1
-	packRPCRequest            = 3
-	packReply                 = 4
+	packSQLBatch    packetType = 1
+	packRPCRequest  packetType = 3
+	packReply       packetType = 4
 
 	// 2.2.1.7 Attention: https://msdn.microsoft.com/en-us/library/dd341449.aspx
 	// 4.19.2 Out-of-Band Attention Signal: https://msdn.microsoft.com/en-us/library/dd305167.aspx
-	packAttention = 6
+	packAttention   packetType = 6
 
-	packBulkLoadBCP = 7
-	packTransMgrReq = 14
-	packNormal      = 15
-	packLogin7      = 16
-	packSSPIMessage = 17
-	packPrelogin    = 18
+	packBulkLoadBCP packetType = 7
+	packTransMgrReq packetType = 14
+	packNormal      packetType = 15
+	packLogin7      packetType = 16
+	packSSPIMessage packetType = 17
+	packPrelogin    packetType = 18
 )
 
 // prelogin fields
@@ -161,7 +161,7 @@ func writePrelogin(packetType packetType, w *tdsBuffer, fields map[uint8][]byte)
 	w.BeginPacket(packetType, false)
 	offset := uint16(5*len(fields) + 1)
 	keys := make(keySlice, 0, len(fields))
-	for k, _ := range fields {
+	for k := range fields {
 		keys = append(keys, k)
 	}
 	sort.Sort(keys)
@@ -211,14 +211,14 @@ func readPrelogin(r *tdsBuffer) (map[uint8][]byte, error) {
 		return nil, err
 	}
 	if packet_type != packReply {
-		return nil, errors.New("Invalid respones, expected packet type 4, PRELOGIN RESPONSE")
+		return nil, errors.New("invalid respones, expected packet type 4, PRELOGIN RESPONSE")
 	}
 	if len(struct_buf) == 0 {
 		return nil, errors.New("invalid empty PRELOGIN response, it must contain at least one byte")
 	}
 	offset := 0
 	results := map[uint8][]byte{}
-	for true {
+	for {
 		rec_type := struct_buf[offset]
 		if rec_type == preloginTERMINATOR {
 			break
@@ -298,7 +298,7 @@ func (e *featureExts) Add(f featureExt) error {
 	}
 	id := f.featureID()
 	if _, exists := e.features[id]; exists {
-		f := "Login error: Feature with ID '%v' is already present in FeatureExt block."
+		f := "login error: Feature with ID '%v' is already present in FeatureExt block"
 		return fmt.Errorf(f, id)
 	}
 	if e.features == nil {
@@ -421,7 +421,7 @@ func str2ucs2(s string) []byte {
 
 func ucs22str(s []byte) (string, error) {
 	if len(s)%2 != 0 {
-		return "", fmt.Errorf("Illegal UCS2 string length: %d", len(s))
+		return "", fmt.Errorf("illegal UCS2 string length: %d", len(s))
 	}
 	buf := make([]uint16, len(s)/2)
 	for i := 0; i < len(s); i += 2 {
@@ -806,7 +806,7 @@ func dialConnection(ctx context.Context, c *Connector, p connectParams) (conn ne
 		}
 		// Wait for either the *first* successful connection, or all the errors
 	wait_loop:
-		for i, _ := range ips {
+		for i := range ips {
 			select {
 			case conn = <-connChan:
 				// Got a connection to use, close any others
@@ -828,7 +828,7 @@ func dialConnection(ctx context.Context, c *Connector, p connectParams) (conn ne
 	}
 	// Can't do the usual err != nil check, as it is possible to have gotten an error before a successful connection
 	if conn == nil {
-		f := "Unable to open tcp connection with host '%v:%v': %v"
+		f := "unable to open tcp connection with host '%v:%v': %v"
 		return nil, fmt.Errorf(f, p.host, resolveServerPort(p.port), err.Error())
 	}
 	return conn, err
@@ -853,17 +853,17 @@ func connect(ctx context.Context, c *Connector, log optionalLogger, p connectPar
 		d := c.getDialer(&p)
 		instances, err := getInstances(dialCtx, d, p.host)
 		if err != nil {
-			f := "Unable to get instances from Sql Server Browser on host %v: %v"
+			f := "unable to get instances from Sql Server Browser on host %v: %v"
 			return nil, fmt.Errorf(f, p.host, err.Error())
 		}
 		strport, ok := instances[p.instance]["tcp"]
 		if !ok {
-			f := "No instance matching '%v' returned from host '%v'"
+			f := "no instance matching '%v' returned from host '%v'"
 			return nil, fmt.Errorf(f, p.instance, p.host)
 		}
 		port, err := strconv.ParseUint(strport, 0, 16)
 		if err != nil {
-			f := "Invalid tcp port returned from Sql Server Browser '%v': %v"
+			f := "invalid tcp port returned from Sql Server Browser '%v': %v"
 			return nil, fmt.Errorf(f, strport, err.Error())
 		}
 		p.port = port
@@ -914,11 +914,11 @@ initiate_connection:
 
 	encryptBytes, ok := fields[preloginENCRYPTION]
 	if !ok {
-		return nil, fmt.Errorf("Encrypt negotiation failed")
+		return nil, fmt.Errorf("encrypt negotiation failed")
 	}
 	encrypt = encryptBytes[0]
 	if p.encrypt && (encrypt == encryptNotSup || encrypt == encryptOff) {
-		return nil, fmt.Errorf("Server does not support encryption")
+		return nil, fmt.Errorf("server does not support encryption")
 	}
 
 	if encrypt != encryptNotSup {
@@ -926,7 +926,7 @@ initiate_connection:
 		if p.certificate != "" {
 			pem, err := ioutil.ReadFile(p.certificate)
 			if err != nil {
-				return nil, fmt.Errorf("Cannot read certificate %q: %v", p.certificate, err)
+				return nil, fmt.Errorf("cannot read certificate %q: %v", p.certificate, err)
 			}
 			certs := x509.NewCertPool()
 			certs.AppendCertsFromPEM(pem)
@@ -1004,7 +1004,7 @@ initiate_connection:
 				if err != nil {
 					return nil, err
 				}
-				if sspi_msg != nil && len(sspi_msg) > 0 {
+				if len(sspi_msg) > 0 {
 					outbuf.BeginPacket(packSSPIMessage, false)
 					_, err = outbuf.Write(sspi_msg)
 					if err != nil {
@@ -1019,10 +1019,10 @@ initiate_connection:
 			case loginAckStruct:
 				sess.loginAck = token
 			case error:
-				return nil, fmt.Errorf("Login error: %s", token.Error())
+				return nil, fmt.Errorf("login error: %s", token.Error())
 			case doneStruct:
 				if token.isError() {
-					return nil, fmt.Errorf("Login error: %s", token.getError())
+					return nil, fmt.Errorf("login error: %s", token.getError())
 				}
 
 				// make sure tokchan is closed

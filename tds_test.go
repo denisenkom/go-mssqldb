@@ -523,14 +523,14 @@ func TestReadBVarByte(t *testing.T) {
 
 	// test empty buffer
 	memBuf = bytes.NewBuffer([]byte{})
-	s, err = readBVarByte(memBuf)
+	_, err = readBVarByte(memBuf)
 	if err == nil {
 		t.Error("readUsVarByte should fail on empty buffer, but it didn't")
 	}
 
 	// test short buffer
 	memBuf = bytes.NewBuffer([]byte{1})
-	s, err = readBVarByte(memBuf)
+	_, err = readBVarByte(memBuf)
 	if err == nil {
 		t.Error("readUsVarByte should fail on short buffer, but it didn't")
 	}

@@ -144,10 +144,10 @@ func (r *tdsBuffer) readNextPacket() error {
 		return err
 	}
 	if int(h.Size) > r.packetSize {
-		return errors.New("Invalid packet size, it is longer than buffer size")
+		return errors.New("invalid packet size, it is longer than buffer size")
 	}
 	if headerSize > int(h.Size) {
-		return errors.New("Invalid packet size, it is shorter than header size")
+		return errors.New("invalid packet size, it is shorter than header size")
 	}
 	_, err = io.ReadFull(r.transport, r.rbuf[headerSize:h.Size])
 	if err != nil {

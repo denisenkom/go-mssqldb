@@ -243,7 +243,7 @@ func (c *Conn) sendCommitRequest() error {
 			c.sess.log.Printf("Failed to send CommitXact with %v", err)
 		}
 		c.connectionGood = false
-		return fmt.Errorf("Faild to send CommitXact: %v", err)
+		return fmt.Errorf("faild to send CommitXact: %v", err)
 	}
 	return nil
 }
@@ -270,7 +270,7 @@ func (c *Conn) sendRollbackRequest() error {
 			c.sess.log.Printf("Failed to send RollbackXact with %v", err)
 		}
 		c.connectionGood = false
-		return fmt.Errorf("Failed to send RollbackXact: %v", err)
+		return fmt.Errorf("failed to send RollbackXact: %v", err)
 	}
 	return nil
 }
@@ -307,7 +307,7 @@ func (c *Conn) sendBeginRequest(ctx context.Context, tdsIsolation isoLevel) erro
 			c.sess.log.Printf("Failed to send BeginXact with %v", err)
 		}
 		c.connectionGood = false
-		return fmt.Errorf("Failed to send BeginXact: %v", err)
+		return fmt.Errorf("failed to send BeginXact: %v", err)
 	}
 	return nil
 }
@@ -482,7 +482,7 @@ func (s *Stmt) sendQuery(args []namedValue) (err error) {
 				conn.sess.log.Printf("Failed to send Rpc with %v", err)
 			}
 			conn.connectionGood = false
-			return fmt.Errorf("Failed to send RPC: %v", err)
+			return fmt.Errorf("failed to send RPC: %v", err)
 		}
 	}
 	return
@@ -923,7 +923,7 @@ func (c *Conn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, e
 		return nil, driver.ErrBadConn
 	}
 	if opts.ReadOnly {
-		return nil, errors.New("Read-only transactions are not supported")
+		return nil, errors.New("read-only transactions are not supported")
 	}
 
 	var tdsIsolation isoLevel
@@ -945,7 +945,7 @@ func (c *Conn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, e
 	case sql.LevelLinearizable:
 		return nil, errors.New("LevelLinearizable isolation level is not supported")
 	default:
-		return nil, errors.New("Isolation level is not supported or unknown")
+		return nil, errors.New("isolation level is not supported or unknown")
 	}
 	return c.begin(ctx, tdsIsolation)
 }

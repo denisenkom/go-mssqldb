@@ -141,6 +141,9 @@ func TestBulkcopy(t *testing.T) {
 	//check that all rows are present
 	var rowCount int
 	err = conn.QueryRowContext(ctx, "select count(*) c from "+tableName).Scan(&rowCount)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if rowCount != 10 {
 		t.Errorf("unexpected row count %d", rowCount)
@@ -156,7 +159,7 @@ func TestBulkcopy(t *testing.T) {
 
 		ptrs := make([]interface{}, len(columns))
 		container := make([]interface{}, len(columns))
-		for i, _ := range ptrs {
+		for i := range ptrs {
 			ptrs[i] = &container[i]
 		}
 		if err := rows.Scan(ptrs...); err != nil {

@@ -36,7 +36,8 @@ func testBadServer(t *testing.T, handler func(net.Conn)) {
 	go func() {
 		conn, err := listener.Accept()
 		if err != nil {
-			t.Fatal("Failed to accept connection", err)
+			t.Log("Failed to accept connection", err)
+			return
 		}
 		handler(conn)
 		_ = conn.Close()
