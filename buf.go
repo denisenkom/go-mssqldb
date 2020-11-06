@@ -137,11 +137,18 @@ func (w *tdsBuffer) FinishPacket() error {
 var headerSize = binary.Size(header{})
 
 func (r *tdsBuffer) readNextPacket() error {
-	h := header{}
-	var err error
-	err = binary.Read(r.transport, binary.BigEndian, &h)
+	buf := r.rbuf[:headerSize]
+	_, err := io.ReadFull(r.transport, buf)
 	if err != nil {
 		return err
+	}
+	h := header{
+		PacketType: packetType(buf[0]),
+		Status: buf[1],
+		Size: binary.BigEndian.Uint16(buf[2:4]),
+		Spid: binary.BigEndian.Uint16(buf[4:6]),
+		PacketNo: buf[6],
+		Pad: buf[7],
 	}
 	if int(h.Size) > r.packetSize {
 		return errors.New("invalid packet size, it is longer than buffer size")
@@ -150,6 +157,8 @@ func (r *tdsBuffer) readNextPacket() error {
 		return errors.New("invalid packet size, it is shorter than header size")
 	}
 	_, err = io.ReadFull(r.transport, r.rbuf[headerSize:h.Size])
+	//s := base64.StdEncoding.EncodeToString(r.rbuf[headerSize:h.Size])
+	//fmt.Print(s)
 	if err != nil {
 		return err
 	}
