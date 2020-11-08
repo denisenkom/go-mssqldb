@@ -144,27 +144,19 @@ func TestSendSqlBatch(t *testing.T) {
 		return
 	}
 
-	ch := make(chan tokenStruct, 5)
-	go processResponse(context.Background(), conn, ch, nil)
-	defer func() {
-		// make share ch is closed
-		for range ch {
-		}
-	}()
+	reader := startReading(conn, context.Background(), nil)
 
 	var lastRow []interface{}
-loop:
-	for tok := range ch {
+	err = reader.iterateResponse(func (tok tokenStruct) {
 		switch token := tok.(type) {
-		case doneStruct:
-			break loop
 		case []columnStruct:
 			conn.columns = token
 		case []interface{}:
 			lastRow = token
-		default:
-			t.Log("unknown token", tok)
 		}
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	if len(lastRow) == 0 {
@@ -562,7 +554,6 @@ func BenchmarkPacketSize(b *testing.B) {
 			}
 		})
 	}
-
 }
 
 func runBatch(t testing.TB, p connectParams) {
@@ -583,15 +574,11 @@ func runBatch(t testing.TB, p connectParams) {
 		return
 	}
 
-	ch := make(chan tokenStruct, 5)
-	go processResponse(context.Background(), conn, ch, nil)
+	reader := startReading(conn, context.Background(), nil)
 
 	var lastRow []interface{}
-loop:
-	for tok := range ch {
+	err = reader.iterateResponse(func (tok tokenStruct) {
 		switch token := tok.(type) {
-		case doneStruct:
-			break loop
 		case []columnStruct:
 			conn.columns = token
 		case []interface{}:
@@ -599,7 +586,7 @@ loop:
 		default:
 			t.Log("unknown token", tok)
 		}
-	}
+	})
 
 	if len(lastRow) == 0 {
 		t.Fatal("expected row but no row set")

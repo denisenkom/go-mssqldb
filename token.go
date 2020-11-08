@@ -665,6 +665,21 @@ func startReading(sess *tdsSession, ctx context.Context, outs map[string]interfa
 	}
 }
 
+func (t tokenProcessor) iterateResponse(handle func(tok tokenStruct)) error {
+	for {
+		tok, err := t.nextToken()
+		if err == nil {
+			if tok == nil {
+				return nil
+			} else {
+				handle(tok)
+			}
+		} else {
+			return err
+		}
+	}
+}
+
 func (t tokenProcessor) nextToken() (tokenStruct, error) {
 	// we do this separate non-blocking check on token channel to
 	// prioritize it over cancellation channel
@@ -724,57 +739,6 @@ func (t tokenProcessor) nextToken() (tokenStruct, error) {
 		// we did not get cancellation confirmation, something is not
 		// right, this connection is not usable anymore
 		return nil, errors.New("did not get cancellation confirmation from the server")
-	}
-}
-
-func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct, outs map[string]interface{}) {
-	defer close(ch)
-	cancelChan := ctx.Done()
-
-	tokChan := make(chan tokenStruct, 5)
-	go processSingleResponse(sess, tokChan, outs)
-
-	for {
-		select {
-		case tok, ok := <-tokChan:
-			if ok {
-				ch <- tok
-			} else {
-				return
-			}
-		case <-cancelChan:
-			if err := sendAttention(sess.buf); err != nil {
-				// unable to send attention, current connection is bad
-				// notify caller and close channel
-				ch <- err
-				return
-			}
-
-			// now the server should send cancellation confirmation
-			// it is possible that we already received full response
-			// just before we sent cancellation request
-			// in this case current response would not contain confirmation
-			// and we would need to read one more response
-
-			// first lets finish reading current response and look
-			// for confirmation in it
-			if readCancelConfirmation(tokChan) {
-				// we got confirmation in current response
-				ch <- ctx.Err()
-				return
-			}
-			// we did not get cancellation confirmation in the current response
-			// read one more response, it must be there
-			tokChan = make(chan tokenStruct, 5)
-			go processSingleResponse(sess, tokChan, outs)
-			if readCancelConfirmation(tokChan) {
-				ch <- ctx.Err()
-				return
-			}
-			// we did not get cancellation confirmation, something is not
-			// right, this connection is not usable anymore
-			ch <- errors.New("did not get cancellation confirmation from the server")
-		}
 	}
 }
 
