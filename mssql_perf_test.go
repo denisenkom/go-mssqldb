@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"testing"
@@ -46,6 +47,7 @@ func testConnClose(t *testing.B, conn *Conn) {
 }
 
 func BenchmarkSelect(b *testing.B) {
+	// Benchmark select query against mock server
 	conn := runTestServer(b, func(conn net.Conn) {
 		tdsBuf := newTdsBuffer(defaultPacketSize, conn)
 
@@ -147,6 +149,11 @@ func BenchmarkSelect(b *testing.B) {
 		err = rows.Next(values)
 		if err != nil {
 			b.Fatal(err)
+		}
+
+		err = rows.Next(values)
+		if err != io.EOF {
+			b.Fatal("there should not be a second row")
 		}
 
 		err = rows.Close()
