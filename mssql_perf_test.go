@@ -1,10 +1,12 @@
 package mssql
 
 import (
+	"bytes"
 	"context"
 	"database/sql/driver"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -165,5 +167,46 @@ func BenchmarkSelect(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
+	}
+}
+
+type onlyReadTransport struct {
+	b *testing.B
+	rdr *bytes.Reader
+}
+
+func (transport onlyReadTransport) Read(p []byte) (n int, err error) {
+	return transport.rdr.Read(p)
+}
+
+func (transport onlyReadTransport) Write(p []byte) (int, error) {
+	return 0, errors.New("unexpected write")
+}
+
+func (transport onlyReadTransport) Close() error {
+	return errors.New("unexpected close")
+}
+
+func BenchmarkSelectParser(b *testing.B) {
+	sess := &tdsSession{
+		buf: newTdsBuffer(defaultPacketSize, nil),
+	}
+	// this is response for select 1 request
+	selectResponseBytes, err := base64.StdEncoding.DecodeString("gQEAAAAAACAAOADRAQAAAP0QAMEAAQAAAAAAAAA=")
+	if err != nil {
+		b.Fatal(err)
+	}
+	rdr := bytes.NewReader(selectResponseBytes)
+	sess.buf.transport = onlyReadTransport{
+		rdr: rdr,
+		b: b,
+	}
+	for i := 0; i < b.N; i++ {
+		ch := make(chan tokenStruct, 5)
+		_, err = rdr.Seek(0, io.SeekStart)
+		if err != nil {
+			b.Fatal(err)
+		}
+		processSingleResponse(sess, ch, nil)
 	}
 }
