@@ -599,48 +599,46 @@ func (s *Stmt) queryContext(ctx context.Context, args []namedValue) (rows driver
 }
 
 func (s *Stmt) processQueryResponse(ctx context.Context) (res driver.Rows, err error) {
-	tokchan := make(chan tokenStruct, 5)
 	ctx, cancel := context.WithCancel(ctx)
-	go processResponse(ctx, s.c.sess, tokchan, s.c.outs)
+	reader := startReading(s.c.sess, ctx, s.c.outs)
 	s.c.clearOuts()
 	// process metadata
 	var cols []columnStruct
 loop:
-	for tok := range tokchan {
-		switch token := tok.(type) {
-		// By ignoring DONE token we effectively
-		// skip empty result-sets.
-		// This improves results in queries like that:
-		// set nocount on; select 1
-		// see TestIgnoreEmptyResults test
-		//case doneStruct:
-		//break loop
-		case []columnStruct:
-			cols = token
-			break loop
-		case doneStruct:
-			if token.isError() {
-				cancel()
-
-				// make sure tokchan is closed
-				for range tokchan {
+	for {
+		tok, err := reader.nextToken()
+		if err == nil {
+			if tok == nil {
+				break
+			} else {
+				switch token := tok.(type) {
+				// By ignoring DONE token we effectively
+				// skip empty result-sets.
+				// This improves results in queries like that:
+				// set nocount on; select 1
+				// see TestIgnoreEmptyResults test
+				//case doneStruct:
+				//break loop
+				case []columnStruct:
+					cols = token
+					break loop
+				case doneStruct:
+					if token.isError() {
+						// need to cleanup cancellable context
+						cancel()
+						return nil, s.c.checkBadConn(token.getError())
+					}
+				case ReturnStatus:
+					s.c.setReturnStatus(token)
 				}
-
-				return nil, s.c.checkBadConn(token.getError())
 			}
-		case ReturnStatus:
-			s.c.setReturnStatus(token)
-		case error:
+		} else {
+			// need to cleanup cancellable context
 			cancel()
-
-			// make sure tokchan is closed
-			for range tokchan {
-			}
-
-			return nil, s.c.checkBadConn(token)
+			return nil, s.c.checkBadConn(err)
 		}
 	}
-	res = &Rows{stmt: s, tokchan: tokchan, cols: cols, cancel: cancel}
+	res = &Rows{stmt: s, reader: reader, cols: cols, cancel: cancel}
 	return
 }
 
@@ -696,22 +694,34 @@ func (s *Stmt) processExec(ctx context.Context) (res driver.Result, err error) {
 type Rows struct {
 	stmt    *Stmt
 	cols    []columnStruct
-	tokchan chan tokenStruct
-
+	reader  tokenProcessor
 	nextCols []columnStruct
 
 	cancel func()
 }
 
 func (rc *Rows) Close() error {
+	// need to add a test which returns lots of rows
+	// and check closing after reading only few rows
 	rc.cancel()
 
-	// make sure tokchan is closed
-	for range rc.tokchan {
+	for {
+		tok, err := rc.reader.nextToken()
+		if err == nil {
+			if  tok == nil {
+				return nil
+			} else {
+				// continue consuming tokens
+				continue
+			}
+		} else {
+			if err == rc.reader.ctx.Err() {
+				return nil
+			} else {
+				return err
+			}
+		}
 	}
-	rc.tokchan = nil
-
-	return nil
 }
 
 func (rc *Rows) Columns() (res []string) {
@@ -729,27 +739,34 @@ func (rc *Rows) Next(dest []driver.Value) error {
 	if rc.nextCols != nil {
 		return io.EOF
 	}
-	for tok := range rc.tokchan {
-		switch tokdata := tok.(type) {
-		case []columnStruct:
-			rc.nextCols = tokdata
-			return io.EOF
-		case []interface{}:
-			for i := range dest {
-				dest[i] = tokdata[i]
+	for {
+		tok, err := rc.reader.nextToken()
+		if err == nil {
+			if tok == nil {
+				return io.EOF
+			} else {
+				switch tokdata := tok.(type) {
+				case []columnStruct:
+					rc.nextCols = tokdata
+					return io.EOF
+				case []interface{}:
+					for i := range dest {
+						dest[i] = tokdata[i]
+					}
+					return nil
+				case doneStruct:
+					if tokdata.isError() {
+						return rc.stmt.c.checkBadConn(tokdata.getError())
+					}
+				case ReturnStatus:
+					rc.stmt.c.setReturnStatus(tokdata)
+				}
 			}
-			return nil
-		case doneStruct:
-			if tokdata.isError() {
-				return rc.stmt.c.checkBadConn(tokdata.getError())
-			}
-		case ReturnStatus:
-			rc.stmt.c.setReturnStatus(tokdata)
-		case error:
-			return rc.stmt.c.checkBadConn(tokdata)
+
+		} else {
+			return err
 		}
 	}
-	return io.EOF
 }
 
 func (rc *Rows) HasNextResultSet() bool {
