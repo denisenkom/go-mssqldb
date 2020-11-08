@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"strconv"
 )
 
@@ -648,166 +647,67 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs map[strin
 	}
 }
 
-type parseRespIter byte
-
-const (
-	parseRespIterContinue parseRespIter = iota // Continue parsing current token.
-	parseRespIterNext                          // Fetch the next token.
-	parseRespIterDone                          // Done with parsing the response.
-)
-
-type parseRespState byte
-
-const (
-	parseRespStateNormal  parseRespState = iota // Normal response state.
-	parseRespStateCancel                        // Query is canceled, wait for server to confirm.
-	parseRespStateClosing                       // Waiting for tokens to come through.
-)
-
-type parseResp struct {
-	sess        *tdsSession
-	ctxDone     <-chan struct{}
-	state       parseRespState
-	cancelError error
-}
-
-func (ts *parseResp) sendAttention(ch chan tokenStruct) parseRespIter {
-	if ts.sess.buf.final {
-		return parseRespIterDone
-	} else {
-		if err := sendAttention(ts.sess.buf); err != nil {
-			ts.dlogf("failed to send attention signal %v", err)
-			ch <- err
-			return parseRespIterDone
-		}
-		ts.state = parseRespStateCancel
-		return parseRespIterContinue
-	}
-}
-
-func (ts *parseResp) dlog(msg string) {
-	if ts.sess.logFlags&logDebug != 0 {
-		ts.sess.log.Println(msg)
-	}
-}
-func (ts *parseResp) dlogf(f string, v ...interface{}) {
-	if ts.sess.logFlags&logDebug != 0 {
-		ts.sess.log.Printf(f, v...)
-	}
-}
-
-func (ts *parseResp) iter(ctx context.Context, ch chan tokenStruct, tokChan chan tokenStruct) parseRespIter {
-	switch ts.state {
-	default:
-		panic("unknown state")
-	case parseRespStateNormal:
-		select {
-		case tok, ok := <-tokChan:
-			if !ok {
-				ts.dlog("response finished")
-				return parseRespIterDone
-			}
-			if err, ok := tok.(net.Error); ok && err.Timeout() {
-				ts.cancelError = err
-				ts.dlog("got timeout error, sending attention signal to server")
-				return ts.sendAttention(ch)
-			}
-			// Pass the token along.
-			ch <- tok
-			return parseRespIterContinue
-
-		case <-ts.ctxDone:
-			ts.ctxDone = nil
-			ts.dlog("got cancel message, sending attention signal to server")
-			return ts.sendAttention(ch)
-		}
-	case parseRespStateCancel: // Read all responses until a DONE or error is received.Auth
-		select {
-		case tok, ok := <-tokChan:
-			if !ok {
-				ts.dlog("response finished but waiting for attention ack")
-				return parseRespIterNext
-			}
-			switch tok := tok.(type) {
-			default:
-				// Ignore all other tokens while waiting.
-				// The TDS spec says other tokens may arrive after an attention
-				// signal is sent. Ignore these tokens and continue looking for
-				// a DONE with attention confirm mark.
-			case doneStruct:
-				if tok.Status&doneAttn != 0 {
-					ts.dlog("got cancellation confirmation from server")
-					if ts.cancelError != nil {
-						ch <- ts.cancelError
-						ts.cancelError = nil
-					} else {
-						ch <- ctx.Err()
-					}
-					return parseRespIterDone
-				}
-
-			// If an error happens during cancel, pass it along and just stop.
-			// We are uncertain to receive more tokens.
-			case error:
-				ch <- tok
-				ts.state = parseRespStateClosing
-			}
-			return parseRespIterContinue
-		case <-ts.ctxDone:
-			ts.ctxDone = nil
-			ts.state = parseRespStateClosing
-			return parseRespIterContinue
-		}
-	case parseRespStateClosing: // Wait for current token chan to close.
-		if _, ok := <-tokChan; !ok {
-			ts.dlog("response finished")
-			return parseRespIterDone
-		}
-		return parseRespIterContinue
-	}
-}
-
 func processResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct, outs map[string]interface{}) {
-	ts := &parseResp{
-		sess:    sess,
-		ctxDone: ctx.Done(),
-	}
-	defer func() {
-		// Ensure any remaining error is piped through
-		// or the query may look like it executed when it actually failed.
-		if ts.cancelError != nil {
-			ch <- ts.cancelError
-			ts.cancelError = nil
-		}
-		close(ch)
-	}()
+	defer close(ch)
+	cancelChan := ctx.Done()
 
-	// Loop over multiple responses.
+	tokChan := make(chan tokenStruct, 5)
+	go processSingleResponse(sess, tokChan, outs)
+
 	for {
-		ts.dlog("initiating response reading")
-
-		tokChan := make(chan tokenStruct)
-		go processSingleResponse(sess, tokChan, outs)
-
-		// Loop over multiple tokens in response.
-	tokensLoop:
-		for {
-			switch ts.iter(ctx, ch, tokChan) {
-			case parseRespIterContinue:
-				// Nothing, continue to next token.
-			case parseRespIterNext:
-				// make sure tokChan is closed
-				for range tokChan {
-				}
-
-				break tokensLoop
-			case parseRespIterDone:
-				// make sure tokChan is closed
-				for range tokChan {
-				}
-
+		select {
+		case tok, ok := <-tokChan:
+			if ok {
+				ch <- tok
+			} else {
 				return
 			}
+		case <-cancelChan:
+			if err := sendAttention(sess.buf); err != nil {
+				// unable to send attention, current connection is bad
+				// notify caller and close channel
+				ch <- err
+				return
+			}
+
+			// now the server should send cancellation confirmation
+			// it is possible that we already received full response
+			// just before we sent cancellation request
+			// in this case current response would not contain confirmation
+			// and we would need to read one more response
+
+			// first lets finish reading current response and look
+			// for confirmation in it
+			if readCancelConfirmation(ctx, ch, tokChan) {
+				// we got confirmation in current response
+				return
+			}
+			// we did not get cancellation confirmation in the current response
+			// read one more response, it must be there
+			tokChan = make(chan tokenStruct, 5)
+			go processSingleResponse(sess, tokChan, outs)
+			if readCancelConfirmation(ctx, ch, tokChan) {
+				return
+			}
+			// we did not get cancellation confirmation, something is not
+			// right, this connection is not usable anymore
+			ch <- errors.New("did not get cancellation confirmation from the server")
 		}
 	}
+}
+
+func readCancelConfirmation(ctx context.Context, ch chan tokenStruct, tokChan chan tokenStruct) bool {
+	for tok := range tokChan {
+		switch tok := tok.(type) {
+		default:
+		// just skip token
+		case doneStruct:
+			if tok.Status&doneAttn != 0 {
+				// got cancellation confirmation, exit
+				ch <- ctx.Err()
+				return true
+			}
+		}
+	}
+	return false
 }
