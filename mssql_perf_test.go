@@ -99,6 +99,8 @@ func BenchmarkSelect(b *testing.B) {
 			b.Log("writing login reply failed", err)
 			return
 		}
+		// this is response for select 1 request
+		selectResponseBytes, err := base64.StdEncoding.DecodeString("gQEAAAAAACAAOADRAQAAAP0QAMEAAQAAAAAAAAA=")
 
 		for requests := 0; ; requests += 1{
 			// read request
@@ -115,12 +117,11 @@ func BenchmarkSelect(b *testing.B) {
 
 			// send response
 			tdsBuf.BeginPacket(packReply, false)
-			buf, err = base64.StdEncoding.DecodeString("gQEAAAAAACAAOADRAQAAAP0QAMEAAQAAAAAAAAA=")
 			if err != nil {
 				b.Log(err)
 				return
 			}
-			_, err = tdsBuf.Write(buf)
+			_, err = tdsBuf.Write(selectResponseBytes)
 			if err != nil {
 				b.Log("writing login reply failed", err)
 				return
