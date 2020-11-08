@@ -234,23 +234,29 @@ func (b *Bulk) Done() (rowcount int64, err error) {
 
 	buf.FinishPacket()
 
-	tokchan := make(chan tokenStruct, 5)
-	go processResponse(b.ctx, b.cn.sess, tokchan, nil)
-
+	reader := startReading(b.cn.sess, b.ctx, nil)
 	var rowCount int64
-	for token := range tokchan {
+	var lastError error
+	err = reader.iterateResponse(func (token tokenStruct) {
 		switch token := token.(type) {
 		case doneStruct:
 			if token.Status&doneCount != 0 {
 				rowCount = int64(token.RowCount)
 			}
 			if token.isError() {
-				return 0, token.getError()
+				lastError = token.getError()
 			}
-		case error:
-			return 0, b.cn.checkBadConn(token)
+		/*case error:
+			return 0, b.cn.checkBadConn(token)*/
 		}
+	})
+	if err != nil {
+		return 0, b.cn.checkBadConn(err)
 	}
+	if lastError != nil {
+		return 0, b.cn.checkBadConn(lastError)
+	}
+
 	return rowCount, nil
 }
 

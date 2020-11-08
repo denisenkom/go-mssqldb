@@ -201,24 +201,26 @@ func (c *Conn) clearOuts() {
 }
 
 func (c *Conn) simpleProcessResp(ctx context.Context) error {
-	tokchan := make(chan tokenStruct, 5)
-	go processResponse(ctx, c.sess, tokchan, c.outs)
+	reader := startReading(c.sess, ctx, c.outs)
 	c.clearOuts()
 
-	var err error
-	for tok := range tokchan {
+	var resultError error
+	err := reader.iterateResponse(func(tok tokenStruct) {
 		switch token := tok.(type) {
 		case doneStruct:
-			if token.isError() && err == nil {
-				err = c.checkBadConn(token.getError())
+			if token.isError() && resultError == nil {
+				resultError = c.checkBadConn(token.getError())
 			}
-		case error:
-			if err == nil {
-				err = c.checkBadConn(token)
-			}
+		/*case error:
+			if resultError == nil {
+				resultError = c.checkBadConn(token)
+			}*/
 		}
+	})
+	if err != nil {
+		return c.checkBadConn(err)
 	}
-	return err
+	return resultError
 }
 
 func (c *Conn) Commit() error {
@@ -660,11 +662,11 @@ func (s *Stmt) exec(ctx context.Context, args []namedValue) (res driver.Result, 
 }
 
 func (s *Stmt) processExec(ctx context.Context) (res driver.Result, err error) {
-	tokchan := make(chan tokenStruct, 5)
-	go processResponse(ctx, s.c.sess, tokchan, s.c.outs)
+	reader := startReading(s.c.sess, ctx, s.c.outs)
 	s.c.clearOuts()
 	var rowCount int64
-	for token := range tokchan {
+	var resultError error
+	err = reader.iterateResponse(func (token tokenStruct) {
 		switch token := token.(type) {
 		case doneInProcStruct:
 			if token.Status&doneCount != 0 {
@@ -674,19 +676,22 @@ func (s *Stmt) processExec(ctx context.Context) (res driver.Result, err error) {
 			if token.Status&doneCount != 0 {
 				rowCount += int64(token.RowCount)
 			}
-			if token.isError() && err == nil {
-				err = token.getError()
+			if token.isError() && resultError == nil {
+				resultError = token.getError()
 			}
 		case ReturnStatus:
 			s.c.setReturnStatus(token)
-		case error:
-			if err == nil {
-				err = token
-			}
+			/*case error:
+			if resultError == nil {
+				resultError = token
+			}*/
 		}
-	}
+	})
 	if err != nil {
-		return nil, err
+		return nil, s.c.checkBadConn(err)
+	}
+	if resultError != nil {
+		return nil, resultError
 	}
 	return &Result{s.c, rowCount}, nil
 }
