@@ -149,14 +149,6 @@ type Conn struct {
 	connectionGood   bool
 
 	outs         map[string]interface{}
-	returnStatus *ReturnStatus
-}
-
-func (c *Conn) setReturnStatus(s ReturnStatus) {
-	if c.returnStatus == nil {
-		return
-	}
-	*c.returnStatus = s
 }
 
 func (c *Conn) checkBadConn(err error) error {
@@ -205,18 +197,7 @@ func (c *Conn) simpleProcessResp(ctx context.Context) error {
 	c.clearOuts()
 
 	var resultError error
-	err := reader.iterateResponse(func(tok tokenStruct) {
-		switch token := tok.(type) {
-		case doneStruct:
-			if token.isError() && resultError == nil {
-				resultError = c.checkBadConn(token.getError())
-			}
-		/*case error:
-			if resultError == nil {
-				resultError = c.checkBadConn(token)
-			}*/
-		}
-	})
+	err := reader.iterateResponse()
 	if err != nil {
 		return c.checkBadConn(err)
 	}
@@ -631,7 +612,7 @@ loop:
 						return nil, s.c.checkBadConn(token.getError())
 					}
 				case ReturnStatus:
-					s.c.setReturnStatus(token)
+					s.c.sess.setReturnStatus(token)
 				}
 			}
 		} else {
@@ -664,42 +645,17 @@ func (s *Stmt) exec(ctx context.Context, args []namedValue) (res driver.Result, 
 func (s *Stmt) processExec(ctx context.Context) (res driver.Result, err error) {
 	reader := startReading(s.c.sess, ctx, s.c.outs)
 	s.c.clearOuts()
-	var rowCount int64
-	var resultError error
-	err = reader.iterateResponse(func (token tokenStruct) {
-		switch token := token.(type) {
-		case doneInProcStruct:
-			if token.Status&doneCount != 0 {
-				rowCount += int64(token.RowCount)
-			}
-		case doneStruct:
-			if token.Status&doneCount != 0 {
-				rowCount += int64(token.RowCount)
-			}
-			if token.isError() && resultError == nil {
-				resultError = token.getError()
-			}
-		case ReturnStatus:
-			s.c.setReturnStatus(token)
-			/*case error:
-			if resultError == nil {
-				resultError = token
-			}*/
-		}
-	})
+	err = reader.iterateResponse()
 	if err != nil {
 		return nil, s.c.checkBadConn(err)
 	}
-	if resultError != nil {
-		return nil, resultError
-	}
-	return &Result{s.c, rowCount}, nil
+	return &Result{s.c, reader.rowCount}, nil
 }
 
 type Rows struct {
 	stmt    *Stmt
 	cols    []columnStruct
-	reader  tokenProcessor
+	reader  *tokenProcessor
 	nextCols []columnStruct
 
 	cancel func()
@@ -764,7 +720,7 @@ func (rc *Rows) Next(dest []driver.Value) error {
 						return rc.stmt.c.checkBadConn(tokdata.getError())
 					}
 				case ReturnStatus:
-					rc.stmt.c.setReturnStatus(tokdata)
+					rc.stmt.c.sess.setReturnStatus(tokdata)
 				}
 			}
 
