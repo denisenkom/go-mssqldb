@@ -205,12 +205,15 @@ func testConnection(t *testing.T, connStr string) {
 	if err != nil {
 		t.Fatal("Scan failed:", err.Error())
 	}
+	if val != 1 {
+		t.Fatalf("returned value %d does not match 1", val)
+	}
 }
 
 func TestConnect(t *testing.T) {
-	checkConnStr(t)
+	params := testConnParams(t)
 	SetLogger(testLogger{t})
-	testConnection(t, os.Getenv("SQLSERVER_DSN"))
+	testConnection(t, params.toUrl().String())
 }
 
 func TestConnectViaIp(t *testing.T) {
