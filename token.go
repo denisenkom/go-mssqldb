@@ -652,12 +652,15 @@ type tokenProcessor struct {
 	ctx context.Context
 	sess *tdsSession
 	outs map[string]interface{}
+	lastRow []interface{}
+	rowCount int64
+	firstError error
 }
 
-func startReading(sess *tdsSession, ctx context.Context, outs map[string]interface{}) tokenProcessor {
+func startReading(sess *tdsSession, ctx context.Context, outs map[string]interface{}) *tokenProcessor {
 	tokChan := make(chan tokenStruct, 5)
 	go processSingleResponse(sess, tokChan, outs)
-	return tokenProcessor{
+	return &tokenProcessor{
 		tokChan: tokChan,
 		ctx: ctx,
 		sess: sess,
@@ -665,14 +668,36 @@ func startReading(sess *tdsSession, ctx context.Context, outs map[string]interfa
 	}
 }
 
-func (t tokenProcessor) iterateResponse(handle func(tok tokenStruct)) error {
+func (t *tokenProcessor) iterateResponse() error {
 	for {
 		tok, err := t.nextToken()
 		if err == nil {
 			if tok == nil {
-				return nil
+				return t.firstError
 			} else {
-				handle(tok)
+				switch token := tok.(type) {
+				case []columnStruct:
+					t.sess.columns = token
+				case []interface{}:
+					t.lastRow = token
+				case doneInProcStruct:
+					if token.Status&doneCount != 0 {
+						t.rowCount += int64(token.RowCount)
+					}
+				case doneStruct:
+					if token.Status&doneCount != 0 {
+						t.rowCount += int64(token.RowCount)
+					}
+					if token.isError() && t.firstError == nil {
+						t.firstError = token.getError()
+					}
+				case ReturnStatus:
+					t.sess.setReturnStatus(token)
+				/*case error:
+					if resultError == nil {
+						resultError = token
+					}*/
+				}
 			}
 		} else {
 			return err

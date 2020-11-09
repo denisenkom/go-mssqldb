@@ -129,6 +129,7 @@ type tdsSession struct {
 	log          optionalLogger
 	routedServer string
 	routedPort   uint16
+	returnStatus *ReturnStatus
 }
 
 const (
@@ -1043,4 +1044,10 @@ initiate_connection:
 		goto initiate_connection
 	}
 	return &sess, nil
+}
+
+func (sess *tdsSession) setReturnStatus(status ReturnStatus) {
+	if sess.returnStatus != nil {
+		*sess.returnStatus = status
+	}
 }

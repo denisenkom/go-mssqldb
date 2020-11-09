@@ -146,24 +146,16 @@ func TestSendSqlBatch(t *testing.T) {
 
 	reader := startReading(conn, context.Background(), nil)
 
-	var lastRow []interface{}
-	err = reader.iterateResponse(func (tok tokenStruct) {
-		switch token := tok.(type) {
-		case []columnStruct:
-			conn.columns = token
-		case []interface{}:
-			lastRow = token
-		}
-	})
+	err = reader.iterateResponse()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(lastRow) == 0 {
+	if len(reader.lastRow) == 0 {
 		t.Fatal("expected row but no row set")
 	}
 
-	switch value := lastRow[0].(type) {
+	switch value := reader.lastRow[0].(type) {
 	case int32:
 		if value != 1 {
 			t.Error("Invalid value returned, should be 1", value)
@@ -576,23 +568,16 @@ func runBatch(t testing.TB, p connectParams) {
 
 	reader := startReading(conn, context.Background(), nil)
 
-	var lastRow []interface{}
-	err = reader.iterateResponse(func (tok tokenStruct) {
-		switch token := tok.(type) {
-		case []columnStruct:
-			conn.columns = token
-		case []interface{}:
-			lastRow = token
-		default:
-			t.Log("unknown token", tok)
-		}
-	})
+	err = reader.iterateResponse()
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	if len(lastRow) == 0 {
+	if len(reader.lastRow) == 0 {
 		t.Fatal("expected row but no row set")
 	}
 
-	switch value := lastRow[0].(type) {
+	switch value := reader.lastRow[0].(type) {
 	case int32:
 		if value != 1 {
 			t.Error("Invalid value returned, should be 1", value)

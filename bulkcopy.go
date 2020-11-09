@@ -235,29 +235,12 @@ func (b *Bulk) Done() (rowcount int64, err error) {
 	buf.FinishPacket()
 
 	reader := startReading(b.cn.sess, b.ctx, nil)
-	var rowCount int64
-	var lastError error
-	err = reader.iterateResponse(func (token tokenStruct) {
-		switch token := token.(type) {
-		case doneStruct:
-			if token.Status&doneCount != 0 {
-				rowCount = int64(token.RowCount)
-			}
-			if token.isError() {
-				lastError = token.getError()
-			}
-		/*case error:
-			return 0, b.cn.checkBadConn(token)*/
-		}
-	})
+	err = reader.iterateResponse()
 	if err != nil {
 		return 0, b.cn.checkBadConn(err)
 	}
-	if lastError != nil {
-		return 0, b.cn.checkBadConn(lastError)
-	}
 
-	return rowCount, nil
+	return reader.rowCount, nil
 }
 
 func (b *Bulk) createColMetadata() []byte {
