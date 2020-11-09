@@ -42,7 +42,8 @@ func testBadServer(t *testing.T, handler func(net.Conn)) {
 		handler(conn)
 		_ = conn.Close()
 	}()
-	testConnectionBad(t, fmt.Sprintf("host=%s;port=%d", addr.IP.String(), addr.Port))
+	SetLogger(testLogger{t})
+	testConnectionBad(t, fmt.Sprintf("host=%s;port=%d;log=255", addr.IP.String(), addr.Port))
 }
 
 func TestBadServerCloseConnection(t *testing.T) {
@@ -147,5 +148,92 @@ func TestBadServerNoLoginResponse(t *testing.T) {
 		}
 
 		// not sending login response
+	})
+}
+
+func TestBadServerIncorrectLoginResponseType(t *testing.T) {
+	testBadServer(t, func(conn net.Conn) {
+		inBuf := newTdsBuffer(defaultPacketSize, conn)
+		outBuf := newTdsBuffer(defaultPacketSize, conn)
+
+		// read prelogin request
+		packetType, err := inBuf.BeginRead()
+		if err != nil {
+			t.Fatal("Failed to read PRELOGIN request", err)
+		}
+		if packetType != packPrelogin {
+			t.Fatal("Client sent non PRELOGIN request packet type", packetType)
+		}
+
+		// write prelogin response
+		fields := map[uint8][]byte{
+			preloginENCRYPTION: {encryptNotSup},
+		}
+		err = writePrelogin(packReply, outBuf, fields)
+		if err != nil {
+			t.Fatal("Writing PRELOGIN packet failed", err)
+		}
+
+		// read login request
+		packetType, err = inBuf.BeginRead()
+		if err != nil {
+			t.Fatal("Failed to read LOGIN request", err)
+		}
+		if packetType != packLogin7 {
+			t.Fatal("Client sent non LOGIN request packet type", packetType)
+		}
+
+		// sending incorrect packet type
+		outBuf.BeginPacket(packPrelogin, false)
+		err = outBuf.flush()
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+func TestBadServerInvalidTokenId(t *testing.T) {
+	testBadServer(t, func(conn net.Conn) {
+		inBuf := newTdsBuffer(defaultPacketSize, conn)
+		outBuf := newTdsBuffer(defaultPacketSize, conn)
+
+		// read prelogin request
+		packetType, err := inBuf.BeginRead()
+		if err != nil {
+			t.Fatal("Failed to read PRELOGIN request", err)
+		}
+		if packetType != packPrelogin {
+			t.Fatal("Client sent non PRELOGIN request packet type", packetType)
+		}
+
+		// write prelogin response
+		fields := map[uint8][]byte{
+			preloginENCRYPTION: {encryptNotSup},
+		}
+		err = writePrelogin(packReply, outBuf, fields)
+		if err != nil {
+			t.Fatal("Writing PRELOGIN packet failed", err)
+		}
+
+		// read login request
+		packetType, err = inBuf.BeginRead()
+		if err != nil {
+			t.Fatal("Failed to read LOGIN request", err)
+		}
+		if packetType != packLogin7 {
+			t.Fatal("Client sent non LOGIN request packet type", packetType)
+		}
+
+		// sending reply to LOGIN request
+		outBuf.BeginPacket(packReply, false)
+		// this is invalid token id
+		err = outBuf.WriteByte(0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = outBuf.flush()
+		if err != nil {
+			t.Fatal(err)
+		}
 	})
 }
