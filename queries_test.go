@@ -1333,6 +1333,24 @@ func TestProcessQueryNextErrors(t *testing.T) {
 	if err != driver.ErrBadConn {
 		t.Fatal("Connection should be bad")
 	}
+	err = conn.Ping(context.Background())
+	if err != driver.ErrBadConn {
+		t.Fatal("Connection should be bad")
+	}
+	_, err = conn.BeginTx(
+		context.Background(),
+		driver.TxOptions{})
+	if err != driver.ErrBadConn {
+		t.Fatal("Connection should be bad")
+	}
+	_, err = stmt.QueryContext(context.Background(), []driver.NamedValue{})
+	if err != driver.ErrBadConn {
+		t.Fatal("Connection should be bad")
+	}
+	_, err = stmt.ExecContext(context.Background(), []driver.NamedValue{})
+	if err != driver.ErrBadConn {
+		t.Fatal("Connection should be bad")
+	}
 }
 
 func TestSendExecErrors(t *testing.T) {

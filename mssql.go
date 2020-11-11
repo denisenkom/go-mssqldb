@@ -917,6 +917,29 @@ func (c *Conn) Ping(ctx context.Context) error {
 
 var _ driver.ConnBeginTx = &Conn{}
 
+func convertIsolationLevel(level sql.IsolationLevel) (isoLevel, error) {
+	switch level {
+	case sql.LevelDefault:
+		return isolationUseCurrent, nil
+	case sql.LevelReadUncommitted:
+		return isolationReadUncommited, nil
+	case sql.LevelReadCommitted:
+		return isolationReadCommited, nil
+	case sql.LevelWriteCommitted:
+		return isolationUseCurrent, errors.New("LevelWriteCommitted isolation level is not supported")
+	case sql.LevelRepeatableRead:
+		return isolationRepeatableRead, nil
+	case sql.LevelSnapshot:
+		return isolationSnapshot, nil
+	case sql.LevelSerializable:
+		return isolationSerializable, nil
+	case sql.LevelLinearizable:
+		return isolationUseCurrent, errors.New("LevelLinearizable isolation level is not supported")
+	default:
+		return isolationUseCurrent, errors.New("isolation level is not supported or unknown")
+	}
+}
+
 // BeginTx satisfies ConnBeginTx.
 func (c *Conn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
 	if !c.connectionGood {
@@ -926,26 +949,9 @@ func (c *Conn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, e
 		return nil, errors.New("read-only transactions are not supported")
 	}
 
-	var tdsIsolation isoLevel
-	switch sql.IsolationLevel(opts.Isolation) {
-	case sql.LevelDefault:
-		tdsIsolation = isolationUseCurrent
-	case sql.LevelReadUncommitted:
-		tdsIsolation = isolationReadUncommited
-	case sql.LevelReadCommitted:
-		tdsIsolation = isolationReadCommited
-	case sql.LevelWriteCommitted:
-		return nil, errors.New("LevelWriteCommitted isolation level is not supported")
-	case sql.LevelRepeatableRead:
-		tdsIsolation = isolationRepeatableRead
-	case sql.LevelSnapshot:
-		tdsIsolation = isolationSnapshot
-	case sql.LevelSerializable:
-		tdsIsolation = isolationSerializable
-	case sql.LevelLinearizable:
-		return nil, errors.New("LevelLinearizable isolation level is not supported")
-	default:
-		return nil, errors.New("isolation level is not supported or unknown")
+	tdsIsolation, err := convertIsolationLevel(sql.IsolationLevel(opts.Isolation))
+	if err != nil {
+		return nil, err
 	}
 	return c.begin(ctx, tdsIsolation)
 }
