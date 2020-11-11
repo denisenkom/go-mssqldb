@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"net"
@@ -1262,13 +1263,18 @@ func TestSendQueryErrors(t *testing.T) {
 	}
 }
 
-func TestProcessQueryErrors(t *testing.T) {
+func internalConnection(t *testing.T) *Conn {
 	checkConnStr(t)
 	drv := driverWithProcess(t)
 	conn, err := drv.open(context.Background(), makeConnStr(t).String())
 	if err != nil {
 		t.Fatal("open expected to succeed, but it failed with", err)
 	}
+	return conn
+}
+
+func TestProcessQueryErrors(t *testing.T) {
+	conn := internalConnection(t)
 	stmt, err := conn.prepareContext(context.Background(), "select 1")
 	if err != nil {
 		t.Fatal("prepareContext expected to succeed, but it failed with", err)
@@ -1290,6 +1296,42 @@ func TestProcessQueryErrors(t *testing.T) {
 
 	if conn.connectionGood {
 		t.Fatal("Connection should be in a bad state")
+	}
+}
+
+func TestProcessQueryNextErrors(t *testing.T) {
+	conn := internalConnection(t)
+	statements := make([]string, 1000)
+	for i := 0; i < len(statements); i++ {
+		statements[i] = "select 1"
+	}
+	query := strings.Join(statements, " union all ")
+	stmt, err := conn.prepareContext(context.Background(), query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := stmt.Query([]driver.Value{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// close actual connection to make reading response to fail
+	err = conn.sess.buf.transport.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var val int64
+	for {
+		err = rows.Next([]driver.Value{&val})
+		if err != nil {
+			break
+		}
+	}
+	if err == io.EOF {
+		t.Fatal("Next should not return EOF, instead should fail when it encounters closed connection")
+	}
+	err = rows.Next([]driver.Value{&val})
+	if err != driver.ErrBadConn {
+		t.Fatal("Connection should be bad")
 	}
 }
 
