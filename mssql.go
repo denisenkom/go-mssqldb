@@ -725,7 +725,7 @@ func (rc *Rows) Next(dest []driver.Value) error {
 			}
 
 		} else {
-			return err
+			return rc.stmt.c.checkBadConn(err)
 		}
 	}
 }
