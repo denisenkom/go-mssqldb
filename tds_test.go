@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"net"
 	"net/url"
-	"os"
 	"runtime"
 	"testing"
 )
@@ -165,13 +164,7 @@ func TestSendSqlBatch(t *testing.T) {
 }
 
 func checkConnStr(t testing.TB) {
-	if len(os.Getenv("SQLSERVER_DSN")) > 0 {
-		return
-	}
-	if len(os.Getenv("HOST")) > 0 && len(os.Getenv("DATABASE")) > 0 {
-		return
-	}
-	t.Skip("no database connection string")
+	testConnParams(t)
 }
 
 // makeConnStr returns a URL struct so it may be modified by various

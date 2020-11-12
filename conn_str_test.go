@@ -1,6 +1,8 @@
 package mssql
 
 import (
+	"bufio"
+	"io"
 	"os"
 	"reflect"
 	"testing"
@@ -182,14 +184,33 @@ func testConnParams(t testing.TB) connectParams {
 		params.logFlags = logFlags
 		return params
 	}
-	return connectParams{
-		host: os.Getenv("HOST"),
-		instance: os.Getenv("INSTANCE"),
-		database: os.Getenv("DATABASE"),
-		user: os.Getenv("SQLUSER"),
-		password: os.Getenv("SQLPASSWORD"),
-		logFlags: logFlags,
+	if len(os.Getenv("HOST")) > 0 && len(os.Getenv("DATABASE")) > 0 {
+		return connectParams{
+			host: os.Getenv("HOST"),
+			instance: os.Getenv("INSTANCE"),
+			database: os.Getenv("DATABASE"),
+			user: os.Getenv("SQLUSER"),
+			password: os.Getenv("SQLPASSWORD"),
+			logFlags: logFlags,
+		}
 	}
+	// try loading connection string from file
+	f, err := os.Open(".connstr")
+	if err == nil {
+		rdr := bufio.NewReader(f)
+		dsn, err := rdr.ReadString('\n')
+		if err != io.EOF {
+			t.Fatal(err)
+		}
+		params, err := parseConnectParams(dsn)
+		if err != nil {
+			t.Fatal("unable to parse connection string loaded from file", err)
+		}
+		params.logFlags = logFlags
+		return params
+	}
+	t.Skip("no database connection string")
+	return connectParams{}
 }
 
 func TestConnParseRoundTripFixed(t *testing.T) {
