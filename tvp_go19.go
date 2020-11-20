@@ -77,10 +77,10 @@ func (tvp TVP) encode(schema, name string, columnStr []columnStruct, tvpFieldInd
 
 	val := reflect.ValueOf(tvp.Value)
 	var elemType reflect.Type
-	if elem := val.Elem(); elem.Kind() == reflect.Ptr {
-		elemType = elem.Elem().Type()
+	if elem := val.Type().Elem(); elem.Kind() == reflect.Ptr {
+		elemType = elem.Elem()
 	} else {
-		elemType = elem.Type()
+		elemType = elem
 	}
 
 	for i, column := range columnStr {
