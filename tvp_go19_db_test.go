@@ -340,6 +340,33 @@ func TestTVPGoSQLTypes(t *testing.T) {
 		},
 	}
 
+	param2 := []*TvpGoSQLTypes{
+		{
+			PBool: sql.NullBool{
+				Bool:  true,
+				Valid: true,
+			},
+			PBoolNull: sql.NullBool{},
+			PFloat64: sql.NullFloat64{
+				Float64: 14.33,
+				Valid:   true,
+			},
+			PFloat64Null: sql.NullFloat64{},
+			PInt64: sql.NullInt64{
+				Int64: 777,
+				Valid: true,
+			},
+			PInt64Null: sql.NullInt64{},
+			PString: sql.NullString{
+				String: "test=tvp",
+				Valid:  true,
+			},
+			PStringNull: sql.NullString{},
+		},
+	}
+
+	testResult := param1[:]
+	testResult = append(testResult, param1...)
 	tvpType := TVP{
 		TypeName: "tvpGoSQLTypes",
 		Value:    param1,
@@ -348,12 +375,17 @@ func TestTVPGoSQLTypes(t *testing.T) {
 		TypeName: "tvpGoSQLTypes",
 		Value:    []TvpGoSQLTypes{},
 	}
+	tvpPointerType := TVP{
+		TypeName: "tvpGoSQLTypes",
+		Value:    param2,
+	}
 
 	rows, err := db.QueryContext(ctx,
-		"exec spwithtvpGoSQLTypes @param1, @param2, @param3",
+		"exec spwithtvpGoSQLTypes @param1, @param2, @param3, @param4",
 		sql.Named("param1", tvpType),
 		sql.Named("param2", tvpTypeEmpty),
 		sql.Named("param3", "test"),
+		sql.Named("param4", tvpPointerType),
 	)
 
 	if err != nil {
@@ -380,8 +412,8 @@ func TestTVPGoSQLTypes(t *testing.T) {
 		result1 = append(result1, val)
 	}
 
-	if !reflect.DeepEqual(param1, result1) {
-		t.Logf("expected: %+v", param1)
+	if !reflect.DeepEqual(testResult, result1) {
+		t.Logf("expected: %+v", testResult)
 		t.Logf("actual: %+v", result1)
 		t.Errorf("first resultset did not match param1")
 	}

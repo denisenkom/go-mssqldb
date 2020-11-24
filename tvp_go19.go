@@ -54,7 +54,7 @@ func (tvp TVP) check() error {
 	if valueOf.IsNil() {
 		return ErrorTypeSliceIsEmpty
 	}
-	if elem := reflect.TypeOf(tvp.Value).Elem(); (elem.Kind() == reflect.Ptr && elem.Elem().Kind() != reflect.Struct) || (elem.Kind() != reflect.Struct) {
+	if elem := reflect.TypeOf(tvp.Value).Elem(); (elem.Kind() == reflect.Ptr && elem.Elem().Kind() != reflect.Struct) && (elem.Kind() != reflect.Struct) {
 		return ErrorTypeSlice
 	}
 	return nil
@@ -75,18 +75,7 @@ func (tvp TVP) encode(schema, name string, columnStr []columnStruct, tvpFieldInd
 	writeBVarChar(buf, name)
 	binary.Write(buf, binary.LittleEndian, uint16(len(columnStr)))
 
-	val := reflect.ValueOf(tvp.Value)
-	var elemType reflect.Type
-	if elem := val.Type().Elem(); elem.Kind() == reflect.Ptr {
-		elemType = elem.Elem()
-	} else {
-		elemType = elem
-	}
-
 	for i, column := range columnStr {
-		if elemType.Field(i).PkgPath == "" {
-			continue
-		}
 		binary.Write(buf, binary.LittleEndian, uint32(column.UserType))
 		binary.Write(buf, binary.LittleEndian, uint16(column.Flags))
 		writeTypeInfo(buf, &columnStr[i].ti)
@@ -102,15 +91,12 @@ func (tvp TVP) encode(schema, name string, columnStr []columnStruct, tvpFieldInd
 		c: conn,
 	}
 
+	val := reflect.ValueOf(tvp.Value)
 	for i := 0; i < val.Len(); i++ {
 		refStr := reflect.ValueOf(val.Index(i).Interface())
 		buf.WriteByte(_TVP_ROW_TOKEN)
 		for columnStrIdx, fieldIdx := range tvpFieldIndexes {
 			field := refStr.Field(fieldIdx)
-			if refStr.Type().Field(fieldIdx).PkgPath == "" {
-				continue
-			}
-
 			tvpVal := field.Interface()
 			if tvp.verifyStandardTypeOnNull(buf, tvpVal) {
 				continue
@@ -165,6 +151,9 @@ func (tvp TVP) columnTypes() ([]columnStruct, []int, error) {
 		tvpTagValue, isTvpTag := field.Tag.Lookup(tvpTag)
 		jsonTagValue, isJsonTag := field.Tag.Lookup(jsonTag)
 		if IsSkipField(tvpTagValue, isTvpTag, jsonTagValue, isJsonTag) {
+			continue
+		}
+		if field.PkgPath == "" {
 			continue
 		}
 		tvpFieldIndexes = append(tvpFieldIndexes, i)
