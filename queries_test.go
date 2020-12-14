@@ -1300,6 +1300,11 @@ func TestProcessQueryErrors(t *testing.T) {
 }
 
 func TestProcessQueryNextErrors(t *testing.T) {
+	params := testConnParams(t)
+	if params.encrypt {
+		t.Skip("Unable to test connection close as TLS wrapping hides underlying socket")
+	}
+
 	conn := internalConnection(t)
 	statements := make([]string, 1000)
 	for i := 0; i < len(statements); i++ {
