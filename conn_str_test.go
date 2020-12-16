@@ -67,6 +67,7 @@ func TestValidConnectionString(t *testing.T) {
 		{"trustservercertificate=false", func(p connectParams) bool { return !p.trustServerCertificate }},
 		{"certificate=abc", func(p connectParams) bool { return p.certificate == "abc" }},
 		{"hostnameincertificate=abc", func(p connectParams) bool { return p.hostInCertificate == "abc" }},
+		{"tls key log file=tls.log", func(p connectParams) bool { return p.tlsKeyLogFile == "tls.log" }},
 		{"connection timeout=3;dial timeout=4;keepalive=5", func(p connectParams) bool {
 			return p.conn_timeout == 3*time.Second && p.dial_timeout == 4*time.Second && p.keepAlive == 5*time.Second
 		}},
@@ -186,10 +187,10 @@ func testConnParams(t testing.TB) connectParams {
 	}
 	if len(os.Getenv("HOST")) > 0 && len(os.Getenv("DATABASE")) > 0 {
 		return connectParams{
-			host: os.Getenv("HOST"),
+			host:     os.Getenv("HOST"),
 			instance: os.Getenv("INSTANCE"),
 			database: os.Getenv("DATABASE"),
-			user: os.Getenv("SQLUSER"),
+			user:     os.Getenv("SQLUSER"),
 			password: os.Getenv("SQLPASSWORD"),
 			logFlags: logFlags,
 		}
