@@ -37,14 +37,17 @@ type connectParams struct {
 	failOverPartner           string
 	failOverPort              uint64
 	packetSize                uint16
-	fedAuthAccessToken        string
+	fedAuthLibrary            int
+	fedAuthADALWorkflow       byte
 }
 
 // default packet size for TDS buffer
 const defaultPacketSize = 4096
 
 func parseConnectParams(dsn string) (connectParams, error) {
-	var p connectParams
+	p := connectParams{
+		fedAuthLibrary: fedAuthLibraryReserved,
+	}
 
 	var params map[string]string
 	if strings.HasPrefix(dsn, "odbc:") {
@@ -247,8 +250,8 @@ func (p connectParams) toUrl() *url.URL {
 	}
 	res := url.URL{
 		Scheme: "sqlserver",
-		Host: p.host,
-		User: url.UserPassword(p.user, p.password),
+		Host:   p.host,
+		User:   url.UserPassword(p.user, p.password),
 	}
 	if p.instance != "" {
 		res.Path = p.instance
