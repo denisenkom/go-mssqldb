@@ -58,6 +58,7 @@ func (d *Driver) OpenConnector(dsn string) (*Connector, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &Connector{
 		params: params,
 		driver: d,
@@ -99,6 +100,12 @@ func NewConnector(dsn string) (*Connector, error) {
 type Connector struct {
 	params connectParams
 	driver *Driver
+
+	// callback that can provide a security token during login
+	securityTokenProvider func(ctx context.Context) (string, error)
+
+	// callback that can provide a security token during ADAL login
+	adalTokenProvider func(ctx context.Context, serverSPN, stsURL string) (string, error)
 
 	// SessionInitSQL is executed after marking a given session to be reset.
 	// When not present, the next query will still reset the session to the
@@ -148,7 +155,7 @@ type Conn struct {
 	processQueryText bool
 	connectionGood   bool
 
-	outs         map[string]interface{}
+	outs map[string]interface{}
 }
 
 func (c *Conn) checkBadConn(err error) error {
@@ -653,9 +660,9 @@ func (s *Stmt) processExec(ctx context.Context) (res driver.Result, err error) {
 }
 
 type Rows struct {
-	stmt    *Stmt
-	cols    []columnStruct
-	reader  *tokenProcessor
+	stmt     *Stmt
+	cols     []columnStruct
+	reader   *tokenProcessor
 	nextCols []columnStruct
 
 	cancel func()
@@ -669,7 +676,7 @@ func (rc *Rows) Close() error {
 	for {
 		tok, err := rc.reader.nextToken()
 		if err == nil {
-			if  tok == nil {
+			if tok == nil {
 				return nil
 			} else {
 				// continue consuming tokens

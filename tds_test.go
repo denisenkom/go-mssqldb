@@ -19,6 +19,27 @@ func (t *MockTransport) Close() error {
 	return nil
 }
 
+func TestConstantsDefined(t *testing.T) {
+	// This test is just here to avoid complaints about unused code.
+	// These constants are part of the spec but not yet used.
+	for _, b := range []byte{
+		featExtSESSIONRECOVERY, featExtCOLUMNENCRYPTION, featExtGLOBALTRANSACTIONS,
+		featExtAZURESQLSUPPORT, featExtDATACLASSIFICATION, featExtUTF8SUPPORT,
+	} {
+		if b == 0 {
+			t.Fail()
+		}
+	}
+
+	for _, i := range []int{
+		fedAuthLibraryLiveIDCompactToken, fChangePassword, fSendYukonBinaryXML,
+	} {
+		if i < 0 {
+			t.Fail()
+		}
+	}
+}
+
 func TestSendLogin(t *testing.T) {
 	memBuf := new(MockTransport)
 	buf := newTdsBuffer(1024, memBuf)
@@ -42,7 +63,7 @@ func TestSendLogin(t *testing.T) {
 		ClientLCID:     0x204,
 		AtchDBFile:     "filepath",
 	}
-	err := sendLogin(buf, login)
+	err := sendLogin(buf, &login)
 	if err != nil {
 		t.Error("sendLogin should succeed")
 	}
@@ -89,24 +110,28 @@ func TestSendLoginWithFeatureExt(t *testing.T) {
 		Database:       "database",
 		ClientLCID:     0x204,
 	}
-	login.FeatureExt.Add(&featureExtFedAuthSTS{
-		FedAuthToken: "fedauthtoken",
+	login.FeatureExt.Add(&featureExtFedAuth{
+		FedAuthLibrary: fedAuthLibrarySecurityToken,
+		FedAuthToken:   "fedauthtoken",
 	})
-	err := sendLogin(buf, login)
+	err := sendLogin(buf, &login)
 	if err != nil {
 		t.Error("sendLogin should succeed")
 	}
 	ref := []byte{
-		16, 1, 0, 223, 0, 0, 1, 0, 215, 0, 0, 0, 4, 0, 0, 116, 0, 16, 0, 0, 0, 1,
-		6, 1, 100, 0, 0, 0, 0, 0, 0, 0, 224, 0, 0, 24, 16, 255, 255, 255, 4, 2, 0,
-		0, 94, 0, 7, 0, 108, 0, 0, 0, 108, 0, 0, 0, 108, 0, 7, 0, 122, 0, 10, 0, 176,
-		0, 4, 0, 142, 0, 7, 0, 156, 0, 2, 0, 160, 0, 8, 0, 18, 52, 86, 120, 144, 171,
-		176, 0, 0, 0, 176, 0, 0, 0, 176, 0, 0, 0, 0, 0, 0, 0, 115, 0, 117, 0, 98,
-		0, 100, 0, 101, 0, 118, 0, 49, 0, 97, 0, 112, 0, 112, 0, 110, 0, 97, 0,
-		109, 0, 101, 0, 115, 0, 101, 0, 114, 0, 118, 0, 101, 0, 114, 0, 110, 0, 97,
-		0, 109, 0, 101, 0, 108, 0, 105, 0, 98, 0, 114, 0, 97, 0, 114, 0, 121, 0, 101,
-		0, 110, 0, 100, 0, 97, 0, 116, 0, 97, 0, 98, 0, 97, 0, 115, 0, 101, 0, 180, 0,
-		0, 0, 2, 29, 0, 0, 0, 2, 24, 0, 0, 0, 102, 0, 101, 0, 100, 0, 97, 0, 117, 0,
+		16, 1, 0, 223, 0, 0, 1, 0, 215, 0, 0, 0, 4, 0, 0, 116,
+		0, 16, 0, 0, 0, 1, 6, 1, 100, 0, 0, 0, 0, 0, 0, 0,
+		224, 0, 0, 24, 16, 255, 255, 255, 4, 2, 0, 0, 94, 0, 7, 0,
+		108, 0, 0, 0, 108, 0, 0, 0, 108, 0, 7, 0, 122, 0, 10, 0,
+		176, 0, 4, 0, 142, 0, 7, 0, 156, 0, 2, 0, 160, 0, 8, 0,
+		18, 52, 86, 120, 144, 171, 176, 0, 0, 0, 176, 0, 0, 0, 176, 0,
+		0, 0, 0, 0, 0, 0, 115, 0, 117, 0, 98, 0, 100, 0, 101, 0,
+		118, 0, 49, 0, 97, 0, 112, 0, 112, 0, 110, 0, 97, 0, 109, 0,
+		101, 0, 115, 0, 101, 0, 114, 0, 118, 0, 101, 0, 114, 0, 110, 0,
+		97, 0, 109, 0, 101, 0, 108, 0, 105, 0, 98, 0, 114, 0, 97, 0,
+		114, 0, 121, 0, 101, 0, 110, 0, 100, 0, 97, 0, 116, 0, 97, 0,
+		98, 0, 97, 0, 115, 0, 101, 0, 180, 0, 0, 0, 2, 29, 0, 0,
+		0, 2, 24, 0, 0, 0, 102, 0, 101, 0, 100, 0, 97, 0, 117, 0,
 		116, 0, 104, 0, 116, 0, 111, 0, 107, 0, 101, 0, 110, 0, 255}
 	out := memBuf.Bytes()
 	if !bytes.Equal(ref, out) {
@@ -211,6 +236,10 @@ func TestConnect(t *testing.T) {
 
 func TestConnectViaIp(t *testing.T) {
 	params := testConnParams(t)
+	if params.encrypt {
+		t.Skip("Unable to test connection to IP for servers that expect encryption")
+	}
+
 	ips, err := net.LookupIP(params.host)
 	if err != nil {
 		t.Fatal("Unable to lookup IP", err)
