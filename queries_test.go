@@ -15,6 +15,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/denisenkom/go-mssqldb/msdsn"
 )
 
 func driverWithProcess(t *testing.T) *Driver {
@@ -2125,8 +2127,8 @@ func TestDisconnect1(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
-	createDialer = func(p *connectParams) Dialer {
-		nd := netDialer{&net.Dialer{Timeout: p.dial_timeout, KeepAlive: p.keepAlive}}
+	createDialer = func(p *msdsn.Config) Dialer {
+		nd := netDialer{&net.Dialer{Timeout: p.DialTimeout, KeepAlive: p.KeepAlive}}
 		di := &dialerInterrupt{nd: nd}
 		go func() {
 			<-waitDisrupt
@@ -2188,8 +2190,8 @@ func TestDisconnect2(t *testing.T) {
 		ctx, cancel = context.WithTimeout(ctx, time.Second*2)
 		defer cancel()
 
-		createDialer = func(p *connectParams) Dialer {
-			nd := netDialer{&net.Dialer{Timeout: p.dial_timeout, KeepAlive: p.keepAlive}}
+		createDialer = func(p *msdsn.Config) Dialer {
+			nd := netDialer{&net.Dialer{Timeout: p.DialTimeout, KeepAlive: p.KeepAlive}}
 			di := &dialerInterrupt{nd: nd}
 			go func() {
 				<-waitDisrupt

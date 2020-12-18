@@ -35,11 +35,11 @@ func TestNewAccessTokenConnector(t *testing.T) {
 					return fmt.Errorf("Expected driver to be of type *Connector, but got %T", c)
 				}
 				p := tc.params
-				if p.database != "db" {
-					return fmt.Errorf("expected params.database=db, but got %v", p.database)
+				if p.Database != "db" {
+					return fmt.Errorf("expected params.database=db, but got %v", p.Database)
 				}
-				if p.host != "server.database.windows.net" {
-					return fmt.Errorf("expected params.host=server.database.windows.net, but got %v", p.host)
+				if p.Host != "server.database.windows.net" {
+					return fmt.Errorf("expected params.host=server.database.windows.net, but got %v", p.Host)
 				}
 				if tc.securityTokenProvider == nil {
 					return fmt.Errorf("Expected federated authentication provider to not be nil")

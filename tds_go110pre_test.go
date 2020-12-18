@@ -12,7 +12,7 @@ func open(t *testing.T) *sql.DB {
 	SetLogger(testLogger{t})
 	conn, err := sql.Open("sqlserver", makeConnStr(t).String())
 	if err != nil {
-	t.Error("Open connection failed:", err.Error())
+		t.Error("Open connection failed:", err.Error())
 		return nil
 	}
 	return conn

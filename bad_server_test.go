@@ -56,8 +56,8 @@ func TestBadServerInvalidPreLoginPacketSize(t *testing.T) {
 		// but since there are no more data written, client would fail
 		err := binary.Write(conn, binary.BigEndian, header{
 			PacketType: packReply,
-			Size: uint16(headerSize),
-			Status: 0, // indicates non final packet
+			Size:       uint16(headerSize),
+			Status:     0, // indicates non final packet
 		})
 		if err != nil {
 			t.Fatal("Writing header failed", err)
@@ -69,8 +69,8 @@ func TestBadServerInvalidPreLoginPacketType(t *testing.T) {
 	testBadServer(t, func(conn net.Conn) {
 		err := binary.Write(conn, binary.BigEndian, header{
 			PacketType: packNormal, // invalid packet type, packReply
-			Size: uint16(headerSize),
-			Status: 1, // indicate final packet
+			Size:       uint16(headerSize),
+			Status:     1, // indicate final packet
 		})
 		if err != nil {
 			t.Fatal("Writing header failed", err)
@@ -82,8 +82,8 @@ func TestBadServerEmptyPreLoginPacket(t *testing.T) {
 	testBadServer(t, func(conn net.Conn) {
 		err := binary.Write(conn, binary.BigEndian, header{
 			PacketType: packReply,
-			Size: uint16(headerSize),
-			Status: 1, // indicate final packet
+			Size:       uint16(headerSize),
+			Status:     1, // indicate final packet
 		})
 		if err != nil {
 			t.Fatal("Writing header failed", err)
