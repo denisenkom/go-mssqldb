@@ -39,7 +39,7 @@ const (
 // service specified and obtain the appropriate token, or return an error
 // to indicate why a token is not available.
 // The returned connector may be used with sql.OpenDB.
-func newSecurityTokenConnector(dsn string, tokenProvider func(ctx context.Context) (string, error)) (*Connector, error) {
+func NewSecurityTokenConnector(dsn string, tokenProvider func(ctx context.Context) (string, error)) (*Connector, error) {
 	if tokenProvider == nil {
 		return nil, errors.New("mssql: tokenProvider cannot be nil")
 	}
@@ -64,7 +64,7 @@ func newSecurityTokenConnector(dsn string, tokenProvider func(ctx context.Contex
 // to indicate why a token is not available.
 //
 // The returned connector may be used with sql.OpenDB.
-func newActiveDirectoryTokenConnector(dsn string, adalWorkflow byte, tokenProvider func(ctx context.Context, serverSPN, stsURL string) (string, error)) (*Connector, error) {
+func NewActiveDirectoryTokenConnector(dsn string, adalWorkflow byte, tokenProvider func(ctx context.Context, serverSPN, stsURL string) (string, error)) (*Connector, error) {
 	if tokenProvider == nil {
 		return nil, errors.New("mssql: tokenProvider cannot be nil")
 	}
