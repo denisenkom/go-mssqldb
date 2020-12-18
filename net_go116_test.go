@@ -71,7 +71,7 @@ func TestTLSHandshakeConn(t *testing.T) {
 		t.Error(err)
 	}
 
-	outbuf := newTdsBuffer(connector.params.packetSize, toconn)
+	outbuf := newTdsBuffer(connector.params.PacketSize, toconn)
 	handshakeConn := tlsHandshakeConn{buf: outbuf}
 
 	t.Run(`set deadline`, func(t *testing.T) {
@@ -128,7 +128,7 @@ func TestPassthroughConn(t *testing.T) {
 		t.Error(err)
 	}
 
-	outbuf := newTdsBuffer(connector.params.packetSize, toconn)
+	outbuf := newTdsBuffer(connector.params.PacketSize, toconn)
 
 	handshakeConn := tlsHandshakeConn{buf: outbuf}
 	passthrough := passthroughConn{c: &handshakeConn}
