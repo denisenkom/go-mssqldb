@@ -1,6 +1,6 @@
 module github.com/denisenkom/go-mssqldb
 
-go 1.11
+go 1.15
 
 require (
 	github.com/cyberark/secretless-broker v1.4.1-0.20191211191712-251c5ec034af
