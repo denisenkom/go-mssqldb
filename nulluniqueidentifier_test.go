@@ -53,4 +53,36 @@ func TestNullUniqueIdentifier(t *testing.T) {
 			}
 		})
 	})
+
+	t.Run("String", func(t *testing.T) {
+
+		t.Run("Empty string", func(t *testing.T) {
+
+			var nui NullUniqueIdentifier
+			var null interface{}
+			if err := nui.Scan(null); err != nil {
+
+				t.Fatal(err)
+			}
+
+			if str := nui.String(); str != "" {
+
+				t.Errorf("String invalid: got %s; want %s", str, `""`)
+			}
+		})
+
+		t.Run("String", func(t *testing.T) {
+
+			var nui NullUniqueIdentifier
+			if err := nui.Scan(dbUUID[:]); err != nil {
+
+				t.Fatal(err)
+			}
+
+			if str := nui.String(); str == "" {
+
+				t.Errorf("String invalid: got %s; want %s", "67452301-AB89-EFCD-0123-456789ABCDEF", str)
+			}
+		})
+	})
 }

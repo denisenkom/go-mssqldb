@@ -16,6 +16,24 @@ func (nui *NullUniqueIdentifier) Scan(v interface{}) error {
 		return nil
 	}
 
+	err := nui.UniqueIdentifier.Scan(v)
+	if err != nil {
+
+		nui.Valid = false
+		return nil
+	}
+
 	nui.Valid = true
-	return nui.UniqueIdentifier.Scan(v)
+	return nil
+}
+
+// String returns the UniqueIdentifier value
+func (nui NullUniqueIdentifier) String() string {
+
+	if !nui.Valid {
+
+		return ""
+	}
+
+	return nui.UniqueIdentifier.String()
 }
