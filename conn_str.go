@@ -39,10 +39,20 @@ type connectParams struct {
 	packetSize                uint16
 	fedAuthLibrary            int
 	fedAuthADALWorkflow       byte
+	columnEncryption          bool
+	keyStoreAuthentication    KeyStoreAuthentication
+	keyStoreLocation          string
+	keyStoreSecret            string
 }
 
 // default packet size for TDS buffer
 const defaultPacketSize = 4096
+
+type KeyStoreAuthentication string
+
+const (
+	PFXKeystoreAuth = "pfx"
+)
 
 func parseConnectParams(dsn string) (connectParams, error) {
 	p := connectParams{
@@ -169,6 +179,54 @@ func parseConnectParams(dsn string) (connectParams, error) {
 	} else {
 		p.trustServerCertificate = true
 	}
+
+	columnEncryption, ok := params["columnencryption"]
+	if ok {
+		if strings.EqualFold(columnEncryption, "true") {
+			p.columnEncryption = true
+		} else {
+			var err error
+			p.columnEncryption, err = strconv.ParseBool(columnEncryption)
+			if err != nil {
+				f := "invalid columnEncryption '%s': %s"
+				return p, fmt.Errorf(f, columnEncryption, err.Error())
+			}
+		}
+	} else {
+		p.columnEncryption = false
+	}
+
+	ksAuth, ok := params["keystoreauthentication"]
+	if ok {
+		var authMethod KeyStoreAuthentication
+		switch strings.ToLower(ksAuth) {
+		case "pfx":
+			authMethod = PFXKeystoreAuth
+		default:
+			return p, fmt.Errorf("invalid keystotreAuthentication '%s'", ksAuth)
+		}
+		p.keyStoreAuthentication = authMethod
+	}
+
+	ksLocation, ok := params["keystorelocation"]
+	if ok {
+		if ksLocation == "" {
+			return p, fmt.Errorf("invalid keystore location provided: '%s'", ksLocation)
+		}
+
+		_, err := os.Stat(ksLocation)
+		if err != nil {
+			return p, fmt.Errorf("unable to find keystore %s: %v", ksLocation, err)
+		}
+
+		p.keyStoreLocation = ksLocation
+	}
+
+	ksSecret, ok := params["keystoresecret"]
+	if ok {
+		p.keyStoreSecret = ksSecret
+	}
+
 	trust, ok := params["trustservercertificate"]
 	if ok {
 		var err error
@@ -248,6 +306,23 @@ func (p connectParams) toUrl() *url.URL {
 	if p.logFlags != 0 {
 		q.Add("log", strconv.FormatUint(p.logFlags, 10))
 	}
+
+	if p.columnEncryption {
+		q.Add("columnEncryption", "true")
+	}
+
+	if p.keyStoreAuthentication != "" {
+		q.Add("keyStoreAuthentication", string(p.keyStoreAuthentication))
+	}
+
+	if p.keyStoreLocation != "" {
+		q.Add("keyStoreLocation", p.keyStoreLocation)
+	}
+
+	if p.keyStoreSecret != "" {
+		q.Add("keyStoreSecret", p.keyStoreSecret)
+	}
+
 	res := url.URL{
 		Scheme: "sqlserver",
 		Host:   p.host,
@@ -256,6 +331,7 @@ func (p connectParams) toUrl() *url.URL {
 	if p.instance != "" {
 		res.Path = p.instance
 	}
+
 	if len(q) > 0 {
 		res.RawQuery = q.Encode()
 	}
@@ -274,7 +350,7 @@ func splitConnectionString(dsn string) (res map[string]string) {
 		if len(name) == 0 {
 			continue
 		}
-		var value string = ""
+		var value = ""
 		if len(lst) > 1 {
 			value = strings.TrimSpace(lst[1])
 		}

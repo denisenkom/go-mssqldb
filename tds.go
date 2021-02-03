@@ -131,17 +131,27 @@ const (
 )
 
 type tdsSession struct {
-	buf          *tdsBuffer
-	loginAck     loginAckStruct
-	database     string
-	partner      string
-	columns      []columnStruct
-	tranid       uint64
-	logFlags     uint64
-	log          optionalLogger
-	routedServer string
-	routedPort   uint16
-	returnStatus *ReturnStatus
+	buf                     *tdsBuffer
+	loginAck                loginAckStruct
+	alwaysEncrypted         bool
+	alwaysEncryptedSettings *aeSettings
+	database                string
+	partner                 string
+	columns                 []columnStruct
+	tranid                  uint64
+	logFlags                uint64
+	log                     optionalLogger
+	routedServer            string
+	routedPort              uint16
+	returnStatus            *ReturnStatus
+}
+
+type aeSettings struct {
+	ksLocation string
+	ksSecret   string
+	ksAuth     KeyStoreAuthentication
+	pKey       interface{}
+	cert       *x509.Certificate
 }
 
 const (
@@ -155,10 +165,15 @@ const (
 )
 
 type columnStruct struct {
-	UserType uint32
-	Flags    uint16
-	ColName  string
-	ti       typeInfo
+	UserType   uint32
+	Flags      uint16
+	ColName    string
+	ti         typeInfo
+	cryptoMeta cryptoMetadata
+}
+
+func (c columnStruct) isEncrypted() bool {
+	return 0x0800 == (c.Flags & 0x0800)
 }
 
 type keySlice []uint8
@@ -408,6 +423,23 @@ func (e *featureExtFedAuth) toBytes() []byte {
 	return d
 }
 
+type featureExtColumnEncryption struct {
+}
+
+func (f *featureExtColumnEncryption) featureID() byte {
+	return featExtCOLUMNENCRYPTION
+}
+
+func (f *featureExtColumnEncryption) toBytes() []byte {
+	/*
+		1 = The client supports column encryption without enclave computations.
+		2 = The client SHOULD<25> support column encryption when encrypted data require enclave computations.
+	*/
+	return []byte{0x01}
+}
+
+var _ featureExt = &featureExtColumnEncryption{}
+
 type loginHeader struct {
 	Length               uint32
 	TDSVersion           uint32
@@ -474,7 +506,7 @@ func ucs22str(s []byte) (string, error) {
 }
 
 func manglePassword(password string) []byte {
-	var ucs2password []byte = str2ucs2(password)
+	var ucs2password = str2ucs2(password)
 	for i, ch := range ucs2password {
 		ucs2password[i] = ((ch<<4)&0xff | (ch >> 4)) ^ 0xA5
 	}
@@ -947,7 +979,7 @@ func interpretPreloginResponse(p connectParams, fe *featureExtFedAuth, fields ma
 		// We need to be able to echo the value back to the server
 		fe.FedAuthEcho = fedAuthSupport[0] != 0
 	} else if fe.FedAuthLibrary != fedAuthLibraryReserved {
-		return 0, fmt.Errorf("Federated authentication is not supported by the server")
+		return 0, fmt.Errorf("federated authentication is not supported by the server")
 	}
 
 	encryptBytes, ok := fields[preloginENCRYPTION]
@@ -973,6 +1005,12 @@ func prepareLogin(ctx context.Context, c *Connector, p connectParams, log option
 		AppName:      p.appname,
 		TypeFlags:    p.typeFlags,
 	}
+
+	if p.columnEncryption {
+		// Support Always Encrypted
+		_ = l.FeatureExt.Add(&featureExtColumnEncryption{})
+	}
+
 	switch {
 	case fe.FedAuthLibrary == fedAuthLibrarySecurityToken:
 		if p.logFlags&logDebug != 0 {
@@ -987,14 +1025,14 @@ func prepareLogin(ctx context.Context, c *Connector, p connectParams, log option
 			return nil, err
 		}
 
-		l.FeatureExt.Add(fe)
+		_ = l.FeatureExt.Add(fe)
 
 	case fe.FedAuthLibrary == fedAuthLibraryADAL:
 		if p.logFlags&logDebug != 0 {
 			log.Println("Starting federated authentication using ADAL")
 		}
 
-		l.FeatureExt.Add(fe)
+		_ = l.FeatureExt.Add(fe)
 
 	case auth != nil:
 		if p.logFlags&logDebug != 0 {
@@ -1203,6 +1241,21 @@ initiate_connection:
 			case loginAckStruct:
 				sess.loginAck = token
 				loginAck = true
+			case featureExtAck:
+				for _, v := range token {
+					switch v:= v.(type) {
+					case colAckStruct:
+						if v.Version <= 2 && v.Version > 0 {
+							sess.alwaysEncrypted = true
+							sess.alwaysEncryptedSettings = &aeSettings{
+								ksSecret:   p.keyStoreSecret,
+								ksLocation: p.keyStoreLocation,
+								ksAuth:     p.keyStoreAuthentication,
+							}
+						}
+					}
+				}
+
 			case doneStruct:
 				if token.isError() {
 					return nil, fmt.Errorf("login error: %s", token.getError())

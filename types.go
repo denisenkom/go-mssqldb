@@ -83,6 +83,8 @@ const _TVP_ROW_TOKEN = 0x01
 // http://msdn.microsoft.com/en-us/library/dd358284.aspx
 type typeInfo struct {
 	TypeId    uint8
+	UserType  uint32
+	Flags     uint16
 	Size      int
 	Scale     uint8
 	Prec      uint8
@@ -113,9 +115,9 @@ type xmlInfo struct {
 	XmlSchemaCollection string
 }
 
-func readTypeInfo(r *tdsBuffer) (res typeInfo) {
-	res.TypeId = r.byte()
-	switch res.TypeId {
+func readTypeInfo(r *tdsBuffer, typeId byte) (res typeInfo) {
+	res.TypeId = typeId
+	switch typeId {
 	case typeNull, typeInt1, typeBit, typeInt2, typeInt4, typeDateTim4,
 		typeFlt4, typeMoney, typeDateTime, typeFlt8, typeMoney4, typeInt8:
 		// those are fixed length types

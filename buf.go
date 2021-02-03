@@ -269,3 +269,41 @@ func (r *tdsBuffer) Read(buf []byte) (copied int, err error) {
 	r.rpos += copied
 	return
 }
+
+type sqlIdentifier struct {
+	serverName string
+	databaseName string
+	schemaName string
+	objectName string
+}
+
+func (r *tdsBuffer) sqlIdentifier() sqlIdentifier {
+	numParts := int(r.byte())
+	if numParts < 1 || numParts >= 5 {
+		panic("invalid sqlIdentifier: numparts is not between 1 and 4")
+	}
+
+	parts := make([]string, numParts)
+
+	for i := range parts {
+		parts[i] = r.UsVarChar()
+	}
+
+	sqlID := sqlIdentifier{
+		objectName: parts[0],
+	}
+
+	if numParts >= 2 {
+		sqlID.schemaName = parts[1]
+	}
+
+	if numParts >= 3{
+		sqlID.databaseName = parts[2]
+	}
+
+	if numParts == 4 {
+		sqlID.serverName = parts[3]
+	}
+
+	return sqlID
+}
