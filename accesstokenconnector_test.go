@@ -23,6 +23,7 @@ func TestNewAccessTokenConnector(t *testing.T) {
 		args    args
 		want    func(driver.Connector) error
 		wantErr bool
+
 	}{
 		{
 			name: "Happy path",

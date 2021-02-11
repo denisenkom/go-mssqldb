@@ -21,14 +21,22 @@ func TestAlwaysEncrypted(t *testing.T) {
 		SSN string
 	}
 
-	expectedValues := []string{"12345", "00000"}
+	expectedValues := []string{
+		"12345     ",
+		"00000     ",
+		"041-64-841",
+		"009-34-870",
+		"517-04-462",
+		"158-16-318",
+		"136-01-843",
+	}
 	expectedIdx := 0
 
 	for ; rows.Next() ; {
 		err = rows.Scan(&dest.Id, &dest.SSN)
+		fmt.Printf("col: %v\n", dest)
 		assert.Equal(t, expectedValues[expectedIdx], dest.SSN)
 		expectedIdx++
 		assert.Nil(t, err)
-		fmt.Printf("col: %v\n", dest)
 	}
 }
