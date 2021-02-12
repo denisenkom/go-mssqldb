@@ -628,7 +628,7 @@ func parseColMetadata72(r *tdsBuffer, s *tdsSession) (columns []columnStruct) {
 	for i := range columns {
 		column := &columns[i]
 		baseTi := getBaseTypeInfo(r, true)
-		typeInfo := readTypeInfo(r, baseTi.TypeId)
+		typeInfo := readTypeInfo(r, baseTi.TypeId, column.cryptoMeta)
 		typeInfo.UserType = baseTi.UserType
 		typeInfo.Flags = baseTi.Flags
 		typeInfo.TypeId = baseTi.TypeId
@@ -646,7 +646,9 @@ func parseColMetadata72(r *tdsBuffer, s *tdsSession) (columns []columnStruct) {
 			// Read Crypto Metadata
 			cryptoMeta := parseCryptoMetadata(r, cekTable)
 			cryptoMeta.typeInfo.Flags = baseTi.Flags
-			column.cryptoMeta = cryptoMeta
+			column.cryptoMeta = &cryptoMeta
+		} else {
+			column.cryptoMeta = nil
 		}
 
 		colNameLen := r.byte()
@@ -689,7 +691,7 @@ func parseCryptoMetadata(r *tdsBuffer, cekTable *cekTable) cryptoMetadata {
 	}
 
 	typeInfo := getBaseTypeInfo(r, false)
-	ti := readTypeInfo(r, typeInfo.TypeId)
+	ti := readTypeInfo(r, typeInfo.TypeId, nil)
 	ti.UserType = typeInfo.UserType
 	ti.Flags = typeInfo.Flags
 	ti.TypeId = typeInfo.TypeId
@@ -823,63 +825,67 @@ var _ io.ReadWriteCloser = RWCBuffer{}
 // http://msdn.microsoft.com/en-us/library/dd357254.aspx
 func parseRow(r *tdsBuffer, s *tdsSession, columns []columnStruct, row []interface{}) {
 	for i, column := range columns {
-		columnContent := column.ti.Reader(&column.ti, r)
+		columnContent := column.ti.Reader(&column.ti, r, nil)
 		if column.isEncrypted() && s.alwaysEncrypted {
+			buffer := decryptColumn(column, s, columnContent)
 			// Decrypt
-			cekValue := column.cryptoMeta.entry.cekValues[column.cryptoMeta.ordinal]
-			algVer := cekValue.cekVersion
-			encType := encryption.From(column.cryptoMeta.encType)
-
-			// Get pKey
-			if s.alwaysEncryptedSettings.pKey == nil {
-				panic("alwaysEncrypted pKey not set: this should never happen")
-			}
-
-			cekv := alwaysencrypted.LoadCEKV(column.cryptoMeta.entry.cekValues[0].encryptedKey)
-			if !cekv.Verify(s.alwaysEncryptedSettings.cert) {
-				panic(fmt.Errorf("invalid certificate being used to decrypt: %v requested but %v provided",
-					cekv.KeyPath,
-					fmt.Sprintf("%02x", sha1.Sum(s.alwaysEncryptedSettings.cert.Raw)),
-				))
-			}
-
-			// TODO: Support other private keys
-			rootKey, err := cekv.Decrypt(s.alwaysEncryptedSettings.pKey.(*rsa.PrivateKey))
-			if err != nil {
-				panic(err)
-			}
-
-			// Derive Root Key from encryptedKey
-			k := keys.NewAeadAes256CbcHmac256(rootKey)
-			alg := algorithms.NewAeadAes256CbcHmac256Algorithm(k, encType, byte(algVer))
-
-			d, err := alg.Decrypt(columnContent.([]byte))
-			if err != nil {
-				panic(err)
-			}
-
-			// Dirty workaround to keep compatibility with original types
-			// TODO: Improve me
-			var newBuff = make([]byte, 2)
-			binary.LittleEndian.PutUint16(newBuff, uint16(len(d)))
-			newBuff = append(newBuff, d...)
-
-			rwc := RWCBuffer{
-				buffer: bytes.NewReader(newBuff),
-			}
-
-			column.cryptoMeta.typeInfo.Buffer = d
-			buffer := tdsBuffer{rpos: 0, rsize: len(newBuff), rbuf: newBuff, transport: rwc}
-
-			row[i] = column.cryptoMeta.typeInfo.Reader(&column.cryptoMeta.typeInfo, &buffer)
+			row[i] = column.cryptoMeta.typeInfo.Reader(&column.cryptoMeta.typeInfo, &buffer, column.cryptoMeta)
 		} else {
 			row[i] = columnContent
 		}
 	}
 }
 
+func decryptColumn(column columnStruct, s *tdsSession, columnContent interface{}) tdsBuffer {
+	// Decrypt
+	cekValue := column.cryptoMeta.entry.cekValues[column.cryptoMeta.ordinal]
+	algVer := cekValue.cekVersion
+	encType := encryption.From(column.cryptoMeta.encType)
+
+	// Get pKey
+	if s.alwaysEncryptedSettings.pKey == nil {
+		panic("alwaysEncrypted pKey not set: this should never happen")
+	}
+
+	cekv := alwaysencrypted.LoadCEKV(column.cryptoMeta.entry.cekValues[0].encryptedKey)
+	if !cekv.Verify(s.alwaysEncryptedSettings.cert) {
+		panic(fmt.Errorf("invalid certificate being used to decrypt: %v requested but %v provided",
+			cekv.KeyPath,
+			fmt.Sprintf("%02x", sha1.Sum(s.alwaysEncryptedSettings.cert.Raw)),
+		))
+	}
+
+	// TODO: Support other private keys
+	rootKey, err := cekv.Decrypt(s.alwaysEncryptedSettings.pKey.(*rsa.PrivateKey))
+	if err != nil {
+		panic(err)
+	}
+
+	// Derive Root Key from encryptedKey
+	k := keys.NewAeadAes256CbcHmac256(rootKey)
+	alg := algorithms.NewAeadAes256CbcHmac256Algorithm(k, encType, byte(algVer))
+
+	d, err := alg.Decrypt(columnContent.([]byte))
+	if err != nil {
+		panic(err)
+	}
+
+	// Dirty workaround to keep compatibility with original types
+	// TODO: Improve me
+	var newBuff []byte
+	newBuff = append(newBuff, d...)
+
+	rwc := RWCBuffer{
+		buffer: bytes.NewReader(newBuff),
+	}
+
+	column.cryptoMeta.typeInfo.Buffer = d
+	buffer := tdsBuffer{rpos: 0, rsize: len(newBuff), rbuf: newBuff, transport: rwc}
+	return buffer
+}
+
 // http://msdn.microsoft.com/en-us/library/dd304783.aspx
-func parseNbcRow(r *tdsBuffer, columns []columnStruct, row []interface{}) {
+func parseNbcRow(r *tdsBuffer, s *tdsSession, columns []columnStruct, row []interface{}) {
 	bitlen := (len(columns) + 7) / 8
 	pres := make([]byte, bitlen)
 	r.ReadFull(pres)
@@ -888,7 +894,14 @@ func parseNbcRow(r *tdsBuffer, columns []columnStruct, row []interface{}) {
 			row[i] = nil
 			continue
 		}
-		row[i] = col.ti.Reader(&col.ti, r)
+		columnContent := col.ti.Reader(&col.ti, r, nil)
+		if col.isEncrypted() && s.alwaysEncrypted {
+			buffer := decryptColumn(col, s, columnContent)
+			// Decrypt
+			row[i] = col.cryptoMeta.typeInfo.Reader(&col.cryptoMeta.typeInfo, &buffer, col.cryptoMeta)
+		} else {
+			row[i] = columnContent
+		}
 	}
 }
 
@@ -921,7 +934,7 @@ func parseInfo(r *tdsBuffer) (res Error) {
 }
 
 // https://msdn.microsoft.com/en-us/library/dd303881.aspx
-func parseReturnValue(r *tdsBuffer) (nv namedValue) {
+func parseReturnValue(r *tdsBuffer, s *tdsSession) (nv namedValue) {
 	/*
 		ParamOrdinal
 		ParamName
@@ -932,13 +945,21 @@ func parseReturnValue(r *tdsBuffer) (nv namedValue) {
 		CryptoMetadata
 		Value
 	*/
-	r.uint16()
-	nv.Name = r.BVarChar()
-	r.byte()
+	_ = r.uint16() // ParamOrdinal
+	nv.Name = r.BVarChar() // ParamName
+	_ = r.byte() // Status
 
-	ti := getBaseTypeInfo(r, true)
-	ti2 := readTypeInfo(r, ti.TypeId)
-	nv.Value = ti2.Reader(&ti2, r)
+	ti := getBaseTypeInfo(r, true) // UserType + Flags + TypeInfo
+
+	var cryptoMetadata *cryptoMetadata = nil
+	if s.alwaysEncrypted {
+		cm := parseCryptoMetadata(r, nil) // CryptoMetadata
+		cryptoMetadata = &cm
+	}
+
+	ti2 := readTypeInfo(r, ti.TypeId, cryptoMetadata)
+	nv.Value = ti2.Reader(&ti2, r, cryptoMetadata)
+
 	return
 }
 
@@ -1022,7 +1043,7 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs map[strin
 			ch <- row
 		case tokenNbcRow:
 			row := make([]interface{}, len(columns))
-			parseNbcRow(sess.buf, columns, row)
+			parseNbcRow(sess.buf, sess, columns, row)
 			ch <- row
 		case tokenEnvChange:
 			processEnvChg(sess)
@@ -1044,7 +1065,7 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs map[strin
 				sess.log.Println(info.Message)
 			}
 		case tokenReturnValue:
-			nv := parseReturnValue(sess.buf)
+			nv := parseReturnValue(sess.buf, sess)
 			if len(nv.Name) > 0 {
 				name := nv.Name[1:] // Remove the leading "@".
 				if ov, has := outs[name]; has {

@@ -169,11 +169,15 @@ type columnStruct struct {
 	Flags      uint16
 	ColName    string
 	ti         typeInfo
-	cryptoMeta cryptoMetadata
+	cryptoMeta *cryptoMetadata
 }
 
 func (c columnStruct) isEncrypted() bool {
-	return 0x0800 == (c.Flags & 0x0800)
+	return isEncryptedFlag(c.Flags)
+}
+
+func isEncryptedFlag(flags uint16) bool {
+	return 0x0800 == (flags & 0x0800)
 }
 
 type keySlice []uint8
