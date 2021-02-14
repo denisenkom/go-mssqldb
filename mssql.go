@@ -28,6 +28,14 @@ type ReturnStatus int32
 var driverInstance = &Driver{processQueryText: true}
 var driverInstanceNoProcess = &Driver{processQueryText: false}
 
+func DriverInstanceMssql() *Driver {
+	return driverInstance
+}
+
+func DriverInstanceSqlServer() *Driver {
+	return driverInstanceNoProcess
+}
+
 func init() {
 	sql.Register("mssql", driverInstance)
 	sql.Register("sqlserver", driverInstanceNoProcess)
