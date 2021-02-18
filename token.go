@@ -826,6 +826,11 @@ var _ io.ReadWriteCloser = RWCBuffer{}
 func parseRow(r *tdsBuffer, s *tdsSession, columns []columnStruct, row []interface{}) {
 	for i, column := range columns {
 		columnContent := column.ti.Reader(&column.ti, r, nil)
+		if columnContent == nil {
+			row[i] = columnContent
+			continue
+		}
+
 		if column.isEncrypted() && s.alwaysEncrypted {
 			buffer := decryptColumn(column, s, columnContent)
 			// Decrypt
