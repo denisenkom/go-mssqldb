@@ -105,27 +105,27 @@ func (c *tlsHandshakeConn) Write(b []byte) (n int, err error) {
 }
 
 func (c *tlsHandshakeConn) Close() error {
-	panic("Not implemented")
+	return c.Close()
 }
 
 func (c *tlsHandshakeConn) LocalAddr() net.Addr {
-	panic("Not implemented")
+	return c.LocalAddr()
 }
 
 func (c *tlsHandshakeConn) RemoteAddr() net.Addr {
-	panic("Not implemented")
+	return c.RemoteAddr()
 }
 
 func (c *tlsHandshakeConn) SetDeadline(t time.Time) error {
-	panic("Not implemented")
+	return c.SetDeadline(t)
 }
 
 func (c *tlsHandshakeConn) SetReadDeadline(t time.Time) error {
-	panic("Not implemented")
+	return c.SetReadDeadline(t)
 }
 
 func (c *tlsHandshakeConn) SetWriteDeadline(t time.Time) error {
-	panic("Not implemented")
+	return c.SetWriteDeadline(t)
 }
 
 // this connection just delegates all methods to it's wrapped connection
@@ -148,21 +148,21 @@ func (c passthroughConn) Close() error {
 }
 
 func (c passthroughConn) LocalAddr() net.Addr {
-	panic("Not implemented")
+	return c.c.LocalAddr()
 }
 
 func (c passthroughConn) RemoteAddr() net.Addr {
-	panic("Not implemented")
+	return c.c.RemoteAddr()
 }
 
 func (c passthroughConn) SetDeadline(t time.Time) error {
-	panic("Not implemented")
+	return c.c.SetDeadline(t)
 }
 
 func (c passthroughConn) SetReadDeadline(t time.Time) error {
-	panic("Not implemented")
+	return c.c.SetReadDeadline(t)
 }
 
 func (c passthroughConn) SetWriteDeadline(t time.Time) error {
-	panic("Not implemented")
+	return c.c.SetWriteDeadline(t)
 }
