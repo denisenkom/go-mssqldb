@@ -284,6 +284,7 @@ func BenchmarkTVPType_check(b *testing.B) {
 }
 
 func BenchmarkColumnTypes(b *testing.B) {
+	//lint:file-ignore U1000 don't know what to do with following yet
 	type str struct {
 		bytes      byte
 		bytesNull  *byte

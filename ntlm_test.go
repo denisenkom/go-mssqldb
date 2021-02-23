@@ -94,11 +94,11 @@ func TestNTLMV2Response(t *testing.T) {
 	expectedNTLMV2Response, _ := hex.DecodeString("5c788afec59c1fef3f90bf6ea419c02501010000000000000fc4a4d5fdf6b200ffffff00112233440000000002000c0044004f004d00410049004e0001000c005300450052005600450052000400140064006f006d00610069006e002e0063006f006d00030022007300650072007600650072002e0064006f006d00610069006e002e0063006f006d000000000000000000")
 	expectedLMV2Response, _ := hex.DecodeString("d6e6152ea25d03b7c6ba6629c2d6aaf0ffffff0011223344")
 	ntlmV2Response, lmV2Response := getNTLMv2AndLMv2ResponsePayloads(target, username, password, challenge, nonce, targetInformationBlock, timestamp)
-	if bytes.Compare(ntlmV2Response, expectedNTLMV2Response) != 0 {
+	if !bytes.Equal(ntlmV2Response, expectedNTLMV2Response) {
 		t.Errorf("got:\n%s\nexpected:\n%s", hex.Dump(ntlmV2Response), hex.Dump(expectedNTLMV2Response))
 	}
 
-	if bytes.Compare(lmV2Response, expectedLMV2Response) != 0 {
+	if !bytes.Equal(lmV2Response, expectedLMV2Response) {
 		t.Errorf("got:\n%s\nexpected:\n%s", hex.Dump(ntlmV2Response), hex.Dump(expectedNTLMV2Response))
 	}
 }

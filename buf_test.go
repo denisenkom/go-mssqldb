@@ -53,7 +53,7 @@ func TestInvalidLengthInHeaderTooLong(t *testing.T) {
 	if err == nil {
 		t.Fatal("BeginRead was expected to return error but it didn't")
 	} else {
-		if err.Error() != "Invalid packet size, it is longer than buffer size" {
+		if err.Error() != "invalid packet size, it is longer than buffer size" {
 			t.Fatal("BeginRead failed with incorrect error", err)
 		} else {
 			t.Log("BeginRead failed as expected with error:", err.Error())
@@ -205,7 +205,7 @@ func TestWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal("FinishPacket failed:", err.Error())
 	}
-	if bytes.Compare(memBuf.Bytes(), []byte{1, 1, 0, 11, 0, 0, 1, 0, 2, 3, 4}) != 0 {
+	if !bytes.Equal(memBuf.Bytes(), []byte{1, 1, 0, 11, 0, 0, 1, 0, 2, 3, 4}) {
 		t.Fatalf("Written buffer has invalid content: %v", memBuf.Bytes())
 	}
 
@@ -226,7 +226,7 @@ func TestWrite(t *testing.T) {
 		2, 0, 0, 11, 0, 0, 1, 0, 3, 4, 5, // packet 2
 		2, 1, 0, 9, 0, 0, 2, 0, 6, // packet 3
 	}
-	if bytes.Compare(memBuf.Bytes(), expectedBuf) != 0 {
+	if !bytes.Equal(memBuf.Bytes(), expectedBuf) {
 		t.Fatalf("Written buffer has invalid content:\n got: %v\nwant: %v", memBuf.Bytes(), expectedBuf)
 	}
 }
@@ -295,7 +295,7 @@ func TestReadUsVarCharOrPanic(t *testing.T) {
 		recover()
 	}()
 	memBuf = bytes.NewBuffer([]byte{})
-	s = readUsVarCharOrPanic(memBuf)
+	_ = readUsVarCharOrPanic(memBuf)
 	t.Fatal("UsVarChar() should panic, but it didn't")
 }
 
@@ -311,6 +311,6 @@ func TestReadBVarCharOrPanic(t *testing.T) {
 		recover()
 	}()
 	memBuf = bytes.NewBuffer([]byte{})
-	s = readBVarCharOrPanic(memBuf)
+	_ = readBVarCharOrPanic(memBuf)
 	t.Fatal("readBVarCharOrPanic() should panic on empty buffer, but it didn't")
 }

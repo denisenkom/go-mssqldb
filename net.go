@@ -75,7 +75,7 @@ func (c *tlsHandshakeConn) Read(b []byte) (n int, err error) {
 		c.packetPending = false
 		err = c.buf.FinishPacket()
 		if err != nil {
-			err = fmt.Errorf("Cannot send handshake packet: %s", err.Error())
+			err = fmt.Errorf("cannot send handshake packet: %s", err.Error())
 			return
 		}
 		c.continueRead = false
@@ -84,7 +84,7 @@ func (c *tlsHandshakeConn) Read(b []byte) (n int, err error) {
 		var packet packetType
 		packet, err = c.buf.BeginRead()
 		if err != nil {
-			err = fmt.Errorf("Cannot read handshake packet: %s", err.Error())
+			err = fmt.Errorf("cannot read handshake packet: %s", err.Error())
 			return
 		}
 		if packet != packPrelogin {

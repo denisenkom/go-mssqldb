@@ -207,9 +207,14 @@ func TestReturnStatusWithQuery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rows.Close()
+
 	var str string
 	for rows.Next() {
 		err = rows.Scan(&str)
+		if err != nil {
+			t.Fatal("scan failed", err)
+		}
 		if str != "value" {
 			t.Errorf("expected str=value, got %s", str)
 		}
@@ -229,17 +234,17 @@ func TestIdentity(t *testing.T) {
 	}
 	defer tx.Rollback()
 
-	res, err := tx.Exec("create table #foo (bar int identity, baz int unique)")
+	_, err = tx.Exec("create table #foo (bar int identity, baz int unique)")
 	if err != nil {
 		t.Fatal("create table failed")
 	}
 
-	res, err = tx.Exec("insert into #foo (baz) values (1)")
+	res, err := tx.Exec("insert into #foo (baz) values (1)")
 	if err != nil {
 		t.Fatal("insert failed")
 	}
 	n, err := res.LastInsertId()
-	expErr := "LastInsertId is not supported. Please use the OUTPUT clause or add `select ID = convert(bigint, SCOPE_IDENTITY())` to the end of your query."
+	expErr := "LastInsertId is not supported. Please use the OUTPUT clause or add `select ID = convert(bigint, SCOPE_IDENTITY())` to the end of your query"
 	if err == nil {
 		t.Fatal("Expected an error from LastInsertId, didn't get an error")
 	} else if err.Error() != expErr {

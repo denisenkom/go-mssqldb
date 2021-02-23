@@ -29,7 +29,11 @@ func TestBulkcopy(t *testing.T) {
 	uid := []byte{0x6F, 0x96, 0x19, 0xFF, 0x8B, 0x86, 0xD0, 0x11, 0xB4, 0x2D, 0x00, 0xC0, 0x4F, 0xC9, 0x64, 0xFF}
 	testValues := []testValue{
 		{"test_nvarchar", "ab©ĎéⒻghïjklmnopqЯ☀tuvwxyz", nil},
+		{"test_nvarchar_max", "ab©ĎéⒻghïjklmnopqЯ☀tuvwxyz", nil},
+		{"test_nvarchar_max_nil", nil, nil},
 		{"test_varchar", "abcdefg", nil},
+		{"test_varchar_max", "abcdefg", nil},
+		{"test_varchar_max_nil", nil, nil},
 		{"test_char", "abcdefg   ", nil},
 		{"test_nchar", "abcdefg   ", nil},
 		{"test_text", "abcdefg", nil},
@@ -51,6 +55,8 @@ func TestBulkcopy(t *testing.T) {
 		{"test_datetimeoffset_7", time.Date(2010, 11, 12, 13, 14, 15, 123000000, time.UTC), nil},
 		{"test_date", time.Date(2010, 11, 12, 0, 0, 0, 0, time.UTC), nil},
 		{"test_date_2", "2015-06-07", time.Date(2015, 6, 7, 0, 0, 0, 0, time.UTC)},
+		{"test_time", time.Date(2010, 11, 12, 13, 14, 15, 123000000, time.UTC), time.Date(1, 1, 1, 13, 14, 15, 123000000, time.UTC)},
+		{"test_time_2", "13:14:15.1230000", time.Date(1, 1, 1, 13, 14, 15, 123000000, time.UTC)},
 		{"test_tinyint", 255, nil},
 		{"test_smallint", 32767, nil},
 		{"test_smallintn", nil, nil},
@@ -108,6 +114,10 @@ func TestBulkcopy(t *testing.T) {
 	t.Log("Preparing copy in statement")
 
 	stmt, err := conn.PrepareContext(ctx, CopyIn(tableName, BulkOptions{}, columns...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stmt.Close()
 
 	for i := 0; i < 10; i++ {
 		t.Logf("Executing copy in statement %d time with %d values", i+1, len(values))
@@ -131,6 +141,9 @@ func TestBulkcopy(t *testing.T) {
 	//check that all rows are present
 	var rowCount int
 	err = conn.QueryRowContext(ctx, "select count(*) c from "+tableName).Scan(&rowCount)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if rowCount != 10 {
 		t.Errorf("unexpected row count %d", rowCount)
@@ -146,7 +159,7 @@ func TestBulkcopy(t *testing.T) {
 
 		ptrs := make([]interface{}, len(columns))
 		container := make([]interface{}, len(columns))
-		for i, _ := range ptrs {
+		for i := range ptrs {
 			ptrs[i] = &container[i]
 		}
 		if err := rows.Scan(ptrs...); err != nil {
@@ -205,9 +218,11 @@ func setupTable(ctx context.Context, t *testing.T, conn *sql.Conn, tableName str
 	[test_nvarchar] [nvarchar](50) NULL,
 	[test_nvarchar_4000] [nvarchar](4000) NULL,
 	[test_nvarchar_max] [nvarchar](max) NULL,
+	[test_nvarchar_max_nil] [nvarchar](max) NULL,
 	[test_varchar] [varchar](50) NULL,
 	[test_varchar_8000] [varchar](8000) NULL,
 	[test_varchar_max] [varchar](max) NULL,
+	[test_varchar_max_nil] [varchar](max) NULL,
 	[test_char] [char](10) NULL,
 	[test_nchar] [nchar](10) NULL,
 	[test_text] [text] NULL,
@@ -229,6 +244,8 @@ func setupTable(ctx context.Context, t *testing.T, conn *sql.Conn, tableName str
 	[test_datetimeoffset_7] [datetimeoffset](7) NULL,
 	[test_date] [date] NULL,
 	[test_date_2] [date] NULL,
+	[test_time] [time](7) NULL,
+	[test_time_2] [time](7) NULL,
 	[test_smallmoney] [smallmoney] NULL,
 	[test_money] [money] NULL,
 	[test_tinyint] [tinyint] NULL,
