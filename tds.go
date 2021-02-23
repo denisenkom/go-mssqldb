@@ -1208,7 +1208,7 @@ initiate_connection:
 					return nil, fmt.Errorf("login error: %w", token.getError())
 				}
 			case error:
-				return nil, fmt.Errorf("login error: %w", token.Error())
+				return nil, fmt.Errorf("login error: %w", token)
 			}
 		}
 	}
