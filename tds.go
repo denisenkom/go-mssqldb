@@ -1155,7 +1155,6 @@ initiate_connection:
 
 			certs := tlsConn.ConnectionState().PeerCertificates
 			opts := x509.VerifyOptions{
-				DNSName:       tlsConn.ConnectionState().ServerName,
 				Intermediates: x509.NewCertPool(),
 				Roots:         config.RootCAs,
 			}
