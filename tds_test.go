@@ -168,7 +168,7 @@ func TestSendSqlBatch(t *testing.T) {
 		return
 	}
 
-	reader := startReading(conn, context.Background(), nil)
+	reader := startReading(conn, context.Background(), nil, nil)
 
 	err = reader.iterateResponse()
 	if err != nil {
@@ -591,7 +591,7 @@ func runBatch(t testing.TB, p connectParams) {
 		return
 	}
 
-	reader := startReading(conn, context.Background(), nil)
+	reader := startReading(conn, context.Background(), nil, nil)
 
 	err = reader.iterateResponse()
 	if err != nil {
