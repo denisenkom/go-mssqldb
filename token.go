@@ -755,23 +755,25 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs map[strin
 }
 
 type tokenProcessor struct {
-	tokChan    chan tokenStruct
-	ctx        context.Context
-	sess       *tdsSession
-	outs       map[string]interface{}
-	lastRow    []interface{}
-	rowCount   int64
-	firstError error
+	tokChan      chan tokenStruct
+	ctx          context.Context
+	sess         *tdsSession
+	outs         map[string]interface{}
+	returnStatus *ReturnStatus
+	lastRow      []interface{}
+	rowCount     int64
+	firstError   error
 }
 
-func startReading(sess *tdsSession, ctx context.Context, outs map[string]interface{}) *tokenProcessor {
+func startReading(sess *tdsSession, ctx context.Context, outs map[string]interface{}, returnStatus *ReturnStatus) *tokenProcessor {
 	tokChan := make(chan tokenStruct, 5)
 	go processSingleResponse(sess, tokChan, outs)
 	return &tokenProcessor{
-		tokChan: tokChan,
-		ctx:     ctx,
-		sess:    sess,
-		outs:    outs,
+		tokChan:      tokChan,
+		ctx:          ctx,
+		sess:         sess,
+		outs:         outs,
+		returnStatus: returnStatus,
 	}
 }
 
@@ -799,7 +801,9 @@ func (t *tokenProcessor) iterateResponse() error {
 						t.firstError = token.getError()
 					}
 				case ReturnStatus:
-					t.sess.setReturnStatus(token)
+					if t.returnStatus != nil {
+						*t.returnStatus = token
+					}
 					/*case error:
 					if resultError == nil {
 						resultError = token

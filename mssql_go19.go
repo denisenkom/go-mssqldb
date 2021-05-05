@@ -24,7 +24,7 @@ type MssqlResult = Result           // Deprecated: users should transition to th
 type MssqlRows = Rows               // Deprecated: users should transition to the new name when possible.
 type MssqlStmt = Stmt               // Deprecated: users should transition to the new name when possible.
 
-var _ driver.NamedValueChecker = &Conn{}
+var _ driver.NamedValueChecker = &Stmt{}
 
 // VarChar parameter types.
 type VarChar string
@@ -63,13 +63,13 @@ func convertInputParameter(val interface{}) (interface{}, error) {
 	}
 }
 
-func (c *Conn) CheckNamedValue(nv *driver.NamedValue) error {
+func (s *Stmt) CheckNamedValue(nv *driver.NamedValue) error {
 	switch v := nv.Value.(type) {
 	case sql.Out:
-		if c.outs == nil {
-			c.outs = make(map[string]interface{})
+		if s.outs == nil {
+			s.outs = make(map[string]interface{})
 		}
-		c.outs[nv.Name] = v.Dest
+		s.outs[nv.Name] = v.Dest
 
 		if v.Dest == nil {
 			return errors.New("destination is a nil pointer")
@@ -110,7 +110,7 @@ func (c *Conn) CheckNamedValue(nv *driver.NamedValue) error {
 		return nil
 	case *ReturnStatus:
 		*v = 0 // By default the return value should be zero.
-		c.sess.returnStatus = v
+		s.returnStatus = v
 		return driver.ErrRemoveArgument
 	case TVP:
 		return nil

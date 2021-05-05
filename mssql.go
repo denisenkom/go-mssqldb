@@ -154,8 +154,6 @@ type Conn struct {
 
 	processQueryText bool
 	connectionGood   bool
-
-	outs map[string]interface{}
 }
 
 func (c *Conn) checkBadConn(err error) error {
@@ -195,13 +193,13 @@ func (c *Conn) checkBadConn(err error) error {
 	}
 }
 
-func (c *Conn) clearOuts() {
-	c.outs = nil
+func (s *Stmt) clearOuts() {
+	s.outs = nil
+	s.returnStatus = nil
 }
 
 func (c *Conn) simpleProcessResp(ctx context.Context) error {
-	reader := startReading(c.sess, ctx, c.outs)
-	c.clearOuts()
+	reader := startReading(c.sess, ctx, nil, nil)
 
 	var resultError error
 	err := reader.iterateResponse()
@@ -360,6 +358,9 @@ type Stmt struct {
 	query      string
 	paramCount int
 	notifSub   *queryNotifSub
+
+	outs         map[string]interface{}
+	returnStatus *ReturnStatus
 }
 
 type queryNotifSub struct {
@@ -383,7 +384,7 @@ func (c *Conn) prepareContext(ctx context.Context, query string) (*Stmt, error) 
 	if c.processQueryText {
 		query, paramCount = querytext.ParseParams(query)
 	}
-	return &Stmt{c, query, paramCount, nil}, nil
+	return &Stmt{c, query, paramCount, nil, nil, nil}, nil
 }
 
 func (s *Stmt) Close() error {
@@ -590,8 +591,8 @@ func (s *Stmt) queryContext(ctx context.Context, args []namedValue) (rows driver
 
 func (s *Stmt) processQueryResponse(ctx context.Context) (res driver.Rows, err error) {
 	ctx, cancel := context.WithCancel(ctx)
-	reader := startReading(s.c.sess, ctx, s.c.outs)
-	s.c.clearOuts()
+	reader := startReading(s.c.sess, ctx, s.outs, s.returnStatus)
+	s.clearOuts()
 	// process metadata
 	var cols []columnStruct
 loop:
@@ -619,7 +620,9 @@ loop:
 						return nil, s.c.checkBadConn(token.getError())
 					}
 				case ReturnStatus:
-					s.c.sess.setReturnStatus(token)
+					if reader.returnStatus != nil {
+						*reader.returnStatus = token
+					}
 				}
 			}
 		} else {
@@ -650,8 +653,8 @@ func (s *Stmt) exec(ctx context.Context, args []namedValue) (res driver.Result, 
 }
 
 func (s *Stmt) processExec(ctx context.Context) (res driver.Result, err error) {
-	reader := startReading(s.c.sess, ctx, s.c.outs)
-	s.c.clearOuts()
+	reader := startReading(s.c.sess, ctx, s.outs, s.returnStatus)
+	s.clearOuts()
 	err = reader.iterateResponse()
 	if err != nil {
 		return nil, s.c.checkBadConn(err)
@@ -727,7 +730,9 @@ func (rc *Rows) Next(dest []driver.Value) error {
 						return rc.stmt.c.checkBadConn(tokdata.getError())
 					}
 				case ReturnStatus:
-					rc.stmt.c.sess.setReturnStatus(tokdata)
+					if rc.reader.returnStatus != nil {
+						*rc.reader.returnStatus = tokdata
+					}
 				}
 			}
 
@@ -895,7 +900,7 @@ func (c *Conn) Ping(ctx context.Context) error {
 	if !c.connectionGood {
 		return driver.ErrBadConn
 	}
-	stmt := &Stmt{c, `select 1;`, 0, nil}
+	stmt := &Stmt{c, `select 1;`, 0, nil, nil, nil}
 	_, err := stmt.ExecContext(ctx, nil)
 	return err
 }

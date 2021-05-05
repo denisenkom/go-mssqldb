@@ -234,7 +234,7 @@ func (b *Bulk) Done() (rowcount int64, err error) {
 
 	buf.FinishPacket()
 
-	reader := startReading(b.cn.sess, b.ctx, nil)
+	reader := startReading(b.cn.sess, b.ctx, nil, nil)
 	err = reader.iterateResponse()
 	if err != nil {
 		return 0, b.cn.checkBadConn(err)
