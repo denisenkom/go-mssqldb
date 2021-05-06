@@ -429,10 +429,10 @@ END;
 	//})
 
 	t.Run("test non null values into nullable", func(t *testing.T) {
-		nullint := sql.NullInt64{10, true}
-		nullfloat := sql.NullFloat64{1.5, true}
-		nullstr := sql.NullString{"hello", true}
-		nullbit := sql.NullBool{true, true}
+		nullint := sql.NullInt64{Int64: 10, Valid: true}
+		nullfloat := sql.NullFloat64{Float64: 1.5, Valid: true}
+		nullstr := sql.NullString{String: "hello", Valid: true}
+		nullbit := sql.NullBool{Bool: true, Valid: true}
 		_, err = db.ExecContext(ctx, sqltextrun,
 			sql.Named("nullint", sql.Out{Dest: &nullint}),
 			sql.Named("nullfloat", sql.Out{Dest: &nullfloat}),
