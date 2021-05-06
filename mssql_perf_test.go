@@ -107,7 +107,7 @@ func BenchmarkSelect(b *testing.B) {
 			b.Fatal(err)
 		}
 
-		for requests := 0; ; requests += 1 {
+		for requests := 0; ; requests++ {
 			// read request
 			_, err = tdsBuf.BeginRead()
 			if err != nil {
