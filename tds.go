@@ -941,13 +941,13 @@ func interpretPreloginResponse(p connectParams, fe *featureExtFedAuth, fields ma
 	// authentication is allowed, while 1 means only federated authentication is allowed.
 	if fedAuthSupport, ok := fields[preloginFEDAUTHREQUIRED]; ok {
 		if len(fedAuthSupport) != 1 {
-			return 0, fmt.Errorf("Federated authentication flag length should be 1: is %d", len(fedAuthSupport))
+			return 0, fmt.Errorf("federated authentication flag length should be 1: is %d", len(fedAuthSupport))
 		}
 
 		// We need to be able to echo the value back to the server
 		fe.FedAuthEcho = fedAuthSupport[0] != 0
 	} else if fe.FedAuthLibrary != fedAuthLibraryReserved {
-		return 0, fmt.Errorf("Federated authentication is not supported by the server")
+		return 0, fmt.Errorf("federated authentication is not supported by the server")
 	}
 
 	encryptBytes, ok := fields[preloginENCRYPTION]
