@@ -47,7 +47,7 @@ func testLoginSequenceServer(result chan error, conn net.Conn, expectedPackets, 
 		close(result)
 	}()
 
-	spacesRE := regexp.MustCompile(`\\s+`)
+	spacesRE := regexp.MustCompile(`\s+`)
 
 	packet := make([]byte, 1024)
 	for i, expectedHex := range expectedPackets {
