@@ -86,7 +86,7 @@ func BenchmarkSelect(b *testing.B) {
 
 		// send login response
 		tdsBuf.BeginPacket(packReply, false)
-		buf := make([]byte, 1 + 2 + 2 + 8)
+		buf := make([]byte, 1+2+2+8)
 		buf[0] = byte(tokenDone)
 		binary.LittleEndian.PutUint16(buf[1:], 0)
 		binary.LittleEndian.PutUint16(buf[3:], 0)
@@ -103,8 +103,11 @@ func BenchmarkSelect(b *testing.B) {
 		}
 		// this is response for select 1 request
 		selectResponseBytes, err := base64.StdEncoding.DecodeString("gQEAAAAAACAAOADRAQAAAP0QAMEAAQAAAAAAAAA=")
+		if err != nil {
+			b.Fatal(err)
+		}
 
-		for requests := 0; ; requests += 1{
+		for requests := 0; ; requests++ {
 			// read request
 			_, err = tdsBuf.BeginRead()
 			if err != nil {
@@ -171,7 +174,7 @@ func BenchmarkSelect(b *testing.B) {
 }
 
 type onlyReadTransport struct {
-	b *testing.B
+	b   *testing.B
 	rdr *bytes.Reader
 }
 
@@ -199,7 +202,7 @@ func BenchmarkSelectParser(b *testing.B) {
 	rdr := bytes.NewReader(selectResponseBytes)
 	sess.buf.transport = onlyReadTransport{
 		rdr: rdr,
-		b: b,
+		b:   b,
 	}
 	for i := 0; i < b.N; i++ {
 		ch := make(chan tokenStruct, 5)

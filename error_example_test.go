@@ -1,8 +1,8 @@
-package mssql
+package mssql_test
 
 import "fmt"
 
-func ExampleError_1() {
+func ExampleError_SQLErrorNumber() {
 	// call a function that might return a mssql error
 	err := callUsingMSSQL()
 
@@ -17,7 +17,7 @@ func ExampleError_1() {
 	}
 }
 
-func ExampleError_2() {
+func ExampleError_SQLErrorMessage() {
 	// call a function that might return a mssql error
 	err := callUsingMSSQL()
 

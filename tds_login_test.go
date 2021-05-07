@@ -47,7 +47,7 @@ func testLoginSequenceServer(result chan error, conn net.Conn, expectedPackets, 
 		close(result)
 	}()
 
-	spacesRE := regexp.MustCompile("\\s+")
+	spacesRE := regexp.MustCompile(`\s+`)
 
 	packet := make([]byte, 1024)
 	for i, expectedHex := range expectedPackets {
@@ -147,6 +147,9 @@ func TestLoginWithSQLServerAuth(t *testing.T) {
 	conn.Dialer = mock
 
 	_, err = connect(context.Background(), conn, driverInstanceNoProcess.log, conn.params)
+	if err != nil {
+		t.Error(err)
+	}
 
 	err = <-mock.result
 	if err != nil {
@@ -199,6 +202,9 @@ func TestLoginWithSecurityTokenAuth(t *testing.T) {
 	conn.Dialer = mock
 
 	_, err = connect(context.Background(), conn, driverInstanceNoProcess.log, conn.params)
+	if err != nil {
+		t.Error(err)
+	}
 
 	err = <-mock.result
 	if err != nil {
@@ -264,6 +270,9 @@ func TestLoginWithADALUsernamePasswordAuth(t *testing.T) {
 	conn.Dialer = mock
 
 	_, err = connect(context.Background(), conn, driverInstanceNoProcess.log, conn.params)
+	if err != nil {
+		t.Error(err)
+	}
 
 	err = <-mock.result
 	if err != nil {
@@ -329,6 +338,9 @@ func TestLoginWithADALManagedIdentityAuth(t *testing.T) {
 	conn.Dialer = mock
 
 	_, err = connect(context.Background(), conn, driverInstanceNoProcess.log, conn.params)
+	if err != nil {
+		t.Error(err)
+	}
 
 	err = <-mock.result
 	if err != nil {

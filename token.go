@@ -467,7 +467,7 @@ func parseFedAuthInfo(r *tdsBuffer) fedAuthInfoStruct {
 		case fedAuthInfoSPN:
 			SPN, err = ucs22str(optData)
 		default:
-			err = fmt.Errorf("Unexpected fed auth info opt ID %d", int(opts[i].fedAuthInfoID))
+			err = fmt.Errorf("unexpected fed auth info opt ID %d", int(opts[i].fedAuthInfoID))
 		}
 
 		if err != nil {

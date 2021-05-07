@@ -56,15 +56,15 @@ func TestConvertIsolationLevel(t *testing.T) {
 	if level != isolationSnapshot || err != nil {
 		t.Fatal("invalid value returned")
 	}
-	level, err = convertIsolationLevel(sql.LevelWriteCommitted)
+	_, err = convertIsolationLevel(sql.LevelWriteCommitted)
 	if err == nil {
 		t.Fatal("must fail but it didn't")
 	}
-	level, err = convertIsolationLevel(sql.LevelLinearizable)
+	_, err = convertIsolationLevel(sql.LevelLinearizable)
 	if err == nil {
 		t.Fatal("must fail but it didn't")
 	}
-	level, err = convertIsolationLevel(sql.IsolationLevel(1000))
+	_, err = convertIsolationLevel(sql.IsolationLevel(1000))
 	if err == nil {
 		t.Fatal("must fail but it didn't")
 	}
