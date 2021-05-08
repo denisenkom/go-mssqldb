@@ -1,6 +1,7 @@
 package mssql
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -39,6 +40,7 @@ type connectParams struct {
 	packetSize                uint16
 	fedAuthLibrary            int
 	fedAuthADALWorkflow       byte
+	tlsKeyLogFile             string
 }
 
 // default packet size for TDS buffer
@@ -233,6 +235,11 @@ func parseConnectParams(dsn string) (connectParams, error) {
 			f := "invalid tcp port '%v': %v"
 			return p, fmt.Errorf(f, failOverPort, err.Error())
 		}
+	}
+
+	p.tlsKeyLogFile, ok = params["tls key log file"]
+	if ok && p.tlsKeyLogFile != "" && p.disableEncryption {
+		return p, errors.New("Cannot set tlsKeyLogFile when encryption is disabled")
 	}
 
 	return p, nil

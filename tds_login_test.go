@@ -158,7 +158,7 @@ func TestLoginWithSQLServerAuth(t *testing.T) {
 }
 
 func TestLoginWithSecurityTokenAuth(t *testing.T) {
-	conn, err := newSecurityTokenConnector("sqlserver://localhost:1433?Workstation ID=localhost&log=128",
+	conn, err := NewSecurityTokenConnector("sqlserver://localhost:1433?Workstation ID=localhost&log=128",
 		func(ctx context.Context) (string, error) {
 			return "<token>", nil
 		},
@@ -213,7 +213,7 @@ func TestLoginWithSecurityTokenAuth(t *testing.T) {
 }
 
 func TestLoginWithADALUsernamePasswordAuth(t *testing.T) {
-	conn, err := newActiveDirectoryTokenConnector(
+	conn, err := NewActiveDirectoryTokenConnector(
 		"sqlserver://localhost:1433?Workstation ID=localhost&log=128",
 		fedAuthADALWorkflowPassword,
 		func(ctx context.Context, serverSPN, stsURL string) (string, error) {
@@ -281,7 +281,7 @@ func TestLoginWithADALUsernamePasswordAuth(t *testing.T) {
 }
 
 func TestLoginWithADALManagedIdentityAuth(t *testing.T) {
-	conn, err := newActiveDirectoryTokenConnector(
+	conn, err := NewActiveDirectoryTokenConnector(
 		"sqlserver://localhost:1433?Workstation ID=localhost&log=128",
 		fedAuthADALWorkflowMSI,
 		func(ctx context.Context, serverSPN, stsURL string) (string, error) {
