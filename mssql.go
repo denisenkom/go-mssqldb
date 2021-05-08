@@ -2,6 +2,7 @@ package mssql
 
 import (
 	"context"
+	"crypto/tls"
 	"database/sql"
 	"database/sql/driver"
 	"encoding/binary"
@@ -133,6 +134,11 @@ type Connector struct {
 	// Dialer sets a custom dialer for all network operations.
 	// If Dialer is not set, normal net dialers are used.
 	Dialer Dialer
+
+	// Called to create a new and customized TLS connection.
+	// If NewTLSConn is not set, tls.Client is called to create the
+	// TLS connection.
+	NewTLSConn func(conn net.Conn, config *tls.Config) *tls.Conn
 }
 
 type Dialer interface {
