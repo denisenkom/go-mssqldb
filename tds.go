@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -152,6 +153,7 @@ const (
 	logParams      = 16
 	logTransaction = 32
 	logDebug       = 64
+	logTraffic     = 128
 )
 
 type columnStruct struct {
@@ -1059,6 +1061,10 @@ initiate_connection:
 		return nil, err
 	}
 
+	if p.logFlags&logTraffic != 0 {
+		conn = newConnLogger(conn, "TCP", log)
+	}
+
 	toconn := newTimeoutConn(conn, p.conn_timeout)
 
 	outbuf := newTdsBuffer(p.packetSize, toconn)
@@ -1104,6 +1110,14 @@ initiate_connection:
 		if p.trustServerCertificate {
 			config.InsecureSkipVerify = true
 		}
+		if p.tlsKeyLogFile != "" {
+			if w, err := os.OpenFile(p.tlsKeyLogFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600); err == nil {
+				defer w.Close()
+				config.KeyLogWriter = w
+			} else {
+				return nil, fmt.Errorf("Cannot open TLS key log file %s: %v", p.tlsKeyLogFile, err)
+			}
+		}
 		config.ServerName = p.hostInCertificate
 		// fix for https://github.com/denisenkom/go-mssqldb/issues/166
 		// Go implementation of TLS payload size heuristic algorithm splits single TDS package to multiple TCP segments,
@@ -1116,7 +1130,11 @@ initiate_connection:
 		tlsConn := tls.Client(&passthrough, &config)
 		err = tlsConn.Handshake()
 		passthrough.c = toconn
-		outbuf.transport = tlsConn
+		if sess.logFlags&logTraffic != 0 {
+			outbuf.transport = newConnLogger(tlsConn, "TLS", log)
+		} else {
+			outbuf.transport = tlsConn
+		}
 		if err != nil {
 			return nil, fmt.Errorf("TLS Handshake failed: %v", err)
 		}
