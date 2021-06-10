@@ -644,7 +644,7 @@ func (s *Stmt) exec(ctx context.Context, args []namedValue) (res driver.Result, 
 		return nil, s.c.checkBadConn(err)
 	}
 	if res, err = s.processExec(ctx); err != nil {
-		return nil, s.c.checkBadConn(err)
+		return nil, err
 	}
 	return
 }
