@@ -82,6 +82,16 @@ func TestValidConnectionString(t *testing.T) {
 		{"someparam", func(p connectParams) bool { return true }},
 		{";;=;", func(p connectParams) bool { return true }},
 
+		// https://github.com/denisenkom/go-mssqldb/issues/645 enable Application Name to mirror ADO
+		// Verify the various synonyms for server and database etc
+		{"application name=appname", func(p connectParams) bool { return p.appname == "appname" }},
+		{"data source=someserver;Initial Catalog=somedatabase;user=someuser", func(p connectParams) bool {
+			return p.host == "someserver" && p.database == "somedatabase" && p.user == "someuser"
+		}},
+		{"network address=someserver;uid=someuser", func(p connectParams) bool { return p.host == "someserver" && p.user == "someuser" }},
+		{"address=someserver", func(p connectParams) bool { return p.host == "someserver" }},
+		{"addr=someserver", func(p connectParams) bool { return p.host == "someserver" }},
+
 		// ODBC mode
 		{"odbc:server=somehost;user id=someuser;password=somepass", func(p connectParams) bool {
 			return p.host == "somehost" && p.user == "someuser" && p.password == "somepass"
@@ -186,10 +196,10 @@ func testConnParams(t testing.TB) connectParams {
 	}
 	if len(os.Getenv("HOST")) > 0 && len(os.Getenv("DATABASE")) > 0 {
 		return connectParams{
-			host: os.Getenv("HOST"),
+			host:     os.Getenv("HOST"),
 			instance: os.Getenv("INSTANCE"),
 			database: os.Getenv("DATABASE"),
-			user: os.Getenv("SQLUSER"),
+			user:     os.Getenv("SQLUSER"),
 			password: os.Getenv("SQLPASSWORD"),
 			logFlags: logFlags,
 		}

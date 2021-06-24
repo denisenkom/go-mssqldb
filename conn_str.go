@@ -262,6 +262,17 @@ func (p connectParams) toUrl() *url.URL {
 	return &res
 }
 
+var adoSynonyms = map[string]string{
+	"application name": "app name",
+	"data source":      "server",
+	"address":          "server",
+	"network address":  "server",
+	"addr":             "server",
+	"user":             "user id",
+	"uid":              "user id",
+	"initial catalog":  "database",
+}
+
 func splitConnectionString(dsn string) (res map[string]string) {
 	res = map[string]string{}
 	parts := strings.Split(dsn, ";")
@@ -277,6 +288,10 @@ func splitConnectionString(dsn string) (res map[string]string) {
 		var value string = ""
 		if len(lst) > 1 {
 			value = strings.TrimSpace(lst[1])
+		}
+		synonym, hasSynonym := adoSynonyms[name]
+		if hasSynonym {
+			name = synonym
 		}
 		res[name] = value
 	}
