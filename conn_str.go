@@ -293,6 +293,16 @@ func splitConnectionString(dsn string) (res map[string]string) {
 		if hasSynonym {
 			name = synonym
 		}
+		// "server" in ADO can include a protocol and a port.
+		// We only support tcp protocol
+		if name == "server" {
+			value = strings.TrimPrefix(value, "tcp:")
+			serverParts := strings.Split(value, ",")
+			if len(serverParts) == 2 && len(serverParts[1]) > 0 {
+				value = serverParts[0]
+				res["port"] = serverParts[1]
+			}
+		}
 		res[name] = value
 	}
 	return res

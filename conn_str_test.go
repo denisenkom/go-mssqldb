@@ -21,6 +21,7 @@ func TestInvalidConnectionString(t *testing.T) {
 		"trustservercertificate=invalid",
 		"failoverport=invalid",
 		"applicationintent=ReadOnly",
+		"server=someserver,notanumber",
 
 		// ODBC mode
 		"odbc:password={",
@@ -92,6 +93,10 @@ func TestValidConnectionString(t *testing.T) {
 		{"address=someserver", func(p connectParams) bool { return p.host == "someserver" }},
 		{"addr=someserver", func(p connectParams) bool { return p.host == "someserver" }},
 
+		// ADO server names can include a tcp: prefix and a port suffix
+
+		{"server=tcp:someserver,1300", func(p connectParams) bool { return p.host == "someserver" && p.port == 1300 }},
+		{"data source=someserver,1300", func(p connectParams) bool { return p.host == "someserver" && p.port == 1300 }},
 		// ODBC mode
 		{"odbc:server=somehost;user id=someuser;password=somepass", func(p connectParams) bool {
 			return p.host == "somehost" && p.user == "someuser" && p.password == "somepass"
