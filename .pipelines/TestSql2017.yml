@@ -6,6 +6,7 @@ steps:
   inputs:
     version: '1.16.5'
 - task: Go@0
+  displayName: 'Go: get sources'
   inputs:
     command: 'get'
     arguments: '-d'
@@ -13,6 +14,7 @@ steps:
 
 
 - task: Go@0
+  displayName: 'Go: install gotest.tools/gotestsum'
   inputs:
     command: 'custom'
     customCommand: 'install'
@@ -20,6 +22,7 @@ steps:
     workingDirectory: '$(System.DefaultWorkingDirectory)'
 
 - task: Go@0
+  displayName: 'Go: install github.com/axw/gocov/gocov'
   inputs:
     command: 'custom'
     customCommand: 'install'
@@ -27,6 +30,7 @@ steps:
     workingDirectory: '$(System.DefaultWorkingDirectory)'
 
 - task: Go@0
+  displayName: 'Go: install github.com/AlekSi/gocov-xml'
   inputs:
     command: 'custom'
     customCommand: 'install'
