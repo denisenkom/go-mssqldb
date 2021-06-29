@@ -73,17 +73,17 @@ Other supported formats are listed below.
 
     ```go
 
-      query := url.Values{}
-      query.Add("app name", "MyAppName")
+    query := url.Values{}
+    query.Add("app name", "MyAppName")
     
-      u := &url.URL{
-          Scheme:   "sqlserver",
-          User:     url.UserPassword(username, password),
-          Host:     fmt.Sprintf("%s:%d", hostname, port),
-          // Path:  instance, // if connecting to an instance instead of a port
-          RawQuery: query.Encode(),
-      }
-      db, err := sql.Open("sqlserver", u.String())
+    u := &url.URL{
+    	Scheme:   "sqlserver",
+    	User:     url.UserPassword(username, password),
+    	Host:     fmt.Sprintf("%s:%d", hostname, port),
+    	// Path:  instance, // if connecting to an instance instead of a port
+    	RawQuery: query.Encode(),
+    }
+    db, err := sql.Open("sqlserver", u.String())
 
     ```
 
@@ -120,14 +120,16 @@ Azure Active Directory (AAD) access tokens are relatively short lived and need t
 valid when a new connection is made. Authentication is supported using a callback func that
 provides a fresh and valid token using a connector:
 
-``` golang
+``` go
+
 conn, err := mssql.NewAccessTokenConnector(
-  "Server=test.database.windows.net;Database=testdb",
-  tokenProvider)
+	"Server=test.database.windows.net;Database=testdb",
+	tokenProvider)
 if err != nil {
- // handle errors in DSN
+	// handle errors in DSN
 }
 db := sql.OpenDB(conn)
+
 ```
 
 Where `tokenProvider` is a function that returns a fresh access token or an error. None of these statements
@@ -139,11 +141,13 @@ is created.
 To run a stored procedure, set the query text to the procedure name:
 
 ```go
+
 var account = "abc"
 _, err := db.ExecContext(ctx, "sp_RunMe",
- sql.Named("ID", 123),
- sql.Named("Account", sql.Out{Dest: &account}),
+	sql.Named("ID", 123),
+	sql.Named("Account", sql.Out{Dest: &account}),
 )
+
 ```
 
 ## Reading Output Parameters from a Stored Procedure with Resultset
@@ -151,21 +155,23 @@ _, err := db.ExecContext(ctx, "sp_RunMe",
 To read output parameters from a stored procedure with resultset, make sure you read all the rows before reading the output parameters:
 
 ```go
+
 sqltextcreate := `
 CREATE PROCEDURE spwithoutputandrows
- @bitparam BIT OUTPUT
+	@bitparam BIT OUTPUT
 AS BEGIN
- SET @bitparam = 1
- SELECT 'Row 1'
+	SET @bitparam = 1
+	SELECT 'Row 1'
 END
 `
 var bitout int64
 rows, err := db.QueryContext(ctx, "spwithoutputandrows", sql.Named("bitparam", sql.Out{Dest: &bitout}))
 var strrow string
 for rows.Next() {
- err = rows.Scan(&strrow)
+	err = rows.Scan(&strrow)
 }
 fmt.Printf("bitparam is %d", bitout)
+
 ```
 
 ## Caveat for local temporary tables
@@ -193,8 +199,8 @@ conn, err := pool.Conn(ctx)
 // Set us up so that temp table is always cleaned up, since conn.Close()
 // merely returns conn to pool, rather than actually closing the connection.
 defer func() {
- _, _ = conn.ExecContext(ctx, "drop table #mytemp")  // always clean up
- conn.Close() // merely returns conn to pool
+	_, _ = conn.ExecContext(ctx, "drop table #mytemp")  // always clean up
+	conn.Close() // merely returns conn to pool
 }()
 
 
@@ -213,9 +219,11 @@ To get the procedure return status, pass into the parameters a
 `*mssql.ReturnStatus`. For example:
 
 ```go
+
 var rs mssql.ReturnStatus
 _, err := db.ExecContext(ctx, "theproc", &rs)
 log.Printf("status=%d", rs)
+
 ```
 
 or
@@ -224,9 +232,10 @@ or
 var rs mssql.ReturnStatus
 _, err := db.QueryContext(ctx, "theproc", &rs)
 for rows.Next() {
- err = rows.Scan(&val)
+	err = rows.Scan(&val)
 }
 log.Printf("status=%d", rs)
+
 ```
 
 Limitation: ReturnStatus cannot be retrieved using `QueryRow`.
@@ -237,7 +246,9 @@ The `sqlserver` driver uses normal MS SQL Server syntax and expects parameters i
 the sql query to be in the form of either `@Name` or `@p1` to `@pN` (ordinal position).
 
 ```go
+
 db.QueryContext(ctx, `select * from t where ID = @ID and Name = @p2;`, sql.Named("ID", 6), "Bob")
+
 ```
 
 ### Parameter Types
