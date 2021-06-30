@@ -1,6 +1,8 @@
 pool:
    vmImage: 'ubuntu-latest'
 
+trigger: none
+
 steps: 
 - task: GoTool@0
   inputs:
