@@ -158,6 +158,11 @@ type Conn struct {
 	outs map[string]interface{}
 }
 
+// IsValid satisfies the driver.Validator interface.
+func (c *Conn) IsValid() bool {
+	return c.connectionGood
+}
+
 func (c *Conn) checkBadConn(err error) error {
 	// this is a hack to address Issue #275
 	// we set connectionGood flag to false if
