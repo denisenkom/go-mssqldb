@@ -83,6 +83,8 @@ const _TVP_ROW_TOKEN = 0x01
 // http://msdn.microsoft.com/en-us/library/dd358284.aspx
 type typeInfo struct {
 	TypeId    uint8
+	UserType  uint32
+	Flags     uint16
 	Size      int
 	Scale     uint8
 	Prec      uint8
@@ -90,7 +92,7 @@ type typeInfo struct {
 	Collation cp.Collation
 	UdtInfo   udtInfo
 	XmlInfo   xmlInfo
-	Reader    func(ti *typeInfo, r *tdsBuffer) (res interface{})
+	Reader    func(ti *typeInfo, r *tdsBuffer, cryptoMeta *cryptoMetadata) (res interface{})
 	Writer    func(w io.Writer, ti typeInfo, buf []byte) (err error)
 }
 
@@ -113,9 +115,9 @@ type xmlInfo struct {
 	XmlSchemaCollection string
 }
 
-func readTypeInfo(r *tdsBuffer) (res typeInfo) {
-	res.TypeId = r.byte()
-	switch res.TypeId {
+func readTypeInfo(r *tdsBuffer, typeId byte, c *cryptoMetadata) (res typeInfo) {
+	res.TypeId = typeId
+	switch typeId {
 	case typeNull, typeInt1, typeBit, typeInt2, typeInt4, typeDateTim4,
 		typeFlt4, typeMoney, typeDateTime, typeFlt8, typeMoney4, typeInt8:
 		// those are fixed length types
@@ -134,7 +136,7 @@ func readTypeInfo(r *tdsBuffer) (res typeInfo) {
 		res.Reader = readFixedType
 		res.Buffer = make([]byte, res.Size)
 	default: // all others are VARLENTYPE
-		readVarLen(&res, r)
+		readVarLen(&res, r, c)
 	}
 	return
 }
@@ -309,7 +311,7 @@ func decodeDateTime(buf []byte) time.Time {
 		0, 0, secs, ns, time.UTC)
 }
 
-func readFixedType(ti *typeInfo, r *tdsBuffer) interface{} {
+func readFixedType(ti *typeInfo, r *tdsBuffer, c *cryptoMetadata) interface{} {
 	r.ReadFull(ti.Buffer)
 	buf := ti.Buffer
 	switch ti.TypeId {
@@ -343,11 +345,18 @@ func readFixedType(ti *typeInfo, r *tdsBuffer) interface{} {
 	panic("shoulnd't get here")
 }
 
-func readByteLenType(ti *typeInfo, r *tdsBuffer) interface{} {
-	size := r.byte()
+func readByteLenType(ti *typeInfo, r *tdsBuffer, c *cryptoMetadata) interface{} {
+	var size byte
+	if c != nil {
+		size = byte(r.rsize)
+	} else {
+		size = r.byte()
+	}
+
 	if size == 0 {
 		return nil
 	}
+
 	r.ReadFull(ti.Buffer[:size])
 	buf := ti.Buffer[:size]
 	switch ti.TypeId {
@@ -442,11 +451,18 @@ func writeByteLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
 	return
 }
 
-func readShortLenType(ti *typeInfo, r *tdsBuffer) interface{} {
-	size := r.uint16()
+func readShortLenType(ti *typeInfo, r *tdsBuffer, cryptoMetadata *cryptoMetadata) interface{} {
+	var size uint16
+	if cryptoMetadata == nil {
+		size = r.uint16()
+	} else {
+		size = uint16(r.rsize)
+	}
+
 	if size == 0xffff {
 		return nil
 	}
+
 	r.ReadFull(ti.Buffer[:size])
 	buf := ti.Buffer[:size]
 	switch ti.TypeId {
@@ -485,7 +501,7 @@ func writeShortLenType(w io.Writer, ti typeInfo, buf []byte) (err error) {
 	return
 }
 
-func readLongLenType(ti *typeInfo, r *tdsBuffer) interface{} {
+func readLongLenType(ti *typeInfo, r *tdsBuffer, c *cryptoMetadata) interface{} {
 	// information about this format can be found here:
 	// http://msdn.microsoft.com/en-us/library/dd304783.aspx
 	// and here:
@@ -560,7 +576,7 @@ func writeCollation(w io.Writer, col cp.Collation) (err error) {
 
 // reads variant value
 // http://msdn.microsoft.com/en-us/library/dd303302.aspx
-func readVariantType(ti *typeInfo, r *tdsBuffer) interface{} {
+func readVariantType(ti *typeInfo, r *tdsBuffer, c *cryptoMetadata) interface{} {
 	size := r.int32()
 	if size == 0 {
 		return nil
@@ -652,7 +668,7 @@ func readVariantType(ti *typeInfo, r *tdsBuffer) interface{} {
 
 // partially length prefixed stream
 // http://msdn.microsoft.com/en-us/library/dd340469.aspx
-func readPLPType(ti *typeInfo, r *tdsBuffer) interface{} {
+func readPLPType(ti *typeInfo, r *tdsBuffer, c *cryptoMetadata) interface{} {
 	size := r.uint64()
 	var buf *bytes.Buffer
 	switch size {
@@ -713,7 +729,7 @@ func writePLPType(w io.Writer, ti typeInfo, buf []byte) (err error) {
 	}
 }
 
-func readVarLen(ti *typeInfo, r *tdsBuffer) {
+func readVarLen(ti *typeInfo, r *tdsBuffer, c *cryptoMetadata) {
 	switch ti.TypeId {
 	case typeDateN:
 		ti.Size = 3

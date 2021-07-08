@@ -28,6 +28,12 @@ Other supported formats are listed below.
   * `false` - Data sent between client and server is not encrypted beyond the login packet. (Default)
   * `true` - Data sent between client and server is encrypted.
 * `app name` - The application name (default is go-mssqldb)
+* `columnEncryption` - Set to "true" if you want to use [Always Encrypted](https://docs.microsoft.com/en-us/sql/relational-databases/security/encryption/always-encrypted-database-engine?view=sql-server-ver15)
+* `keyStoreAuthentication`
+  * `pfx` - Use a PFX file as a key store to authenticate and perform Always Encrypted operations, used when `columnEncryption` is enabled
+* `keyStoreLocation` - The location of the key store file (e.g: `./resources/test/always-encrypted/ae-1.pfx`), used when `columnEncryption` is enabled
+* `keyStoreSecret` - The password of the key store file provided in `keyStoreLocation`, used when `columnEncryption` is enabled
+
 
 ### Connection parameters for ODBC and ADO style connection strings
 
@@ -135,6 +141,80 @@ db := sql.OpenDB(conn)
 Where `tokenProvider` is a function that returns a fresh access token or an error. None of these statements
 actually trigger the retrieval of a token, this happens when the first statment is issued and a connection
 is created.
+
+
+### Always Encrypted support (preview)
+
+`go-mssql` supports a client-side decryption of the column encrypted values for those databases
+that are using the [Always Encrypted](https://docs.microsoft.com/en-us/sql/relational-databases/security/encryption/always-encrypted-database-engine?view=sql-server-ver15)
+feature.  
+  
+To start using the feature, you have to use the following parameters in your DSN:
+
+* `columnEncryption=true`
+* `keyStoreAuthentication=pfx` - Only `pfx` is supported at the moment
+* `keyStoreLocation=/path/to/your/keystore.pfx` - The location of the key store file (e.g: `./resources/test/always-encrypted/ae-1.pfx`), used when `columnEncryption` is enabled
+* `keyStoreSecret=secret` - The password of your keystore (`keyStoreLocation`)
+
+#### Usage
+
+Using the Always Encrypted feature should be transparent in the driver:
+```go
+query := url.Values{}
+query.Add("database", "dbname")
+query.Add("columnEncryption", "true")
+query.Add("keyStoreAuthentication", "pfx")
+query.Add("keyStoreLocation", "./resources/test/always-encrypted/ae-1.pfx")
+query.Add("keyStoreSecret", "password")
+
+
+hostname := "172.20.0.2"
+port:= 1433
+
+u := &url.URL{
+    Scheme:   "sqlserver",
+    User:     url.UserPassword("sa", "superSecurePassword_"),
+    Host:     fmt.Sprintf("%s:%d", hostname, port),
+    RawQuery: query.Encode(),
+}
+
+db, err := sql.Open("sqlserver", u.String())
+if err != nil {
+    logrus.Fatalf("unable to open db: %v", err)
+}
+rows, err := db.Query("SELECT id, ssn FROM [dbo].[cid]")
+if err != nil {
+    logrus.Fatalf("unable to perform query: %v", err)
+}
+
+for ; rows.Next(); {
+    var dest struct {
+        Id int
+        SSN string
+    }
+    err = rows.Scan(&dest.Id, &dest.SSN)
+    if err != nil {
+        logrus.Fatalf("unable to scan into struct: %v", err)
+    }
+    fmt.Printf("%d, %s\n", dest.Id, dest.SSN)
+}
+```
+
+The code above, when used against an Always Encrypted column, returns
+the following:
+
+```
+1, 12345
+2, 00000
+```
+
+If `columnEncryption` is set to false, the result will be similar to the following:
+```
+1, B��v��3O뗇��a�R��o�l��U�
+�iE�#wOS�T횡5�R��1�i_n/Q��oLPBy��kL���8'/�
+2, �ކ��?�Y
+          Ѕ���i_n��-g|����v��2����x�Q)y�p�x��O��9������r��Bt�L�"N����.N]Rc
+```
 
 ## Executing Stored Procedures
 

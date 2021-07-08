@@ -2,6 +2,7 @@ package mssql
 
 import (
 	"bufio"
+	"github.com/stretchr/testify/assert"
 	"io"
 	"os"
 	"reflect"
@@ -241,4 +242,17 @@ func TestConnParseRoundTripFixed(t *testing.T) {
 	if !reflect.DeepEqual(params, rtParams) {
 		t.Fatal("Parameters do not match after roundtrip", params, rtParams)
 	}
+}
+
+func TestConnParseAlwaysEncrypted(t *testing.T) {
+	connStr := "sqlserver://sa:sa@localhost/instance?database=master&columnEncryption=true&keyStoreAuthentication=pfx&keyStoreLocation=./resources/test/always-encrypted/ae-1.pfx&keyStoreSecret=password"
+	params, err := parseConnectParams(connStr)
+	if err != nil {
+		t.Fatal("Test URL is not valid", err)
+	}
+
+	assert.True(t, params.columnEncryption)
+	assert.Equal(t, KeyStoreAuthentication(PFXKeystoreAuth), params.keyStoreAuthentication)
+	assert.Equal(t, "./resources/test/always-encrypted/ae-1.pfx", params.keyStoreLocation)
+	assert.Equal(t, "password", params.keyStoreSecret)
 }
