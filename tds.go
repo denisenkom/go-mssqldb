@@ -1205,7 +1205,9 @@ initiate_connection:
 				loginAck = true
 			case doneStruct:
 				if token.isError() {
-					return nil, fmt.Errorf("login error: %s", token.getError())
+					tokenErr := token.getError()
+					tokenErr.Message = "login error: " + tokenErr.Message
+					return nil, tokenErr
 				}
 			case error:
 				return nil, fmt.Errorf("login error: %s", token.Error())
