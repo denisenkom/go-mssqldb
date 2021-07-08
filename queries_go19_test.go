@@ -317,7 +317,7 @@ BEGIN
    SELECT
 		@bid = @aid + @bid,
 		@cstr = 'OK',
-		@Vout = 'DREAM'
+		@vout = 'DREAM'
 	;
 END;
 `

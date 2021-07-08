@@ -240,11 +240,15 @@ func TestConnectViaIp(t *testing.T) {
 		t.Skip("Unable to test connection to IP for servers that expect encryption")
 	}
 
-	ips, err := net.LookupIP(params.host)
-	if err != nil {
-		t.Fatal("Unable to lookup IP", err)
+	if params.host == "." {
+		params.host = "127.0.0.1"
+	} else {
+		ips, err := net.LookupIP(params.host)
+		if err != nil {
+			t.Fatal("Unable to lookup IP", err)
+		}
+		params.host = ips[0].String()
 	}
-	params.host = ips[0].String()
 	testConnection(t, params.toUrl().String())
 }
 
