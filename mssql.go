@@ -193,7 +193,7 @@ func (c *Conn) IsValid() bool {
 // If bad connection retry is enabled and the error + connection state permits
 // retrying, checkBadConn will return a RetryableError that allows database/sql
 // to automatically retry the query with another connection.
-func (c *Conn) checkBadConn(err error, mayRetry bool) error {
+func (c *Conn) checkBadConn(ctx context.Context, err error, mayRetry bool) error {
 	switch err {
 	case nil:
 		return nil
@@ -234,7 +234,7 @@ func (c *Conn) simpleProcessResp(ctx context.Context) error {
 	var resultError error
 	err := reader.iterateResponse()
 	if err != nil {
-		return c.checkBadConn(err, false)
+		return c.checkBadConn(ctx, err, false)
 	}
 	return resultError
 }
@@ -244,7 +244,7 @@ func (c *Conn) Commit() error {
 		return driver.ErrBadConn
 	}
 	if err := c.sendCommitRequest(); err != nil {
-		return c.checkBadConn(err, true)
+		return c.checkBadConn(c.transactionCtx, err, true)
 	}
 	return c.simpleProcessResp(c.transactionCtx)
 }
@@ -271,7 +271,7 @@ func (c *Conn) Rollback() error {
 		return driver.ErrBadConn
 	}
 	if err := c.sendRollbackRequest(); err != nil {
-		return c.checkBadConn(err, true)
+		return c.checkBadConn(c.transactionCtx, err, true)
 	}
 	return c.simpleProcessResp(c.transactionCtx)
 }
@@ -303,7 +303,7 @@ func (c *Conn) begin(ctx context.Context, tdsIsolation isoLevel) (tx driver.Tx, 
 	}
 	err = c.sendBeginRequest(ctx, tdsIsolation)
 	if err != nil {
-		return nil, c.checkBadConn(err, true)
+		return nil, c.checkBadConn(ctx, err, true)
 	}
 	tx, err = c.processBeginResponse(ctx)
 	if err != nil {
@@ -628,7 +628,7 @@ func (s *Stmt) queryContext(ctx context.Context, args []namedValue) (rows driver
 		return nil, driver.ErrBadConn
 	}
 	if err = s.sendQuery(args); err != nil {
-		return nil, s.c.checkBadConn(err, true)
+		return nil, s.c.checkBadConn(ctx, err, true)
 	}
 	return s.processQueryResponse(ctx)
 }
@@ -661,7 +661,7 @@ loop:
 					if token.isError() {
 						// need to cleanup cancellable context
 						cancel()
-						return nil, s.c.checkBadConn(token.getError(), false)
+						return nil, s.c.checkBadConn(ctx, token.getError(), false)
 					}
 				case ReturnStatus:
 					if reader.outs.returnStatus != nil {
@@ -672,7 +672,7 @@ loop:
 		} else {
 			// need to cleanup cancellable context
 			cancel()
-			return nil, s.c.checkBadConn(err, false)
+			return nil, s.c.checkBadConn(ctx, err, false)
 		}
 	}
 	res = &Rows{stmt: s, reader: reader, cols: cols, cancel: cancel}
@@ -690,7 +690,7 @@ func (s *Stmt) exec(ctx context.Context, args []namedValue) (res driver.Result, 
 		return nil, driver.ErrBadConn
 	}
 	if err = s.sendQuery(args); err != nil {
-		return nil, s.c.checkBadConn(err, true)
+		return nil, s.c.checkBadConn(ctx, err, true)
 	}
 	if res, err = s.processExec(ctx); err != nil {
 		return nil, err
@@ -703,7 +703,7 @@ func (s *Stmt) processExec(ctx context.Context) (res driver.Result, err error) {
 	s.c.clearOuts()
 	err = reader.iterateResponse()
 	if err != nil {
-		return nil, s.c.checkBadConn(err, false)
+		return nil, s.c.checkBadConn(ctx, err, false)
 	}
 	return &Result{s.c, reader.rowCount}, nil
 }
@@ -773,7 +773,7 @@ func (rc *Rows) Next(dest []driver.Value) error {
 					return nil
 				case doneStruct:
 					if tokdata.isError() {
-						return rc.stmt.c.checkBadConn(tokdata.getError(), false)
+						return rc.stmt.c.checkBadConn(rc.reader.ctx, tokdata.getError(), false)
 					}
 				case ReturnStatus:
 					if rc.reader.outs.returnStatus != nil {
@@ -783,7 +783,7 @@ func (rc *Rows) Next(dest []driver.Value) error {
 			}
 
 		} else {
-			return rc.stmt.c.checkBadConn(err, false)
+			return rc.stmt.c.checkBadConn(rc.reader.ctx, err, false)
 		}
 	}
 }
