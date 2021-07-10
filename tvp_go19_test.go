@@ -57,13 +57,13 @@ func TestTVPType_columnTypes(t *testing.T) {
 		{
 			name: "Test Pass",
 			fields: fields{
-				TVPValue: []TestFields{TestFields{}},
+				TVPValue: []TestFields{{}},
 			},
 		},
 		{
 			name: "Value has wrong field type",
 			fields: fields{
-				TVPValue: []TestFieldError{TestFieldError{}},
+				TVPValue: []TestFieldError{{}},
 			},
 			wantErr: true,
 		},
@@ -534,14 +534,14 @@ func TestTVP_encode(t *testing.T) {
 			wantErr: true,
 			args: args{
 				tvpFieldIndexes: []int{1, 2},
-				columnStr:       []columnStruct{columnStruct{}},
+				columnStr:       []columnStruct{{}},
 			},
 		},
 		{
 			name:    "column and indexes are nil",
 			wantErr: true,
 			args: args{
-				columnStr: []columnStruct{columnStruct{}},
+				columnStr: []columnStruct{{}},
 			},
 		},
 		{

@@ -166,7 +166,7 @@ func TestFromStringBad(t *testing.T) {
 	bigScaleNumber := "0." + string(arr) + "1"
 
 	values := []struct {
-		in string
+		in    string
 		scale uint8
 	}{
 		{"0.0001", 2},

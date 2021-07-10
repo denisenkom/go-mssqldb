@@ -13,7 +13,7 @@ func open(t *testing.T) *sql.DB {
 	connector, err := NewConnector(makeConnStr(t).String())
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
-	return nil
+		return nil
 	}
 	return sql.OpenDB(connector)
 }

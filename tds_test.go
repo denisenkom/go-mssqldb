@@ -1,14 +1,19 @@
 package mssql
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"database/sql"
 	"encoding/hex"
+	"io"
 	"net"
 	"net/url"
+	"os"
 	"runtime"
 	"testing"
+
+	"github.com/denisenkom/go-mssqldb/msdsn"
 )
 
 type MockTransport struct {
@@ -145,13 +150,13 @@ func TestSendLoginWithFeatureExt(t *testing.T) {
 
 func TestSendSqlBatch(t *testing.T) {
 	checkConnStr(t)
-	p, err := parseConnectParams(makeConnStr(t).String())
+	p, _, err := msdsn.Parse(makeConnStr(t).String())
 	if err != nil {
 		t.Error("parseConnectParams failed:", err.Error())
 		return
 	}
 
-	conn, err := connect(context.Background(), nil, optionalLogger{testLogger{t}}, p)
+	conn, err := connect(context.Background(), &Connector{params: p}, optionalLogger{testLogger{t}}, p)
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
 		return
@@ -188,6 +193,48 @@ func TestSendSqlBatch(t *testing.T) {
 	}
 }
 
+// returns parsed connection parameters derived from
+// environment variables
+func testConnParams(t testing.TB) msdsn.Config {
+	dsn := os.Getenv("SQLSERVER_DSN")
+	const logFlags = 127
+	if len(dsn) > 0 {
+		params, _, err := msdsn.Parse(dsn)
+		if err != nil {
+			t.Fatal("unable to parse SQLSERVER_DSN", err)
+		}
+		params.LogFlags = logFlags
+		return params
+	}
+	if len(os.Getenv("HOST")) > 0 && len(os.Getenv("DATABASE")) > 0 {
+		return msdsn.Config{
+			Host:     os.Getenv("HOST"),
+			Instance: os.Getenv("INSTANCE"),
+			Database: os.Getenv("DATABASE"),
+			User:     os.Getenv("SQLUSER"),
+			Password: os.Getenv("SQLPASSWORD"),
+			LogFlags: logFlags,
+		}
+	}
+	// try loading connection string from file
+	f, err := os.Open(".connstr")
+	if err == nil {
+		rdr := bufio.NewReader(f)
+		dsn, err := rdr.ReadString('\n')
+		if err != io.EOF {
+			t.Fatal(err)
+		}
+		params, _, err := msdsn.Parse(dsn)
+		if err != nil {
+			t.Fatal("unable to parse connection string loaded from file", err)
+		}
+		params.LogFlags = logFlags
+		return params
+	}
+	t.Skip("no database connection string")
+	return msdsn.Config{}
+}
+
 func checkConnStr(t testing.TB) {
 	testConnParams(t)
 }
@@ -195,7 +242,7 @@ func checkConnStr(t testing.TB) {
 // makeConnStr returns a URL struct so it may be modified by various
 // tests before used as a DSN.
 func makeConnStr(t testing.TB) *url.URL {
-	return testConnParams(t).toUrl()
+	return testConnParams(t).URL()
 }
 
 type testLogger struct {
@@ -231,21 +278,25 @@ func testConnection(t *testing.T, connStr string) {
 func TestConnect(t *testing.T) {
 	params := testConnParams(t)
 	SetLogger(testLogger{t})
-	testConnection(t, params.toUrl().String())
+	testConnection(t, params.URL().String())
 }
 
 func TestConnectViaIp(t *testing.T) {
 	params := testConnParams(t)
-	if params.encrypt {
+	if params.Encryption == msdsn.EncryptionRequired {
 		t.Skip("Unable to test connection to IP for servers that expect encryption")
 	}
 
-	ips, err := net.LookupIP(params.host)
-	if err != nil {
-		t.Fatal("Unable to lookup IP", err)
+	if params.Host == "." {
+		params.Host = "127.0.0.1"
+	} else {
+		ips, err := net.LookupIP(params.Host)
+		if err != nil {
+			t.Fatal("Unable to lookup IP", err)
+		}
+		params.Host = ips[0].String()
 	}
-	params.host = ips[0].String()
-	testConnection(t, params.toUrl().String())
+	testConnection(t, params.URL().String())
 }
 
 func simpleQuery(conn *sql.DB, t *testing.T) (stmt *sql.Stmt) {
@@ -426,16 +477,16 @@ func TestSecureConnection(t *testing.T) {
 
 func TestBadCredentials(t *testing.T) {
 	params := testConnParams(t)
-	params.password = "padpwd"
-	params.user = "baduser"
-	testConnectionBad(t, params.toUrl().String())
+	params.Password = "padpwd"
+	params.User = "baduser"
+	testConnectionBad(t, params.URL().String())
 }
 
 func TestBadHost(t *testing.T) {
 	params := testConnParams(t)
-	params.host = "badhost"
-	params.instance = ""
-	testConnectionBad(t, params.toUrl().String())
+	params.Host = "badhost"
+	params.Instance = ""
+	testConnectionBad(t, params.URL().String())
 }
 
 func TestSSPIAuth(t *testing.T) {
@@ -547,7 +598,7 @@ func TestReadBVarByte(t *testing.T) {
 
 func BenchmarkPacketSize(b *testing.B) {
 	checkConnStr(b)
-	p, err := parseConnectParams(makeConnStr(b).String())
+	p, _, err := msdsn.Parse(makeConnStr(b).String())
 	if err != nil {
 		b.Error("parseConnectParams failed:", err.Error())
 		return
@@ -566,15 +617,15 @@ func BenchmarkPacketSize(b *testing.B) {
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				p.packetSize = bm.packetSize
+				p.PacketSize = bm.packetSize
 				runBatch(b, p)
 			}
 		})
 	}
 }
 
-func runBatch(t testing.TB, p connectParams) {
-	conn, err := connect(context.Background(), nil, optionalLogger{testLogger{t}}, p)
+func runBatch(t testing.TB, p msdsn.Config) {
+	conn, err := connect(context.Background(), &Connector{params: p}, optionalLogger{testLogger{t}}, p)
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
 		return

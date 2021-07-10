@@ -7,7 +7,7 @@ import (
 )
 
 func TestParseFeatureExtAck(t *testing.T) {
-	spacesRE := regexp.MustCompile("\\s+")
+	spacesRE := regexp.MustCompile(`\s+`)
 
 	tests := []string{
 		"  FF",

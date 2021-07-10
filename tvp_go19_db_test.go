@@ -784,7 +784,7 @@ func TestTVP_WithTag(t *testing.T) {
 		PBigint           int64             `db:"p_bigint"`
 		SkipPBigint       int64             `tvp:"-"`
 		PBigintNull       *int64            `db:"p_bigintNull"`
-		SkipPBigintNull   *int64            `json:"any" tvp:"-"`
+		SkipPBigintNull   *int64            `json:"-" tvp:"-"`
 		PBit              bool              `db:"p_bit"`
 		SkipPBit          bool              `json:"-"`
 		PBitNull          *bool             `db:"p_bitNull"`
@@ -801,9 +801,9 @@ func TestTVP_WithTag(t *testing.T) {
 		SkipDTime         time.Time         `tvp:"-"`
 		DTimeNull         *time.Time        `db:"p_time"`
 		SkipDTimeNull     *time.Time        `tvp:"-"`
-		Pint              int               `db:"p_int_null"`
+		Pint              int               `db:"pIntNull"`
 		SkipPint          int               `tvp:"-"`
-		PintNull          *int              `db:"p_int_"`
+		PintNull          *int              `db:"pInt"`
 		SkipPintNull      *int              `tvp:"-"`
 	}
 
