@@ -1,0 +1,80 @@
+pool:
+   vmImage: 'ubuntu-latest'
+
+trigger: none
+
+steps: 
+- task: GoTool@0
+  inputs:
+    version: '1.16.5'
+- task: Go@0
+  displayName: 'Go: get sources'
+  inputs:
+    command: 'get'
+    arguments: '-d'
+    workingDirectory: '$(Build.SourcesDirectory)'
+
+
+- task: Go@0
+  displayName: 'Go: install gotest.tools/gotestsum'
+  inputs:
+    command: 'custom'
+    customCommand: 'install'
+    arguments: 'gotest.tools/gotestsum@latest'
+    workingDirectory: '$(System.DefaultWorkingDirectory)'
+
+- task: Go@0
+  displayName: 'Go: install github.com/axw/gocov/gocov'
+  inputs:
+    command: 'custom'
+    customCommand: 'install'
+    arguments: 'github.com/axw/gocov/gocov@latest'
+    workingDirectory: '$(System.DefaultWorkingDirectory)'
+
+- task: Go@0
+  displayName: 'Go: install github.com/AlekSi/gocov-xml'
+  inputs:
+    command: 'custom'
+    customCommand: 'install'
+    arguments: 'github.com/AlekSi/gocov-xml@latest'
+    workingDirectory: '$(System.DefaultWorkingDirectory)'
+
+#Your build pipeline references an undefined variables named SQLPASSWORD and HOST. 
+#Create or edit the build pipeline for this YAML file, define the variable on the Variables tab. See https://go.microsoft.com/fwlink/?linkid=865972
+
+- task: Docker@2
+  displayName: 'Run SQL 2017 docker image'
+  inputs:
+    command: run
+    arguments: '-m 2GB -e ACCEPT_EULA=1 -d --name sql2017 -p:1433:1433 -e SA_PASSWORD=$(SQLPASSWORD) mcr.microsoft.com/mssql/server:2017-latest'
+
+- script: |
+    ~/go/bin/gotestsum --junitfile testresults.xml -- -coverprofile=coverage.txt -covermode count
+    ~/go/bin/gocov convert coverage.txt > coverage.json
+    ~/go/bin/gocov-xml < coverage.json > coverage.xml
+    mkdir coverage
+  workingDirectory: '$(Build.SourcesDirectory)'
+  displayName: 'run tests'
+  env:
+    SQLPASSWORD: $(SQLPASSWORD)
+  continueOnError: true
+- task: PublishTestResults@2
+  displayName: "Publish junit-style results"
+  inputs:
+    testResultsFiles: 'testresults.xml'
+    testResultsFormat: JUnit
+    searchFolder: '$(Build.SourcesDirectory)'
+    testRunTitle: 'SQL 2017 - $(Build.SourceBranchName)'
+  condition: always()
+  continueOnError: true
+
+- task: PublishCodeCoverageResults@1
+  inputs:
+    codeCoverageTool: Cobertura 
+    pathToSources: '$(Build.SourcesDirectory)'
+    summaryFileLocation: $(Build.SourcesDirectory)/**/coverage.xml
+    reportDirectory: $(Build.SourcesDirectory)/**/coverage
+    failIfCoverageEmpty: true
+  condition: always()
+  continueOnError: true
+  

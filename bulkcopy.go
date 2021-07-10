@@ -329,6 +329,10 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 			intvalue = int64(val)
 		case int64:
 			intvalue = val
+		case float32:
+			intvalue = int64(val)
+		case float64:
+			intvalue = int64(val)
 		default:
 			err = fmt.Errorf("mssql: invalid type for int column: %T", val)
 			return

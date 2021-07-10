@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"sync/atomic"
 	"testing"
+
+	"github.com/denisenkom/go-mssqldb/msdsn"
 )
 
 type MockTransportDialer struct {
@@ -47,7 +49,7 @@ func testLoginSequenceServer(result chan error, conn net.Conn, expectedPackets, 
 		close(result)
 	}()
 
-	spacesRE := regexp.MustCompile("\\s+")
+	spacesRE := regexp.MustCompile(`\s+`)
 
 	packet := make([]byte, 1024)
 	for i, expectedHex := range expectedPackets {
@@ -147,6 +149,9 @@ func TestLoginWithSQLServerAuth(t *testing.T) {
 	conn.Dialer = mock
 
 	_, err = connect(context.Background(), conn, driverInstanceNoProcess.log, conn.params)
+	if err != nil {
+		t.Error(err)
+	}
 
 	err = <-mock.result
 	if err != nil {
@@ -155,7 +160,11 @@ func TestLoginWithSQLServerAuth(t *testing.T) {
 }
 
 func TestLoginWithSecurityTokenAuth(t *testing.T) {
-	conn, err := newSecurityTokenConnector("sqlserver://localhost:1433?Workstation ID=localhost&log=128",
+	config, _, err := msdsn.Parse("sqlserver://localhost:1433?Workstation ID=localhost&log=128")
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := newSecurityTokenConnector(config,
 		func(ctx context.Context) (string, error) {
 			return "<token>", nil
 		},
@@ -199,6 +208,9 @@ func TestLoginWithSecurityTokenAuth(t *testing.T) {
 	conn.Dialer = mock
 
 	_, err = connect(context.Background(), conn, driverInstanceNoProcess.log, conn.params)
+	if err != nil {
+		t.Error(err)
+	}
 
 	err = <-mock.result
 	if err != nil {
@@ -207,8 +219,12 @@ func TestLoginWithSecurityTokenAuth(t *testing.T) {
 }
 
 func TestLoginWithADALUsernamePasswordAuth(t *testing.T) {
+	config, _, err := msdsn.Parse("sqlserver://localhost:1433?Workstation ID=localhost&log=128")
+	if err != nil {
+		t.Fatal(err)
+	}
 	conn, err := newActiveDirectoryTokenConnector(
-		"sqlserver://localhost:1433?Workstation ID=localhost&log=128",
+		config,
 		fedAuthADALWorkflowPassword,
 		func(ctx context.Context, serverSPN, stsURL string) (string, error) {
 			return "<token>", nil
@@ -264,6 +280,9 @@ func TestLoginWithADALUsernamePasswordAuth(t *testing.T) {
 	conn.Dialer = mock
 
 	_, err = connect(context.Background(), conn, driverInstanceNoProcess.log, conn.params)
+	if err != nil {
+		t.Error(err)
+	}
 
 	err = <-mock.result
 	if err != nil {
@@ -272,8 +291,12 @@ func TestLoginWithADALUsernamePasswordAuth(t *testing.T) {
 }
 
 func TestLoginWithADALManagedIdentityAuth(t *testing.T) {
+	config, _, err := msdsn.Parse("sqlserver://localhost:1433?Workstation ID=localhost&log=128")
+	if err != nil {
+		t.Fatal(err)
+	}
 	conn, err := newActiveDirectoryTokenConnector(
-		"sqlserver://localhost:1433?Workstation ID=localhost&log=128",
+		config,
 		fedAuthADALWorkflowMSI,
 		func(ctx context.Context, serverSPN, stsURL string) (string, error) {
 			return "<token>", nil
@@ -329,6 +352,9 @@ func TestLoginWithADALManagedIdentityAuth(t *testing.T) {
 	conn.Dialer = mock
 
 	_, err = connect(context.Background(), conn, driverInstanceNoProcess.log, conn.params)
+	if err != nil {
+		t.Error(err)
+	}
 
 	err = <-mock.result
 	if err != nil {

@@ -16,6 +16,7 @@ import (
 	"unicode"
 
 	"github.com/denisenkom/go-mssqldb/internal/querytext"
+	"github.com/denisenkom/go-mssqldb/msdsn"
 )
 
 // ReturnStatus may be used to return the return value from a proc.
@@ -31,12 +32,16 @@ var driverInstanceNoProcess = &Driver{processQueryText: false}
 func init() {
 	sql.Register("mssql", driverInstance)
 	sql.Register("sqlserver", driverInstanceNoProcess)
-	createDialer = func(p *connectParams) Dialer {
-		return netDialer{&net.Dialer{KeepAlive: p.keepAlive}}
+	createDialer = func(p *msdsn.Config) Dialer {
+		ka := p.KeepAlive
+		if ka == 0 {
+			ka = 30 * time.Second
+		}
+		return netDialer{&net.Dialer{KeepAlive: ka}}
 	}
 }
 
-var createDialer func(p *connectParams) Dialer
+var createDialer func(p *msdsn.Config) Dialer
 
 type netDialer struct {
 	nd *net.Dialer
@@ -54,7 +59,7 @@ type Driver struct {
 
 // OpenConnector opens a new connector. Useful to dial with a context.
 func (d *Driver) OpenConnector(dsn string) (*Connector, error) {
-	params, err := parseConnectParams(dsn)
+	params, _, err := msdsn.Parse(dsn)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +86,7 @@ func (d *Driver) SetLogger(logger Logger) {
 // NewConnector creates a new connector from a DSN.
 // The returned connector may be used with sql.OpenDB.
 func NewConnector(dsn string) (*Connector, error) {
-	params, err := parseConnectParams(dsn)
+	params, _, err := msdsn.Parse(dsn)
 	if err != nil {
 		return nil, err
 	}
@@ -92,14 +97,27 @@ func NewConnector(dsn string) (*Connector, error) {
 	return c, nil
 }
 
+// NewConnectorConfig creates a new Connector for a DSN Config struct.
+// The returned connector may be used with sql.OpenDB.
+func NewConnectorConfig(config msdsn.Config) *Connector {
+	return &Connector{
+		params: config,
+		driver: driverInstanceNoProcess,
+	}
+}
+
 // Connector holds the parsed DSN and is ready to make a new connection
 // at any time.
 //
 // In the future, settings that cannot be passed through a string DSN
 // may be set directly on the connector.
 type Connector struct {
-	params connectParams
+	params msdsn.Config
 	driver *Driver
+
+	fedAuthRequired     bool
+	fedAuthLibrary      int
+	fedAuthADALWorkflow byte
 
 	// callback that can provide a security token during login
 	securityTokenProvider func(ctx context.Context) (string, error)
@@ -139,7 +157,7 @@ type Dialer interface {
 	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
 }
 
-func (c *Connector) getDialer(p *connectParams) Dialer {
+func (c *Connector) getDialer(p *msdsn.Config) Dialer {
 	if c != nil && c.Dialer != nil {
 		return c.Dialer
 	}
@@ -156,6 +174,11 @@ type Conn struct {
 	connectionGood   bool
 
 	outs map[string]interface{}
+}
+
+// IsValid satisfies the driver.Validator interface.
+func (c *Conn) IsValid() bool {
+	return c.connectionGood
 }
 
 func (c *Conn) checkBadConn(err error) error {
@@ -312,25 +335,26 @@ func (c *Conn) processBeginResponse(ctx context.Context) (driver.Tx, error) {
 }
 
 func (d *Driver) open(ctx context.Context, dsn string) (*Conn, error) {
-	params, err := parseConnectParams(dsn)
+	params, _, err := msdsn.Parse(dsn)
 	if err != nil {
 		return nil, err
 	}
-	return d.connect(ctx, nil, params)
+	c := &Connector{params: params}
+	return d.connect(ctx, c, params)
 }
 
 // connect to the server, using the provided context for dialing only.
-func (d *Driver) connect(ctx context.Context, c *Connector, params connectParams) (*Conn, error) {
+func (d *Driver) connect(ctx context.Context, c *Connector, params msdsn.Config) (*Conn, error) {
 	sess, err := connect(ctx, c, d.log, params)
 	if err != nil {
 		// main server failed, try fail-over partner
-		if params.failOverPartner == "" {
+		if params.FailOverPartner == "" {
 			return nil, err
 		}
 
-		params.host = params.failOverPartner
-		if params.failOverPort != 0 {
-			params.port = params.failOverPort
+		params.Host = params.FailOverPartner
+		if params.FailOverPort != 0 {
+			params.Port = params.FailOverPort
 		}
 
 		sess, err = connect(ctx, c, d.log, params)
@@ -644,7 +668,7 @@ func (s *Stmt) exec(ctx context.Context, args []namedValue) (res driver.Result, 
 		return nil, s.c.checkBadConn(err)
 	}
 	if res, err = s.processExec(ctx); err != nil {
-		return nil, s.c.checkBadConn(err)
+		return nil, err
 	}
 	return
 }
