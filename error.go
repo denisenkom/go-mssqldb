@@ -17,8 +17,9 @@ type Error struct {
 	ServerName string
 	ProcName   string
 	LineNo     int32
-	// Previous lists previous errors, the most recent being at index 0
-	Previous []Error
+	// All lists all errors that were received from first to last.
+	// This includes the last one, which is described in the other members.
+	All []Error
 }
 
 func (e Error) Error() string {
