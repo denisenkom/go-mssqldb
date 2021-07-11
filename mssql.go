@@ -577,6 +577,9 @@ func (s *Stmt) makeRPCParams(args []namedValue, isProc bool) ([]param, []string,
 		}
 		params[i+offset].Name = name
 		decls[i] = fmt.Sprintf("%s %s", name, makeDecl(params[i+offset].ti))
+		if _, out := val.Value.(sql.Out); out {
+			decls[i] += " output"
+		}
 	}
 	return params, decls, nil
 }
