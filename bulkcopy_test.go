@@ -78,6 +78,8 @@ func TestBulkcopy(t *testing.T) {
 		{"test_varbinary_max", bin, nil},
 		{"test_binary", []byte("1"), nil},
 		{"test_binary_16", bin, nil},
+		{"test_intvarchar", 1234, "1234"},
+		{"test_intnvarchar", 1234, "1234"},
 	}
 
 	columns := make([]string, len(testValues))
@@ -270,6 +272,8 @@ func setupTable(ctx context.Context, t *testing.T, conn *sql.Conn, tableName str
 	[test_varbinary_max] VARBINARY(max) NOT NULL,
 	[test_binary] BINARY NOT NULL,
 	[test_binary_16] BINARY(16) NOT NULL,
+	[test_intvarchar] [varchar](4) NULL,
+	[test_intnvarchar] [varchar](4) NULL,
  CONSTRAINT [PK_` + tableName + `_id] PRIMARY KEY CLUSTERED
 (
 	[id] ASC
