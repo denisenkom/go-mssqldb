@@ -1,4 +1,3 @@
-//go:build go1.9
 // +build go1.9
 
 package mssql
@@ -335,7 +334,7 @@ SELECT @param2 = 'World'
 			}
 
 			if param2 != "World" {
-				t.Errorf(`@param1: expected "World", got %#v`, param2)
+				t.Errorf(`@param2: expected "World", got %#v`, param2)
 			}
 		})
 	})
