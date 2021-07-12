@@ -297,6 +297,46 @@ END;
 				t.Errorf("Error  '%v', does not match pattern '%v'.", actual, pattern)
 			}
 		})
+
+		t.Run("query with rows", func(t *testing.T) {
+			sqltext := `
+SELECT @param1 = 'Hello'
+;
+SELECT 'Hi'
+;
+SELECT @param2 = 'World'
+`
+			var param1, param2 string
+			rows, err := db.QueryContext(ctx, sqltext, sql.Named("param1", sql.Out{Dest: &param1}), sql.Named("param2", sql.Out{Dest: &param2}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer rows.Close()
+
+			if !rows.Next() {
+				t.Error("Next returned false")
+			}
+			var rowval string
+			err = rows.Scan(&rowval)
+			if err != nil {
+				t.Error(err)
+			}
+			if rowval != "Hi" {
+				t.Errorf(`expected "Hi", got %#v`, rowval)
+			}
+			if rows.Next() {
+				t.Error("Next returned true but should return false after last row was returned")
+			}
+
+			// Output parameters should be filled when the resultset has been thoroughly read
+			if param1 != "Hello" {
+				t.Errorf(`@param1: expected "Hello", got %#v`, param1)
+			}
+
+			if param2 != "World" {
+				t.Errorf(`@param2: expected "World", got %#v`, param2)
+			}
+		})
 	})
 }
 

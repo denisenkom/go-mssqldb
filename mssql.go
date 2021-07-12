@@ -576,7 +576,13 @@ func (s *Stmt) makeRPCParams(args []namedValue, isProc bool) ([]param, []string,
 			name = fmt.Sprintf("@p%d", val.Ordinal)
 		}
 		params[i+offset].Name = name
-		decls[i] = fmt.Sprintf("%s %s", name, makeDecl(params[i+offset].ti))
+		const outputSuffix = " output"
+		var output string
+		if isOutputValue(val.Value) {
+			output = outputSuffix
+		}
+		decls[i] = fmt.Sprintf("%s %s%s", name, makeDecl(params[i+offset].ti), output)
+
 	}
 	return params, decls, nil
 }
