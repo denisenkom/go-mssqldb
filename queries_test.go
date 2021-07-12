@@ -71,7 +71,7 @@ func TestSelect(t *testing.T) {
 			{"cast('2000-01-01' as datetime)", time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
 			{"cast('2000-01-01T12:13:14.12' as datetime)",
 				time.Date(2000, 1, 1, 12, 13, 14, 120000000, time.UTC)},
-			{"cast('2014-06-26 11:08:09.673' as datetime)", time.Date(2014, 06, 26, 11, 8, 9, 673000000, time.UTC)},
+			{"cast('2014-06-26T11:08:09.673' as datetime)", time.Date(2014, 06, 26, 11, 8, 9, 673000000, time.UTC)},
 			{"cast('9999-12-31T23:59:59.997' as datetime)", time.Date(9999, 12, 31, 23, 59, 59, 997000000, time.UTC)},
 			{"cast(NULL as datetime)", nil},
 			{"cast('1900-01-01T00:00:00' as smalldatetime)",
@@ -630,6 +630,39 @@ func TestError(t *testing.T) {
 	} else {
 		if sqlerr.Number != 2812 { // Could not find stored procedure 'bad'
 			t.Fatalf("Should be specific error code 2812, actually %d %s", sqlerr.Number, sqlerr)
+		}
+	}
+}
+
+func TestMultipleErrors(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+
+	row, err := conn.Query("create table #bad(bad int null primary key)")
+	if err == nil {
+		defer row.Close()
+		t.Fatal("Query should fail")
+	}
+
+	if sqlerr, ok := err.(Error); !ok {
+		t.Fatalf("Should be sql error, actually %T, %v", err, err)
+	} else {
+		if sqlerr.Number != 1750 { // Could not create constraint. See previous errors.
+			t.Fatalf("Should be specific error code 1750, actually %d %s", sqlerr.Number, sqlerr)
+		}
+		if len(sqlerr.All) != 2 {
+			t.Fatalf("Should have two errors, actually %d", len(sqlerr.All))
+		}
+		for _, e := range sqlerr.All {
+			if e.All != nil {
+				t.Fatalf("All should be nil in error list")
+			}
+		}
+		if sqlerr.All[len(sqlerr.All)-1].Message != sqlerr.Message {
+			t.Fatalf("Returned error should be the last one in All")
+		}
+		if sqlerr.All[0].Number != 8111 { // Cannot define PRIMARY KEY constraint on nullable column in table
+			t.Fatalf("Should be specific error code 8111, actually %d %s", sqlerr.All[0].Number, sqlerr.All[0])
 		}
 	}
 }
