@@ -1,3 +1,4 @@
+//go:build !go1.9
 // +build !go1.9
 
 package mssql
@@ -13,4 +14,8 @@ func (s *Stmt) makeParamExtra(val driver.Value) (param, error) {
 
 func scanIntoOut(name string, fromServer, scanInto interface{}) error {
 	return fmt.Errorf("mssql: unsupported OUTPUT type, use a newer Go version")
+}
+
+func isOutputValue(val driver.Value) bool {
+	return false
 }
