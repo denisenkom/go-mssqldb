@@ -101,11 +101,14 @@ func (d doneStruct) isError() bool {
 }
 
 func (d doneStruct) getError() Error {
-	if len(d.errors) > 0 {
-		return d.errors[len(d.errors)-1]
-	} else {
+	n := len(d.errors)
+	if n == 0 {
 		return Error{Message: "Request failed but didn't provide reason"}
 	}
+	err := d.errors[n-1]
+	err.All = make([]Error, n)
+	copy(err.All, d.errors)
+	return err
 }
 
 type doneInProcStruct doneStruct
