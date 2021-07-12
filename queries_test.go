@@ -634,6 +634,39 @@ func TestError(t *testing.T) {
 	}
 }
 
+func TestMultipleErrors(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+
+	row, err := conn.Query("create table #bad(bad int null primary key)")
+	if err == nil {
+		defer row.Close()
+		t.Fatal("Query should fail")
+	}
+
+	if sqlerr, ok := err.(Error); !ok {
+		t.Fatalf("Should be sql error, actually %T, %v", err, err)
+	} else {
+		if sqlerr.Number != 1750 { // Could not create constraint. See previous errors.
+			t.Fatalf("Should be specific error code 1750, actually %d %s", sqlerr.Number, sqlerr)
+		}
+		if len(sqlerr.All) != 2 {
+			t.Fatalf("Should have two errors, actually %d", len(sqlerr.All))
+		}
+		for _, e := range sqlerr.All {
+			if e.All != nil {
+				t.Fatalf("All should be nil in error list")
+			}
+		}
+		if sqlerr.All[len(sqlerr.All)-1].Message != sqlerr.Message {
+			t.Fatalf("Returned error should be the last one in All")
+		}
+		if sqlerr.All[0].Number != 8111 { // Cannot define PRIMARY KEY constraint on nullable column in table
+			t.Fatalf("Should be specific error code 8111, actually %d %s", sqlerr.All[0].Number, sqlerr.All[0])
+		}
+	}
+}
+
 func TestQueryNoRows(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
