@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -2263,6 +2264,190 @@ func TestDisconnect2(t *testing.T) {
 		}
 	case <-timeout:
 		t.Fatal("timeout")
+	}
+}
+
+// TestDisconnect3 verifies the bad connection behavior defined in
+// response to issue #275. In this mode a query that starts on a bad
+// connection should always fail immediately, returning a detailed
+// error message.
+func TestDisconnect3(t *testing.T) {
+	if testing.Short() {
+		t.Skip("short")
+	}
+	checkConnStr(t)
+	SetLogger(testLogger{t})
+
+	// Revert to the normal dialer after the test is done.
+	normalCreateDialer := createDialer
+	defer func() {
+		createDialer = normalCreateDialer
+	}()
+
+	// Create a dialer we can interrupt to simulate a broken connection
+	var di *dialerInterrupt
+	createDialer = func(p *msdsn.Config) Dialer {
+		nd := netDialer{&net.Dialer{Timeout: p.DialTimeout, KeepAlive: p.KeepAlive}}
+		di = &dialerInterrupt{nd: nd}
+		return di
+	}
+
+	// Disable retry to provide behavior requested in #275
+	cp := testConnParams(t)
+	cp.DisableRetry = true
+
+	// Open a connection pool that holds a single connection to make sure all
+	// queries run on the same connection.
+	db, err := sql.Open("sqlserver", cp.URL().String())
+	if err != nil {
+		t.Log(err)
+	}
+	defer db.Close()
+	db.SetMaxIdleConns(1)
+	db.SetMaxOpenConns(1)
+
+	// Demonstrate connection is good the first time we use it
+	result := "<none>"
+	desiredResult := "before disconnect"
+	row := db.QueryRow(fmt.Sprintf("select '%s'", desiredResult))
+	if err = row.Scan(&result); err != nil || result != desiredResult {
+		t.Fatalf("Connection bad on first use. "+
+			"Got result = '%s', err = '%v', wanted result = '%s', err = '%v'",
+			result, err, desiredResult, nil)
+	}
+
+	// Simulate breaking the connection
+	di.Interrupt(true)
+	di.Interrupt(false)
+
+	// Broken connection should cause immediate and final failure
+	result = "<none>"
+	desiredErr := "failed to send SQL Batch: disconnect"
+	row = db.QueryRow("select 'after disconnect'")
+	if err = row.Scan(&result); err == nil || err.Error() != desiredErr {
+		t.Fatalf("Connection did not fail as expected. "+
+			"Got result = '%s', err = '%v', wanted result = '%s', err = '%v'",
+			result, err, "<none>", desiredErr)
+	}
+}
+
+// TestDisconnect4 verifies the bad connection behavior defined in
+// response to issue #586. In this mode a query that starts on a bad
+// connection should fail with an error that allows the automatic retry
+// logic within database/sql to retry the query with a new connection,
+// which then succeeds. From the perspective of the consuming application,
+// there is no error.
+func TestDisconnect4(t *testing.T) {
+	if testing.Short() {
+		t.Skip("short")
+	}
+	checkConnStr(t)
+	SetLogger(testLogger{t})
+
+	// Revert to the normal dialer after the test is done.
+	normalCreateDialer := createDialer
+	defer func() {
+		createDialer = normalCreateDialer
+	}()
+
+	// Create a dialer we can interrupt to simulate a broken connection
+	var di *dialerInterrupt
+	createDialer = func(p *msdsn.Config) Dialer {
+		nd := netDialer{&net.Dialer{Timeout: p.DialTimeout, KeepAlive: p.KeepAlive}}
+		di = &dialerInterrupt{nd: nd}
+		return di
+	}
+
+	// Enable retry to provide behavior requested in #586
+	cp := testConnParams(t)
+	cp.DisableRetry = false
+
+	// Open a connection pool that holds a single connection to make sure all
+	// queries run on the same connection.
+	db, err := sql.Open("sqlserver", makeConnStr(t).String())
+	if err != nil {
+		t.Log(err)
+	}
+	defer db.Close()
+	db.SetMaxIdleConns(1)
+	db.SetMaxOpenConns(1)
+
+	// Demonstrate connection is good the first time we use it
+	result := "<none>"
+	desiredResult := "before disconnect"
+	row := db.QueryRow(fmt.Sprintf("select '%s'", desiredResult))
+	if err = row.Scan(&result); err != nil || result != desiredResult {
+		t.Fatalf("Connection bad on first use. "+
+			"Got result = '%s', err = '%v', wanted result = '%s', err = '%v'",
+			result, err, desiredResult, nil)
+	}
+
+	// Break the connection
+	di.Interrupt(true)
+	di.Interrupt(false)
+
+	// Broken connection should cause the next query to initially fail internally,
+	// but then the logic within database/sql should transparently discard the bad
+	// connection, retry the query with a new connection, and ultimately succeed.
+	result = "<none>"
+	desiredResult = "after disconnect"
+	row = db.QueryRow(fmt.Sprintf("select '%s'", desiredResult))
+	if err = row.Scan(&result); err != nil || result != desiredResult {
+		t.Fatalf("Connection bad on second use. "+
+			"Got result = '%s', err = '%v', wanted result = '%s', err = '%v'",
+			result, err, desiredResult, nil)
+	}
+}
+
+// TestDisconnect5 verifies that a connection that goes bad during a query results in:
+// 1. The query failing with a detailed error message
+// 2. The bad connection being immediately removed from the pool
+// 3. The subsequent query using a new connection and succeeding
+func TestDisconnect5(t *testing.T) {
+	if testing.Short() {
+		t.Skip("short")
+	}
+	checkConnStr(t)
+	SetLogger(testLogger{t})
+
+	// Open a connection pool that holds a single connection to make sure all
+	// queries run on the same connection.
+	db, err := sql.Open("sqlserver", makeConnStr(t).String())
+	if err != nil {
+		t.Log(err)
+	}
+	defer db.Close()
+	db.SetMaxIdleConns(1)
+	db.SetMaxOpenConns(1)
+
+	// Demonstrate connection is good the first time we use it
+	result := "<none>"
+	desiredResult := "before disconnect"
+	row := db.QueryRow(fmt.Sprintf("select '%s'", desiredResult))
+	if err = row.Scan(&result); err != nil || result != desiredResult {
+		t.Fatalf("Connection bad on first use. "+
+			"Got result = '%s', err = '%v', wanted result = '%s', err = '%v'",
+			result, err, desiredResult, nil)
+	}
+
+	// Break the connection during a query by raising a fatal error in SQL Server
+	_, err = db.Exec("raiserror('fatal error', 20, 1) with log")
+	var sqlErr Error
+	if !errors.As(err, &sqlErr) || sqlErr.Number != 596 {
+		t.Fatalf("Failed to break connection. Got err = '%v', wanted error = '%v'",
+			err, "Cannot continue the execution because the session is in the kill state.")
+	}
+
+	// The broken connection should have been removed from the pool and replaced
+	// with a new connection at the end of the previous query, allowing this next
+	// query to succeed.
+	result = "<none>"
+	desiredResult = "after disconnect"
+	row = db.QueryRow(fmt.Sprintf("select '%s'", desiredResult))
+	if err = row.Scan(&result); err != nil || result != desiredResult {
+		t.Fatalf("Connection bad on second use. "+
+			"Got result = '%s', err = '%v', wanted result = '%s', err = '%v'",
+			result, err, desiredResult, nil)
 	}
 }
 
