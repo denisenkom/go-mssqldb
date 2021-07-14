@@ -638,7 +638,7 @@ func parseReturnValue(r *tdsBuffer) (nv namedValue) {
 	return
 }
 
-func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs map[string]interface{}) {
+func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs outputs) {
 	defer func() {
 		if err := recover(); err != nil {
 			if sess.logFlags&logErrors != 0 {
@@ -743,7 +743,7 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs map[strin
 			nv := parseReturnValue(sess.buf)
 			if len(nv.Name) > 0 {
 				name := nv.Name[1:] // Remove the leading "@".
-				if ov, has := outs[name]; has {
+				if ov, has := outs.params[name]; has {
 					err = scanIntoOut(name, nv.Value, ov)
 					if err != nil {
 						fmt.Println("scan error", err)
@@ -758,16 +758,16 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs map[strin
 }
 
 type tokenProcessor struct {
-	tokChan    chan tokenStruct
-	ctx        context.Context
-	sess       *tdsSession
-	outs       map[string]interface{}
-	lastRow    []interface{}
-	rowCount   int64
-	firstError error
+	tokChan      chan tokenStruct
+	ctx          context.Context
+	sess         *tdsSession
+	outs         outputs
+	lastRow      []interface{}
+	rowCount     int64
+	firstError   error
 }
 
-func startReading(sess *tdsSession, ctx context.Context, outs map[string]interface{}) *tokenProcessor {
+func startReading(sess *tdsSession, ctx context.Context, outs outputs) *tokenProcessor {
 	tokChan := make(chan tokenStruct, 5)
 	go processSingleResponse(sess, tokChan, outs)
 	return &tokenProcessor{
@@ -802,7 +802,9 @@ func (t *tokenProcessor) iterateResponse() error {
 						t.firstError = token.getError()
 					}
 				case ReturnStatus:
-					t.sess.setReturnStatus(token)
+					if t.outs.returnStatus != nil {
+						*t.outs.returnStatus = token
+					}
 					/*case error:
 					if resultError == nil {
 						resultError = token
