@@ -188,8 +188,6 @@ func (c *Conn) checkBadConn(err error, mayRetry bool) error {
 	switch err {
 	case nil:
 		return nil
-	case serverError:
-		c.connectionGood = false
 	case io.EOF:
 		c.connectionGood = false
 		err = driver.ErrBadConn
@@ -202,9 +200,7 @@ func (c *Conn) checkBadConn(err error, mayRetry bool) error {
 	}
 
 	switch err.(type) {
-	case net.Error:
-		c.connectionGood = false
-	case StreamError:
+	case serverError, net.Error, StreamError:
 		c.connectionGood = false
 	}
 
