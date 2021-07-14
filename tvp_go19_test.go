@@ -235,7 +235,7 @@ func TestTVPType_check(t *testing.T) {
 				TVPName:  "123.[Test]",
 				TVPValue: []fields{},
 			},
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name: "TVP name is wrong",

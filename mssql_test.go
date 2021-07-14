@@ -23,12 +23,22 @@ func TestIsProc(t *testing.T) {
 		{"select 1;", false},
 		{"select 1", false},
 		{"[proc 1]", true},
-		{"[proc\n1]", false},
+		{"[proc\n1]", true},
 		{"schema.name", true},
 		{"[schema].[name]", true},
 		{"schema.[name]", true},
 		{"[schema].name", true},
 		{"schema.[proc name]", true},
+		{"db.schema.[proc name]", true},
+		{"db..[proc name]", true},
+		{"#temp_@_proc", true},
+		{"_temp.[_proc]", true},
+		{"raiserror(13000,1,1)", false},
+		{"select*from(@table)", false},
+		{"select[A]]]+1from[B]", false},
+		{"--proc", false},
+		{"[proc;]", true},
+		{" proc", false},
 	}
 
 	for _, item := range list {
