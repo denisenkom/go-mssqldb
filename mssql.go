@@ -214,11 +214,12 @@ func (c *Conn) checkBadConn(err error, mayRetry bool) error {
 			badConn: mayRetry,
 		}
 	case Error:
-		err.badConn = mayRetry
+		err.badConn = mayRetry && !c.connectionGood
 		return err
 	}
 
 	if mayRetry && !c.connectionGood {
+		fmt.Println("returning ErrBadConn!")
 		return driver.ErrBadConn
 	}
 	return err
