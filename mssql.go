@@ -181,9 +181,13 @@ func (c *Conn) IsValid() bool {
 	return c.connectionGood
 }
 
-// checkBadConn checks if an error means the connection must be dropped.
-// If canRetry is true, it will return driver.ErrBadConn to allow the
-// the connection pool to retry with another connection.
+// checkBadConn marks the connection as bad based on the characteristics
+// of the suplied error. Bad connections will be dropped from the connection
+// pool rather than reused.
+//
+// If bad connection retry is enabled and the error + connection state permits
+// retrying, checkBadConn will return a RetryableError that allows database/sql
+// to automatically retry the query with another connection.
 func (c *Conn) checkBadConn(err error, mayRetry bool) error {
 	switch err {
 	case nil:
@@ -207,7 +211,7 @@ func (c *Conn) checkBadConn(err error, mayRetry bool) error {
 		c.connectionGood = false
 	}
 
-	if !c.connectionGood && mayRetry {
+	if !c.connectionGood && mayRetry && !c.connector.params.DisableRetry {
 		return RetryableError{
 			err: err,
 		}
