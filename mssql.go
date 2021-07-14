@@ -207,11 +207,11 @@ func (c *Conn) checkBadConn(err error, mayRetry bool) error {
 		c.connectionGood = false
 		err.sqlError.badConn = mayRetry
 		return err
-	case net.Error, StreamError:
-		c.connectionGood = false
 	case Error:
 		err.badConn = mayRetry && !c.connectionGood
 		return err
+	case net.Error, StreamError:
+		c.connectionGood = false
 	}
 
 	if !c.connectionGood {
