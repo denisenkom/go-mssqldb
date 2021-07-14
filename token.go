@@ -75,25 +75,6 @@ const (
 	fedAuthInfoSPN    = 0x02
 )
 
-// serverError is returned when we receive a DONE token with DONE_SRVERROR flag.
-// It means an error was severe enough to require the result set to be discarded.
-// It was observed when raising fatal errors, with severity 20 or above.
-// These errors also close the connection.
-//
-// https://docs.microsoft.com/en-us/openspecs/sql_server_protocols/ms-sstds/bd77f9d0-6929-4fe1-b163-a525cd7cabd4
-// https://docs.microsoft.com/en-us/openspecs/sql_server_protocols/ms-sstds/90fb176f-83c6-4c9c-bc04-aaa8a400a5a1
-type serverError struct {
-	sqlError Error
-}
-
-func (e serverError) Error() string {
-	return "SQL Server had internal error"
-}
-
-func (e serverError) Unwrap() error {
-	return e.sqlError
-}
-
 // COLMETADATA flags
 // https://msdn.microsoft.com/en-us/library/dd357363.aspx
 const (
@@ -718,7 +699,7 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs map[strin
 				sess.log.Printf("got DONE or DONEPROC status=%d", done.Status)
 			}
 			if done.Status&doneSrvError != 0 {
-				ch <- serverError{done.getError()}
+				ch <- ServerError{done.getError()}
 				return
 			}
 			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {

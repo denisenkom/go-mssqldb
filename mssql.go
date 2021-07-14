@@ -200,7 +200,7 @@ func (c *Conn) checkBadConn(err error, mayRetry bool) error {
 	}
 
 	switch err.(type) {
-	case serverError, net.Error, StreamError:
+	case ServerError, net.Error, StreamError:
 		c.connectionGood = false
 	}
 

@@ -74,3 +74,19 @@ func badStreamPanic(err error) {
 func badStreamPanicf(format string, v ...interface{}) {
 	panic(streamErrorf(format, v...))
 }
+
+// ServerError is returned when the server got a fatal error.
+//
+// To get the errors returned before the process was aborted,
+// use errors.As with an *mssql.Error.
+type ServerError struct {
+	sqlError Error
+}
+
+func (e ServerError) Error() string {
+	return "SQL Server had internal error"
+}
+
+func (e ServerError) Unwrap() error {
+	return e.sqlError
+}
