@@ -61,6 +61,10 @@ type Config struct {
 	Workstation string
 	AppName     string
 
+	// If true disables database/sql's automatic retry of queries
+	// that start on bad connections.
+	DisableRetry bool
+
 	// Do not use the following.
 
 	DialTimeout time.Duration // DialTimeout defaults to 15s. Set negative to disable.
@@ -293,8 +297,18 @@ func Parse(dsn string) (Config, map[string]string, error) {
 		var err error
 		p.FailOverPort, err = strconv.ParseUint(failOverPort, 0, 16)
 		if err != nil {
-			f := "invalid tcp port '%v': %v"
+			f := "invalid failover port '%v': %v"
 			return p, params, fmt.Errorf(f, failOverPort, err.Error())
+		}
+	}
+
+	disableRetry, ok := params["disableretry"]
+	if ok {
+		var err error
+		p.DisableRetry, err = strconv.ParseBool(disableRetry)
+		if err != nil {
+			f := "invalid disableRetry '%s': %s"
+			return p, params, fmt.Errorf(f, disableRetry, err.Error())
 		}
 	}
 
@@ -314,6 +328,9 @@ func (p Config) URL() *url.URL {
 	host := p.Host
 	if p.Port > 0 {
 		host = fmt.Sprintf("%s:%d", p.Host, p.Port)
+	}
+	if p.DisableRetry {
+		q.Add("disableRetry", "true")
 	}
 	res := url.URL{
 		Scheme: "sqlserver",
