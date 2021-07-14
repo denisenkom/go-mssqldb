@@ -173,7 +173,12 @@ type Conn struct {
 	processQueryText bool
 	connectionGood   bool
 
-	outs map[string]interface{}
+	outs outputs
+}
+
+type outputs struct {
+	params       map[string]interface{}
+	returnStatus *ReturnStatus
 }
 
 // IsValid satisfies the driver.Validator interface.
@@ -219,7 +224,7 @@ func (c *Conn) checkBadConn(err error) error {
 }
 
 func (c *Conn) clearOuts() {
-	c.outs = nil
+	c.outs = outputs{}
 }
 
 func (c *Conn) simpleProcessResp(ctx context.Context) error {
@@ -606,6 +611,8 @@ func convertOldArgs(args []driver.Value) []namedValue {
 }
 
 func (s *Stmt) Query(args []driver.Value) (driver.Rows, error) {
+	defer s.c.clearOuts()
+
 	return s.queryContext(context.Background(), convertOldArgs(args))
 }
 
@@ -650,7 +657,9 @@ loop:
 						return nil, s.c.checkBadConn(token.getError())
 					}
 				case ReturnStatus:
-					s.c.sess.setReturnStatus(token)
+					if reader.outs.returnStatus != nil {
+						*reader.outs.returnStatus = token
+					}
 				}
 			}
 		} else {
@@ -664,6 +673,8 @@ loop:
 }
 
 func (s *Stmt) Exec(args []driver.Value) (driver.Result, error) {
+	defer s.c.clearOuts()
+
 	return s.exec(context.Background(), convertOldArgs(args))
 }
 
@@ -758,7 +769,9 @@ func (rc *Rows) Next(dest []driver.Value) error {
 						return rc.stmt.c.checkBadConn(tokdata.getError())
 					}
 				case ReturnStatus:
-					rc.stmt.c.sess.setReturnStatus(tokdata)
+					if rc.reader.outs.returnStatus != nil {
+						*rc.reader.outs.returnStatus = tokdata
+					}
 				}
 			}
 
@@ -984,6 +997,8 @@ func (c *Conn) PrepareContext(ctx context.Context, query string) (driver.Stmt, e
 }
 
 func (s *Stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driver.Rows, error) {
+	defer s.c.clearOuts()
+
 	if !s.c.connectionGood {
 		return nil, driver.ErrBadConn
 	}
@@ -995,6 +1010,8 @@ func (s *Stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driv
 }
 
 func (s *Stmt) ExecContext(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {
+	defer s.c.clearOuts()
+
 	if !s.c.connectionGood {
 		return nil, driver.ErrBadConn
 	}

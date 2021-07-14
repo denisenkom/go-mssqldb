@@ -173,7 +173,7 @@ func TestSendSqlBatch(t *testing.T) {
 		return
 	}
 
-	reader := startReading(conn, context.Background(), nil)
+	reader := startReading(conn, context.Background(), outputs{})
 
 	err = reader.iterateResponse()
 	if err != nil {
@@ -642,7 +642,7 @@ func runBatch(t testing.TB, p msdsn.Config) {
 		return
 	}
 
-	reader := startReading(conn, context.Background(), nil)
+	reader := startReading(conn, context.Background(), outputs{})
 
 	err = reader.iterateResponse()
 	if err != nil {
