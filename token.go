@@ -758,13 +758,13 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs outputs) 
 }
 
 type tokenProcessor struct {
-	tokChan      chan tokenStruct
-	ctx          context.Context
-	sess         *tdsSession
-	outs         outputs
-	lastRow      []interface{}
-	rowCount     int64
-	firstError   error
+	tokChan    chan tokenStruct
+	ctx        context.Context
+	sess       *tdsSession
+	outs       outputs
+	lastRow    []interface{}
+	rowCount   int64
+	firstError error
 }
 
 func startReading(sess *tdsSession, ctx context.Context, outs outputs) *tokenProcessor {
