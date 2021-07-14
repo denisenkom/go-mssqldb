@@ -143,7 +143,6 @@ type tdsSession struct {
 	log          optionalLogger
 	routedServer string
 	routedPort   uint16
-	returnStatus *ReturnStatus
 }
 
 const (
@@ -1190,7 +1189,7 @@ initiate_connection:
 	// SSPI and federated authentication scenarios may require multiple
 	// packet exchanges to complete the login sequence.
 	for loginAck := false; !loginAck; {
-		reader := startReading(&sess, ctx, nil)
+		reader := startReading(&sess, ctx, outputs{})
 
 		for {
 			tok, err := reader.nextToken()
@@ -1267,12 +1266,6 @@ initiate_connection:
 		goto initiate_connection
 	}
 	return &sess, nil
-}
-
-func (sess *tdsSession) setReturnStatus(status ReturnStatus) {
-	if sess.returnStatus != nil {
-		*sess.returnStatus = status
-	}
 }
 
 func resolveServerPort(port uint64) uint64 {

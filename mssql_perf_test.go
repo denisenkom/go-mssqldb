@@ -210,6 +210,6 @@ func BenchmarkSelectParser(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		processSingleResponse(sess, ch, nil)
+		processSingleResponse(sess, ch, outputs{})
 	}
 }

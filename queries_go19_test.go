@@ -1057,3 +1057,39 @@ func TestReturnStatus(t *testing.T) {
 		t.Errorf("expected status=2, got %d", rs)
 	}
 }
+
+func TestClearReturnStatus(t *testing.T) {
+	db := open(t)
+	defer db.Close()
+
+	ctx := context.TODO()
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = conn.ExecContext(ctx, "CREATE PROC #get_answer AS RETURN 42")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = conn.ExecContext(ctx, "CREATE PROC #get_half AS RETURN 21")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var rs ReturnStatus
+
+	_, err = conn.ExecContext(ctx, "#get_answer", &rs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = conn.ExecContext(ctx, "#get_half")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if rs != 42 {
+		t.Errorf("expected status=42, got %d", rs)
+	}
+}
