@@ -1,6 +1,7 @@
 package mssql
 
 import (
+	"database/sql/driver"
 	"fmt"
 )
 
@@ -20,6 +21,17 @@ type Error struct {
 	// All lists all errors that were received from first to last.
 	// This includes the last one, which is described in the other members.
 	All []Error
+	// badConn means the error allows the connection pool
+	// to drop the connection and immediately retry
+	// querying on another connection.
+	badConn bool
+}
+
+func (e Error) Unwrap() error {
+	if e.badConn {
+		return driver.ErrBadConn
+	}
+	return nil
 }
 
 func (e Error) Error() string {
