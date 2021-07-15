@@ -470,7 +470,8 @@ func (s *Stmt) sendQuery(args []namedValue) (err error) {
 
 	reset := conn.resetSession
 	conn.resetSession = false
-	if len(args) == 0 {
+	isProc := isProc(s.query)
+	if len(args) == 0 && !isProc {
 		if err = sendSqlBatch72(conn.sess.buf, s.query, headers, reset); err != nil {
 			if conn.sess.logFlags&logErrors != 0 {
 				conn.sess.log.Printf("Failed to send SqlBatch with %v", err)
@@ -481,7 +482,7 @@ func (s *Stmt) sendQuery(args []namedValue) (err error) {
 	} else {
 		proc := sp_ExecuteSql
 		var params []param
-		if isProc(s.query) {
+		if isProc {
 			proc.name = s.query
 			params, _, err = s.makeRPCParams(args, true)
 			if err != nil {
