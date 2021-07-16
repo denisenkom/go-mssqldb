@@ -211,12 +211,19 @@ func (c *Conn) checkBadConn(err error) error {
 		panic("driver.ErrBadConn in checkBadConn. This should not happen.")
 	}
 
-	switch err.(type) {
+	switch typedErr := err.(type) {
 	case net.Error:
 		c.connectionGood = false
 		return err
 	case StreamError:
 		c.connectionGood = false
+		return err
+	case Error:
+		// The server failed to resume the transaction
+		// Issue https://github.com/denisenkom/go-mssqldb/issues/606
+		if typedErr.Number == 3971 && typedErr.Class == 16 {
+			c.connectionGood = false
+		}
 		return err
 	default:
 		return err
