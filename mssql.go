@@ -190,10 +190,6 @@ func (c *Conn) checkBadConn(err error, mayRetry bool) error {
 		return nil
 	case io.EOF:
 		c.connectionGood = false
-		return Error{
-			Message: "unexpected EOF",
-			badConn: mayRetry,
-		}
 	case driver.ErrBadConn:
 		// It is an internal programming error if driver.ErrBadConn
 		// is ever passed to this function. driver.ErrBadConn should
@@ -202,22 +198,18 @@ func (c *Conn) checkBadConn(err error, mayRetry bool) error {
 		panic("driver.ErrBadConn in checkBadConn. This should not happen.")
 	}
 
-	switch err := err.(type) {
-	case ServerError:
+	switch err.(type) {
+	case net.Error:
 		c.connectionGood = false
-		err.sqlError.badConn = mayRetry
-		return err
-	case Error:
-		err.badConn = mayRetry && !c.connectionGood
-		return err
-	case net.Error, StreamError:
+	case StreamError:
+		c.connectionGood = false
+	case ServerError:
 		c.connectionGood = false
 	}
 
-	if !c.connectionGood {
-		return Error{
-			Message: err.Error(),
-			badConn: mayRetry,
+	if !c.connectionGood && mayRetry {
+		return RetryableError{
+			err: err,
 		}
 	}
 	return err

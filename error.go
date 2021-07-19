@@ -21,17 +21,6 @@ type Error struct {
 	// All lists all errors that were received from first to last.
 	// This includes the last one, which is described in the other members.
 	All []Error
-	// badConn means the error allows the connection pool
-	// to drop the connection and immediately retry
-	// querying on another connection.
-	badConn bool
-}
-
-func (e Error) Unwrap() error {
-	if e.badConn {
-		return driver.ErrBadConn
-	}
-	return nil
 }
 
 func (e Error) Error() string {
@@ -87,10 +76,12 @@ func badStreamPanicf(format string, v ...interface{}) {
 	panic(streamErrorf(format, v...))
 }
 
-// ServerError is returned when the server got a fatal error.
+// ServerError is returned when the server got a fatal error
+// that aborts the process and severs the connection.
 //
 // To get the errors returned before the process was aborted,
-// use errors.As with an *mssql.Error.
+// unwrap this error or call errors.As with a pointer to an
+// mssql.Error variable.
 type ServerError struct {
 	sqlError Error
 }
@@ -101,4 +92,30 @@ func (e ServerError) Error() string {
 
 func (e ServerError) Unwrap() error {
 	return e.sqlError
+}
+
+// RetryableError is returned when an error was caused by a bad
+// connection at the start of a query and can be safely retried
+// using database/sql's automatic retry logic.
+//
+// In many cases database/sql's retry logic will transparently
+// handle this error, the retried call will return successfully,
+// and you won't even see this error. However, you may see this
+// error if the retry logic cannot successfully handle the error.
+// In that case you can get the underlying error by calling this
+// error's UnWrap function.
+type RetryableError struct {
+	err error
+}
+
+func (r RetryableError) Error() string {
+	return r.err.Error()
+}
+
+func (r RetryableError) Unwrap() error {
+	return r.err
+}
+
+func (r RetryableError) Is(err error) bool {
+	return err == driver.ErrBadConn
 }
