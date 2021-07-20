@@ -1051,19 +1051,28 @@ func TestErrorInfo(t *testing.T) {
 }
 
 func TestSetLanguage(t *testing.T) {
-	conn := open(t)
+	db := open(t)
+	defer db.Close()
+
+	conn, err := db.Conn(context.TODO())
+	if err != nil {
+		t.Fatalf("Unable to connect: %s", err)
+	}
 	defer conn.Close()
 
-	_, err := conn.Exec("set language russian")
+	// sp_reset_connection is called when reusing a pooled connection
+	// which resets all SET values to defaults. Thus we can only
+	// validate the language change within one particular connection's usage
+	_, err = conn.ExecContext(context.TODO(), "set language Russian")
 	if err != nil {
-		t.Errorf("Query failed with unexpected error %s", err)
+		t.Errorf("Set language query failed with unexpected error %s", err)
 	}
 
-	row := conn.QueryRow("select cast(getdate() as varchar(50))")
+	row := conn.QueryRowContext(context.TODO(), "select cast(N'июл 19 2021  8:12PM' as datetime)")
 	var val interface{}
 	err = row.Scan(&val)
 	if err != nil {
-		t.Errorf("Query failed with unexpected error %s", err)
+		t.Errorf("datetime query failed with unexpected error %s", err)
 	}
 	t.Log("Returned value", val)
 }
@@ -1936,11 +1945,13 @@ func TestQueryCancelHighLevel(t *testing.T) {
 	defer conn.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
+	latency := getLatency(t)
+
 	go func() {
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(latency + 500*time.Millisecond)
 		cancel()
 	}()
-	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:03'")
+	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:20'")
 	if err != context.Canceled {
 		t.Errorf("ExecContext expected to fail with Cancelled but it returned %v", err)
 	}
@@ -1954,14 +1965,41 @@ func TestQueryCancelHighLevel(t *testing.T) {
 	}
 }
 
+func getLatency(t *testing.T) time.Duration {
+	latency := 100 * time.Millisecond
+	connstr := makeConnStr(t)
+	// .Host may not have a port
+	host := connstr.Hostname()
+	port := connstr.Port()
+	if port == "" {
+		port = "1433"
+	}
+	for latency < 20000*time.Millisecond {
+		t.Logf("Dialing host %s with timeout %v", host, latency.Milliseconds())
+		_, err := net.DialTimeout("tcp", host+":"+port, latency)
+		if err == nil {
+			return latency
+		}
+		if oe, ok := err.(*net.OpError); ok {
+			if !oe.Timeout() {
+				t.Logf("Got non-timeout error %s", oe.Error())
+				return latency
+			}
+			latency += 100 * time.Millisecond
+		}
+	}
+	return latency
+}
+
 func TestQueryTimeout(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	latency := getLatency(t)
+	ctx, cancel := context.WithTimeout(context.Background(), latency+200*time.Millisecond)
 	defer cancel()
-	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:03'")
+	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:20'")
 	if err != context.DeadlineExceeded {
-		t.Errorf("ExecContext expected to fail with DeadlineExceeded but it returned %v", err)
+		t.Errorf("ExecContext expected to fail with DeadlineExceeded or os.ErrDeadlineExceeded but it returned %v", err)
 	}
 
 	// connection should be usable after timeout
@@ -1973,6 +2011,26 @@ func TestQueryTimeout(t *testing.T) {
 	}
 }
 
+func TestLoginTimeout(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+	defer cancel()
+	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:01'")
+	if oe, ok := err.(*net.OpError); ok {
+		if !oe.Timeout() {
+			t.Fatalf("Got non-timeout error %s", oe.Error())
+		}
+	}
+
+	// connection should be usable after timeout
+	row := conn.QueryRow("select 1")
+	var val int64
+	err = row.Scan(&val)
+	if err != nil {
+		t.Fatal("Scan failed with", err)
+	}
+}
 func TestDriverParams(t *testing.T) {
 	checkConnStr(t)
 	SetLogger(testLogger{t})
