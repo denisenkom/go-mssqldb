@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -1982,7 +1981,7 @@ func getLatency(t *testing.T) (latency time.Duration, increment time.Duration) {
 		port = "1433"
 	}
 	for latency < 2000*time.Millisecond {
-		t.Logf("Dialing host %s with timeout %v", host, latency.Milliseconds())
+		t.Logf("Dialing host %s with timeout %s", host, latency)
 		_, err := net.DialTimeout("tcp", host+":"+port, latency)
 		if err == nil {
 			return latency, increment
@@ -2035,7 +2034,7 @@ func TestLoginTimeout(t *testing.T) {
 		if !oe.Timeout() {
 			t.Fatalf("Got non-timeout error %s", oe.Error())
 		}
-	} else if !errors.Is(err, context.DeadlineExceeded) {
+	} else if err != context.DeadlineExceeded {
 		t.Fatalf("wrong kind of error for login or query timeout: %+v", err)
 	}
 
