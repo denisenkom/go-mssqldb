@@ -310,6 +310,8 @@ func Parse(dsn string) (Config, map[string]string, error) {
 			f := "invalid disableRetry '%s': %s"
 			return p, params, fmt.Errorf(f, disableRetry, err.Error())
 		}
+	} else {
+		p.DisableRetry = disableRetryDefault
 	}
 
 	return p, params, nil
@@ -329,9 +331,7 @@ func (p Config) URL() *url.URL {
 	if p.Port > 0 {
 		host = fmt.Sprintf("%s:%d", p.Host, p.Port)
 	}
-	if p.DisableRetry {
-		q.Add("disableRetry", "true")
-	}
+	q.Add("disableRetry", fmt.Sprintf("%t", p.DisableRetry))
 	res := url.URL{
 		Scheme: "sqlserver",
 		Host:   host,

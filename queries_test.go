@@ -2295,10 +2295,11 @@ func TestDisconnect3(t *testing.T) {
 	// Disable retry to provide behavior requested in #275
 	cp := testConnParams(t)
 	cp.DisableRetry = true
+	connStr := cp.URL().String()
 
 	// Open a connection pool that holds a single connection to make sure all
 	// queries run on the same connection.
-	db, err := sql.Open("sqlserver", cp.URL().String())
+	db, err := sql.Open("sqlserver", connStr)
 	if err != nil {
 		t.Log(err)
 	}
@@ -2361,10 +2362,11 @@ func TestDisconnect4(t *testing.T) {
 	// Enable retry to provide behavior requested in #586
 	cp := testConnParams(t)
 	cp.DisableRetry = false
+	connStr := cp.URL().String()
 
 	// Open a connection pool that holds a single connection to make sure all
 	// queries run on the same connection.
-	db, err := sql.Open("sqlserver", makeConnStr(t).String())
+	db, err := sql.Open("sqlserver", connStr)
 	if err != nil {
 		t.Log(err)
 	}

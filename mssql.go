@@ -212,10 +212,9 @@ func (c *Conn) checkBadConn(err error, mayRetry bool) error {
 	}
 
 	if !c.connectionGood && mayRetry && !c.connector.params.DisableRetry {
-		return RetryableError{
-			err: err,
-		}
+		return newRetryableError(err)
 	}
+
 	return err
 }
 

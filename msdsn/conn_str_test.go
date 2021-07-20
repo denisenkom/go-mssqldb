@@ -75,6 +75,7 @@ func TestValidConnectionString(t *testing.T) {
 		{"disableretry=false", func(p Config) bool { return !p.DisableRetry }},
 		{"disableretry=1", func(p Config) bool { return p.DisableRetry }},
 		{"disableretry=0", func(p Config) bool { return !p.DisableRetry }},
+		{"", func(p Config) bool { return p.DisableRetry == disableRetryDefault }},
 
 		// those are supported currently, but maybe should not be
 		{"someparam", func(p Config) bool { return true }},
