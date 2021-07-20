@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -2285,10 +2284,22 @@ func TestDisconnect3(t *testing.T) {
 	}()
 
 	// Create a dialer we can interrupt to simulate a broken connection
-	var di *dialerInterrupt
+	disrupt := make(chan bool)
+	defer close(disrupt)
+	waitDisrupt := make(chan bool)
+	defer close(waitDisrupt)
 	createDialer = func(p *msdsn.Config) Dialer {
 		nd := netDialer{&net.Dialer{Timeout: p.DialTimeout, KeepAlive: p.KeepAlive}}
-		di = &dialerInterrupt{nd: nd}
+		di := &dialerInterrupt{nd: nd}
+		go func() {
+			_, ok := <-disrupt
+			if ok {
+				// Break channel in both directions
+				di.Interrupt(true)
+				di.Interrupt(false)
+				waitDisrupt <- true
+			}
+		}()
 		return di
 	}
 
@@ -2317,9 +2328,9 @@ func TestDisconnect3(t *testing.T) {
 			result, err, desiredResult, nil)
 	}
 
-	// Simulate breaking the connection
-	di.Interrupt(true)
-	di.Interrupt(false)
+	// Signal to break the connection and wait for it to be broken
+	disrupt <- true
+	<-waitDisrupt
 
 	// Broken connection should cause immediate and final failure
 	result = "<none>"
@@ -2352,10 +2363,22 @@ func TestDisconnect4(t *testing.T) {
 	}()
 
 	// Create a dialer we can interrupt to simulate a broken connection
-	var di *dialerInterrupt
+	disrupt := make(chan bool)
+	defer close(disrupt)
+	waitDisrupt := make(chan bool)
+	defer close(waitDisrupt)
 	createDialer = func(p *msdsn.Config) Dialer {
 		nd := netDialer{&net.Dialer{Timeout: p.DialTimeout, KeepAlive: p.KeepAlive}}
-		di = &dialerInterrupt{nd: nd}
+		di := &dialerInterrupt{nd: nd}
+		go func() {
+			_, ok := <-disrupt
+			if ok {
+				// Break channel in both directions
+				di.Interrupt(true)
+				di.Interrupt(false)
+				waitDisrupt <- true
+			}
+		}()
 		return di
 	}
 
@@ -2384,9 +2407,9 @@ func TestDisconnect4(t *testing.T) {
 			result, err, desiredResult, nil)
 	}
 
-	// Break the connection
-	di.Interrupt(true)
-	di.Interrupt(false)
+	// Signal to break the connection and wait for it to be broken
+	disrupt <- true
+	<-waitDisrupt
 
 	// Broken connection should cause the next query to initially fail internally,
 	// but then the logic within database/sql should transparently discard the bad
@@ -2434,10 +2457,9 @@ func TestDisconnect5(t *testing.T) {
 
 	// Break the connection during a query by raising a fatal error in SQL Server
 	_, err = db.Exec("raiserror('fatal error', 20, 1) with log")
-	var sqlErr Error
-	if !errors.As(err, &sqlErr) || sqlErr.Number != 596 {
-		t.Fatalf("Failed to break connection. Got err = '%v', wanted error = '%v'",
-			err, "Cannot continue the execution because the session is in the kill state.")
+	if _, ok := err.(ServerError); !ok {
+		t.Fatalf("Failed to break connection. Got err = '%#v', wanted error = '%#v'",
+			err, ServerError{})
 	}
 
 	// The broken connection should have been removed from the pool and replaced
