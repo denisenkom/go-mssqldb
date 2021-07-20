@@ -2007,7 +2007,7 @@ func TestQueryTimeout(t *testing.T) {
 	defer cancel()
 	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:20'")
 	if err != context.DeadlineExceeded {
-		t.Errorf("ExecContext expected to fail with DeadlineExceeded or os.ErrDeadlineExceeded but it returned %v", err)
+		t.Errorf("ExecContext expected to fail with DeadlineExceeded but it returned %v", err)
 	}
 
 	// connection should be usable after timeout
