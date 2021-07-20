@@ -765,6 +765,8 @@ type tokenProcessor struct {
 	lastRow    []interface{}
 	rowCount   int64
 	firstError error
+	// whether to skip sending attention when ctx is done
+	noAttn bool
 }
 
 func startReading(sess *tdsSession, ctx context.Context, outs outputs) *tokenProcessor {
@@ -848,6 +850,9 @@ func (t tokenProcessor) nextToken() (tokenStruct, error) {
 			return nil, nil
 		}
 	case <-t.ctx.Done():
+		if t.noAttn {
+			return nil, t.ctx.Err()
+		}
 		if err := sendAttention(t.sess.buf); err != nil {
 			// unable to send attention, current connection is bad
 			// notify caller and close channel

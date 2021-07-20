@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -1945,7 +1946,7 @@ func TestQueryCancelHighLevel(t *testing.T) {
 	defer conn.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	latency := getLatency(t)
+	latency, _ := getLatency(t)
 
 	go func() {
 		time.Sleep(latency + 500*time.Millisecond)
@@ -1965,37 +1966,44 @@ func TestQueryCancelHighLevel(t *testing.T) {
 	}
 }
 
-func getLatency(t *testing.T) time.Duration {
-	latency := 100 * time.Millisecond
+// returns the minimum time needed to connect to the server
+// Minimum return value is 1 ms, max is 2k ms
+func getLatency(t *testing.T) (latency time.Duration, increment time.Duration) {
+	latency = 1 * time.Millisecond
 	connstr := makeConnStr(t)
 	// .Host may not have a port
 	host := connstr.Hostname()
 	port := connstr.Port()
+	increment = 50 * time.Millisecond
+	if host == "." || host == "localhost" {
+		increment = 1 * time.Millisecond
+	}
 	if port == "" {
 		port = "1433"
 	}
-	for latency < 20000*time.Millisecond {
+	for latency < 2000*time.Millisecond {
 		t.Logf("Dialing host %s with timeout %v", host, latency.Milliseconds())
 		_, err := net.DialTimeout("tcp", host+":"+port, latency)
 		if err == nil {
-			return latency
+			return latency, increment
 		}
 		if oe, ok := err.(*net.OpError); ok {
 			if !oe.Timeout() {
 				t.Logf("Got non-timeout error %s", oe.Error())
-				return latency
+				return latency, increment
 			}
-			latency += 100 * time.Millisecond
+			latency += increment
 		}
 	}
-	return latency
+	return latency, increment
 }
 
 func TestQueryTimeout(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
-	latency := getLatency(t)
-	ctx, cancel := context.WithTimeout(context.Background(), latency+200*time.Millisecond)
+	// 2 seconds should be enough time to complete the login
+	latency, _ := getLatency(t)
+	ctx, cancel := context.WithTimeout(context.Background(), latency+2000*time.Millisecond)
 	defer cancel()
 	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:20'")
 	if err != context.DeadlineExceeded {
@@ -2011,16 +2019,24 @@ func TestQueryTimeout(t *testing.T) {
 	}
 }
 
+// Regression test for #679
 func TestLoginTimeout(t *testing.T) {
 	conn := open(t)
 	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+	// Try to timeout during the login using a small delta from raw connect time
+	// In environments where latency is really low this degenerates into TestQueryTimeout
+	latency, increment := getLatency(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), latency+(2*increment))
 	defer cancel()
-	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:01'")
+	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:03'")
+	t.Log("Got error ", err)
 	if oe, ok := err.(*net.OpError); ok {
 		if !oe.Timeout() {
 			t.Fatalf("Got non-timeout error %s", oe.Error())
 		}
+	} else if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("wrong kind of error for login or query timeout: %+v", err)
 	}
 
 	// connection should be usable after timeout
