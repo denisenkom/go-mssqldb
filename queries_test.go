@@ -2486,6 +2486,16 @@ func TestDisconnect5(t *testing.T) {
 	_, isServerError := err.(ServerError)
 	_, isNetError := err.(*net.OpError)
 	if !isServerError && !isNetError {
+		// There are a variety of errors that could be returned for a broken
+		// connection. The majority should fall within the mssql.ServerError
+		// and net.OpError categories. We try to make our test more specific
+		// by accepting only those errors, but that makes this test somewhat
+		// less resilient than desired. If this test fails because we start
+		// seeing previously unseen errors and those new errors also indicate
+		// a broken connection, then add them above. If this happens regularly,
+		// consider just allowing any error here. That will reduce any false
+		// alarms from this test at the cost of reduced ability to detect
+		// genuine test failure.
 		t.Fatalf("Failed to break connection. Got err = '%#v', wanted error = '%s'",
 			err, "mssql.ServerError or net.OpError")
 	}
