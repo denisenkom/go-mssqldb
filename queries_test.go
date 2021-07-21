@@ -1051,26 +1051,16 @@ func TestErrorInfo(t *testing.T) {
 }
 
 func TestSetLanguage(t *testing.T) {
-	db := open(t)
-	defer db.Close()
-
-	conn, err := db.Conn(context.TODO())
-	if err != nil {
-		t.Fatalf("Unable to connect: %s", err)
-	}
+	conn := open(t)
 	defer conn.Close()
 
 	// sp_reset_connection is called when reusing a pooled connection
 	// which resets all SET values to defaults. Thus we can only
 	// validate the language change within one particular connection's usage
-	_, err = conn.ExecContext(context.TODO(), "set language Russian")
-	if err != nil {
-		t.Errorf("Set language query failed with unexpected error %s", err)
-	}
-
-	row := conn.QueryRowContext(context.TODO(), "select cast(N'июл 19 2021  8:12PM' as datetime)")
+	row := conn.QueryRowContext(context.TODO(), `set language Russian
+	select cast(N'июл 19 2021  8:12PM' as datetime)`)
 	var val interface{}
-	err = row.Scan(&val)
+	err := row.Scan(&val)
 	if err != nil {
 		t.Errorf("datetime query failed with unexpected error %s", err)
 	}
@@ -2279,6 +2269,7 @@ func TestDisconnect2(t *testing.T) {
 	}
 	checkConnStr(t)
 	SetLogger(testLogger{t})
+	latency, _ := getLatency(t)
 
 	// Revert to the normal dialer after the test is done.
 	normalCreateDialer := createDialer
@@ -2293,7 +2284,7 @@ func TestDisconnect2(t *testing.T) {
 
 	go func() {
 		waitDisrupt := make(chan struct{})
-		ctx, cancel = context.WithTimeout(ctx, time.Second*2)
+		ctx, cancel = context.WithTimeout(ctx, latency+time.Second*2)
 		defer cancel()
 
 		createDialer = func(p *msdsn.Config) Dialer {
