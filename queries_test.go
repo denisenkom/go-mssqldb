@@ -2277,26 +2277,38 @@ func TestDisconnect3(t *testing.T) {
 	checkConnStr(t)
 	SetLogger(testLogger{t})
 
-	// Revert to the normal dialer after the test is done.
+	// Revert to the normal dialer creation function after the test is done.
 	normalCreateDialer := createDialer
 	defer func() {
 		createDialer = normalCreateDialer
 	}()
 
-	// Create a dialer we can interrupt to simulate a broken connection
-	disrupt := make(chan bool)
-	waitDisrupt := make(chan bool)
+	// Implement a dialer creation function that returns interruptable dialers.
+	// These dialers make connections that we can interrupt to simulate breakage.
+	// The driver may call our dialer creation function multiple times to create
+	// multiple independent dialers, so we must signal all of them to ensure that
+	// the dialer controlling our test connection interrupts it.
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	makeInterruptDialers := true
+	disconnect := make(chan bool)
 	createDialer = func(p *msdsn.Config) Dialer {
 		nd := netDialer{&net.Dialer{Timeout: p.DialTimeout, KeepAlive: p.KeepAlive}}
-		di := &dialerInterrupt{nd: nd}
-		go func() {
-			// Wait for signal, then break channel in both directions
-			<-disrupt
-			di.Interrupt(true)
-			di.Interrupt(false)
-			waitDisrupt <- true
-		}()
-		return di
+		mu.Lock()
+		defer mu.Unlock()
+		if makeInterruptDialers {
+			di := &dialerInterrupt{nd: nd}
+			wg.Add(1)
+			go func() {
+				// Wait for signal, then break connection in both directions
+				<-disconnect
+				di.Interrupt(true)
+				di.Interrupt(false)
+				wg.Done()
+			}()
+			return di
+		}
+		return nd
 	}
 
 	// Disable retry to provide behavior requested in #275
@@ -2324,9 +2336,14 @@ func TestDisconnect3(t *testing.T) {
 			result, err, desiredResult, nil)
 	}
 
-	// Signal to break the connection and wait for it to be broken
-	disrupt <- true
-	<-waitDisrupt
+	// Stop making interuptable dialers, because we have already established
+	// our interruptable test connection, then signal and wait for our test
+	// connection to be broken
+	mu.Lock()
+	makeInterruptDialers = false
+	mu.Unlock()
+	close(disconnect)
+	wg.Wait()
 
 	// Broken connection should cause immediate and final failure
 	result = "<none>"
@@ -2352,26 +2369,38 @@ func TestDisconnect4(t *testing.T) {
 	checkConnStr(t)
 	SetLogger(testLogger{t})
 
-	// Revert to the normal dialer after the test is done.
+	// Revert to the normal dialer creation function after the test is done.
 	normalCreateDialer := createDialer
 	defer func() {
 		createDialer = normalCreateDialer
 	}()
 
-	// Create a dialer we can interrupt to simulate a broken connection
-	disrupt := make(chan bool)
-	waitDisrupt := make(chan bool)
+	// Implement a dialer creation function that returns interruptable dialers.
+	// These dialers make connections that we can interrupt to simulate breakage.
+	// The driver may call our dialer creation function multiple times to create
+	// multiple independent dialers, so we must signal all of them to ensure that
+	// the dialer controlling our test connection interrupts it.
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	makeInterruptDialers := true
+	disconnect := make(chan bool)
 	createDialer = func(p *msdsn.Config) Dialer {
 		nd := netDialer{&net.Dialer{Timeout: p.DialTimeout, KeepAlive: p.KeepAlive}}
-		di := &dialerInterrupt{nd: nd}
-		go func() {
-			// Wait for signal, then break channel in both directions
-			<-disrupt
-			di.Interrupt(true)
-			di.Interrupt(false)
-			waitDisrupt <- true
-		}()
-		return di
+		mu.Lock()
+		defer mu.Unlock()
+		if makeInterruptDialers {
+			di := &dialerInterrupt{nd: nd}
+			wg.Add(1)
+			go func() {
+				// Wait for signal, then break connection in both directions
+				<-disconnect
+				di.Interrupt(true)
+				di.Interrupt(false)
+				wg.Done()
+			}()
+			return di
+		}
+		return nd
 	}
 
 	// Enable retry to provide behavior requested in #586
@@ -2399,9 +2428,14 @@ func TestDisconnect4(t *testing.T) {
 			result, err, desiredResult, nil)
 	}
 
-	// Signal to break the connection and wait for it to be broken
-	disrupt <- true
-	<-waitDisrupt
+	// Stop making interuptable dialers, because we have already established
+	// our interruptable test connection, then signal and wait for our test
+	// connection to be broken
+	mu.Lock()
+	makeInterruptDialers = false
+	mu.Unlock()
+	close(disconnect)
+	wg.Wait()
 
 	// Broken connection should cause the next query to initially fail internally,
 	// but then the logic within database/sql should transparently discard the bad
