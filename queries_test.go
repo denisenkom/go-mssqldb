@@ -2332,7 +2332,7 @@ func TestDisconnect3(t *testing.T) {
 	row := db.QueryRow(fmt.Sprintf("select '%s'", desiredResult))
 	if err = row.Scan(&result); err != nil || result != desiredResult {
 		t.Fatalf("Connection bad on first use. "+
-			"Got result = '%s', err = '%v', wanted result = '%s', err = '%v'",
+			"Got result = '%s', err = '%v',  result = '%s', err = '%v'",
 			result, err, desiredResult, nil)
 	}
 

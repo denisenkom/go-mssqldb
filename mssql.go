@@ -182,7 +182,7 @@ func (c *Conn) IsValid() bool {
 }
 
 // checkBadConn marks the connection as bad based on the characteristics
-// of the suplied error. Bad connections will be dropped from the connection
+// of the supplied error. Bad connections will be dropped from the connection
 // pool rather than reused.
 //
 // If bad connection retry is enabled and the error + connection state permits
