@@ -69,7 +69,7 @@ func streamErrorf(format string, v ...interface{}) StreamError {
 }
 
 func badStreamPanic(err error) {
-	panic(err)
+	panic(streamErrorf("%v", err))
 }
 
 func badStreamPanicf(format string, v ...interface{}) {
