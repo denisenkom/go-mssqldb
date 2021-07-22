@@ -142,7 +142,7 @@ func TestCheckBadConn(t *testing.T) {
 		if !equalErrors(actualErr, ti.expectedErr) ||
 			c.connectionGood != ti.expectedConnGood {
 			t.Fatalf("checkBadConn returned unexpected result for input err = '%+v', mayRetry = '%t', disableRetry = '%t': "+
-				"Got output err = '%+v', connectionGood = '%t', "+
+				"got output err = '%+v', connectionGood = '%t', "+
 				"wanted output err = '%+v', connectionGood = '%t'",
 				ti.err, ti.mayRetry, ti.disableRetry, actualErr, c.connectionGood, ti.expectedErr, ti.expectedConnGood)
 		}
@@ -152,4 +152,79 @@ func TestCheckBadConn(t *testing.T) {
 	defer func() { recover() }()
 	c.checkBadConn(driver.ErrBadConn, true)
 	t.Fatalf("checkBadConn did not panic as expected when passed driverErrBadConn")
+}
+
+// TestBadConnRejection verifies that database operations that start
+// with a bad connection fail with the sentinel error driver.ErrBadConn.
+// That instructs the database/sql connection pool logic to discard the
+// bad connection and, if appropriate, attempt to retry the operation
+// with another connection.
+func TestBadConnRejection(t *testing.T) {
+
+	c := Conn{connectionGood: false}
+
+	if _, err := c.Begin(); err != driver.ErrBadConn {
+		t.Fatalf("Begin did not fail on bad connection: "+
+			"got err = '%+v', wanted err = '%+v'", err, driver.ErrBadConn)
+	}
+
+	if err := c.Commit(); err != driver.ErrBadConn {
+		t.Fatalf("Commit did not fail on bad connection: "+
+			"got err = '%+v', wanted err = '%+v'", err, driver.ErrBadConn)
+	}
+
+	if err := c.Rollback(); err != driver.ErrBadConn {
+		t.Fatalf("Rollback did not fail on bad connection: "+
+			"got err = '%+v', wanted err = '%+v'", err, driver.ErrBadConn)
+	}
+
+	if _, err := c.Prepare("query"); err != driver.ErrBadConn {
+		t.Fatalf("Prepare did not fail on bad connection: "+
+			"got err = '%+v', wanted err = '%+v'", err, driver.ErrBadConn)
+	}
+
+	if _, err := c.PrepareContext(context.Background(), "query"); err != driver.ErrBadConn {
+		t.Fatalf("PrepareContext did not fail on bad connection: "+
+			"got err = '%+v', wanted err = '%+v'", err, driver.ErrBadConn)
+	}
+
+	if err := c.Ping(context.Background()); err != driver.ErrBadConn {
+		t.Fatalf("Ping did not fail on bad connection: "+
+			"got err = '%+v', wanted err = '%+v'", err, driver.ErrBadConn)
+	}
+
+	if _, err := c.BeginTx(context.Background(), driver.TxOptions{}); err != driver.ErrBadConn {
+		t.Fatalf("BeginTx did not fail on bad connection: "+
+			"got err = '%+v', wanted err = '%+v'", err, driver.ErrBadConn)
+	}
+
+	s := &Stmt{c: &c}
+
+	if _, err := s.Query(nil); err != driver.ErrBadConn {
+		t.Fatalf("Query did not fail on bad connection: "+
+			"got err = '%+v', wanted err = '%+v'", err, driver.ErrBadConn)
+	}
+
+	if _, err := s.QueryContext(context.Background(), nil); err != driver.ErrBadConn {
+		t.Fatalf("QueryContext did not fail on bad connection: "+
+			"got err = '%+v', wanted err = '%+v'", err, driver.ErrBadConn)
+	}
+
+	if _, err := s.Exec(nil); err != driver.ErrBadConn {
+		t.Fatalf("Exec did not fail on bad connection: "+
+			"got err = '%+v', wanted err = '%+v'", err, driver.ErrBadConn)
+	}
+
+	if _, err := s.ExecContext(context.Background(), nil); err != driver.ErrBadConn {
+		t.Fatalf("ExecContext did not fail on bad connection: "+
+			"got err = '%+v', wanted err = '%+v'", err, driver.ErrBadConn)
+	}
+
+	r := &Rows{stmt: s}
+
+	if err := r.Next(nil); err != driver.ErrBadConn {
+		t.Fatalf("Next did not fail on bad connection: "+
+			"got err = '%+v', wanted err = '%+v'", err, driver.ErrBadConn)
+	}
+
 }
