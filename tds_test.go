@@ -221,7 +221,7 @@ func testConnParams(t testing.TB) msdsn.Config {
 	if err == nil {
 		rdr := bufio.NewReader(f)
 		dsn, err := rdr.ReadString('\n')
-		if err != io.EOF {
+		if err != io.EOF && err != nil {
 			t.Fatal(err)
 		}
 		params, _, err := msdsn.Parse(dsn)

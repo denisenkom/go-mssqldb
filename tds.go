@@ -1190,6 +1190,8 @@ initiate_connection:
 	// packet exchanges to complete the login sequence.
 	for loginAck := false; !loginAck; {
 		reader := startReading(&sess, ctx, outputs{})
+		// don't send attention or wait for cancel confirmation during login
+		reader.noAttn = true
 
 		for {
 			tok, err := reader.nextToken()
