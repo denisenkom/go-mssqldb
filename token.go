@@ -699,7 +699,7 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs outputs) 
 				sess.log.Printf("got DONE or DONEPROC status=%d", done.Status)
 			}
 			if done.Status&doneSrvError != 0 {
-				ch <- errors.New("SQL Server had internal error")
+				ch <- ServerError{done.getError()}
 				return
 			}
 			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {

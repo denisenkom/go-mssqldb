@@ -18,6 +18,7 @@ func TestInvalidConnectionString(t *testing.T) {
 		"trustservercertificate=invalid",
 		"failoverport=invalid",
 		"applicationintent=ReadOnly",
+		"disableretry=invalid",
 
 		// ODBC mode
 		"odbc:password={",
@@ -70,6 +71,11 @@ func TestValidConnectionString(t *testing.T) {
 		{"log=64;packet size=300", func(p Config) bool { return p.LogFlags == 64 && p.PacketSize == 512 }},
 		{"log=64;packet size=8192", func(p Config) bool { return p.LogFlags == 64 && p.PacketSize == 8192 }},
 		{"log=64;packet size=48000", func(p Config) bool { return p.LogFlags == 64 && p.PacketSize == 32767 }},
+		{"disableretry=true", func(p Config) bool { return p.DisableRetry }},
+		{"disableretry=false", func(p Config) bool { return !p.DisableRetry }},
+		{"disableretry=1", func(p Config) bool { return p.DisableRetry }},
+		{"disableretry=0", func(p Config) bool { return !p.DisableRetry }},
+		{"", func(p Config) bool { return p.DisableRetry == disableRetryDefault }},
 
 		// those are supported currently, but maybe should not be
 		{"someparam", func(p Config) bool { return true }},
@@ -121,6 +127,12 @@ func TestValidConnectionString(t *testing.T) {
 		{"odbc:password={value}  ", func(p Config) bool {
 			return p.Password == "value"
 		}},
+		{"odbc:server=somehost;user id=someuser;password=somepass;disableretry=true", func(p Config) bool {
+			return p.Host == "somehost" && p.User == "someuser" && p.Password == "somepass" && p.DisableRetry
+		}},
+		{"odbc:server=somehost;user id=someuser;password=somepass; disableretry =  1 ", func(p Config) bool {
+			return p.Host == "somehost" && p.User == "someuser" && p.Password == "somepass" && p.DisableRetry
+		}},
 
 		// URL mode
 		{"sqlserver://somehost?connection+timeout=30", func(p Config) bool {
@@ -140,6 +152,12 @@ func TestValidConnectionString(t *testing.T) {
 		}},
 		{"sqlserver://someuser:foo%3A%2F%5C%21~%40;bar@somehost:1434/someinstance?connection+timeout=30", func(p Config) bool {
 			return p.Host == "somehost" && p.Port == 1434 && p.Instance == "someinstance" && p.User == "someuser" && p.Password == "foo:/\\!~@;bar" && p.ConnTimeout == 30*time.Second
+		}},
+		{"sqlserver://someuser@somehost?disableretry=true", func(p Config) bool {
+			return p.Host == "somehost" && p.Port == 0 && p.Instance == "" && p.User == "someuser" && p.Password == "" && p.DisableRetry
+		}},
+		{"sqlserver://someuser@somehost?connection+timeout=30&disableretry=1", func(p Config) bool {
+			return p.Host == "somehost" && p.Port == 0 && p.Instance == "" && p.User == "someuser" && p.Password == "" && p.ConnTimeout == 30*time.Second && p.DisableRetry
 		}},
 	}
 	for _, ts := range connStrings {

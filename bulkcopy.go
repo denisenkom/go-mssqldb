@@ -238,7 +238,7 @@ func (b *Bulk) Done() (rowcount int64, err error) {
 	reader := startReading(b.cn.sess, b.ctx, outputs{})
 	err = reader.iterateResponse()
 	if err != nil {
-		return 0, b.cn.checkBadConn(err)
+		return 0, b.cn.checkBadConn(err, false)
 	}
 
 	return reader.rowCount, nil
