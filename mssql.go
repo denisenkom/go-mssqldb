@@ -524,30 +524,38 @@ func isProc(s string) bool {
 	for _, r := range s {
 		rPrev = rn1
 		rn1 = r
-		switch r {
-		// No newlines or string sequences.
-		case '\n', '\r', '\'', ';':
-			return false
+		if st != escaped {
+			switch r {
+			// No newlines or string sequences.
+			case '\n', '\r', '\'', ';':
+				return false
+			}
 		}
 		switch st {
 		case outside:
 			switch {
-			case unicode.IsSpace(r):
-				return false
 			case r == '[':
 				st = escaped
-				continue
 			case r == ']' && rPrev == ']':
 				st = escaped
-				continue
 			case unicode.IsLetter(r):
 				st = text
+			case r == '_':
+				st = text
+			case r == '#':
+				st = text
+			case r == '.':
+			default:
+				return false
 			}
 		case text:
 			switch {
 			case r == '.':
 				st = outside
-				continue
+			case r == '[':
+				return false
+			case r == '(':
+				return false
 			case unicode.IsSpace(r):
 				return false
 			}
@@ -555,7 +563,6 @@ func isProc(s string) bool {
 			switch {
 			case r == ']':
 				st = outside
-				continue
 			}
 		}
 	}
