@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/denisenkom/go-mssqldb/msdsn"
+	"github.com/golang-sql/sqlexp"
 )
 
 func driverWithProcess(t *testing.T) *Driver {
@@ -2588,4 +2589,58 @@ func TestClose(t *testing.T) {
 	}()
 
 	conn.Close()
+}
+
+func TestMessageQueue(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	retmsg := &sqlexp.ReturnMessage{}
+	latency, _ := getLatency(t)
+	ctx, _ := context.WithTimeout(context.Background(), latency+2000*time.Millisecond)
+	rows, err := conn.QueryContext(ctx, "PRINT 'msg1'; select 100 as c; PRINT 'msg2'", retmsg)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	defer rows.Close()
+	active := true
+
+	msgs := []interface{}{
+		sqlexp.MsgNotice{Message: "msg1"},
+		sqlexp.MsgRowsAffected{Count: 1},
+		sqlexp.MsgNext{},
+		sqlexp.MsgNotice{Message: "msg2"},
+		sqlexp.MsgNextResultSet{},
+	}
+	i := 0
+	for active {
+		msg := retmsg.Message(ctx)
+		if i >= len(msgs) {
+			t.Fatalf("Got extra message:%+v", msg)
+		}
+		if reflect.TypeOf(msgs[i]) != reflect.TypeOf(msg) {
+			t.Fatalf("Out of order or incorrect message at %d. Actual: %+v. Expected: %+v", i, reflect.TypeOf(msg), reflect.TypeOf(msgs[i]))
+		}
+		switch m := msg.(type) {
+		case sqlexp.MsgNotice:
+			t.Log(m.Message)
+		case sqlexp.MsgNextResultSet:
+			if rows.NextResultSet() {
+				t.Fatal("NextResultSet returned true with only 1 set")
+			}
+			active = false
+
+		case sqlexp.MsgNext:
+			if !rows.Next() {
+				t.Fatal("rows.Next() return false")
+			}
+			var c int
+			err = rows.Scan(&c)
+			if err != nil {
+				t.Fatalf("rows.Scan() failed: %s", err.Error())
+			}
+			if c != 100 {
+				t.Fatalf("query returned wrong value: %d", c)
+			}
+		}
+	}
 }
