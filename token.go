@@ -8,6 +8,8 @@ import (
 	"io"
 	"io/ioutil"
 	"strconv"
+
+	"github.com/golang-sql/sqlexp"
 )
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type token
@@ -106,6 +108,7 @@ func (d doneStruct) getError() Error {
 		return Error{Message: "Request failed but didn't provide reason"}
 	}
 	err := d.errors[n-1]
+	// should this return the most severe error?
 	err.All = make([]Error, n)
 	copy(err.All, d.errors)
 	return err
@@ -638,7 +641,8 @@ func parseReturnValue(r *tdsBuffer) (nv namedValue) {
 	return
 }
 
-func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs outputs) {
+func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct, outs outputs) {
+	firstResult := true
 	defer func() {
 		if err := recover(); err != nil {
 			if sess.logFlags&logErrors != 0 {
@@ -688,10 +692,15 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs outputs) 
 			ch <- order
 		case tokenDoneInProc:
 			done := parseDoneInProc(sess.buf)
+
+			ch <- done
 			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
 				sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
+
+				if outs.msgq != nil {
+					sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgRowsAffected{Count: int64(done.RowCount)})
+				}
 			}
-			ch <- done
 		case tokenDone, tokenDoneProc:
 			done := parseDone(sess.buf)
 			done.errors = errs
@@ -702,16 +711,32 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs outputs) 
 				ch <- ServerError{done.getError()}
 				return
 			}
+			ch <- done
 			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
 				sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
+				if outs.msgq != nil {
+					sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgRowsAffected{Count: int64(done.RowCount)})
+				}
 			}
-			ch <- done
 			if done.Status&doneMore == 0 {
+				if outs.msgq != nil {
+					sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
+				}
 				return
 			}
 		case tokenColMetadata:
 			columns = parseColMetadata72(sess.buf)
 			ch <- columns
+
+			if outs.msgq != nil {
+				if !firstResult {
+					sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
+				} else {
+					sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNext{})
+				}
+			}
+			firstResult = false
+
 		case tokenRow:
 			row := make([]interface{}, len(columns))
 			parseRow(sess.buf, columns, row)
@@ -731,6 +756,9 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs outputs) 
 			if sess.logFlags&logErrors != 0 {
 				sess.log.Println(err.Message)
 			}
+			if outs.msgq != nil {
+				sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgError{Error: err})
+			}
 		case tokenInfo:
 			info := parseInfo(sess.buf)
 			if sess.logFlags&logDebug != 0 {
@@ -738,6 +766,9 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct, outs outputs) 
 			}
 			if sess.logFlags&logMessages != 0 {
 				sess.log.Println(info.Message)
+			}
+			if outs.msgq != nil {
+				sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNotice{Message: info.Message})
 			}
 		case tokenReturnValue:
 			nv := parseReturnValue(sess.buf)
@@ -771,7 +802,7 @@ type tokenProcessor struct {
 
 func startReading(sess *tdsSession, ctx context.Context, outs outputs) *tokenProcessor {
 	tokChan := make(chan tokenStruct, 5)
-	go processSingleResponse(sess, tokChan, outs)
+	go processSingleResponse(ctx, sess, tokChan, outs)
 	return &tokenProcessor{
 		tokChan: tokChan,
 		ctx:     ctx,
@@ -874,7 +905,7 @@ func (t tokenProcessor) nextToken() (tokenStruct, error) {
 		// we did not get cancellation confirmation in the current response
 		// read one more response, it must be there
 		t.tokChan = make(chan tokenStruct, 5)
-		go processSingleResponse(t.sess, t.tokChan, t.outs)
+		go processSingleResponse(t.ctx, t.sess, t.tokChan, t.outs)
 		if readCancelConfirmation(t.tokChan) {
 			return nil, t.ctx.Err()
 		}

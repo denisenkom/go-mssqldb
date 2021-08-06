@@ -2596,7 +2596,7 @@ func TestMessageQueue(t *testing.T) {
 	defer conn.Close()
 	retmsg := &sqlexp.ReturnMessage{}
 	latency, _ := getLatency(t)
-	ctx, _ := context.WithTimeout(context.Background(), latency+2000*time.Millisecond)
+	ctx, _ := context.WithTimeout(context.Background(), latency+200000*time.Millisecond)
 	rows, err := conn.QueryContext(ctx, "PRINT 'msg1'; select 100 as c; PRINT 'msg2'", retmsg)
 	if err != nil {
 		t.Fatal(err.Error())
@@ -2606,17 +2606,19 @@ func TestMessageQueue(t *testing.T) {
 
 	msgs := []interface{}{
 		sqlexp.MsgNotice{Message: "msg1"},
-		sqlexp.MsgRowsAffected{Count: 1},
 		sqlexp.MsgNext{},
+		sqlexp.MsgRowsAffected{Count: 1},
 		sqlexp.MsgNotice{Message: "msg2"},
 		sqlexp.MsgNextResultSet{},
 	}
 	i := 0
+	rsCount := 0
 	for active {
 		msg := retmsg.Message(ctx)
 		if i >= len(msgs) {
 			t.Fatalf("Got extra message:%+v", msg)
 		}
+		t.Log(reflect.TypeOf(msg))
 		if reflect.TypeOf(msgs[i]) != reflect.TypeOf(msg) {
 			t.Fatalf("Out of order or incorrect message at %d. Actual: %+v. Expected: %+v", i, reflect.TypeOf(msg), reflect.TypeOf(msgs[i]))
 		}
@@ -2624,14 +2626,14 @@ func TestMessageQueue(t *testing.T) {
 		case sqlexp.MsgNotice:
 			t.Log(m.Message)
 		case sqlexp.MsgNextResultSet:
-			if rows.NextResultSet() {
-				t.Fatal("NextResultSet returned true with only 1 set")
+			active = rows.NextResultSet()
+			if active {
+				t.Fatal("NextResultSet returned true")
 			}
-			active = false
-
+			rsCount++
 		case sqlexp.MsgNext:
 			if !rows.Next() {
-				t.Fatal("rows.Next() return false")
+				t.Fatal("rows.Next() returned false")
 			}
 			var c int
 			err = rows.Scan(&c)
@@ -2642,5 +2644,6 @@ func TestMessageQueue(t *testing.T) {
 				t.Fatalf("query returned wrong value: %d", c)
 			}
 		}
+		i++
 	}
 }
