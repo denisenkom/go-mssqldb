@@ -698,12 +698,15 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 				sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
 
 				if outs.msgq != nil {
-					sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgRowsAffected{Count: int64(done.RowCount)})
+					_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgRowsAffected{Count: int64(done.RowCount)})
 				}
 			}
 			if done.Status&doneMore == 0 {
 				if outs.msgq != nil {
-					sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
+					// For now we ignore ctx->Done errors that ReturnMessageEnqueue might return
+					// It's not clear how to handle them correctly here, and data/sql seems
+					// to set Rows.Err correctly when ctx expires already
+					_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
 				}
 				return
 			}
@@ -719,7 +722,7 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 			if done.Status&doneSrvError != 0 {
 				ch <- ServerError{done.getError()}
 				if outs.msgq != nil {
-					sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
+					_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
 				}
 				return
 			}
@@ -729,12 +732,12 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 					sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
 				}
 				if outs.msgq != nil {
-					sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgRowsAffected{Count: int64(done.RowCount)})
+					_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgRowsAffected{Count: int64(done.RowCount)})
 				}
 			}
 			if done.Status&doneMore == 0 {
 				if outs.msgq != nil {
-					sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
+					_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
 				}
 				return
 			}
@@ -744,9 +747,9 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 
 			if outs.msgq != nil {
 				if !firstResult {
-					sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
+					_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
 				}
-				sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNext{})
+				_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNext{})
 			}
 			firstResult = false
 
@@ -770,7 +773,7 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 				sess.log.Println(err.Message)
 			}
 			if outs.msgq != nil {
-				sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgError{Error: err})
+				_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgError{Error: err})
 			}
 		case tokenInfo:
 			info := parseInfo(sess.buf)
@@ -781,7 +784,7 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 				sess.log.Println(info.Message)
 			}
 			if outs.msgq != nil {
-				sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNotice{Message: info.Message})
+				_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNotice{Message: info.Message})
 			}
 		case tokenReturnValue:
 			nv := parseReturnValue(sess.buf)
@@ -894,6 +897,10 @@ func (t tokenProcessor) nextToken() (tokenStruct, error) {
 			return nil, nil
 		}
 	case <-t.ctx.Done():
+		// It seems the Message function on t.outs.msgq doesn't get the Done if it comes here instead
+		if t.outs.msgq != nil {
+			sqlexp.ReturnMessageEnqueue(t.ctx, t.outs.msgq, sqlexp.MsgNextResultSet{})
+		}
 		if t.noAttn {
 			return nil, t.ctx.Err()
 		}

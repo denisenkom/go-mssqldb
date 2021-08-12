@@ -257,12 +257,8 @@ func readPrelogin(r *tdsBuffer) (map[uint8][]byte, error) {
 
 // OptionFlags1
 const (
-	fByteOrder = 1
-	fChar      = 2
-	fDumpLoad  = 0x10
-	fUseDB     = 0x20
-	fDatabase  = 0x40
-	fSetLang   = 0x80
+	fUseDB   = 0x20
+	fSetLang = 0x80
 )
 
 // OptionFlags2
