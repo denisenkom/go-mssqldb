@@ -143,7 +143,14 @@ func TestCheckBadConn(t *testing.T) {
 		{goodConnErr, true, true, goodConnErr, true},
 	}
 
-	c := Conn{connector: &Connector{params: msdsn.Config{}}}
+	c := Conn{
+		connector: &Connector{
+			params: msdsn.Config{},
+		},
+		sess: &tdsSession{
+			log: optionalCtxLogger{},
+		},
+	}
 
 	for _, ti := range testInputs {
 		c.connectionGood = true

@@ -21,7 +21,7 @@ import (
 
 func driverWithProcess(t *testing.T) *Driver {
 	return &Driver{
-		log:              optionalLogger{testLogger{t}},
+		log:              optionalCtxLogger{loggerAdapter{testLogger{t}}},
 		processQueryText: true,
 	}
 }
@@ -1313,7 +1313,7 @@ func TestProcessQueryErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal("prepareContext expected to succeed, but it failed with", err)
 	}
-	err = stmt.sendQuery([]namedValue{})
+	err = stmt.sendQuery(context.Background(), []namedValue{})
 	if err != nil {
 		t.Fatal("sendQuery expected to succeed, but it failed with", err)
 	}
@@ -1900,7 +1900,7 @@ func TestQueryCancelLowLevel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Prepare failed with error %v", err)
 	}
-	err = stmt.sendQuery([]namedValue{})
+	err = stmt.sendQuery(context.Background(), []namedValue{})
 	if err != nil {
 		t.Fatalf("sendQuery failed with error %v", err)
 	}
