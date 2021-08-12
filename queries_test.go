@@ -2020,7 +2020,7 @@ func TestLoginTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), latency+(2*increment))
 	defer cancel()
 	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:03'")
-	t.Log("Got error ", err)
+	t.Logf("Got error type %v: %s ", reflect.TypeOf(err), err.Error())
 	if oe, ok := err.(*net.OpError); ok {
 		if !oe.Timeout() {
 			t.Fatalf("Got non-timeout error %s", oe.Error())
@@ -2709,7 +2709,7 @@ func TestMessageQueueWithErrors(t *testing.T) {
 	}
 }
 
-const mixedQuery = `select name from sys.tables
+const mixedQuery = `select top 5 name from sys.system_columns
 select getdate()
 PRINT N'This is a message'
 select 199
@@ -2738,7 +2738,10 @@ func testMixedQuery(conn *sql.DB, b testing.TB) (msgs, errs, results, rowcounts 
 			inresult := true
 			for inresult {
 				inresult = r.Next()
-				if inresult && first {
+				if first {
+					if !inresult {
+						b.Fatalf("First Next call returned false")
+					}
 					results++
 				}
 				if inresult {
