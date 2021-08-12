@@ -701,19 +701,33 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 					sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgRowsAffected{Count: int64(done.RowCount)})
 				}
 			}
+			if done.Status&doneMore == 0 {
+				if outs.msgq != nil {
+					sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
+				}
+				return
+			}
 		case tokenDone, tokenDoneProc:
 			done := parseDone(sess.buf)
 			done.errors = errs
+			if outs.msgq != nil {
+				errs = make([]Error, 0, 5)
+			}
 			if sess.logFlags&logDebug != 0 {
 				sess.log.Printf("got DONE or DONEPROC status=%d", done.Status)
 			}
 			if done.Status&doneSrvError != 0 {
 				ch <- ServerError{done.getError()}
+				if outs.msgq != nil {
+					sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
+				}
 				return
 			}
 			ch <- done
-			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
-				sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
+			if done.Status&doneCount != 0 {
+				if sess.logFlags&logRows != 0 {
+					sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
+				}
 				if outs.msgq != nil {
 					sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgRowsAffected{Count: int64(done.RowCount)})
 				}
@@ -731,9 +745,8 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 			if outs.msgq != nil {
 				if !firstResult {
 					sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
-				} else {
-					sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNext{})
 				}
+				sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNext{})
 			}
 			firstResult = false
 

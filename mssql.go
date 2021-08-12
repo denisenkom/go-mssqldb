@@ -639,9 +639,9 @@ func (s *Stmt) processQueryResponse(ctx context.Context) (res driver.Rows, err e
 	ctx, cancel := context.WithCancel(ctx)
 	reader := startReading(s.c.sess, ctx, s.c.outs)
 	s.c.clearOuts()
-	// For apps using a message queue, return right away and let Rows do all the work
+	// For apps using a message queue, return right away and let Rowsq do all the work
 	if reader.outs.msgq != nil {
-		res = &Rows{stmt: s, reader: reader, cols: nil, cancel: cancel}
+		res = &Rowsq{stmt: s, reader: reader, cols: nil, cancel: cancel}
 		return res, nil
 	}
 	// process metadata
@@ -715,13 +715,13 @@ func (s *Stmt) processExec(ctx context.Context) (res driver.Result, err error) {
 	return &Result{s.c, reader.rowCount}, nil
 }
 
+// Rows represents the non-experimental data/sql model for Query and QueryContext
 type Rows struct {
-	stmt        *Stmt
-	cols        []columnStruct
-	reader      *tokenProcessor
-	nextCols    []columnStruct
-	requestDone bool
-	cancel      func()
+	stmt     *Stmt
+	cols     []columnStruct
+	reader   *tokenProcessor
+	nextCols []columnStruct
+	cancel   func()
 }
 
 func (rc *Rows) Close() error {
@@ -749,25 +749,7 @@ func (rc *Rows) Close() error {
 }
 
 func (rc *Rows) Columns() (res []string) {
-	// in the message queue model, we know a column slice is in the channel because
-	// the client received sqlexp.MsgNext or sqlexp.MsgNextResultSet
-	if rc.reader.outs.msgq != nil {
-	scan:
-		for {
-			tok, err := rc.reader.nextToken()
-			if err == nil {
-				if tok == nil {
-					return []string{}
-				} else {
-					switch tokdata := tok.(type) {
-					case []columnStruct:
-						rc.cols = tokdata
-						break scan
-					}
-				}
-			}
-		}
-	}
+
 	res = make([]string, len(rc.cols))
 	for i, col := range rc.cols {
 		res[i] = col.ColName
@@ -778,45 +760,6 @@ func (rc *Rows) Columns() (res []string) {
 func (rc *Rows) Next(dest []driver.Value) error {
 	if !rc.stmt.c.connectionGood {
 		return driver.ErrBadConn
-	}
-	if rc.reader.outs.msgq != nil {
-		for {
-			tok, err := rc.reader.nextToken()
-			if err == nil {
-				if tok == nil {
-					return io.EOF
-				} else {
-					switch tokdata := tok.(type) {
-					case []interface{}:
-						for i := range dest {
-							dest[i] = tokdata[i]
-						}
-						return nil
-					case doneStruct:
-						if tokdata.Status&doneMore == 0 {
-							rc.requestDone = true
-						}
-						if tokdata.isError() {
-							e := rc.stmt.c.checkBadConn(tokdata.getError(), false)
-							switch e.(type) {
-							case Error:
-								// Ignore non-fatal server errors
-							default:
-								return e
-							}
-						}
-						return io.EOF
-					case ReturnStatus:
-						if rc.reader.outs.returnStatus != nil {
-							*rc.reader.outs.returnStatus = tokdata
-						}
-					}
-				}
-
-			} else {
-				return rc.stmt.c.checkBadConn(err, false)
-			}
-		}
 	}
 	if rc.nextCols != nil {
 		return io.EOF
@@ -854,39 +797,11 @@ func (rc *Rows) Next(dest []driver.Value) error {
 	}
 }
 
-// In Message Queue mode, we always claim another resultset could be on the way
-// to avoid Rows being closed prematurely
 func (rc *Rows) HasNextResultSet() bool {
-	if rc.reader.outs.msgq == nil {
-		return rc.nextCols != nil
-	}
-	return rc.requestDone
+	return rc.nextCols != nil
 }
 
 func (rc *Rows) NextResultSet() error {
-	if rc.reader.outs.msgq != nil {
-	scan:
-		for {
-			// we should have a columns token in the channel if we aren't at the end
-			tok, err := rc.reader.nextToken()
-			if err != nil {
-				return err
-			}
-			switch tokdata := tok.(type) {
-			case []columnStruct:
-				rc.nextCols = tokdata
-				break scan
-			case doneStruct:
-				if tokdata.Status&doneMore == 0 {
-					break scan
-				}
-			default:
-				if rc.reader.sess.logFlags&logDebug != 0 {
-					rc.reader.sess.log.Printf("Unexpected token type for NextResultSet: %v", reflect.TypeOf(tokdata))
-				}
-			}
-		}
-	}
 	rc.cols = rc.nextCols
 	rc.nextCols = nil
 	if rc.cols == nil {
@@ -1121,4 +1036,164 @@ func (s *Stmt) ExecContext(ctx context.Context, args []driver.NamedValue) (drive
 		list[i] = namedValue(nv)
 	}
 	return s.exec(ctx, list)
+}
+
+// Rowsq implements the sqlexp messages model for Query and QueryContext
+// Theory: We could also implement the non-experimental model this way
+type Rowsq struct {
+	stmt        *Stmt
+	cols        []columnStruct
+	reader      *tokenProcessor
+	nextCols    []columnStruct
+	cancel      func()
+	requestDone bool
+	inResultSet bool
+}
+
+func (rc *Rowsq) Close() error {
+	rc.cancel()
+
+	for {
+		tok, err := rc.reader.nextToken()
+		if err == nil {
+			if tok == nil {
+				return nil
+			} else {
+				// continue consuming tokens
+				continue
+			}
+		} else {
+			if err == rc.reader.ctx.Err() {
+				return nil
+			} else {
+				return err
+			}
+		}
+	}
+}
+
+// data/sql calls Columns during the app's call to Next
+func (rc *Rowsq) Columns() (res []string) {
+	if rc.cols == nil {
+	scan:
+		for {
+			tok, err := rc.reader.nextToken()
+			if err == nil {
+				if rc.reader.sess.logFlags&logDebug != 0 {
+					rc.reader.sess.log.Printf("Columns() token type:%v", reflect.TypeOf(tok))
+				}
+				if tok == nil {
+					return []string{}
+				} else {
+					switch tokdata := tok.(type) {
+					case []columnStruct:
+						rc.cols = tokdata
+						rc.inResultSet = true
+						break scan
+					}
+				}
+			}
+		}
+	}
+	res = make([]string, len(rc.cols))
+	for i, col := range rc.cols {
+		res[i] = col.ColName
+	}
+	return
+}
+
+func (rc *Rowsq) Next(dest []driver.Value) error {
+	if !rc.stmt.c.connectionGood {
+		return driver.ErrBadConn
+	}
+	for {
+		tok, err := rc.reader.nextToken()
+		if rc.reader.sess.logFlags&logDebug != 0 {
+			rc.reader.sess.log.Printf("Next() token type:%v", reflect.TypeOf(tok))
+		}
+		if err == nil {
+			if tok == nil {
+				return io.EOF
+			} else {
+				switch tokdata := tok.(type) {
+				case []interface{}:
+					for i := range dest {
+						dest[i] = tokdata[i]
+					}
+					return nil
+				case doneStruct:
+					if tokdata.Status&doneMore == 0 {
+						rc.requestDone = true
+					}
+					if tokdata.isError() {
+						e := rc.stmt.c.checkBadConn(tokdata.getError(), false)
+						switch e.(type) {
+						case Error:
+							// Ignore non-fatal server errors
+						default:
+							return e
+						}
+					}
+					if rc.inResultSet {
+						rc.inResultSet = false
+						return io.EOF
+					}
+				case ReturnStatus:
+					if rc.reader.outs.returnStatus != nil {
+						*rc.reader.outs.returnStatus = tokdata
+					}
+				}
+			}
+
+		} else {
+			return rc.stmt.c.checkBadConn(err, false)
+		}
+	}
+}
+
+// In Message Queue mode, we always claim another resultset could be on the way
+// to avoid Rows being closed prematurely
+func (rc *Rowsq) HasNextResultSet() bool {
+	return !rc.requestDone
+}
+
+// Scans to the next set of columns in the stream
+// Note that the caller may not have read all the rows in the prior set
+func (rc *Rowsq) NextResultSet() error {
+	if rc.requestDone {
+		return io.EOF
+	}
+scan:
+	for {
+		// we should have a columns token in the channel if we aren't at the end
+		tok, err := rc.reader.nextToken()
+		if rc.reader.sess.logFlags&logDebug != 0 {
+			rc.reader.sess.log.Printf("NextResultSet() token type:%v", reflect.TypeOf(tok))
+		}
+
+		if err != nil {
+			return err
+		}
+		if tok == nil {
+			return io.EOF
+		}
+		switch tokdata := tok.(type) {
+		case []columnStruct:
+			rc.nextCols = tokdata
+			rc.inResultSet = true
+			break scan
+		case doneStruct:
+			if tokdata.Status&doneMore == 0 {
+				rc.nextCols = nil
+				rc.requestDone = true
+				break scan
+			}
+		}
+	}
+	rc.cols = rc.nextCols
+	rc.nextCols = nil
+	if rc.cols == nil {
+		return io.EOF
+	}
+	return nil
 }

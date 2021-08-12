@@ -2647,3 +2647,114 @@ func TestMessageQueue(t *testing.T) {
 		i++
 	}
 }
+
+func TestAdvanceResultSetAfterPartialRead(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	ctx := context.Background()
+	retmsg := &sqlexp.ReturnMessage{}
+
+	rows, err := conn.QueryContext(ctx, "select top 2 object_id from sys.all_objects; print 'this is a message'; select 100 as Count; ", retmsg)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	defer rows.Close()
+
+	rows.Next()
+	var g interface{}
+	rows.Scan(&g)
+	next := rows.NextResultSet()
+	if !next {
+		t.Fatalf("NextResultSet returned false")
+	}
+	next = rows.Next()
+	if !next {
+		t.Fatalf("Next on the second result set returned false")
+	}
+	cols, err := rows.Columns()
+	if err != nil {
+		t.Fatalf("Columns() error: %s", err)
+	}
+	if cols[0] != "Count" {
+		t.Fatalf("Wrong column in second result:%s, expected Count", cols[0])
+	}
+	var c int
+	err = rows.Scan(&c)
+	if err != nil {
+		t.Fatalf("Scan errored out on second result: %s", err)
+	}
+	if c != 100 {
+		t.Fatalf("Scan returned incorrect value on second result set: %d, expected 100", c)
+	}
+}
+func TestMessageQueueWithErrors(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	msgs, errs, results, rowcounts := testMixedQuery(conn, t)
+	if msgs != 1 {
+		t.Fatalf("Got %d messages, expected 1", msgs)
+	}
+	if errs != 1 {
+		t.Fatalf("Got %d errors, expected 1", errs)
+	}
+	if results != 4 {
+		t.Fatalf("Got %d results, expected 4", results)
+	}
+	if rowcounts != 4 {
+		t.Fatalf("Got %d row counts, expected 4", rowcounts)
+	}
+}
+
+const mixedQuery = `select name from sys.tables
+select getdate()
+PRINT N'This is a message'
+select 199
+RAISERROR (N'Testing!' , 11, 1)
+select 300
+`
+
+func testMixedQuery(conn *sql.DB, b testing.TB) (msgs, errs, results, rowcounts int) {
+	ctx := context.Background()
+	retmsg := &sqlexp.ReturnMessage{}
+	r, err := conn.QueryContext(ctx, mixedQuery, retmsg)
+	if err != nil {
+		b.Fatal(err.Error())
+	}
+	defer r.Close()
+	active := true
+	first := true
+	for active {
+		msg := retmsg.Message(ctx)
+		switch m := msg.(type) {
+		case sqlexp.MsgNotice:
+			b.Logf("MsgNotice:%s", m.Message)
+			msgs++
+		case sqlexp.MsgNext:
+			b.Logf("MsgNext")
+			inresult := true
+			for inresult {
+				inresult = r.Next()
+				if inresult && first {
+					results++
+				}
+				if inresult {
+					var d interface{}
+					r.Scan(&d)
+					b.Logf("Row data:%v", d)
+				}
+				first = false
+			}
+		case sqlexp.MsgNextResultSet:
+			b.Log("MsgNextResultSet")
+			active = r.NextResultSet()
+			first = true
+		case sqlexp.MsgError:
+			b.Logf("MsgError:%v", m.Error)
+			errs++
+		case sqlexp.MsgRowsAffected:
+			b.Logf("MsgRowsAffected:%d", m.Count)
+			rowcounts++
+		}
+	}
+	return msgs, errs, results, rowcounts
+}

@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func open(t *testing.T) *sql.DB {
+func open(t testing.TB) *sql.DB {
 	checkConnStr(t)
 	SetLogger(testLogger{t})
 	connector, err := NewConnector(makeConnStr(t).String())
