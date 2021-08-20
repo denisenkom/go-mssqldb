@@ -235,7 +235,7 @@ func processEnvChg(ctx context.Context, sess *tdsSession) {
 				badStreamPanic(err)
 			}
 			if sess.logFlags&logTransaction != 0 {
-				sess.log.Log(ctx, msdsn.LogTransaction, fmt.Sprintf("BEGIN TRANSACTION %x", sess.tranid))
+				sess.logger.Log(ctx, msdsn.LogTransaction, fmt.Sprintf("BEGIN TRANSACTION %x", sess.tranid))
 			}
 			_, err = readBVarByte(r)
 			if err != nil {
@@ -252,9 +252,9 @@ func processEnvChg(ctx context.Context, sess *tdsSession) {
 			}
 			if sess.logFlags&logTransaction != 0 {
 				if envtype == envTypCommitTran {
-					sess.log.Log(ctx, msdsn.LogTransaction, fmt.Sprintf("COMMIT TRANSACTION %x", sess.tranid))
+					sess.logger.Log(ctx, msdsn.LogTransaction, fmt.Sprintf("COMMIT TRANSACTION %x", sess.tranid))
 				} else {
-					sess.log.Log(ctx, msdsn.LogTransaction, fmt.Sprintf("ROLLBACK TRANSACTION %x", sess.tranid))
+					sess.logger.Log(ctx, msdsn.LogTransaction, fmt.Sprintf("ROLLBACK TRANSACTION %x", sess.tranid))
 				}
 			}
 			sess.tranid = 0
@@ -369,7 +369,7 @@ func processEnvChg(ctx context.Context, sess *tdsSession) {
 			sess.routedPort = newPort
 		default:
 			// ignore rest of records because we don't know how to skip those
-			sess.log.Log(ctx, 0, fmt.Sprintf("WARN: Unknown ENVCHANGE record detected with type id = %d", envtype))
+			sess.logger.Log(ctx, 0, fmt.Sprintf("WARN: Unknown ENVCHANGE record detected with type id = %d", envtype))
 			return
 		}
 	}
@@ -644,7 +644,7 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 	defer func() {
 		if err := recover(); err != nil {
 			if sess.logFlags&logErrors != 0 {
-				sess.log.Log(ctx, msdsn.LogErrors, fmt.Sprintf("ERROR: Intercepted panic %v", err))
+				sess.logger.Log(ctx, msdsn.LogErrors, fmt.Sprintf("ERROR: Intercepted panic %v", err))
 			}
 			ch <- err
 		}
@@ -654,7 +654,7 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 	packet_type, err := sess.buf.BeginRead()
 	if err != nil {
 		if sess.logFlags&logErrors != 0 {
-			sess.log.Log(ctx, msdsn.LogErrors, fmt.Sprintf("ERROR: BeginRead failed %v", err))
+			sess.logger.Log(ctx, msdsn.LogErrors, fmt.Sprintf("ERROR: BeginRead failed %v", err))
 		}
 		ch <- err
 		return
@@ -667,7 +667,7 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 	for tokens := 0; ; tokens += 1 {
 		token := token(sess.buf.byte())
 		if sess.logFlags&logDebug != 0 {
-			sess.log.Log(ctx, msdsn.LogDebug, fmt.Sprintf("got token %v", token))
+			sess.logger.Log(ctx, msdsn.LogDebug, fmt.Sprintf("got token %v", token))
 		}
 		switch token {
 		case tokenSSPI:
@@ -691,21 +691,21 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 		case tokenDoneInProc:
 			done := parseDoneInProc(sess.buf)
 			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
-				sess.log.Log(ctx, msdsn.LogRows, fmt.Sprintf("(%d row(s) affected)", done.RowCount))
+				sess.logger.Log(ctx, msdsn.LogRows, fmt.Sprintf("(%d row(s) affected)", done.RowCount))
 			}
 			ch <- done
 		case tokenDone, tokenDoneProc:
 			done := parseDone(sess.buf)
 			done.errors = errs
 			if sess.logFlags&logDebug != 0 {
-				sess.log.Log(ctx, msdsn.LogDebug, fmt.Sprintf("got DONE or DONEPROC status=%d", done.Status))
+				sess.logger.Log(ctx, msdsn.LogDebug, fmt.Sprintf("got DONE or DONEPROC status=%d", done.Status))
 			}
 			if done.Status&doneSrvError != 0 {
 				ch <- ServerError{done.getError()}
 				return
 			}
 			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
-				sess.log.Log(ctx, msdsn.LogRows, fmt.Sprintf("(%d row(s) affected)", done.RowCount))
+				sess.logger.Log(ctx, msdsn.LogRows, fmt.Sprintf("(%d row(s) affected)", done.RowCount))
 			}
 			ch <- done
 			if done.Status&doneMore == 0 {
@@ -727,19 +727,19 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 		case tokenError:
 			err := parseError72(sess.buf)
 			if sess.logFlags&logDebug != 0 {
-				sess.log.Log(ctx, msdsn.LogDebug, fmt.Sprintf("got ERROR %d %s", err.Number, err.Message))
+				sess.logger.Log(ctx, msdsn.LogDebug, fmt.Sprintf("got ERROR %d %s", err.Number, err.Message))
 			}
 			errs = append(errs, err)
 			if sess.logFlags&logErrors != 0 {
-				sess.log.Log(ctx, msdsn.LogErrors, err.Message)
+				sess.logger.Log(ctx, msdsn.LogErrors, err.Message)
 			}
 		case tokenInfo:
 			info := parseInfo(sess.buf)
 			if sess.logFlags&logDebug != 0 {
-				sess.log.Log(ctx, msdsn.LogDebug, fmt.Sprintf("got INFO %d %s", info.Number, info.Message))
+				sess.logger.Log(ctx, msdsn.LogDebug, fmt.Sprintf("got INFO %d %s", info.Number, info.Message))
 			}
 			if sess.logFlags&logMessages != 0 {
-				sess.log.Log(ctx, msdsn.LogMessages, info.Message)
+				sess.logger.Log(ctx, msdsn.LogMessages, info.Message)
 			}
 		case tokenReturnValue:
 			nv := parseReturnValue(sess.buf)

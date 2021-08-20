@@ -156,7 +156,7 @@ func TestSendSqlBatch(t *testing.T) {
 		return
 	}
 
-	conn, err := connect(context.Background(), &Connector{params: p}, optionalCtxLogger{loggerAdapter{testLogger{t}}}, p)
+	conn, err := connect(context.Background(), &Connector{params: p}, optionalLogger{loggerAdapter{testLogger{t}}}, p)
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
 		return
@@ -625,7 +625,7 @@ func BenchmarkPacketSize(b *testing.B) {
 }
 
 func runBatch(t testing.TB, p msdsn.Config) {
-	conn, err := connect(context.Background(), &Connector{params: p}, optionalCtxLogger{loggerAdapter{testLogger{t}}}, p)
+	conn, err := connect(context.Background(), &Connector{params: p}, optionalLogger{loggerAdapter{testLogger{t}}}, p)
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
 		return

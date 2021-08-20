@@ -593,6 +593,6 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 
 func (b *Bulk) dlogf(ctx context.Context, format string, v ...interface{}) {
 	if b.Debug {
-		b.cn.sess.log.Log(ctx, msdsn.LogDebug, fmt.Sprintf(format, v...))
+		b.cn.sess.logger.Log(ctx, msdsn.LogDebug, fmt.Sprintf(format, v...))
 	}
 }

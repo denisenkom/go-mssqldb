@@ -15,7 +15,7 @@ import (
 func TestSessionInitSQL(t *testing.T) {
 	checkConnStr(t)
 
-	d := &Driver{log: optionalCtxLogger{loggerAdapter{testLogger{t}}}}
+	d := &Driver{logger: optionalLogger{loggerAdapter{testLogger{t}}}}
 	connector, err := d.OpenConnector(makeConnStr(t).String())
 	if err != nil {
 		t.Fatal("unable to open connector", err)

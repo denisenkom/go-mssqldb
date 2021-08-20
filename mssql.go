@@ -52,7 +52,7 @@ func (d netDialer) DialContext(ctx context.Context, network string, addr string)
 }
 
 type Driver struct {
-	log optionalCtxLogger
+	logger optionalLogger
 
 	processQueryText bool
 }
@@ -80,7 +80,7 @@ func SetLogger(logger Logger) {
 }
 
 func (d *Driver) SetLogger(logger Logger) {
-	d.log = optionalCtxLogger{loggerAdapter{logger}}
+	d.logger = optionalLogger{loggerAdapter{logger}}
 }
 
 func SetContextLogger(ctxLogger ContextLogger) {
@@ -89,7 +89,7 @@ func SetContextLogger(ctxLogger ContextLogger) {
 }
 
 func (d *Driver) SetContextLogger(ctxLogger ContextLogger) {
-	d.log = optionalCtxLogger{ctxLogger}
+	d.logger = optionalLogger{ctxLogger}
 }
 
 // NewConnector creates a new connector from a DSN.
@@ -226,7 +226,7 @@ func (c *Conn) checkBadConn(ctx context.Context, err error, mayRetry bool) error
 	}
 
 	if !c.connectionGood && mayRetry && !c.connector.params.DisableRetry {
-		c.sess.log.Log(ctx, msdsn.LogErrors, err.Error()) // fixhi want to make separate retryable error category?
+		c.sess.logger.Log(ctx, msdsn.LogErrors, err.Error())
 		return newRetryableError(err)
 	}
 
@@ -268,7 +268,7 @@ func (c *Conn) sendCommitRequest() error {
 	c.resetSession = false
 	if err := sendCommitXact(c.sess.buf, headers, "", 0, 0, "", reset); err != nil {
 		if c.sess.logFlags&logErrors != 0 {
-			c.sess.log.Log(c.transactionCtx, msdsn.LogErrors, fmt.Sprintf("Failed to send CommitXact with %v", err))
+			c.sess.logger.Log(c.transactionCtx, msdsn.LogErrors, fmt.Sprintf("Failed to send CommitXact with %v", err))
 		}
 		c.connectionGood = false
 		return fmt.Errorf("faild to send CommitXact: %v", err)
@@ -295,7 +295,7 @@ func (c *Conn) sendRollbackRequest() error {
 	c.resetSession = false
 	if err := sendRollbackXact(c.sess.buf, headers, "", 0, 0, "", reset); err != nil {
 		if c.sess.logFlags&logErrors != 0 {
-			c.sess.log.Log(c.transactionCtx, msdsn.LogErrors, fmt.Sprintf("Failed to send RollbackXact with %v", err))
+			c.sess.logger.Log(c.transactionCtx, msdsn.LogErrors, fmt.Sprintf("Failed to send RollbackXact with %v", err))
 		}
 		c.connectionGood = false
 		return fmt.Errorf("failed to send RollbackXact: %v", err)
@@ -332,7 +332,7 @@ func (c *Conn) sendBeginRequest(ctx context.Context, tdsIsolation isoLevel) erro
 	c.resetSession = false
 	if err := sendBeginXact(c.sess.buf, headers, tdsIsolation, "", reset); err != nil {
 		if c.sess.logFlags&logErrors != 0 {
-			c.sess.log.Log(ctx, msdsn.LogErrors, fmt.Sprintf("Failed to send BeginXact with %v", err))
+			c.sess.logger.Log(ctx, msdsn.LogErrors, fmt.Sprintf("Failed to send BeginXact with %v", err))
 		}
 		c.connectionGood = false
 		return fmt.Errorf("failed to send BeginXact: %v", err)
@@ -360,7 +360,7 @@ func (d *Driver) open(ctx context.Context, dsn string) (*Conn, error) {
 
 // connect to the server, using the provided context for dialing only.
 func (d *Driver) connect(ctx context.Context, c *Connector, params msdsn.Config) (*Conn, error) {
-	sess, err := connect(ctx, c, d.log, params)
+	sess, err := connect(ctx, c, d.logger, params)
 	if err != nil {
 		// main server failed, try fail-over partner
 		if params.FailOverPartner == "" {
@@ -372,7 +372,7 @@ func (d *Driver) connect(ctx context.Context, c *Connector, params msdsn.Config)
 			params.Port = params.FailOverPort
 		}
 
-		sess, err = connect(ctx, c, d.log, params)
+		sess, err = connect(ctx, c, d.logger, params)
 		if err != nil {
 			// fail-over partner also failed, now fail
 			return nil, err
@@ -466,14 +466,14 @@ func (s *Stmt) sendQuery(ctx context.Context, args []namedValue) (err error) {
 
 	// no need to check number of parameters here, it is checked by database/sql
 	if conn.sess.logFlags&logSQL != 0 {
-		conn.sess.log.Log(ctx, msdsn.LogSQL, s.query)
+		conn.sess.logger.Log(ctx, msdsn.LogSQL, s.query)
 	}
 	if conn.sess.logFlags&logParams != 0 && len(args) > 0 {
 		for i := 0; i < len(args); i++ {
 			if len(args[i].Name) > 0 {
-				s.c.sess.log.Log(ctx, msdsn.LogParams, fmt.Sprintf("\t@%s\t%v", args[i].Name, args[i].Value))
+				s.c.sess.logger.Log(ctx, msdsn.LogParams, fmt.Sprintf("\t@%s\t%v", args[i].Name, args[i].Value))
 			} else {
-				s.c.sess.log.Log(ctx, msdsn.LogParams, fmt.Sprintf("\t@p%d\t%v", i+1, args[i].Value))
+				s.c.sess.logger.Log(ctx, msdsn.LogParams, fmt.Sprintf("\t@p%d\t%v", i+1, args[i].Value))
 			}
 		}
 	}
@@ -484,7 +484,7 @@ func (s *Stmt) sendQuery(ctx context.Context, args []namedValue) (err error) {
 	if len(args) == 0 && !isProc {
 		if err = sendSqlBatch72(conn.sess.buf, s.query, headers, reset); err != nil {
 			if conn.sess.logFlags&logErrors != 0 {
-				conn.sess.log.Log(ctx, msdsn.LogErrors, fmt.Sprintf("Failed to send SqlBatch with %v", err))
+				conn.sess.logger.Log(ctx, msdsn.LogErrors, fmt.Sprintf("Failed to send SqlBatch with %v", err))
 			}
 			conn.connectionGood = false
 			return fmt.Errorf("failed to send SQL Batch: %v", err)
@@ -509,7 +509,7 @@ func (s *Stmt) sendQuery(ctx context.Context, args []namedValue) (err error) {
 		}
 		if err = sendRpc(conn.sess.buf, headers, proc, 0, params, reset); err != nil {
 			if conn.sess.logFlags&logErrors != 0 {
-				conn.sess.log.Log(ctx, msdsn.LogErrors, fmt.Sprintf("Failed to send Rpc with %v", err))
+				conn.sess.logger.Log(ctx, msdsn.LogErrors, fmt.Sprintf("Failed to send Rpc with %v", err))
 			}
 			conn.connectionGood = false
 			return fmt.Errorf("failed to send RPC: %v", err)

@@ -148,7 +148,7 @@ func TestCheckBadConn(t *testing.T) {
 			params: msdsn.Config{},
 		},
 		sess: &tdsSession{
-			log: optionalCtxLogger{},
+			logger: optionalLogger{},
 		},
 	}
 

@@ -21,7 +21,7 @@ import (
 
 func driverWithProcess(t *testing.T) *Driver {
 	return &Driver{
-		log:              optionalCtxLogger{loggerAdapter{testLogger{t}}},
+		logger:           optionalLogger{loggerAdapter{testLogger{t}}},
 		processQueryText: true,
 	}
 }
