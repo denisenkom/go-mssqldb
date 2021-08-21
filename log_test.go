@@ -72,6 +72,7 @@ func TestLogger(t *testing.T) {
 		driver      *Driver
 		logger      Logger        // only one of logger or ctxLogger should be set per test
 		ctxLogger   ContextLogger // only one of logger or ctxLogger should be set per test
+		flags       msdsn.Log
 		expectedMsg string
 	}{
 		{
@@ -79,6 +80,7 @@ func TestLogger(t *testing.T) {
 			driver:      driverInstance,
 			logger:      nil,
 			ctxLogger:   nil,
+			flags:       0,
 			expectedMsg: "",
 		},
 		{
@@ -86,6 +88,7 @@ func TestLogger(t *testing.T) {
 			driver:      driverInstanceNoProcess,
 			logger:      nil,
 			ctxLogger:   nil,
+			flags:       0,
 			expectedMsg: "",
 		},
 		{
@@ -93,6 +96,7 @@ func TestLogger(t *testing.T) {
 			driver:      driverInstance,
 			logger:      bufLogger{&captureBuf},
 			ctxLogger:   nil,
+			flags:       msdsn.LogRetries,
 			expectedMsg: errMsg,
 		},
 		{
@@ -100,6 +104,7 @@ func TestLogger(t *testing.T) {
 			driver:      driverInstanceNoProcess,
 			logger:      bufLogger{&captureBuf},
 			ctxLogger:   nil,
+			flags:       msdsn.LogRetries,
 			expectedMsg: errMsg,
 		},
 		{
@@ -107,6 +112,7 @@ func TestLogger(t *testing.T) {
 			driver:      driverInstance,
 			logger:      nil,
 			ctxLogger:   bufContextLogger{&captureBuf},
+			flags:       msdsn.LogRetries,
 			expectedMsg: errMsg,
 		},
 		{
@@ -114,7 +120,40 @@ func TestLogger(t *testing.T) {
 			driver:      driverInstanceNoProcess,
 			logger:      nil,
 			ctxLogger:   bufContextLogger{&captureBuf},
+			flags:       msdsn.LogRetries,
 			expectedMsg: errMsg,
+		},
+		{
+			name:        "mssql with Logger logging but no flags set",
+			driver:      driverInstance,
+			logger:      bufLogger{&captureBuf},
+			ctxLogger:   nil,
+			flags:       0,
+			expectedMsg: "",
+		},
+		{
+			name:        "sqlserver with Logger logging but no flags set",
+			driver:      driverInstanceNoProcess,
+			logger:      bufLogger{&captureBuf},
+			ctxLogger:   nil,
+			flags:       0,
+			expectedMsg: "",
+		},
+		{
+			name:        "mssql with ContextLogger logging but retry logging flag not set",
+			driver:      driverInstance,
+			logger:      nil,
+			ctxLogger:   bufContextLogger{&captureBuf},
+			flags:       msdsn.LogErrors,
+			expectedMsg: "",
+		},
+		{
+			name:        "sqlserver with ContextLogger logging but retry logging flag not set",
+			driver:      driverInstanceNoProcess,
+			logger:      nil,
+			ctxLogger:   bufContextLogger{&captureBuf},
+			flags:       msdsn.LogErrors,
+			expectedMsg: "",
 		},
 	}
 
@@ -140,10 +179,12 @@ func TestLogger(t *testing.T) {
 			connector: &Connector{
 				params: msdsn.Config{
 					DisableRetry: false,
+					LogFlags:     tc.flags,
 				},
 			},
 			sess: &tdsSession{
-				logger: tc.driver.logger,
+				logger:   tc.driver.logger,
+				logFlags: uint64(tc.flags),
 			},
 			connectionGood: true,
 		}
@@ -163,7 +204,7 @@ func TestLogger(t *testing.T) {
 				tc.name, sysLogBuf.Len(), strings.TrimRight(sysLogBuf.String(), "\n"))
 		}
 
-		// Ensure that the expected message was logged to whaterver logger we configured
+		// Ensure that the expected message was logged
 		loggedMsg := ""
 		if tc.logger != nil || tc.ctxLogger != nil {
 			loggedMsg = strings.TrimRight(captureBuf.String(), "\n")

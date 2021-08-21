@@ -14,6 +14,7 @@ const (
 	logParams      = uint64(msdsn.LogParams)
 	logTransaction = uint64(msdsn.LogTransaction)
 	logDebug       = uint64(msdsn.LogDebug)
+	logRetries     = uint64(msdsn.LogRetries)
 )
 
 // Logger is an interface you can implement to have the go-msqldb

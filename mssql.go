@@ -74,20 +74,38 @@ func (d *Driver) Open(dsn string) (driver.Conn, error) {
 	return d.open(context.Background(), dsn)
 }
 
+// SetLogger sets a Logger for both driver instances ("mssql" and "sqlserver").
+// Use this to have go-msqldb log additional information in a format it picks.
+// You can set either a Logger or a ContextLogger, but not both. Calling SetLogger
+// will overwrite any ContextLogger you set with SetContextLogger.
 func SetLogger(logger Logger) {
 	driverInstance.SetLogger(logger)
 	driverInstanceNoProcess.SetLogger(logger)
 }
 
+// SetLogger sets a Logger for the driver instance on which you call it.
+// Use this to have go-msqldb log additional information in a format it picks.
+// You can set either a Logger or a ContextLogger, but not both. Calling SetLogger
+// will overwrite any ContextLogger you set with SetContextLogger.
 func (d *Driver) SetLogger(logger Logger) {
 	d.logger = optionalLogger{loggerAdapter{logger}}
 }
 
+// SetContextLogger sets a ContextLogger for both driver instances ("mssql" and "sqlserver").
+// Use this to get callbacks from go-mssqldb with additional information and extra details
+// that you can log in the format of your choice.
+// You can set either a ContextLogger or a Logger, but not both. Calling SetContextLogger
+// will overwrite any Logger you set with SetLogger.
 func SetContextLogger(ctxLogger ContextLogger) {
 	driverInstance.SetContextLogger(ctxLogger)
 	driverInstanceNoProcess.SetContextLogger(ctxLogger)
 }
 
+// SetContextLogger sets a ContextLogger for the driver instance on which you call it.
+// Use this to get callbacks from go-mssqldb with additional information and extra details
+// that you can log in the format of your choice.
+// You can set either a ContextLogger or a Logger, but not both. Calling SetContextLogger
+// will overwrite any Logger you set with SetLogger.
 func (d *Driver) SetContextLogger(ctxLogger ContextLogger) {
 	d.logger = optionalLogger{ctxLogger}
 }
@@ -226,7 +244,9 @@ func (c *Conn) checkBadConn(ctx context.Context, err error, mayRetry bool) error
 	}
 
 	if !c.connectionGood && mayRetry && !c.connector.params.DisableRetry {
-		c.sess.logger.Log(ctx, msdsn.LogErrors, err.Error())
+		if c.sess.logFlags&logRetries != 0 {
+			c.sess.logger.Log(ctx, msdsn.LogRetries, err.Error())
+		}
 		return newRetryableError(err)
 	}
 
