@@ -31,7 +31,7 @@ type bufContextLogger struct {
 	Buff *bytes.Buffer
 }
 
-func (l bufContextLogger) Log(ctx context.Context, logLevel msdsn.Log, msg string) {
+func (l bufContextLogger) Log(_ context.Context, _ msdsn.Log, msg string) {
 	l.Buff.WriteString(msg)
 }
 
@@ -65,6 +65,7 @@ func TestLogger(t *testing.T) {
 
 	// Set up a retryable error and the test cases that will exercise it
 	errMsg := "Retryable Test Error"
+	retryPrefix := "RETRY: "
 	inErr := StreamError{Message: errMsg}
 
 	testcases := [...]struct {
@@ -97,7 +98,7 @@ func TestLogger(t *testing.T) {
 			logger:      bufLogger{&captureBuf},
 			ctxLogger:   nil,
 			flags:       msdsn.LogRetries,
-			expectedMsg: errMsg,
+			expectedMsg: retryPrefix + errMsg,
 		},
 		{
 			name:        "sqlserver with Logger logging",
@@ -105,7 +106,7 @@ func TestLogger(t *testing.T) {
 			logger:      bufLogger{&captureBuf},
 			ctxLogger:   nil,
 			flags:       msdsn.LogRetries,
-			expectedMsg: errMsg,
+			expectedMsg: retryPrefix + errMsg,
 		},
 		{
 			name:        "mssql with ContextLogger logging",

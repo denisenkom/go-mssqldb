@@ -646,7 +646,7 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 	defer func() {
 		if err := recover(); err != nil {
 			if sess.logFlags&logErrors != 0 {
-				sess.logger.Log(ctx, msdsn.LogErrors, fmt.Sprintf("ERROR: Intercepted panic %v", err))
+				sess.logger.Log(ctx, msdsn.LogErrors, fmt.Sprintf("Intercepted panic %v", err))
 			}
 			ch <- err
 		}
@@ -656,7 +656,7 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 	packet_type, err := sess.buf.BeginRead()
 	if err != nil {
 		if sess.logFlags&logErrors != 0 {
-			sess.logger.Log(ctx, msdsn.LogErrors, fmt.Sprintf("ERROR: BeginRead failed %v", err))
+			sess.logger.Log(ctx, msdsn.LogErrors, fmt.Sprintf("BeginRead failed %v", err))
 		}
 		ch <- err
 		return

@@ -57,6 +57,15 @@ type loggerAdapter struct {
 
 // Log passes the message to the underlying Logger interface's
 // Println function, emulating the orignal Logger behavior.
-func (la loggerAdapter) Log(_ context.Context, _ msdsn.Log, msg string) {
+func (la loggerAdapter) Log(_ context.Context, category msdsn.Log, msg string) {
+
+	// Add prefix for certain categories
+	switch category {
+	case msdsn.LogErrors:
+		msg = "ERROR: " + msg
+	case msdsn.LogRetries:
+		msg = "RETRY: " + msg
+	}
+
 	la.logger.Println(msg)
 }
