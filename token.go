@@ -369,7 +369,9 @@ func processEnvChg(ctx context.Context, sess *tdsSession) {
 			sess.routedPort = newPort
 		default:
 			// ignore rest of records because we don't know how to skip those
-			sess.logger.Log(ctx, 0, fmt.Sprintf("WARN: Unknown ENVCHANGE record detected with type id = %d", envtype))
+			if sess.logFlags&logDebug != 0 {
+				sess.logger.Log(ctx, msdsn.LogDebug, fmt.Sprintf("WARN: Unknown ENVCHANGE record detected with type id = %d", envtype))
+			}
 			return
 		}
 	}

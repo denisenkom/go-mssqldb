@@ -1036,11 +1036,11 @@ func connect(ctx context.Context, c *Connector, logger ContextLogger, p msdsn.Co
 		defer cancel()
 	}
 	// if instance is specified use instance resolution service
-	if len(p.Instance) > 0 && p.Port != 0 {
+	if len(p.Instance) > 0 && p.Port != 0 && uint64(p.LogFlags)&logDebug != 0 {
 		// both instance name and port specified
 		// when port is specified instance name is not used
 		// you should not provide instance name when you provide port
-		logger.Log(ctx, 0, "WARN: You specified both instance name and port in the connection string, port will be used and instance name will be ignored")
+		logger.Log(ctx, msdsn.LogDebug, "WARN: You specified both instance name and port in the connection string, port will be used and instance name will be ignored")
 	}
 	if len(p.Instance) > 0 {
 		p.Instance = strings.ToUpper(p.Instance)
