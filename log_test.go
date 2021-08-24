@@ -39,7 +39,7 @@ func (l bufContextLogger) Log(_ context.Context, _ msdsn.Log, msg string) {
 func TestLogger(t *testing.T) {
 
 	// Record system log settings and restore them after the test
-	originalWriter := log.Writer()
+	originalWriter := currentLogWriter()
 	originalFlags := log.Flags()
 	defer func() {
 		log.SetOutput(originalWriter)
