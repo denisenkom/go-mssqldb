@@ -115,7 +115,9 @@ func TestLoginWithSQLServerAuth(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unable to parse dummy DSN: %v", err)
 	}
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	mock := NewMockTransportDialer(
 		[]string{
@@ -173,7 +175,9 @@ func TestLoginWithSecurityTokenAuth(t *testing.T) {
 		t.Errorf("Unable to parse dummy DSN: %v", err)
 	}
 
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	mock := NewMockTransportDialer(
 		[]string{
@@ -234,7 +238,9 @@ func TestLoginWithADALUsernamePasswordAuth(t *testing.T) {
 		t.Errorf("Unable to parse dummy DSN: %v", err)
 	}
 
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	mock := NewMockTransportDialer(
 		[]string{
@@ -306,7 +312,9 @@ func TestLoginWithADALManagedIdentityAuth(t *testing.T) {
 		t.Errorf("Unable to parse dummy DSN: %v", err)
 	}
 
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	mock := NewMockTransportDialer(
 		[]string{

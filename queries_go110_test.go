@@ -15,7 +15,9 @@ import (
 func TestSessionInitSQL(t *testing.T) {
 	checkConnStr(t)
 
-	d := &Driver{logger: optionalLogger{loggerAdapter{testLogger{t}}}}
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	d := &Driver{logger: optionalLogger{loggerAdapter{&tl}}}
 	connector, err := d.OpenConnector(makeConnStr(t).String())
 	if err != nil {
 		t.Fatal("unable to open connector", err)
@@ -188,8 +190,9 @@ select
 }
 
 func TestReturnStatusWithQuery(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	_, err := conn.Exec("if object_id('retstatus') is not null drop proc retstatus;")
 	if err != nil {
@@ -224,8 +227,9 @@ func TestReturnStatusWithQuery(t *testing.T) {
 }
 
 func TestIdentity(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	tx, err := conn.Begin()
 	if err != nil {

@@ -6,12 +6,15 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net"
 	"net/url"
 	"os"
 	"runtime"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/denisenkom/go-mssqldb/msdsn"
 )
@@ -156,7 +159,9 @@ func TestSendSqlBatch(t *testing.T) {
 		return
 	}
 
-	conn, err := connect(context.Background(), &Connector{params: p}, optionalLogger{loggerAdapter{testLogger{t}}}, p)
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	conn, err := connect(context.Background(), &Connector{params: p}, optionalLogger{loggerAdapter{&tl}}, p)
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
 		return
@@ -246,15 +251,33 @@ func makeConnStr(t testing.TB) *url.URL {
 }
 
 type testLogger struct {
-	t testing.TB
+	t    testing.TB
+	mu   sync.Mutex
+	done bool
 }
 
-func (l testLogger) Printf(format string, v ...interface{}) {
-	l.t.Logf(format, v...)
+func (l *testLogger) Printf(format string, v ...interface{}) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if !l.done {
+		msg := fmt.Sprintf(format, v...)
+		l.t.Logf("%v: %s", time.Now(), msg)
+	}
 }
 
-func (l testLogger) Println(v ...interface{}) {
-	l.t.Log(v...)
+func (l *testLogger) Println(v ...interface{}) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if !l.done {
+		msg := fmt.Sprint(v...)
+		l.t.Logf("%v: %s", time.Now(), msg)
+	}
+}
+
+func (l *testLogger) StopLogging() {
+	l.mu.Lock()
+	l.done = true
+	l.mu.Unlock()
 }
 
 func testConnection(t *testing.T, connStr string) {
@@ -277,7 +300,9 @@ func testConnection(t *testing.T, connStr string) {
 
 func TestConnect(t *testing.T) {
 	params := testConnParams(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 	testConnection(t, params.URL().String())
 }
 
@@ -327,11 +352,16 @@ func checkSimpleQuery(rows *sql.Rows, t *testing.T) {
 }
 
 func TestQuery(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	if conn == nil {
 		return
 	}
 	defer conn.Close()
+	defer logger.StopLogging()
+
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	stmt := simpleQuery(conn, t)
 	if stmt == nil {
@@ -358,8 +388,13 @@ func TestQuery(t *testing.T) {
 
 func TestMultipleQueriesSequentialy(t *testing.T) {
 
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
+
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	stmt, err := conn.Prepare("select 1 as a")
 	if err != nil {
@@ -386,8 +421,13 @@ func TestMultipleQueriesSequentialy(t *testing.T) {
 }
 
 func TestMultipleQueryClose(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
+
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	stmt, err := conn.Prepare("select 1 as a")
 	if err != nil {
@@ -415,14 +455,22 @@ func TestMultipleQueryClose(t *testing.T) {
 }
 
 func TestPing(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
+
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
+
 	conn.Ping()
 }
 
 func TestSecureWithInvalidHostName(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	dsn := makeConnStr(t)
 	dsnParams := dsn.Query()
@@ -444,7 +492,9 @@ func TestSecureWithInvalidHostName(t *testing.T) {
 
 func TestSecureConnection(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	dsn := makeConnStr(t)
 	dsnParams := dsn.Query()
@@ -625,7 +675,9 @@ func BenchmarkPacketSize(b *testing.B) {
 }
 
 func runBatch(t testing.TB, p msdsn.Config) {
-	conn, err := connect(context.Background(), &Connector{params: p}, optionalLogger{loggerAdapter{testLogger{t}}}, p)
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	conn, err := connect(context.Background(), &Connector{params: p}, optionalLogger{loggerAdapter{&tl}}, p)
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
 		return

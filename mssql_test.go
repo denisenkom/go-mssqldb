@@ -14,7 +14,9 @@ import (
 )
 
 func TestBadOpen(t *testing.T) {
-	drv := driverWithProcess(t)
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	drv := driverWithProcess(t, &tl)
 	_, err := drv.open(context.Background(), "port=bad")
 	if err == nil {
 		t.Fail()

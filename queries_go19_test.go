@@ -14,7 +14,9 @@ import (
 
 func TestOutputParam(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	db, err := sql.Open("sqlserver", makeConnStr(t).String())
 	if err != nil {
@@ -365,7 +367,9 @@ END;
 	sqltextrun := `abinout`
 
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	db, err := sql.Open("sqlserver", makeConnStr(t).String())
 	if err != nil {
@@ -565,7 +569,9 @@ func TestOutputParamWithRows(t *testing.T) {
 	sqltextrun := `spwithoutputandrows`
 
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	db, err := sql.Open("sqlserver", makeConnStr(t).String())
 	if err != nil {
@@ -614,7 +620,9 @@ func TestOutputParamWithRows(t *testing.T) {
 
 func TestParamNoName(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	db, err := sql.Open("sqlserver", makeConnStr(t).String())
 	if err != nil {
@@ -939,8 +947,9 @@ with
 	`
 	t.Logf("query len (utf16 bytes)=%d, len/4096=%f\n", len(query)*2, float64(len(query)*2)/4096)
 
-	db := open(t)
+	db, logger := open(t)
 	defer db.Close()
+	defer logger.StopLogging()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -1000,8 +1009,9 @@ with
 }
 
 func TestDateTimeParam19(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	logger.StopLogging()
 
 	// testing DateTime1, only supported on go 1.9
 	var emptydate time.Time
@@ -1035,8 +1045,9 @@ func TestDateTimeParam19(t *testing.T) {
 }
 
 func TestReturnStatus(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	_, err := conn.Exec("if object_id('retstatus') is not null drop proc retstatus;")
 	if err != nil {
@@ -1059,8 +1070,9 @@ func TestReturnStatus(t *testing.T) {
 }
 
 func TestClearReturnStatus(t *testing.T) {
-	db := open(t)
+	db, logger := open(t)
 	defer db.Close()
+	defer logger.StopLogging()
 
 	ctx := context.TODO()
 	conn, err := db.Conn(ctx)
