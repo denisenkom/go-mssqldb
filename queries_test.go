@@ -2589,3 +2589,28 @@ func TestClose(t *testing.T) {
 
 	conn.Close()
 }
+
+func TestTypeSizesFromQuery(t *testing.T) {
+	conn := open(t)
+	defer conn.Close()
+	r, err := conn.Query("SELECT CAST('1' AS CHAR(10)), CAST(0x02 AS BINARY(20)), CAST(0x03 AS VARBINARY(30))")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := r.ColumnTypes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, ok := c[0].Length()
+	if !ok || l != 10 {
+		t.Errorf("CHAR(10) reported as (variable, length): (%v, %d)", ok, l)
+	}
+	l, ok = c[1].Length()
+	if !ok || l != 20 {
+		t.Errorf("BINARY(20) reported as (variable, length): (%v, %d)", ok, l)
+	}
+	l, ok = c[2].Length()
+	if !ok || l != 30 {
+		t.Errorf("VARBINARY(30) reported as (variable, length): (%v, %d)", ok, l)
+	}
+}
