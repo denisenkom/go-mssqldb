@@ -258,7 +258,6 @@ type testLogger struct {
 }
 
 func (l *testLogger) Printf(format string, v ...interface{}) {
-	l.t.Helper()
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if !l.done {
@@ -268,7 +267,6 @@ func (l *testLogger) Printf(format string, v ...interface{}) {
 }
 
 func (l *testLogger) Println(v ...interface{}) {
-	l.t.Helper()
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if !l.done {

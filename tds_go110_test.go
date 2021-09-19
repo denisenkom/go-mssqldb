@@ -16,5 +16,6 @@ func open(t *testing.T) (*sql.DB, *testLogger) {
 		t.Error("Open connection failed:", err.Error())
 		return nil, &tl
 	}
-	return sql.OpenDB(connector), &tl
+	conn := sql.OpenDB(connector)
+	return conn, &tl
 }
