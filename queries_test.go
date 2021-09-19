@@ -2661,8 +2661,10 @@ func TestClose(t *testing.T) {
 }
 
 func TestTypeSizesFromQuery(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
+
 	r, err := conn.Query("SELECT CAST('1' AS CHAR(10)), CAST(0x02 AS BINARY(20)), CAST(0x03 AS VARBINARY(30))")
 	if err != nil {
 		t.Fatal(err)
