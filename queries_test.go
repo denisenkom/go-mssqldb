@@ -1909,8 +1909,8 @@ func TestMixedParameters(t *testing.T) {
 /*
 func TestMixedParametersExample(t *testing.T) {
 	conn, logger := open(t)
-defer conn.Close()
-defer logger.StopLogging()
+	defer conn.Close()
+	defer logger.StopLogging()
 	row := conn.QueryRow(
 		"select :id, ?",
 		sql.Named("id", 1),

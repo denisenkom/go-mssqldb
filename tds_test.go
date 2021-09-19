@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path"
 	"runtime"
 	"sync"
 	"testing"
@@ -257,21 +258,49 @@ type testLogger struct {
 }
 
 func (l *testLogger) Printf(format string, v ...interface{}) {
+	l.t.Helper()
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if !l.done {
 		msg := fmt.Sprintf(format, v...)
-		l.t.Logf("%v: %s", time.Now(), msg)
+		l.t.Logf("%v [%s]: %s", time.Now(), testLoggerCaller(), msg)
 	}
 }
 
 func (l *testLogger) Println(v ...interface{}) {
+	l.t.Helper()
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if !l.done {
 		msg := fmt.Sprint(v...)
-		l.t.Logf("%v: %s", time.Now(), msg)
+		l.t.Logf("%v [%s]: %s", time.Now(), testLoggerCaller(), msg)
 	}
+}
+
+// testLoggerCaller returns a formatted string with the file and line number of the caller
+// to the testLogger's Printf and Println functions. It accounts for Printf/Println being
+// called directly or via the driver's optionalLogger.
+func testLoggerCaller() string {
+	caller := ""
+
+	pc := make([]uintptr, 5)
+	runtime.Callers(3, pc[:]) // skip Callers, testLogCaller, and testLogger.PrintX (always in the call stack)
+	frames := runtime.CallersFrames(pc)
+
+	// skip loggerAdapter.Log and optionalLogger.Log, if in the call stack
+	for {
+		frame, ok := frames.Next()
+		if !ok {
+			break
+		}
+		function := path.Base(frame.Function)
+		if function != "go-mssqldb.loggerAdapter.Log" && function != "go-mssqldb.optionalLogger.Log" {
+			caller = fmt.Sprintf("%s:%d", path.Base(frame.File), frame.Line)
+			break
+		}
+	}
+
+	return caller
 }
 
 func (l *testLogger) StopLogging() {
