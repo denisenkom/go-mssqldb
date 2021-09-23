@@ -72,8 +72,9 @@ func ExampleRows_usingmessages() {
 				fmt.Println(cols)
 				if inresult {
 					var d interface{}
-					rows.Scan(&d)
-					fmt.Println(d)
+					if err = rows.Scan(&d); err != nil {
+						fmt.Println(d)
+					}
 				}
 			}
 		case sqlexp.MsgNextResultSet:

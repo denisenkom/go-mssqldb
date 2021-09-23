@@ -2689,8 +2689,9 @@ func TestTypeSizesFromQuery(t *testing.T) {
 }
 
 func TestMessageQueue(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 	retmsg := &sqlexp.ReturnMessage{}
 	latency, _ := getLatency(t)
 	ctx, cancel := context.WithTimeout(context.Background(), latency+200000*time.Millisecond)
@@ -2747,8 +2748,10 @@ func TestMessageQueue(t *testing.T) {
 }
 
 func TestAdvanceResultSetAfterPartialRead(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
+
 	ctx := context.Background()
 	retmsg := &sqlexp.ReturnMessage{}
 
@@ -2789,8 +2792,10 @@ func TestAdvanceResultSetAfterPartialRead(t *testing.T) {
 	}
 }
 func TestMessageQueueWithErrors(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
+
 	msgs, errs, results, rowcounts := testMixedQuery(conn, t)
 	if msgs != 1 {
 		t.Fatalf("Got %d messages, expected 1", msgs)
@@ -2867,8 +2872,10 @@ func testMixedQuery(conn *sql.DB, b testing.TB) (msgs, errs, results, rowcounts 
 }
 
 func TestTimeoutWithNoResults(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
+
 	latency, _ := getLatency(t)
 	ctx, cancel := context.WithTimeout(context.Background(), latency+5000*time.Millisecond)
 	defer cancel()
@@ -2903,8 +2910,10 @@ func TestTimeoutWithNoResults(t *testing.T) {
 }
 
 func TestCancelWithNoResults(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
+
 	latency, _ := getLatency(t)
 	ctx, cancel := context.WithTimeout(context.Background(), latency+5000*time.Millisecond)
 	retmsg := &sqlexp.ReturnMessage{}
@@ -2937,4 +2946,4 @@ func TestCancelWithNoResults(t *testing.T) {
 	if r.Err() != context.Canceled {
 		t.Fatalf("Unexpected error: %v", r.Err())
 	}
-
+}

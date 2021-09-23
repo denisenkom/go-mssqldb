@@ -7,8 +7,10 @@ import (
 )
 
 func BenchmarkMessageQueue(b *testing.B) {
-	conn := open(b)
+	conn, logger := open(b)
 	defer conn.Close()
+	defer logger.StopLogging()
+
 	b.Run("BlockingQuery", func(b *testing.B) {
 		var errs, results float64
 		for i := 0; i < b.N; i++ {

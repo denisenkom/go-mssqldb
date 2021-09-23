@@ -734,9 +734,6 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 			}
 			ch <- done
 			if done.Status&doneCount != 0 {
-				if sess.logFlags&logRows != 0 {
-					sess.log.Printf("(%d row(s) affected)\n", done.RowCount)
-				}
 				if outs.msgq != nil {
 					_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgRowsAffected{Count: int64(done.RowCount)})
 				}
@@ -905,7 +902,7 @@ func (t tokenProcessor) nextToken() (tokenStruct, error) {
 	case <-t.ctx.Done():
 		// It seems the Message function on t.outs.msgq doesn't get the Done if it comes here instead
 		if t.outs.msgq != nil {
-			sqlexp.ReturnMessageEnqueue(t.ctx, t.outs.msgq, sqlexp.MsgNextResultSet{})
+			_ = sqlexp.ReturnMessageEnqueue(t.ctx, t.outs.msgq, sqlexp.MsgNextResultSet{})
 		}
 		if t.noAttn {
 			return nil, t.ctx.Err()

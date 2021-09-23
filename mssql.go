@@ -1110,7 +1110,7 @@ func (rc *Rowsq) Columns() (res []string) {
 			tok, err := rc.reader.nextToken()
 			if err == nil {
 				if rc.reader.sess.logFlags&logDebug != 0 {
-					rc.reader.sess.log.Printf("Columns() token type:%v", reflect.TypeOf(tok))
+					rc.reader.sess.logger.Log(rc.reader.ctx, msdsn.LogDebug, fmt.Sprintf("Columns() token type:%v", reflect.TypeOf(tok)))
 				}
 				if tok == nil {
 					return []string{}
@@ -1139,7 +1139,7 @@ func (rc *Rowsq) Next(dest []driver.Value) error {
 	for {
 		tok, err := rc.reader.nextToken()
 		if rc.reader.sess.logFlags&logDebug != 0 {
-			rc.reader.sess.log.Printf("Next() token type:%v", reflect.TypeOf(tok))
+			rc.reader.sess.logger.Log(rc.reader.ctx, msdsn.LogDebug, fmt.Sprintf("Next() token type:%v", reflect.TypeOf(tok)))
 		}
 		if err == nil {
 			if tok == nil {
@@ -1156,7 +1156,7 @@ func (rc *Rowsq) Next(dest []driver.Value) error {
 						rc.requestDone = true
 					}
 					if tokdata.isError() {
-						e := rc.stmt.c.checkBadConn(tokdata.getError(), false)
+						e := rc.stmt.c.checkBadConn(rc.reader.ctx, tokdata.getError(), false)
 						switch e.(type) {
 						case Error:
 							// Ignore non-fatal server errors
@@ -1176,7 +1176,7 @@ func (rc *Rowsq) Next(dest []driver.Value) error {
 			}
 
 		} else {
-			return rc.stmt.c.checkBadConn(err, false)
+			return rc.stmt.c.checkBadConn(rc.reader.ctx, err, false)
 		}
 	}
 }
@@ -1198,7 +1198,7 @@ scan:
 		// we should have a columns token in the channel if we aren't at the end
 		tok, err := rc.reader.nextToken()
 		if rc.reader.sess.logFlags&logDebug != 0 {
-			rc.reader.sess.log.Printf("NextResultSet() token type:%v", reflect.TypeOf(tok))
+			rc.reader.sess.logger.Log(rc.reader.ctx, msdsn.LogDebug, fmt.Sprintf("NextResultSet() token type:%v", reflect.TypeOf(tok)))
 		}
 
 		if err != nil {
