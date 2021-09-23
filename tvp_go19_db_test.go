@@ -13,7 +13,9 @@ import (
 
 func TestTVPGoSQLTypesWithStandardType(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	c := makeConnStr(t).String()
 	db, err := sql.Open("sqlserver", c)
@@ -252,7 +254,9 @@ func TestTVPGoSQLTypesWithStandardType(t *testing.T) {
 
 func TestTVPGoSQLTypes(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	c := makeConnStr(t).String()
 	db, err := sql.Open("sqlserver", c)
@@ -413,7 +417,9 @@ func TestTVPGoSQLTypes(t *testing.T) {
 
 func TestTVP(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	c := makeConnStr(t).String()
 	db, err := sql.Open("sqlserver", c)
@@ -694,7 +700,9 @@ func TestTVP(t *testing.T) {
 
 func TestTVP_WithTag(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	db, err := sql.Open("sqlserver", makeConnStr(t).String())
 	if err != nil {
@@ -1037,7 +1045,9 @@ func TestTVPSchema(t *testing.T) {
 	)
 
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	conn, err := sql.Open("sqlserver", makeConnStr(t).String())
 	if err != nil {
@@ -1105,7 +1115,9 @@ func TestTVPSchema(t *testing.T) {
 
 func TestTVPObject(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	conn, err := sql.Open("sqlserver", makeConnStr(t).String())
 	if err != nil {

@@ -7,8 +7,9 @@ import (
 )
 
 func TestIdentity(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	tx, err := conn.Begin()
 	if err != nil {

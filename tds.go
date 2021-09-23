@@ -140,7 +140,7 @@ type tdsSession struct {
 	columns      []columnStruct
 	tranid       uint64
 	logFlags     uint64
-	log          optionalLogger
+	logger       ContextLogger
 	routedServer string
 	routedPort   uint16
 }
@@ -151,16 +151,6 @@ const (
 
 	// Default port if no port given.
 	defaultServerPort = 1433
-)
-
-const (
-	logErrors      = uint64(msdsn.LogErrors)
-	logMessages    = uint64(msdsn.LogMessages)
-	logRows        = uint64(msdsn.LogRows)
-	logSQL         = uint64(msdsn.LogSQL)
-	logParams      = uint64(msdsn.LogParams)
-	logTransaction = uint64(msdsn.LogTransaction)
-	logDebug       = uint64(msdsn.LogDebug)
 )
 
 type columnStruct struct {
@@ -974,7 +964,7 @@ func interpretPreloginResponse(p msdsn.Config, fe *featureExtFedAuth, fields map
 	return
 }
 
-func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, log optionalLogger, auth auth, fe *featureExtFedAuth, packetSize uint32) (l *login, err error) {
+func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger ContextLogger, auth auth, fe *featureExtFedAuth, packetSize uint32) (l *login, err error) {
 	var typeFlags uint8
 	if p.ReadOnlyIntent {
 		typeFlags |= fReadOnlyIntent
@@ -992,13 +982,13 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, log optiona
 	switch {
 	case fe.FedAuthLibrary == fedAuthLibrarySecurityToken:
 		if uint64(p.LogFlags)&logDebug != 0 {
-			log.Println("Starting federated authentication using security token")
+			logger.Log(ctx, msdsn.LogDebug, "Starting federated authentication using security token")
 		}
 
 		fe.FedAuthToken, err = c.securityTokenProvider(ctx)
 		if err != nil {
 			if uint64(p.LogFlags)&logDebug != 0 {
-				log.Printf("Failed to retrieve service principal token for federated authentication security token library: %v", err)
+				logger.Log(ctx, msdsn.LogDebug, fmt.Sprintf("Failed to retrieve service principal token for federated authentication security token library: %v", err))
 			}
 			return nil, err
 		}
@@ -1007,14 +997,14 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, log optiona
 
 	case fe.FedAuthLibrary == fedAuthLibraryADAL:
 		if uint64(p.LogFlags)&logDebug != 0 {
-			log.Println("Starting federated authentication using ADAL")
+			logger.Log(ctx, msdsn.LogDebug, "Starting federated authentication using ADAL")
 		}
 
 		l.FeatureExt.Add(fe)
 
 	case auth != nil:
 		if uint64(p.LogFlags)&logDebug != 0 {
-			log.Println("Starting SSPI login")
+			logger.Log(ctx, msdsn.LogDebug, "Starting SSPI login")
 		}
 
 		l.SSPI, err = auth.InitialBytes()
@@ -1034,7 +1024,7 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, log optiona
 	return l, nil
 }
 
-func connect(ctx context.Context, c *Connector, log optionalLogger, p msdsn.Config) (res *tdsSession, err error) {
+func connect(ctx context.Context, c *Connector, logger ContextLogger, p msdsn.Config) (res *tdsSession, err error) {
 	dialCtx := ctx
 	if p.DialTimeout >= 0 {
 		dt := p.DialTimeout
@@ -1046,11 +1036,11 @@ func connect(ctx context.Context, c *Connector, log optionalLogger, p msdsn.Conf
 		defer cancel()
 	}
 	// if instance is specified use instance resolution service
-	if len(p.Instance) > 0 && p.Port != 0 {
+	if len(p.Instance) > 0 && p.Port != 0 && uint64(p.LogFlags)&logDebug != 0 {
 		// both instance name and port specified
 		// when port is specified instance name is not used
 		// you should not provide instance name when you provide port
-		log.Println("WARN: You specified both instance name and port in the connection string, port will be used and instance name will be ignored")
+		logger.Log(ctx, msdsn.LogDebug, "WARN: You specified both instance name and port in the connection string, port will be used and instance name will be ignored")
 	}
 	if len(p.Instance) > 0 {
 		p.Instance = strings.ToUpper(p.Instance)
@@ -1101,7 +1091,7 @@ initiate_connection:
 	outbuf := newTdsBuffer(packetSize, toconn)
 	sess := tdsSession{
 		buf:      outbuf,
-		log:      log,
+		logger:   logger,
 		logFlags: uint64(p.LogFlags),
 	}
 
@@ -1175,7 +1165,7 @@ initiate_connection:
 		auth = nil
 	}
 
-	login, err := prepareLogin(ctx, c, p, log, auth, fedAuth, uint32(outbuf.PackageSize()))
+	login, err := prepareLogin(ctx, c, p, logger, auth, fedAuth, uint32(outbuf.PackageSize()))
 	if err != nil {
 		return nil, err
 	}

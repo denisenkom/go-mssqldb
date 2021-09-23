@@ -94,8 +94,9 @@ func TestBulkcopy(t *testing.T) {
 		values[i] = val.in
 	}
 
-	pool := open(t)
+	pool, logger := open(t)
 	defer pool.Close()
+	defer logger.StopLogging()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

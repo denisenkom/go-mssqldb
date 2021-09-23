@@ -52,7 +52,7 @@ func (d netDialer) DialContext(ctx context.Context, network string, addr string)
 }
 
 type Driver struct {
-	log optionalLogger
+	logger optionalLogger
 
 	processQueryText bool
 }
@@ -74,13 +74,40 @@ func (d *Driver) Open(dsn string) (driver.Conn, error) {
 	return d.open(context.Background(), dsn)
 }
 
+// SetLogger sets a Logger for both driver instances ("mssql" and "sqlserver").
+// Use this to have go-msqldb log additional information in a format it picks.
+// You can set either a Logger or a ContextLogger, but not both. Calling SetLogger
+// will overwrite any ContextLogger you set with SetContextLogger.
 func SetLogger(logger Logger) {
 	driverInstance.SetLogger(logger)
 	driverInstanceNoProcess.SetLogger(logger)
 }
 
+// SetLogger sets a Logger for the driver instance on which you call it.
+// Use this to have go-msqldb log additional information in a format it picks.
+// You can set either a Logger or a ContextLogger, but not both. Calling SetLogger
+// will overwrite any ContextLogger you set with SetContextLogger.
 func (d *Driver) SetLogger(logger Logger) {
-	d.log = optionalLogger{logger}
+	d.logger = optionalLogger{loggerAdapter{logger}}
+}
+
+// SetContextLogger sets a ContextLogger for both driver instances ("mssql" and "sqlserver").
+// Use this to get callbacks from go-mssqldb with additional information and extra details
+// that you can log in the format of your choice.
+// You can set either a ContextLogger or a Logger, but not both. Calling SetContextLogger
+// will overwrite any Logger you set with SetLogger.
+func SetContextLogger(ctxLogger ContextLogger) {
+	driverInstance.SetContextLogger(ctxLogger)
+	driverInstanceNoProcess.SetContextLogger(ctxLogger)
+}
+
+// SetContextLogger sets a ContextLogger for the driver instance on which you call it.
+// Use this to get callbacks from go-mssqldb with additional information and extra details
+// that you can log in the format of your choice.
+// You can set either a ContextLogger or a Logger, but not both. Calling SetContextLogger
+// will overwrite any Logger you set with SetLogger.
+func (d *Driver) SetContextLogger(ctxLogger ContextLogger) {
+	d.logger = optionalLogger{ctxLogger}
 }
 
 // NewConnector creates a new connector from a DSN.
@@ -193,7 +220,7 @@ func (c *Conn) IsValid() bool {
 // If bad connection retry is enabled and the error + connection state permits
 // retrying, checkBadConn will return a RetryableError that allows database/sql
 // to automatically retry the query with another connection.
-func (c *Conn) checkBadConn(err error, mayRetry bool) error {
+func (c *Conn) checkBadConn(ctx context.Context, err error, mayRetry bool) error {
 	switch err {
 	case nil:
 		return nil
@@ -217,6 +244,9 @@ func (c *Conn) checkBadConn(err error, mayRetry bool) error {
 	}
 
 	if !c.connectionGood && mayRetry && !c.connector.params.DisableRetry {
+		if c.sess.logFlags&logRetries != 0 {
+			c.sess.logger.Log(ctx, msdsn.LogRetries, err.Error())
+		}
 		return newRetryableError(err)
 	}
 
@@ -234,7 +264,7 @@ func (c *Conn) simpleProcessResp(ctx context.Context) error {
 	var resultError error
 	err := reader.iterateResponse()
 	if err != nil {
-		return c.checkBadConn(err, false)
+		return c.checkBadConn(ctx, err, false)
 	}
 	return resultError
 }
@@ -244,7 +274,7 @@ func (c *Conn) Commit() error {
 		return driver.ErrBadConn
 	}
 	if err := c.sendCommitRequest(); err != nil {
-		return c.checkBadConn(err, true)
+		return c.checkBadConn(c.transactionCtx, err, true)
 	}
 	return c.simpleProcessResp(c.transactionCtx)
 }
@@ -258,7 +288,7 @@ func (c *Conn) sendCommitRequest() error {
 	c.resetSession = false
 	if err := sendCommitXact(c.sess.buf, headers, "", 0, 0, "", reset); err != nil {
 		if c.sess.logFlags&logErrors != 0 {
-			c.sess.log.Printf("Failed to send CommitXact with %v", err)
+			c.sess.logger.Log(c.transactionCtx, msdsn.LogErrors, fmt.Sprintf("Failed to send CommitXact with %v", err))
 		}
 		c.connectionGood = false
 		return fmt.Errorf("faild to send CommitXact: %v", err)
@@ -271,7 +301,7 @@ func (c *Conn) Rollback() error {
 		return driver.ErrBadConn
 	}
 	if err := c.sendRollbackRequest(); err != nil {
-		return c.checkBadConn(err, true)
+		return c.checkBadConn(c.transactionCtx, err, true)
 	}
 	return c.simpleProcessResp(c.transactionCtx)
 }
@@ -285,7 +315,7 @@ func (c *Conn) sendRollbackRequest() error {
 	c.resetSession = false
 	if err := sendRollbackXact(c.sess.buf, headers, "", 0, 0, "", reset); err != nil {
 		if c.sess.logFlags&logErrors != 0 {
-			c.sess.log.Printf("Failed to send RollbackXact with %v", err)
+			c.sess.logger.Log(c.transactionCtx, msdsn.LogErrors, fmt.Sprintf("Failed to send RollbackXact with %v", err))
 		}
 		c.connectionGood = false
 		return fmt.Errorf("failed to send RollbackXact: %v", err)
@@ -303,7 +333,7 @@ func (c *Conn) begin(ctx context.Context, tdsIsolation isoLevel) (tx driver.Tx, 
 	}
 	err = c.sendBeginRequest(ctx, tdsIsolation)
 	if err != nil {
-		return nil, c.checkBadConn(err, true)
+		return nil, c.checkBadConn(ctx, err, true)
 	}
 	tx, err = c.processBeginResponse(ctx)
 	if err != nil {
@@ -322,7 +352,7 @@ func (c *Conn) sendBeginRequest(ctx context.Context, tdsIsolation isoLevel) erro
 	c.resetSession = false
 	if err := sendBeginXact(c.sess.buf, headers, tdsIsolation, "", reset); err != nil {
 		if c.sess.logFlags&logErrors != 0 {
-			c.sess.log.Printf("Failed to send BeginXact with %v", err)
+			c.sess.logger.Log(ctx, msdsn.LogErrors, fmt.Sprintf("Failed to send BeginXact with %v", err))
 		}
 		c.connectionGood = false
 		return fmt.Errorf("failed to send BeginXact: %v", err)
@@ -350,7 +380,7 @@ func (d *Driver) open(ctx context.Context, dsn string) (*Conn, error) {
 
 // connect to the server, using the provided context for dialing only.
 func (d *Driver) connect(ctx context.Context, c *Connector, params msdsn.Config) (*Conn, error) {
-	sess, err := connect(ctx, c, d.log, params)
+	sess, err := connect(ctx, c, d.logger, params)
 	if err != nil {
 		// main server failed, try fail-over partner
 		if params.FailOverPartner == "" {
@@ -362,7 +392,7 @@ func (d *Driver) connect(ctx context.Context, c *Connector, params msdsn.Config)
 			params.Port = params.FailOverPort
 		}
 
-		sess, err = connect(ctx, c, d.log, params)
+		sess, err = connect(ctx, c, d.logger, params)
 		if err != nil {
 			// fail-over partner also failed, now fail
 			return nil, err
@@ -434,7 +464,7 @@ func (s *Stmt) NumInput() int {
 	return s.paramCount
 }
 
-func (s *Stmt) sendQuery(args []namedValue) (err error) {
+func (s *Stmt) sendQuery(ctx context.Context, args []namedValue) (err error) {
 	headers := []headerStruct{
 		{hdrtype: dataStmHdrTransDescr,
 			data: transDescrHdr{s.c.sess.tranid, 1}.pack()},
@@ -456,14 +486,14 @@ func (s *Stmt) sendQuery(args []namedValue) (err error) {
 
 	// no need to check number of parameters here, it is checked by database/sql
 	if conn.sess.logFlags&logSQL != 0 {
-		conn.sess.log.Println(s.query)
+		conn.sess.logger.Log(ctx, msdsn.LogSQL, s.query)
 	}
 	if conn.sess.logFlags&logParams != 0 && len(args) > 0 {
 		for i := 0; i < len(args); i++ {
 			if len(args[i].Name) > 0 {
-				s.c.sess.log.Printf("\t@%s\t%v\n", args[i].Name, args[i].Value)
+				s.c.sess.logger.Log(ctx, msdsn.LogParams, fmt.Sprintf("\t@%s\t%v", args[i].Name, args[i].Value))
 			} else {
-				s.c.sess.log.Printf("\t@p%d\t%v\n", i+1, args[i].Value)
+				s.c.sess.logger.Log(ctx, msdsn.LogParams, fmt.Sprintf("\t@p%d\t%v", i+1, args[i].Value))
 			}
 		}
 	}
@@ -474,7 +504,7 @@ func (s *Stmt) sendQuery(args []namedValue) (err error) {
 	if len(args) == 0 && !isProc {
 		if err = sendSqlBatch72(conn.sess.buf, s.query, headers, reset); err != nil {
 			if conn.sess.logFlags&logErrors != 0 {
-				conn.sess.log.Printf("Failed to send SqlBatch with %v", err)
+				conn.sess.logger.Log(ctx, msdsn.LogErrors, fmt.Sprintf("Failed to send SqlBatch with %v", err))
 			}
 			conn.connectionGood = false
 			return fmt.Errorf("failed to send SQL Batch: %v", err)
@@ -499,7 +529,7 @@ func (s *Stmt) sendQuery(args []namedValue) (err error) {
 		}
 		if err = sendRpc(conn.sess.buf, headers, proc, 0, params, reset); err != nil {
 			if conn.sess.logFlags&logErrors != 0 {
-				conn.sess.log.Printf("Failed to send Rpc with %v", err)
+				conn.sess.logger.Log(ctx, msdsn.LogErrors, fmt.Sprintf("Failed to send Rpc with %v", err))
 			}
 			conn.connectionGood = false
 			return fmt.Errorf("failed to send RPC: %v", err)
@@ -627,8 +657,8 @@ func (s *Stmt) queryContext(ctx context.Context, args []namedValue) (rows driver
 	if !s.c.connectionGood {
 		return nil, driver.ErrBadConn
 	}
-	if err = s.sendQuery(args); err != nil {
-		return nil, s.c.checkBadConn(err, true)
+	if err = s.sendQuery(ctx, args); err != nil {
+		return nil, s.c.checkBadConn(ctx, err, true)
 	}
 	return s.processQueryResponse(ctx)
 }
@@ -661,7 +691,7 @@ loop:
 					if token.isError() {
 						// need to cleanup cancellable context
 						cancel()
-						return nil, s.c.checkBadConn(token.getError(), false)
+						return nil, s.c.checkBadConn(ctx, token.getError(), false)
 					}
 				case ReturnStatus:
 					if reader.outs.returnStatus != nil {
@@ -672,7 +702,7 @@ loop:
 		} else {
 			// need to cleanup cancellable context
 			cancel()
-			return nil, s.c.checkBadConn(err, false)
+			return nil, s.c.checkBadConn(ctx, err, false)
 		}
 	}
 	res = &Rows{stmt: s, reader: reader, cols: cols, cancel: cancel}
@@ -689,8 +719,8 @@ func (s *Stmt) exec(ctx context.Context, args []namedValue) (res driver.Result, 
 	if !s.c.connectionGood {
 		return nil, driver.ErrBadConn
 	}
-	if err = s.sendQuery(args); err != nil {
-		return nil, s.c.checkBadConn(err, true)
+	if err = s.sendQuery(ctx, args); err != nil {
+		return nil, s.c.checkBadConn(ctx, err, true)
 	}
 	if res, err = s.processExec(ctx); err != nil {
 		return nil, err
@@ -703,7 +733,7 @@ func (s *Stmt) processExec(ctx context.Context) (res driver.Result, err error) {
 	s.c.clearOuts()
 	err = reader.iterateResponse()
 	if err != nil {
-		return nil, s.c.checkBadConn(err, false)
+		return nil, s.c.checkBadConn(ctx, err, false)
 	}
 	return &Result{s.c, reader.rowCount}, nil
 }
@@ -773,7 +803,7 @@ func (rc *Rows) Next(dest []driver.Value) error {
 					return nil
 				case doneStruct:
 					if tokdata.isError() {
-						return rc.stmt.c.checkBadConn(tokdata.getError(), false)
+						return rc.stmt.c.checkBadConn(rc.reader.ctx, tokdata.getError(), false)
 					}
 				case ReturnStatus:
 					if rc.reader.outs.returnStatus != nil {
@@ -783,7 +813,7 @@ func (rc *Rows) Next(dest []driver.Value) error {
 			}
 
 		} else {
-			return rc.stmt.c.checkBadConn(err, false)
+			return rc.stmt.c.checkBadConn(rc.reader.ctx, err, false)
 		}
 	}
 }

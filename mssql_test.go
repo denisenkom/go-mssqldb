@@ -14,7 +14,9 @@ import (
 )
 
 func TestBadOpen(t *testing.T) {
-	drv := driverWithProcess(t)
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	drv := driverWithProcess(t, &tl)
 	_, err := drv.open(context.Background(), "port=bad")
 	if err == nil {
 		t.Fail()
@@ -143,12 +145,19 @@ func TestCheckBadConn(t *testing.T) {
 		{goodConnErr, true, true, goodConnErr, true},
 	}
 
-	c := Conn{connector: &Connector{params: msdsn.Config{}}}
+	c := Conn{
+		connector: &Connector{
+			params: msdsn.Config{},
+		},
+		sess: &tdsSession{
+			logger: optionalLogger{},
+		},
+	}
 
 	for _, ti := range testInputs {
 		c.connectionGood = true
 		c.connector.params.DisableRetry = ti.disableRetry
-		actualErr := c.checkBadConn(ti.err, ti.mayRetry)
+		actualErr := c.checkBadConn(context.Background(), ti.err, ti.mayRetry)
 		if !equalErrors(actualErr, ti.expectedErr) ||
 			c.connectionGood != ti.expectedConnGood {
 			t.Fatalf("checkBadConn returned unexpected result for input err = '%+v', mayRetry = '%t', disableRetry = '%t': "+
@@ -160,7 +169,7 @@ func TestCheckBadConn(t *testing.T) {
 
 	// This must be the final test in this function, because we expect it to panic
 	defer func() { recover() }()
-	c.checkBadConn(driver.ErrBadConn, true)
+	c.checkBadConn(context.Background(), driver.ErrBadConn, true)
 	t.Fatalf("checkBadConn did not panic as expected when passed driverErrBadConn")
 }
 

@@ -56,7 +56,9 @@ func TestTimeoutConn(t *testing.T) {
 }
 
 func TestTLSHandshakeConn(t *testing.T) {
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	connector, err := NewConnector(makeConnStr(t).String())
 	if err != nil {
@@ -113,7 +115,9 @@ func TestTLSHandshakeConn(t *testing.T) {
 }
 
 func TestPassthroughConn(t *testing.T) {
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	connector, err := NewConnector(makeConnStr(t).String())
 	if err != nil {

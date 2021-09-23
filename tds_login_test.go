@@ -115,7 +115,9 @@ func TestLoginWithSQLServerAuth(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unable to parse dummy DSN: %v", err)
 	}
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	mock := NewMockTransportDialer(
 		[]string{
@@ -148,7 +150,7 @@ func TestLoginWithSQLServerAuth(t *testing.T) {
 
 	conn.Dialer = mock
 
-	_, err = connect(context.Background(), conn, driverInstanceNoProcess.log, conn.params)
+	_, err = connect(context.Background(), conn, driverInstanceNoProcess.logger, conn.params)
 	if err != nil {
 		t.Error(err)
 	}
@@ -173,7 +175,9 @@ func TestLoginWithSecurityTokenAuth(t *testing.T) {
 		t.Errorf("Unable to parse dummy DSN: %v", err)
 	}
 
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	mock := NewMockTransportDialer(
 		[]string{
@@ -207,7 +211,7 @@ func TestLoginWithSecurityTokenAuth(t *testing.T) {
 
 	conn.Dialer = mock
 
-	_, err = connect(context.Background(), conn, driverInstanceNoProcess.log, conn.params)
+	_, err = connect(context.Background(), conn, driverInstanceNoProcess.logger, conn.params)
 	if err != nil {
 		t.Error(err)
 	}
@@ -234,7 +238,9 @@ func TestLoginWithADALUsernamePasswordAuth(t *testing.T) {
 		t.Errorf("Unable to parse dummy DSN: %v", err)
 	}
 
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	mock := NewMockTransportDialer(
 		[]string{
@@ -279,7 +285,7 @@ func TestLoginWithADALUsernamePasswordAuth(t *testing.T) {
 
 	conn.Dialer = mock
 
-	_, err = connect(context.Background(), conn, driverInstanceNoProcess.log, conn.params)
+	_, err = connect(context.Background(), conn, driverInstanceNoProcess.logger, conn.params)
 	if err != nil {
 		t.Error(err)
 	}
@@ -306,7 +312,9 @@ func TestLoginWithADALManagedIdentityAuth(t *testing.T) {
 		t.Errorf("Unable to parse dummy DSN: %v", err)
 	}
 
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	mock := NewMockTransportDialer(
 		[]string{
@@ -351,7 +359,7 @@ func TestLoginWithADALManagedIdentityAuth(t *testing.T) {
 
 	conn.Dialer = mock
 
-	_, err = connect(context.Background(), conn, driverInstanceNoProcess.log, conn.params)
+	_, err = connect(context.Background(), conn, driverInstanceNoProcess.logger, conn.params)
 	if err != nil {
 		t.Error(err)
 	}

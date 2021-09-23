@@ -33,6 +33,7 @@ const (
 	LogParams      Log = 16
 	LogTransaction Log = 32
 	LogDebug       Log = 64
+	LogRetries     Log = 128
 )
 
 type Config struct {
