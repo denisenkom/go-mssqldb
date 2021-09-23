@@ -7,13 +7,14 @@ import (
 	"testing"
 )
 
-func open(t *testing.T) *sql.DB {
+func open(t *testing.T) (*sql.DB, *testLogger) {
+	tl := testLogger{t: t}
+	SetLogger(&tl)
 	checkConnStr(t)
-	SetLogger(testLogger{t})
 	conn, err := sql.Open("sqlserver", makeConnStr(t).String())
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
-		return nil
+		return nil, &tl
 	}
-	return conn
+	return conn, &tl
 }

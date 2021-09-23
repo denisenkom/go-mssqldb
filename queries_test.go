@@ -20,16 +20,17 @@ import (
 	"github.com/golang-sql/sqlexp"
 )
 
-func driverWithProcess(t *testing.T) *Driver {
+func driverWithProcess(t *testing.T, tl Logger) *Driver {
 	return &Driver{
-		log:              optionalLogger{testLogger{t}},
+		logger:           optionalLogger{loggerAdapter{tl}},
 		processQueryText: true,
 	}
 }
 
 func TestSelect(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	t.Run("scan into interface{}", func(t *testing.T) {
 		type testStruct struct {
@@ -217,8 +218,9 @@ func TestSelectDateTimeOffset(t *testing.T) {
 			time.Date(9999, 12, 31, 23, 59, 59, 999999900, time.FixedZone("", 0))},
 	}
 
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 	for _, test := range values {
 		row := conn.QueryRow("select " + test.sql)
 		var retval interface{}
@@ -240,8 +242,9 @@ func TestSelectDateTimeOffset(t *testing.T) {
 }
 
 func TestSelectNewTypes(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 	var ver string
 	err := conn.QueryRow("select SERVERPROPERTY('productversion')").Scan(&ver)
 	if err != nil {
@@ -319,8 +322,9 @@ func TestSelectNewTypes(t *testing.T) {
 }
 
 func TestTrans(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	var tx *sql.Tx
 	var err error
@@ -343,8 +347,9 @@ func TestTrans(t *testing.T) {
 }
 
 func TestNull(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	t.Run("scan into interface{}", func(t *testing.T) {
 		types := []string{
@@ -497,8 +502,9 @@ func TestParams(t *testing.T) {
 		testdate.UTC(),
 	}
 
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	for _, val := range values {
 		t.Run(fmt.Sprintf("%T:%#v", val, val), func(t *testing.T) {
@@ -532,8 +538,9 @@ func TestParams(t *testing.T) {
 }
 
 func TestExec(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	res, err := conn.Exec("create table #abc (fld int)")
 	if err != nil {
@@ -547,7 +554,9 @@ func TestShortTimeout(t *testing.T) {
 		t.Skip("short")
 	}
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 	dsn := makeConnStr(t)
 	dsnParams := dsn.Query()
 	dsnParams.Set("Connection Timeout", "2")
@@ -576,8 +585,9 @@ func TestShortTimeout(t *testing.T) {
 }
 
 func TestTwoQueries(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	rows, err := conn.Query("select 1")
 	if err != nil {
@@ -617,8 +627,9 @@ func TestTwoQueries(t *testing.T) {
 }
 
 func TestError(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	row, err := conn.Query("exec bad")
 	if err == nil {
@@ -636,8 +647,9 @@ func TestError(t *testing.T) {
 }
 
 func TestMultipleErrors(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	row, err := conn.Query("create table #bad(bad int null primary key)")
 	if err == nil {
@@ -669,8 +681,9 @@ func TestMultipleErrors(t *testing.T) {
 }
 
 func TestQueryNoRows(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	var rows *sql.Rows
 	var err error
@@ -684,8 +697,9 @@ func TestQueryNoRows(t *testing.T) {
 }
 
 func TestQueryManyNullsRow(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	var row *sql.Row
 	var err error
@@ -699,8 +713,9 @@ func TestQueryManyNullsRow(t *testing.T) {
 }
 
 func TestOrderBy(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	tx, err := conn.Begin()
 	if err != nil {
@@ -748,8 +763,9 @@ func TestOrderBy(t *testing.T) {
 }
 
 func TestScanDecimal(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	var f float64
 	err := conn.QueryRow("select cast(0.5 as numeric(25,1))").Scan(&f)
@@ -775,8 +791,9 @@ func TestScanDecimal(t *testing.T) {
 }
 
 func TestAffectedRows(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	tx, err := conn.Begin()
 	if err != nil {
@@ -829,8 +846,9 @@ func queryParamRoundTrip(db *sql.DB, param interface{}, dest interface{}) {
 }
 
 func TestDateTimeParam(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 	type testStruct struct {
 		t time.Time
 	}
@@ -871,8 +889,9 @@ func TestDateTimeParam(t *testing.T) {
 }
 
 func TestUniqueIdentifierParam(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 	type testStruct struct {
 		name string
 		uuid interface{}
@@ -912,8 +931,9 @@ func TestUniqueIdentifierParam(t *testing.T) {
 }
 
 func TestBigQuery(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	func() {
 		rows, err := conn.Query(`WITH n(n) AS
@@ -942,8 +962,9 @@ func TestBigQuery(t *testing.T) {
 }
 
 func TestBug32(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	tx, err := conn.Begin()
 	if err != nil {
@@ -968,8 +989,9 @@ func TestBug32(t *testing.T) {
 }
 
 func TestIgnoreEmptyResults(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 	rows, err := conn.Query("set nocount on; select 2")
 	if err != nil {
 		t.Fatal("Query failed", err.Error())
@@ -990,7 +1012,9 @@ func TestIgnoreEmptyResults(t *testing.T) {
 
 func TestStmt_SetQueryNotification(t *testing.T) {
 	checkConnStr(t)
-	mssqldriver := driverWithProcess(t)
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	mssqldriver := driverWithProcess(t, &tl)
 	cn, err := mssqldriver.Open(makeConnStr(t).String())
 	if err != nil {
 		t.Fatalf("failed to open connection: %v", err)
@@ -1012,8 +1036,9 @@ func TestStmt_SetQueryNotification(t *testing.T) {
 }
 
 func TestErrorInfo(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	_, err := conn.Exec("select bad")
 	if sqlError, ok := err.(Error); ok {
@@ -1052,8 +1077,9 @@ func TestErrorInfo(t *testing.T) {
 }
 
 func TestSetLanguage(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	// sp_reset_connection is called when reusing a pooled connection
 	// which resets all SET values to defaults. Thus we can only
@@ -1069,8 +1095,9 @@ func TestSetLanguage(t *testing.T) {
 }
 
 func TestConnectionClosing(t *testing.T) {
-	pool := open(t)
+	pool, logger := open(t)
 	defer pool.Close()
+	defer logger.StopLogging()
 	for i := 1; i <= 100; i++ {
 		if pool.Stats().OpenConnections > 1 {
 			t.Errorf("Open connections is expected to stay <= 1, but it is %d", pool.Stats().OpenConnections)
@@ -1096,7 +1123,9 @@ func TestConnectionClosing(t *testing.T) {
 
 func TestBeginTranError(t *testing.T) {
 	checkConnStr(t)
-	drv := driverWithProcess(t)
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	drv := driverWithProcess(t, &tl)
 	conn, err := drv.open(context.Background(), makeConnStr(t).String())
 	if err != nil {
 		t.Fatalf("Open failed with error %v", err)
@@ -1139,7 +1168,9 @@ func TestBeginTranError(t *testing.T) {
 
 func TestCommitTranError(t *testing.T) {
 	checkConnStr(t)
-	drv := driverWithProcess(t)
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	drv := driverWithProcess(t, &tl)
 	conn, err := drv.open(context.Background(), makeConnStr(t).String())
 	if err != nil {
 		t.Fatalf("Open failed with error %v", err)
@@ -1197,7 +1228,9 @@ func TestCommitTranError(t *testing.T) {
 
 func TestRollbackTranError(t *testing.T) {
 	checkConnStr(t)
-	drv := driverWithProcess(t)
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	drv := driverWithProcess(t, &tl)
 	conn, err := drv.open(context.Background(), makeConnStr(t).String())
 	if err != nil {
 		t.Fatalf("Open failed with error %v", err)
@@ -1260,7 +1293,9 @@ func TestRollbackTranError(t *testing.T) {
 
 func TestSendQueryErrors(t *testing.T) {
 	checkConnStr(t)
-	drv := driverWithProcess(t)
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	drv := driverWithProcess(t, &tl)
 	conn, err := drv.open(context.Background(), makeConnStr(t).String())
 	if err != nil {
 		t.FailNow()
@@ -1298,9 +1333,9 @@ func TestSendQueryErrors(t *testing.T) {
 	}
 }
 
-func internalConnection(t *testing.T) *Conn {
+func internalConnection(t *testing.T, tl Logger) *Conn {
 	checkConnStr(t)
-	drv := driverWithProcess(t)
+	drv := driverWithProcess(t, tl)
 	conn, err := drv.open(context.Background(), makeConnStr(t).String())
 	if err != nil {
 		t.Fatal("open expected to succeed, but it failed with", err)
@@ -1309,12 +1344,14 @@ func internalConnection(t *testing.T) *Conn {
 }
 
 func TestProcessQueryErrors(t *testing.T) {
-	conn := internalConnection(t)
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	conn := internalConnection(t, &tl)
 	stmt, err := conn.prepareContext(context.Background(), "select 1")
 	if err != nil {
 		t.Fatal("prepareContext expected to succeed, but it failed with", err)
 	}
-	err = stmt.sendQuery([]namedValue{})
+	err = stmt.sendQuery(context.Background(), []namedValue{})
 	if err != nil {
 		t.Fatal("sendQuery expected to succeed, but it failed with", err)
 	}
@@ -1335,7 +1372,9 @@ func TestProcessQueryErrors(t *testing.T) {
 }
 
 func TestProcessQueryNextErrors(t *testing.T) {
-	conn := internalConnection(t)
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	conn := internalConnection(t, &tl)
 	statements := make([]string, 1000)
 	for i := 0; i < len(statements); i++ {
 		statements[i] = "select 1"
@@ -1390,7 +1429,9 @@ func TestProcessQueryNextErrors(t *testing.T) {
 
 func TestSendExecErrors(t *testing.T) {
 	checkConnStr(t)
-	drv := driverWithProcess(t)
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	drv := driverWithProcess(t, &tl)
 	conn, err := drv.open(context.Background(), makeConnStr(t).String())
 	if err != nil {
 		t.FailNow()
@@ -1473,8 +1514,9 @@ func TestLongConnection(t *testing.T) {
 }
 
 func TestNextResultSet(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 	rows, err := conn.Query("select 1; select 2")
 	if err != nil {
 		t.Fatal("Query failed", err.Error())
@@ -1569,8 +1611,9 @@ func TestColumnTypeIntrospection(t *testing.T) {
 		{"cast(N'abc' as nchar(3))", "NCHAR", reflect.TypeOf(""), true, 3, false, 0, 0},
 		{"cast(1 as sql_variant)", "SQL_VARIANT", reflect.TypeOf(nil), false, 0, false, 0, 0},
 	}
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 	for _, tt := range tests {
 		rows, err := conn.Query("select " + tt.expr)
 		if err != nil {
@@ -1628,8 +1671,9 @@ func TestColumnIntrospection(t *testing.T) {
 		{"f2 varchar(15) not null", "f2", "VARCHAR", false, true, 15, false, 0, 0},
 		{"f3 decimal(5, 2) null", "f3", "DECIMAL", true, false, 0, true, 5, 2},
 	}
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	// making table variable with specified fields and making a select from it
 	exprs := make([]string, len(tests))
@@ -1689,8 +1733,9 @@ func TestColumnIntrospection(t *testing.T) {
 }
 
 func TestContext(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	opts := &sql.TxOptions{
 		Isolation: sql.LevelSerializable,
@@ -1747,8 +1792,9 @@ func TestContext(t *testing.T) {
 }
 
 func TestBeginTxtReadOnlyNotSupported(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 	opts := &sql.TxOptions{ReadOnly: true}
 	_, err := conn.BeginTx(context.Background(), opts)
 	if err == nil {
@@ -1757,8 +1803,9 @@ func TestBeginTxtReadOnlyNotSupported(t *testing.T) {
 }
 
 func TestConn_BeginTx(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 	_, err := conn.Exec("create table test (f int)")
 	defer conn.Exec("drop table test")
 	if err != nil {
@@ -1804,8 +1851,9 @@ func TestConn_BeginTx(t *testing.T) {
 }
 
 func TestNamedParameters(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 	row := conn.QueryRow(
 		"select @param2, @param1, @param2",
 		sql.Named("param1", 1),
@@ -1822,8 +1870,9 @@ func TestNamedParameters(t *testing.T) {
 }
 
 func TestBadNamedParameters(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 	row := conn.QueryRow(
 		"select :param2, :param1, :param2",
 		sql.Named("badparam1", 1),
@@ -1838,8 +1887,9 @@ func TestBadNamedParameters(t *testing.T) {
 }
 
 func TestMixedParameters(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 	row := conn.QueryRow(
 		"select @p2, @param1, @param2",
 		5, // this parameter will be unused
@@ -1859,8 +1909,9 @@ func TestMixedParameters(t *testing.T) {
 
 /*
 func TestMixedParametersExample(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 	row := conn.QueryRow(
 		"select :id, ?",
 		sql.Named("id", 1),
@@ -1879,8 +1930,9 @@ func TestMixedParametersExample(t *testing.T) {
 */
 
 func TestPinger(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 	err := conn.Ping()
 	if err != nil {
 		t.Errorf("Failed to hit database")
@@ -1889,7 +1941,9 @@ func TestPinger(t *testing.T) {
 
 func TestQueryCancelLowLevel(t *testing.T) {
 	checkConnStr(t)
-	drv := driverWithProcess(t)
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	drv := driverWithProcess(t, &tl)
 	conn, err := drv.open(context.Background(), makeConnStr(t).String())
 	if err != nil {
 		t.Fatalf("Open failed with error %v", err)
@@ -1901,7 +1955,7 @@ func TestQueryCancelLowLevel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Prepare failed with error %v", err)
 	}
-	err = stmt.sendQuery([]namedValue{})
+	err = stmt.sendQuery(context.Background(), []namedValue{})
 	if err != nil {
 		t.Fatalf("sendQuery failed with error %v", err)
 	}
@@ -1932,8 +1986,9 @@ func TestQueryCancelLowLevel(t *testing.T) {
 }
 
 func TestQueryCancelHighLevel(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	latency, _ := getLatency(t)
@@ -1989,8 +2044,9 @@ func getLatency(t *testing.T) (latency time.Duration, increment time.Duration) {
 }
 
 func TestQueryTimeout(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 	// 2 seconds should be enough time to complete the login
 	latency, _ := getLatency(t)
 	ctx, cancel := context.WithTimeout(context.Background(), latency+2000*time.Millisecond)
@@ -2011,8 +2067,9 @@ func TestQueryTimeout(t *testing.T) {
 
 // Regression test for #679
 func TestLoginTimeout(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
 	defer conn.Close()
+	defer logger.StopLogging()
 	// Try to timeout during the login using a small delta from raw connect time
 	// In environments where latency is really low this degenerates into TestQueryTimeout
 	latency, increment := getLatency(t)
@@ -2039,7 +2096,9 @@ func TestLoginTimeout(t *testing.T) {
 }
 func TestDriverParams(t *testing.T) {
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 	type sqlCmd struct {
 		Name   string
 		Driver string
@@ -2212,7 +2271,9 @@ func TestDisconnect1(t *testing.T) {
 		t.Skip("short")
 	}
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	// Revert to the normal dialer after the test is done.
 	normalCreateDialer := createDialer
@@ -2269,7 +2330,9 @@ func TestDisconnect2(t *testing.T) {
 		t.Skip("short")
 	}
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 	latency, _ := getLatency(t)
 
 	// Revert to the normal dialer after the test is done.
@@ -2340,7 +2403,9 @@ func TestDisconnect3(t *testing.T) {
 		t.Skip("short")
 	}
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	// Revert to the normal dialer creation function after the test is done.
 	normalCreateDialer := createDialer
@@ -2432,7 +2497,9 @@ func TestDisconnect4(t *testing.T) {
 		t.Skip("short")
 	}
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	// Revert to the normal dialer creation function after the test is done.
 	normalCreateDialer := createDialer
@@ -2524,7 +2591,9 @@ func TestDisconnect5(t *testing.T) {
 		t.Skip("short")
 	}
 	checkConnStr(t)
-	SetLogger(testLogger{t})
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
 
 	// Open a connection pool that holds a single connection to make sure all
 	// queries run on the same connection.
@@ -2579,7 +2648,8 @@ func TestDisconnect5(t *testing.T) {
 }
 
 func TestClose(t *testing.T) {
-	conn := open(t)
+	conn, logger := open(t)
+	defer logger.StopLogging()
 
 	defer func() {
 		v := recover()
@@ -2589,6 +2659,33 @@ func TestClose(t *testing.T) {
 	}()
 
 	conn.Close()
+}
+
+func TestTypeSizesFromQuery(t *testing.T) {
+	conn, logger := open(t)
+	defer conn.Close()
+	defer logger.StopLogging()
+
+	r, err := conn.Query("SELECT CAST('1' AS CHAR(10)), CAST(0x02 AS BINARY(20)), CAST(0x03 AS VARBINARY(30))")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := r.ColumnTypes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, ok := c[0].Length()
+	if !ok || l != 10 {
+		t.Errorf("CHAR(10) reported as (variable, length): (%v, %d)", ok, l)
+	}
+	l, ok = c[1].Length()
+	if !ok || l != 20 {
+		t.Errorf("BINARY(20) reported as (variable, length): (%v, %d)", ok, l)
+	}
+	l, ok = c[2].Length()
+	if !ok || l != 30 {
+		t.Errorf("VARBINARY(30) reported as (variable, length): (%v, %d)", ok, l)
+	}
 }
 
 func TestMessageQueue(t *testing.T) {
@@ -2841,4 +2938,3 @@ func TestCancelWithNoResults(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", r.Err())
 	}
 
-}

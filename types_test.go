@@ -71,15 +71,18 @@ func TestMakeGoLangTypeLength(t *testing.T) {
 		typeVarLen bool
 		typeLen    int64
 		typeID     uint8
+		size       int
 	}{
-		{"typeDateTime", false, 0, typeDateTime},
-		{"typeDateTim4", false, 0, typeDateTim4},
-		{"typeBigBinary", false, 0, typeBigBinary},
+		{"typeDateTime", false, 0, typeDateTime, 0},
+		{"typeDateTim4", false, 0, typeDateTim4, 0},
+		{"typeBigVarChar", true, 2147483645, typeBigVarChar, 0xffff},
+		{"typeBigVarChar", true, 10, typeBigVarChar, 10},
+		{"typeBigBinary", true, 30, typeBigBinary, 30},
 		//TODO: Add other supported types
 	}
 
 	for _, tt := range tests {
-		n, v := makeGoLangTypeLength(typeInfo{TypeId: tt.typeID})
+		n, v := makeGoLangTypeLength(typeInfo{TypeId: tt.typeID, Size: tt.size})
 		if v != tt.typeVarLen {
 			t.Errorf("invalid type length variability returned for %s", tt.typeName)
 		}
