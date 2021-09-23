@@ -1263,6 +1263,7 @@ initiate_connection:
 		p.Host = sess.routedServer
 		p.Port = uint64(sess.routedPort)
 		if !p.HostInCertificateProvided && p.TLSConfig != nil {
+			p.TLSConfig = p.TLSConfig.Clone()
 			p.TLSConfig.ServerName = sess.routedServer
 		}
 		goto initiate_connection
