@@ -53,10 +53,10 @@ func testConnParams(t testing.TB) *azureFedAuthConfig {
 	}
 	config, err := parse(dsn)
 	if err != nil {
-		t.Skip("error parsing connection string " + dsn)
+		t.Skip("error parsing connection string ")
 	}
 	if config.fedAuthLibrary == mssql.FedAuthLibraryReserved {
-		t.Skip("Skipping azure test due to missing fedauth parameter " + dsn)
+		t.Skip("Skipping azure test due to missing fedauth parameter ")
 	}
 	config.mssqlConfig.LogFlags = logFlags
 	return config
