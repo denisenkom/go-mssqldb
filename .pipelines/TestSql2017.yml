@@ -39,7 +39,7 @@ steps:
     arguments: 'github.com/AlekSi/gocov-xml@latest'
     workingDirectory: '$(System.DefaultWorkingDirectory)'
 
-#Your build pipeline references an undefined variables named SQLPASSWORD and HOST. 
+#Your build pipeline references an undefined variables named SQLPASSWORD and HOST and AZURESERVER_DSN. 
 #Create or edit the build pipeline for this YAML file, define the variable on the Variables tab. See https://go.microsoft.com/fwlink/?linkid=865972
 
 - task: Docker@2
@@ -57,6 +57,8 @@ steps:
   displayName: 'run tests'
   env:
     SQLPASSWORD: $(SQLPASSWORD)
+    AZURESERVER_DSN: $(AZURESERVER_DSN)
+
   continueOnError: true
 - task: PublishTestResults@2
   displayName: "Publish junit-style results"

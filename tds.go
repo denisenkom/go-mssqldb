@@ -386,7 +386,7 @@ func (e *featureExtFedAuth) toBytes() []byte {
 	var d []byte
 
 	switch e.FedAuthLibrary {
-	case fedAuthLibrarySecurityToken:
+	case FedAuthLibrarySecurityToken:
 		d = make([]byte, 5)
 		d[0] = options
 
@@ -400,7 +400,7 @@ func (e *featureExtFedAuth) toBytes() []byte {
 			d = append(d, e.Nonce...)
 		}
 
-	case fedAuthLibraryADAL:
+	case FedAuthLibraryADAL:
 		d = []byte{options, e.ADALWorkflow}
 	}
 
@@ -930,7 +930,7 @@ func preparePreloginFields(p msdsn.Config, fe *featureExtFedAuth) map[uint8][]by
 		preloginMARS:       {0}, // MARS disabled
 	}
 
-	if fe.FedAuthLibrary != fedAuthLibraryReserved {
+	if fe.FedAuthLibrary != FedAuthLibraryReserved {
 		fields[preloginFEDAUTHREQUIRED] = []byte{1}
 	}
 
@@ -948,7 +948,7 @@ func interpretPreloginResponse(p msdsn.Config, fe *featureExtFedAuth, fields map
 
 		// We need to be able to echo the value back to the server
 		fe.FedAuthEcho = fedAuthSupport[0] != 0
-	} else if fe.FedAuthLibrary != fedAuthLibraryReserved {
+	} else if fe.FedAuthLibrary != FedAuthLibraryReserved {
 		return 0, fmt.Errorf("federated authentication is not supported by the server")
 	}
 
@@ -980,7 +980,7 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger Cont
 		TypeFlags:    typeFlags,
 	}
 	switch {
-	case fe.FedAuthLibrary == fedAuthLibrarySecurityToken:
+	case fe.FedAuthLibrary == FedAuthLibrarySecurityToken:
 		if uint64(p.LogFlags)&logDebug != 0 {
 			logger.Log(ctx, msdsn.LogDebug, "Starting federated authentication using security token")
 		}
@@ -995,7 +995,7 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger Cont
 
 		l.FeatureExt.Add(fe)
 
-	case fe.FedAuthLibrary == fedAuthLibraryADAL:
+	case fe.FedAuthLibrary == FedAuthLibraryADAL:
 		if uint64(p.LogFlags)&logDebug != 0 {
 			logger.Log(ctx, msdsn.LogDebug, "Starting federated authentication using ADAL")
 		}
@@ -1096,7 +1096,7 @@ initiate_connection:
 	}
 
 	fedAuth := &featureExtFedAuth{
-		FedAuthLibrary: fedAuthLibraryReserved,
+		FedAuthLibrary: FedAuthLibraryReserved,
 	}
 	if c.fedAuthRequired {
 		fedAuth.FedAuthLibrary = c.fedAuthLibrary
