@@ -49,7 +49,7 @@ steps:
     arguments: '-m 2GB -e ACCEPT_EULA=1 -d --name sql2017 -p:1433:1433 -e SA_PASSWORD=$(SQLPASSWORD) mcr.microsoft.com/mssql/server:2017-latest'
 
 - script: |
-    ~/go/bin/gotestsum --junitfile testresults.xml -- -coverprofile=coverage.txt -covermode count
+    ~/go/bin/gotestsum --junitfile testresults.xml -- -coverprofile=coverage.txt -covermode count ./...
     ~/go/bin/gocov convert coverage.txt > coverage.json
     ~/go/bin/gocov-xml < coverage.json > coverage.xml
     mkdir coverage
