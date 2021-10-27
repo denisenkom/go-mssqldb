@@ -246,6 +246,7 @@ func readPrelogin(r *tdsBuffer) (map[uint8][]byte, error) {
 }
 
 // OptionFlags1
+// http://msdn.microsoft.com/en-us/library/dd304019.aspx
 const (
 	fUseDB   = 0x20
 	fSetLang = 0x80

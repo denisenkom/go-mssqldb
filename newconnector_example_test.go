@@ -1,3 +1,4 @@
+//go:build go1.10
 // +build go1.10
 
 package mssql_test
@@ -18,7 +19,7 @@ var (
 	debug         = flag.Bool("debug", false, "enable debugging")
 	password      = flag.String("password", "", "the database password")
 	port     *int = flag.Int("port", 1433, "the database port")
-	server        = flag.String("server", "", "the database server")
+	server        = flag.String("server", ".", "the database server")
 	user          = flag.String("user", "", "the database user")
 )
 
@@ -32,23 +33,31 @@ const (
 )
 
 func makeConnURL() *url.URL {
-	return &url.URL{
-		Scheme: "sqlserver",
-		Host:   *server + ":" + strconv.Itoa(*port),
-		User:   url.UserPassword(*user, *password),
-	}
-}
-
-// This example shows the usage of Connector type
-func ExampleConnector() {
 	flag.Parse()
-
 	if *debug {
 		fmt.Printf(" password:%s\n", *password)
 		fmt.Printf(" port:%d\n", *port)
 		fmt.Printf(" server:%s\n", *server)
 		fmt.Printf(" user:%s\n", *user)
 	}
+
+	params, err := mssql.GetConnParams()
+	if err == nil && params != nil {
+		return params.URL()
+	}
+	var userInfo *url.Userinfo
+	if *user != "" {
+		userInfo = url.UserPassword(*user, *password)
+	}
+	return &url.URL{
+		Scheme: "sqlserver",
+		Host:   *server + ":" + strconv.Itoa(*port),
+		User:   userInfo,
+	}
+}
+
+// This example shows the usage of Connector type
+func ExampleConnector() {
 
 	connString := makeConnURL().String()
 	if *debug {

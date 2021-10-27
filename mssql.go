@@ -1159,7 +1159,7 @@ func (rc *Rowsq) Next(dest []driver.Value) error {
 						e := rc.stmt.c.checkBadConn(rc.reader.ctx, tokdata.getError(), false)
 						switch e.(type) {
 						case Error:
-							// Ignore non-fatal server errors
+							// Ignore non-fatal server errors. Fatal errors are of type ServerError
 						default:
 							return e
 						}

@@ -1,3 +1,4 @@
+//go:build go1.10
 // +build go1.10
 
 package mssql_test
@@ -5,17 +6,15 @@ package mssql_test
 import (
 	"context"
 	"database/sql"
-	"flag"
 	"fmt"
 	"log"
-	"os"
 
 	mssql "github.com/denisenkom/go-mssqldb"
 	"github.com/golang-sql/sqlexp"
 )
 
 const (
-	msgQuery = `select name from sys.tables
+	msgQuery = `select 'name' as Name
 PRINT N'This is a message'
 select 199
 RAISERROR (N'Testing!' , 11, 1)
@@ -25,19 +24,8 @@ select 300
 
 // This example shows the usage of sqlexp/Messages
 func ExampleRows_usingmessages() {
-	flag.Parse()
-
-	if *debug {
-		fmt.Printf(" password:%s\n", *password)
-		fmt.Printf(" port:%d\n", *port)
-		fmt.Printf(" server:%s\n", *server)
-		fmt.Printf(" user:%s\n", *user)
-	}
 
 	connString := makeConnURL().String()
-	if *debug {
-		fmt.Printf(" connString:%s\n", connString)
-	}
 
 	// Create a new connector object by calling NewConnector
 	connector, err := mssql.NewConnector(connString)
@@ -65,14 +53,14 @@ func ExampleRows_usingmessages() {
 			inresult := true
 			for inresult {
 				inresult = rows.Next()
-				cols, err := rows.Columns()
-				if err != nil {
-					log.Fatalf("Columns failed: %v", err)
-				}
-				fmt.Println(cols)
 				if inresult {
+					cols, err := rows.Columns()
+					if err != nil {
+						log.Fatalf("Columns failed: %v", err)
+					}
+					fmt.Println(cols)
 					var d interface{}
-					if err = rows.Scan(&d); err != nil {
+					if err = rows.Scan(&d); err == nil {
 						fmt.Println(d)
 					}
 				}
@@ -80,10 +68,9 @@ func ExampleRows_usingmessages() {
 		case sqlexp.MsgNextResultSet:
 			active = rows.NextResultSet()
 		case sqlexp.MsgError:
-			fmt.Fprintln(os.Stderr, m.Error)
+			fmt.Println("Error:", m.Error)
 		case sqlexp.MsgRowsAffected:
 			fmt.Println("Rows affected:", m.Count)
 		}
 	}
-
 }
