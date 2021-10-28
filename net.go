@@ -51,15 +51,15 @@ func (c timeoutConn) RemoteAddr() net.Addr {
 }
 
 func (c timeoutConn) SetDeadline(t time.Time) error {
-	panic("Not implemented")
+	return c.c.SetDeadline(t)
 }
 
 func (c timeoutConn) SetReadDeadline(t time.Time) error {
-	panic("Not implemented")
+	return c.c.SetReadDeadline(t)
 }
 
 func (c timeoutConn) SetWriteDeadline(t time.Time) error {
-	panic("Not implemented")
+	return c.c.SetWriteDeadline(t)
 }
 
 // this connection is used during TLS Handshake
@@ -105,27 +105,27 @@ func (c *tlsHandshakeConn) Write(b []byte) (n int, err error) {
 }
 
 func (c *tlsHandshakeConn) Close() error {
-	panic("Not implemented")
+	return c.buf.transport.Close()
 }
 
 func (c *tlsHandshakeConn) LocalAddr() net.Addr {
-	panic("Not implemented")
+	return nil
 }
 
 func (c *tlsHandshakeConn) RemoteAddr() net.Addr {
-	panic("Not implemented")
+	return nil
 }
 
 func (c *tlsHandshakeConn) SetDeadline(t time.Time) error {
-	panic("Not implemented")
+	return nil
 }
 
 func (c *tlsHandshakeConn) SetReadDeadline(t time.Time) error {
-	panic("Not implemented")
+	return nil
 }
 
 func (c *tlsHandshakeConn) SetWriteDeadline(t time.Time) error {
-	panic("Not implemented")
+	return nil
 }
 
 // this connection just delegates all methods to it's wrapped connection
