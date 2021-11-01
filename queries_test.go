@@ -2136,3 +2136,16 @@ func TestDisconnect2(t *testing.T) {
 		t.Fatal("timeout")
 	}
 }
+
+func TestClose(t *testing.T) {
+	conn := open(t)
+
+	defer func() {
+		v := recover()
+		if v != nil {
+			t.Fatal(`Close should not panic:`, v)
+		}
+	}()
+
+	conn.Close()
+}
