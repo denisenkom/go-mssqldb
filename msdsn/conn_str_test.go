@@ -196,3 +196,41 @@ func TestConnParseRoundTripFixed(t *testing.T) {
 		t.Fatal("Parameters do not match after roundtrip", params, rtParams)
 	}
 }
+
+func TestInvalidConnectionStringKerberos(t *testing.T) {
+
+	connStrings := []string{
+		"server=server;port=1345;realm=domain;trustservercertificate=true;keytabfile=/path/to/administrator2.keytab.keytab;enablekerberos=true",
+		"server=server;port=1345;realm=domain;trustservercertificate=true;krbcache=;enablekerberos=true",
+		"server=server;user id=user;password=pwd;port=1345;realm=domain;trustservercertificate=true;krb5conffile=/etc/krb5.conf;enablekerberos=true",
+		"server=server;user id=user;password=pwd;port=1345;realm=domain;trustservercertificate=true;krb5conffile=/etc/krb5.conf;keytabfile=/path/to/administrator2.keytab;enablekerberos=true",
+		"server=server;user id=user;port=1345;realm=domain;trustservercertificate=true;krb5conffile=/etc/krb5.conf;keytabfile=/path/to/administrator2.keytab;enablekerberos=true;initkrbwithkeytab=false",
+		"server=server;user id=user;port=1345;realm=domain;trustservercertificate=true;krb5conffile=/etc/krb5.conf;enablekerberos=true;initkrbwithkeytab=true",
+	}
+	for _, connStr := range connStrings {
+		_, _, err := Parse(connStr)
+		if err == nil {
+			t.Errorf("Connection expected to fail for connection string %s but it didn't", connStr)
+			continue
+		} else {
+			t.Logf("Connection failed for %s as expected with error %v", connStr, err)
+		}
+	}
+}
+
+func TestValidConnectionStringKerberos(t *testing.T) {
+	connStrings := []string{
+		"server=server;user id=user;port=1345;realm=domain;trustservercertificate=true;krb5conffile=/etc/krb5.conf;keytabfile=/home/user/Pictures/admin.keytab;enablekerberos=true;initkrbwithkeytab=true",
+		"server=server;port=1345;realm=domain;trustservercertificate=true;krb5conffile=/etc/krb5.conf;krbcache=/tmp/krb5cc_1000;enablekerberos=true",
+	}
+
+	for _, connStr := range connStrings {
+		_, _, err := Parse(connStr)
+		if err == nil {
+			t.Logf("Connection string was parsed successfully %s", connStrings)
+		} else {
+			t.Errorf("Connection string %s failed to parse with error %s", connStrings, err)
+		}
+	}
+
+}

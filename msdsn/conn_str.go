@@ -14,6 +14,8 @@ import (
 	"unicode"
 )
 
+const defaultServerPort = 1433
+
 type (
 	Encryption int
 	Log        uint64
@@ -72,6 +74,15 @@ type Config struct {
 	ConnTimeout time.Duration // Use context for timeouts.
 	KeepAlive   time.Duration // Leave at default.
 	PacketSize  uint16
+
+	// Kerberos authentication fields
+
+	Krb5ConfFile      string
+	KrbCache          string
+	Realm             string
+	Initkrbwithkeytab string
+	Keytabfile        string
+	EnableKerberos    string
 }
 
 func SetupTLS(certificate string, insecureSkipVerify bool, hostInCertificate string) (*tls.Config, error) {
@@ -173,6 +184,40 @@ func Parse(dsn string) (Config, map[string]string, error) {
 		}
 	}
 
+	p.EnableKerberos = params["enablekerberos"]
+	if p.EnableKerberos == "true" {
+		missingParam := checkMissingKRBConfig(params)
+		if missingParam != "" {
+			return p, params, fmt.Errorf(" %s cannot be empty", missingParam)
+		}
+
+		realm, ok := params["realm"]
+		if ok {
+			p.Realm = realm
+		}
+
+		krbCache, ok := params["krbcache"]
+		if ok {
+			p.KrbCache = krbCache
+		}
+
+		krb5ConfFile, ok := params["krb5conffile"]
+		if ok {
+			p.Krb5ConfFile = krb5ConfFile
+		}
+
+		initkrbwithkeytab, ok := params["initkrbwithkeytab"]
+		if ok {
+			p.Initkrbwithkeytab = initkrbwithkeytab
+		}
+
+		keytabfile, ok := params["keytabfile"]
+		if ok {
+			p.Keytabfile = keytabfile
+		}
+
+	}
+
 	// https://msdn.microsoft.com/en-us/library/dd341108.aspx
 	//
 	// Do not set a connection timeout. Use Context to manage such things.
@@ -259,7 +304,7 @@ func Parse(dsn string) (Config, map[string]string, error) {
 	if ok {
 		p.ServerSPN = serverSPN
 	} else {
-		p.ServerSPN = generateSpn(p.Host, p.Port)
+		p.ServerSPN = generateSpn(p.Host, resolveServerPort(p.Port), p.Realm)
 	}
 
 	workstation, ok := params["workstation id"]
@@ -316,6 +361,20 @@ func Parse(dsn string) (Config, map[string]string, error) {
 	}
 
 	return p, params, nil
+}
+
+func checkMissingKRBConfig(c map[string]string) (missingParam string) {
+	if c["initkrbwithkeytab"] == "true" {
+		if c["keytabfile"] == "" {
+			missingParam = "keytabfile"
+		}
+		if c["realm"] == "" {
+			missingParam = "realm"
+		}
+	} else if c["krbcache"] == "" {
+		missingParam = "krbcache"
+	}
+	return
 }
 
 // convert connectionParams to url style connection string
@@ -597,6 +656,17 @@ func normalizeOdbcKey(s string) string {
 	return strings.ToLower(strings.TrimRightFunc(s, unicode.IsSpace))
 }
 
-func generateSpn(host string, port uint64) string {
-	return fmt.Sprintf("MSSQLSvc/%s:%d", host, port)
+func resolveServerPort(port uint64) uint64 {
+	if port == 0 {
+		return defaultServerPort
+	}
+
+	return port
+}
+
+func generateSpn(host string, port uint64, realm string) string {
+	if realm == "" {
+		return fmt.Sprintf("MSSQLSvc/%s:%d", host, port)
+	}
+	return fmt.Sprintf("MSSQLSvc/%s:%d@%s", host, port, realm)
 }

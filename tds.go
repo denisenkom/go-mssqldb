@@ -1011,6 +1011,10 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger Cont
 		if err != nil {
 			return nil, err
 		}
+		_, ok := auth.(*krb5Auth)
+		if ok {
+			l.UserName = p.User
+		}
 
 		l.OptionFlags2 |= fIntSecurity
 		return l, nil
@@ -1157,8 +1161,17 @@ initiate_connection:
 			}
 		}
 	}
-
-	auth, authOk := getAuth(p.User, p.Password, p.ServerSPN, p.Workstation)
+	var auth auth
+	var authOk bool
+	if p.EnableKerberos == "true" {
+		if p.Initkrbwithkeytab == "true" {
+			auth, authOk = getKRB5Auth(p.User, p.ServerSPN, p.Krb5ConfFile, p.Keytabfile, p.Initkrbwithkeytab, p.Password)
+		} else {
+			auth, authOk = getKRB5Auth(p.User, p.ServerSPN, p.Krb5ConfFile, p.KrbCache, p.Initkrbwithkeytab, p.Password)
+		}
+	} else {
+		auth, authOk = getAuth(p.User, p.Password, p.ServerSPN, p.Workstation)
+	}
 	if authOk {
 		defer auth.Free()
 	} else {
