@@ -200,7 +200,7 @@ func TestConnParseRoundTripFixed(t *testing.T) {
 func TestInvalidConnectionStringKerberos(t *testing.T) {
 
 	connStrings := []string{
-		"server=server;port=1345;realm=domain;trustservercertificate=true;keytabfile=/path/to/administrator2.keytab.keytab;enablekerberos=true",
+		"server=server;port=1345;realm=domain;trustservercertificate=true;keytabfile=/path/to/administrator2.keytab;enablekerberos=true",
 		"server=server;port=1345;realm=domain;trustservercertificate=true;krbcache=;enablekerberos=true",
 		"server=server;user id=user;password=pwd;port=1345;realm=domain;trustservercertificate=true;krb5conffile=/etc/krb5.conf;enablekerberos=true",
 		"server=server;user id=user;password=pwd;port=1345;realm=domain;trustservercertificate=true;krb5conffile=/etc/krb5.conf;keytabfile=/path/to/administrator2.keytab;enablekerberos=true",
@@ -220,7 +220,7 @@ func TestInvalidConnectionStringKerberos(t *testing.T) {
 
 func TestValidConnectionStringKerberos(t *testing.T) {
 	connStrings := []string{
-		"server=server;user id=user;port=1345;realm=domain;trustservercertificate=true;krb5conffile=/etc/krb5.conf;keytabfile=/home/user/Pictures/admin.keytab;enablekerberos=true;initkrbwithkeytab=true",
+		"server=server;user id=user;port=1345;realm=domain;trustservercertificate=true;krb5conffile=/etc/krb5.conf;keytabfile=/path/to/admin.keytab;enablekerberos=true;initkrbwithkeytab=true",
 		"server=server;port=1345;realm=domain;trustservercertificate=true;krb5conffile=/etc/krb5.conf;krbcache=/tmp/krb5cc_1000;enablekerberos=true",
 	}
 

@@ -3,8 +3,8 @@ package mssql
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"gopkg.in/jcmturner/gokrb5.v7/client"
@@ -19,7 +19,6 @@ import (
 type Krb5ClientState int
 
 const (
-	ContextFlagREADY = 128
 	/* initiator states */
 	InitiatorStart Krb5ClientState = iota
 	InitiatorRestart
@@ -32,10 +31,10 @@ type krb5Auth struct {
 	realm             string
 	service           string
 	password          string
-	port              string
+	port              uint64
 	krb5ConfFile      string
 	krbFile           string
-	initkrbwithkeytab string
+	initkrbwithkeytab bool
 	krb5Client        *client.Client
 	state             Krb5ClientState
 }
@@ -56,13 +55,11 @@ var getServiceTicket = func(cl *client.Client, spn string) (messages.Ticket, typ
 	return cl.GetServiceTicket(spn)
 }
 
-func getKRB5Auth(user, service, krb5Conf, krbFile, initkrbwithkeytab, password string) (auth, bool) {
-	if krb5Conf == "" {
-		krb5Conf = "/etc/krb5.conf"
-	}
-	var port string
+func getKRB5Auth(user, service, krb5Conf, krbFile, password string, initkrbwithkeytab bool) (auth, bool) {
+	var port uint64
 	var realm string
 	var serviceStr string
+	var err error
 
 	params1 := strings.Split(service, ":")
 	if len(params1) != 2 {
@@ -70,23 +67,36 @@ func getKRB5Auth(user, service, krb5Conf, krbFile, initkrbwithkeytab, password s
 	}
 
 	params2 := strings.Split(params1[1], "@")
-	if len(params2) == 1 {
-		port = params1[1]
-	} else if len(params2) == 2 {
-		port = params2[0]
-	} else if len(params2) != 2 {
+	switch len(params2) {
+	case 1:
+		port, err = strconv.ParseUint(params1[1], 10, 16)
+		if err != nil {
+			return nil, false
+		}
+
+	case 2:
+		port, err = strconv.ParseUint(params2[0], 10, 16)
+		if err != nil {
+			return nil, false
+		}
+	default:
 		return nil, false
 	}
 
 	params3 := strings.Split(service, "@")
-	if len(params3) == 1 {
+	switch len(params3) {
+	case 1:
 		serviceStr = params3[0]
 		params3 = strings.Split(params1[0], "/")
 		params3 = strings.Split(params3[1], ".")
 		realm = params3[1] + "." + params3[2]
-	} else if len(params3) == 2 {
+
+	case 2:
 		realm = params3[1]
 		serviceStr = params3[0]
+
+	default:
+		return nil, false
 	}
 
 	return &krb5Auth{
@@ -103,24 +113,28 @@ func getKRB5Auth(user, service, krb5Conf, krbFile, initkrbwithkeytab, password s
 }
 
 func (auth *krb5Auth) InitialBytes() ([]byte, error) {
-
-	krb5CnfFile, _ := os.Open(auth.krb5ConfFile)
-	c, _ := config.NewConfigFromReader(krb5CnfFile)
+	var err error
+	krb5CnfFile, err := os.Open(auth.krb5ConfFile)
+	if err != nil {
+		return []byte{}, err
+	}
+	c, err := config.NewConfigFromReader(krb5CnfFile)
+	if err != nil {
+		return []byte{}, err
+	}
 
 	// Set to lookup KDCs in DNS
 	c.LibDefaults.DNSLookupKDC = false
 
-	var err error
 	var cl *client.Client
 	// Init keytab from conf
-	if auth.initkrbwithkeytab == "true" {
+	if auth.initkrbwithkeytab {
 
 		keytabConf, err := ioutil.ReadFile(auth.krbFile)
 		if err != nil {
 			return []byte{}, err
 		}
 		if err = ktUnmarshal([]byte(keytabConf)); err != nil {
-			log.Printf("unmarshal keytabConf failed: %v", err)
 			return []byte{}, err
 		}
 
@@ -130,13 +144,11 @@ func (auth *krb5Auth) InitialBytes() ([]byte, error) {
 	} else {
 		cache, err := loadCCache(auth.krbFile)
 		if err != nil {
-			log.Println(err)
 			return []byte{}, err
 		}
 
 		cl, err = clientFromCCache(cache, c)
 		if err != nil {
-			log.Println(err)
 			return []byte{}, err
 		}
 	}
@@ -151,13 +163,11 @@ func (auth *krb5Auth) InitialBytes() ([]byte, error) {
 
 	negTok, err := spnegoNewNegToken(auth.krb5Client, tkt, sessionKey)
 	if err != nil {
-		fmt.Println(err)
 		return []byte{}, err
 	}
 
 	outToken, err := negTokenMarshal(negTok)
 	if err != nil {
-		fmt.Println(err)
 		return []byte{}, err
 	}
 	auth.state = InitiatorWaitForMutal
@@ -169,12 +179,10 @@ func (auth *krb5Auth) Free() {
 }
 
 func (auth *krb5Auth) NextBytes(token []byte) ([]byte, error) {
-
 	if err := spnegoUnmarshal(token); err != nil {
 		err := fmt.Errorf("unmarshal APRep token failed: %w", err)
 		return []byte{}, err
 	}
-
 	auth.state = InitiatorReady
 	return []byte{}, nil
 }

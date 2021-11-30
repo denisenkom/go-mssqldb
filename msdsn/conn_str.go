@@ -76,13 +76,24 @@ type Config struct {
 	PacketSize  uint16
 
 	// Kerberos authentication fields
+	// Path to krb5.conf file that contains Kerberos configuration information
+	Krb5ConfFilePath string
 
-	Krb5ConfFile      string
-	KrbCache          string
-	Realm             string
-	Initkrbwithkeytab string
-	Keytabfile        string
-	EnableKerberos    string
+	// Credential cache path
+	KrbCachePath string
+
+	// A Kerberos realm is the domain over which a Kerberos authentication server has the authority
+	// to authenticate a user, host or service.
+	KrbRealm string
+
+	// Flag to authenticate using keytab file
+	Initkrbwithkeytab bool
+
+	// Path to keytab file that stores long-term keys for one or more principals
+	KeytabFilePath string
+
+	// Flag to enable kerberos authentication
+	EnableKerberos bool
 }
 
 func SetupTLS(certificate string, insecureSkipVerify bool, hostInCertificate string) (*tls.Config, error) {
@@ -184,8 +195,16 @@ func Parse(dsn string) (Config, map[string]string, error) {
 		}
 	}
 
-	p.EnableKerberos = params["enablekerberos"]
-	if p.EnableKerberos == "true" {
+	enablekerberos, ok := params["enablekerberos"]
+	if ok {
+		var err error
+		p.EnableKerberos, err = strconv.ParseBool(enablekerberos)
+		if err != nil {
+			f := "invalid enablekerberos flag '%v': %v"
+			return p, params, fmt.Errorf(f, enablekerberos, err.Error())
+		}
+	}
+	if p.EnableKerberos {
 		missingParam := checkMissingKRBConfig(params)
 		if missingParam != "" {
 			return p, params, fmt.Errorf(" %s cannot be empty", missingParam)
@@ -193,27 +212,32 @@ func Parse(dsn string) (Config, map[string]string, error) {
 
 		realm, ok := params["realm"]
 		if ok {
-			p.Realm = realm
+			p.KrbRealm = realm
 		}
 
 		krbCache, ok := params["krbcache"]
 		if ok {
-			p.KrbCache = krbCache
+			p.KrbCachePath = krbCache
 		}
 
 		krb5ConfFile, ok := params["krb5conffile"]
 		if ok {
-			p.Krb5ConfFile = krb5ConfFile
+			p.Krb5ConfFilePath = krb5ConfFile
 		}
 
 		initkrbwithkeytab, ok := params["initkrbwithkeytab"]
 		if ok {
-			p.Initkrbwithkeytab = initkrbwithkeytab
+			var err error
+			p.Initkrbwithkeytab, err = strconv.ParseBool(initkrbwithkeytab)
+			if err != nil {
+				f := "invalid initkrbwithkeytab flag '%v': %v"
+				return p, params, fmt.Errorf(f, initkrbwithkeytab, err.Error())
+			}
 		}
 
 		keytabfile, ok := params["keytabfile"]
 		if ok {
-			p.Keytabfile = keytabfile
+			p.KeytabFilePath = keytabfile
 		}
 
 	}
@@ -304,7 +328,7 @@ func Parse(dsn string) (Config, map[string]string, error) {
 	if ok {
 		p.ServerSPN = serverSPN
 	} else {
-		p.ServerSPN = generateSpn(p.Host, resolveServerPort(p.Port), p.Realm)
+		p.ServerSPN = generateSpn(p.Host, resolveServerPort(p.Port), p.KrbRealm)
 	}
 
 	workstation, ok := params["workstation id"]
@@ -364,6 +388,10 @@ func Parse(dsn string) (Config, map[string]string, error) {
 }
 
 func checkMissingKRBConfig(c map[string]string) (missingParam string) {
+	if c["krb5conffile"] == "" {
+		missingParam = "krb5conffile"
+		return
+	}
 	if c["initkrbwithkeytab"] == "true" {
 		if c["keytabfile"] == "" {
 			missingParam = "keytabfile"
