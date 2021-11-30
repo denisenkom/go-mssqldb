@@ -45,7 +45,7 @@ func TestGetKRB5Auth(t *testing.T) {
 	got, _ := getKRB5Auth("", "MSSQLSvc/mssql.domain.com:1433", "/etc/krb5.conf", keytabFile, "", true)
 	var keytab auth = &krb5Auth{username: "",
 		realm:             "domain.com",
-		service:           "MSSQLSvc/mssql.domain.com:1433",
+		serverSPN:         "MSSQLSvc/mssql.domain.com:1433",
 		password:          "",
 		port:              1433,
 		krb5ConfFile:      "/etc/krb5.conf",
@@ -63,7 +63,7 @@ func TestGetKRB5Auth(t *testing.T) {
 	got, _ = getKRB5Auth("", "MSSQLSvc/mssql.domain.com:1433", "/etc/krb5.conf", krbcacheFile, "", true)
 	keytab = &krb5Auth{username: "",
 		realm:             "domain.com",
-		service:           "MSSQLSvc/mssql.domain.com:1433",
+		serverSPN:         "MSSQLSvc/mssql.domain.com:1433",
 		password:          "",
 		port:              1433,
 		krb5ConfFile:      "/etc/krb5.conf",
@@ -86,7 +86,7 @@ func TestGetKRB5Auth(t *testing.T) {
 	got, _ = getKRB5Auth("", "MSSQLSvc/mssql.domain.com:1433@DOMAIN.COM", "/etc/krb5.conf", keytabFile, "", true)
 	keytab = &krb5Auth{username: "",
 		realm:             "DOMAIN.COM",
-		service:           "MSSQLSvc/mssql.domain.com:1433",
+		serverSPN:         "MSSQLSvc/mssql.domain.com:1433",
 		password:          "",
 		port:              1433,
 		krb5ConfFile:      "/etc/krb5.conf",
@@ -103,7 +103,7 @@ func TestGetKRB5Auth(t *testing.T) {
 	_, val = getKRB5Auth("", "MSSQLSvc/mssql.domain.com:1433@domain.com@test", "", keytabFile, "", true)
 
 	if val {
-		t.Errorf("Failed to get correct krb5Auth object due to incorrect service name")
+		t.Errorf("Failed to get correct krb5Auth object due to incorrect serverSPN name")
 	}
 
 	defer deleteFile(krbcacheFile, t)
@@ -116,7 +116,7 @@ func TestInitialBytes(t *testing.T) {
 	krbcacheFile := createKrbFile("krbcache_1000", t)
 	krbObj := &krb5Auth{username: "",
 		realm:             "domain.com",
-		service:           "MSSQLSvc/mssql.domain.com:1433",
+		serverSPN:         "MSSQLSvc/mssql.domain.com:1433",
 		password:          "",
 		port:              1433,
 		krb5ConfFile:      "/etc/krb5.conf",
@@ -253,7 +253,7 @@ func TestNextBytes(t *testing.T) {
 	keytabFile := createKrbFile("admin.keytab", t)
 	var krbObj auth = &krb5Auth{username: "",
 		realm:             "domain.com",
-		service:           "MSSQLSvc/mssql.domain.com:1433",
+		serverSPN:         "MSSQLSvc/mssql.domain.com:1433",
 		password:          "",
 		port:              1433,
 		krb5ConfFile:      "/etc/krb5.conf",
@@ -285,7 +285,7 @@ func TestFree(t *testing.T) {
 	cl := client.NewClientWithKeytab("Administrator", "DOMAIN.COM", kt, c, client.DisablePAFXFAST(true))
 	var krbObj auth = &krb5Auth{username: "",
 		realm:             "domain.com",
-		service:           "MSSQLSvc/mssql.domain.com:1433",
+		serverSPN:         "MSSQLSvc/mssql.domain.com:1433",
 		password:          "",
 		port:              1433,
 		krb5ConfFile:      "/etc/krb5.conf",

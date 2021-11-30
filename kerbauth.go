@@ -16,27 +16,17 @@ import (
 	"gopkg.in/jcmturner/gokrb5.v7/types"
 )
 
-type Krb5ClientState int
-
-const (
-	/* initiator states */
-	InitiatorStart Krb5ClientState = iota
-	InitiatorRestart
-	InitiatorWaitForMutal
-	InitiatorReady
-)
-
 type krb5Auth struct {
 	username          string
 	realm             string
-	service           string
+	serverSPN         string
 	password          string
 	port              uint64
 	krb5ConfFile      string
 	krbFile           string
 	initkrbwithkeytab bool
 	krb5Client        *client.Client
-	state             Krb5ClientState
+	state             krb5ClientState
 }
 
 var clientWithKeytab = client.NewClientWithKeytab
@@ -55,13 +45,13 @@ var getServiceTicket = func(cl *client.Client, spn string) (messages.Ticket, typ
 	return cl.GetServiceTicket(spn)
 }
 
-func getKRB5Auth(user, service, krb5Conf, krbFile, password string, initkrbwithkeytab bool) (auth, bool) {
+func getKRB5Auth(user, serverSPN, krb5Conf, krbFile, password string, initkrbwithkeytab bool) (auth, bool) {
 	var port uint64
 	var realm string
 	var serviceStr string
 	var err error
 
-	params1 := strings.Split(service, ":")
+	params1 := strings.Split(serverSPN, ":")
 	if len(params1) != 2 {
 		return nil, false
 	}
@@ -83,7 +73,7 @@ func getKRB5Auth(user, service, krb5Conf, krbFile, password string, initkrbwithk
 		return nil, false
 	}
 
-	params3 := strings.Split(service, "@")
+	params3 := strings.Split(serverSPN, "@")
 	switch len(params3) {
 	case 1:
 		serviceStr = params3[0]
@@ -101,7 +91,7 @@ func getKRB5Auth(user, service, krb5Conf, krbFile, password string, initkrbwithk
 
 	return &krb5Auth{
 		username:          user,
-		service:           serviceStr,
+		serverSPN:         serviceStr,
 		port:              port,
 		realm:             realm,
 		krb5ConfFile:      krb5Conf,
@@ -156,7 +146,7 @@ func (auth *krb5Auth) InitialBytes() ([]byte, error) {
 	auth.krb5Client = cl
 	auth.state = InitiatorStart
 
-	tkt, sessionKey, err := getServiceTicket(cl, auth.service)
+	tkt, sessionKey, err := getServiceTicket(cl, auth.serverSPN)
 	if err != nil {
 		return []byte{}, err
 	}
