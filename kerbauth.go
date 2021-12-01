@@ -63,7 +63,6 @@ func getKRB5Auth(user, serverSPN, krb5Conf, krbFile, password string, initkrbwit
 		if err != nil {
 			return nil, false
 		}
-
 	case 2:
 		port, err = strconv.ParseUint(params2[0], 10, 16)
 		if err != nil {
@@ -80,11 +79,9 @@ func getKRB5Auth(user, serverSPN, krb5Conf, krbFile, password string, initkrbwit
 		params3 = strings.Split(params1[0], "/")
 		params3 = strings.Split(params3[1], ".")
 		realm = params3[1] + "." + params3[2]
-
 	case 2:
 		realm = params3[1]
 		serviceStr = params3[0]
-
 	default:
 		return nil, false
 	}
@@ -99,7 +96,6 @@ func getKRB5Auth(user, serverSPN, krb5Conf, krbFile, password string, initkrbwit
 		password:          password,
 		initkrbwithkeytab: initkrbwithkeytab,
 	}, true
-
 }
 
 func (auth *krb5Auth) InitialBytes() ([]byte, error) {
@@ -119,7 +115,6 @@ func (auth *krb5Auth) InitialBytes() ([]byte, error) {
 	var cl *client.Client
 	// Init keytab from conf
 	if auth.initkrbwithkeytab {
-
 		keytabConf, err := ioutil.ReadFile(auth.krbFile)
 		if err != nil {
 			return []byte{}, err

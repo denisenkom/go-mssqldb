@@ -72,13 +72,11 @@ func TestGetKRB5Auth(t *testing.T) {
 		state:             0}
 
 	res = reflect.DeepEqual(got, keytab)
-
 	if !res {
 		t.Errorf("Failed to get correct krb5Auth object\nExpected:%v\nRecieved:%v", keytab, got)
 	}
 
 	_, val := getKRB5Auth("", "MSSQLSvc/mssql.domain.com", "/etc/krb5.conf", keytabFile, "", true)
-
 	if val {
 		t.Errorf("Failed to get correct krb5Auth object")
 	}
@@ -95,24 +93,19 @@ func TestGetKRB5Auth(t *testing.T) {
 		state:             0}
 
 	res = reflect.DeepEqual(got, keytab)
-
 	if !res {
 		t.Errorf("Failed to get correct krb5Auth object\nExpected:%v\nRecieved:%v", keytab, got)
 	}
 
 	_, val = getKRB5Auth("", "MSSQLSvc/mssql.domain.com:1433@domain.com@test", "", keytabFile, "", true)
-
 	if val {
 		t.Errorf("Failed to get correct krb5Auth object due to incorrect serverSPN name")
 	}
-
 	defer deleteFile(krbcacheFile, t)
 	defer deleteFile(keytabFile, t)
-
 }
 
 func TestInitialBytes(t *testing.T) {
-
 	krbcacheFile := createKrbFile("krbcache_1000", t)
 	krbObj := &krb5Auth{username: "",
 		realm:             "domain.com",
