@@ -99,7 +99,6 @@ func getKRB5Auth(user, serverSPN, krb5Conf, krbFile, password string, initkrbwit
 }
 
 func (auth *krb5Auth) InitialBytes() ([]byte, error) {
-	var err error
 	krb5CnfFile, err := os.Open(auth.krb5ConfFile)
 	if err != nil {
 		return []byte{}, err
@@ -139,7 +138,7 @@ func (auth *krb5Auth) InitialBytes() ([]byte, error) {
 	}
 
 	auth.krb5Client = cl
-	auth.state = InitiatorStart
+	auth.state = initiatorStart
 
 	tkt, sessionKey, err := getServiceTicket(cl, auth.serverSPN)
 	if err != nil {
@@ -155,7 +154,7 @@ func (auth *krb5Auth) InitialBytes() ([]byte, error) {
 	if err != nil {
 		return []byte{}, err
 	}
-	auth.state = InitiatorWaitForMutal
+	auth.state = initiatorWaitForMutal
 	return outToken, nil
 }
 
@@ -168,6 +167,6 @@ func (auth *krb5Auth) NextBytes(token []byte) ([]byte, error) {
 		err := fmt.Errorf("unmarshal APRep token failed: %w", err)
 		return []byte{}, err
 	}
-	auth.state = InitiatorReady
+	auth.state = initiatorReady
 	return []byte{}, nil
 }

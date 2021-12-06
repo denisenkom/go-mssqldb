@@ -117,11 +117,11 @@ type xmlInfo struct {
 type krb5ClientState int
 
 const (
-	/* initiator states */
-	InitiatorStart krb5ClientState = iota
-	InitiatorRestart
-	InitiatorWaitForMutal
-	InitiatorReady
+	// Initiator states
+	initiatorStart krb5ClientState = iota
+	initiatorRestart
+	initiatorWaitForMutal
+	initiatorReady
 )
 
 func readTypeInfo(r *tdsBuffer) (res typeInfo) {
