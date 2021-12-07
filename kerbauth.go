@@ -11,9 +11,7 @@ import (
 	"gopkg.in/jcmturner/gokrb5.v7/config"
 	"gopkg.in/jcmturner/gokrb5.v7/credentials"
 	"gopkg.in/jcmturner/gokrb5.v7/keytab"
-	"gopkg.in/jcmturner/gokrb5.v7/messages"
 	"gopkg.in/jcmturner/gokrb5.v7/spnego"
-	"gopkg.in/jcmturner/gokrb5.v7/types"
 )
 
 type krb5Auth struct {
@@ -29,26 +27,9 @@ type krb5Auth struct {
 	state             krb5ClientState
 }
 
-var clientWithKeytab = client.NewClientWithKeytab
-var loadCCache = credentials.LoadCCache
-var clientFromCCache = client.NewClientFromCCache
-var spnegoNewNegToken = spnego.NewNegTokenInitKRB5
-var spnegoToken spnego.SPNEGOToken
-var spnegoUnmarshal = spnegoToken.Unmarshal
-var kt = &keytab.Keytab{}
-var ktUnmarshal = kt.Unmarshal
-
-var negTokenMarshal = func(negTok spnego.NegTokenInit) ([]byte, error) {
-	return negTok.Marshal()
-}
-var getServiceTicket = func(cl *client.Client, spn string) (messages.Ticket, types.EncryptionKey, error) {
-	return cl.GetServiceTicket(spn)
-}
-
 func getKRB5Auth(user, serverSPN, krb5Conf, krbFile, password string, initkrbwithkeytab bool) (auth, bool) {
 	var port uint64
-	var realm string
-	var serviceStr string
+	var realm, serviceStr string
 	var err error
 
 	params1 := strings.Split(serverSPN, ":")
@@ -107,10 +88,9 @@ func (auth *krb5Auth) InitialBytes() ([]byte, error) {
 	if err != nil {
 		return []byte{}, err
 	}
-
 	// Set to lookup KDCs in DNS
 	c.LibDefaults.DNSLookupKDC = false
-
+	var kt = &keytab.Keytab{}
 	var cl *client.Client
 	// Init keytab from conf
 	if auth.initkrbwithkeytab {
@@ -118,39 +98,35 @@ func (auth *krb5Auth) InitialBytes() ([]byte, error) {
 		if err != nil {
 			return []byte{}, err
 		}
-		if err = ktUnmarshal([]byte(keytabConf)); err != nil {
+		if err = kt.Unmarshal([]byte(keytabConf)); err != nil {
 			return []byte{}, err
 		}
-
 		// Init krb5 client and login
-		cl = clientWithKeytab(auth.username, auth.realm, kt, c, client.DisablePAFXFAST(true))
-
+		cl = client.NewClientWithKeytab(auth.username, auth.realm, kt, c, client.DisablePAFXFAST(true))
 	} else {
-		cache, err := loadCCache(auth.krbFile)
+		cache, err := credentials.LoadCCache(auth.krbFile)
 		if err != nil {
 			return []byte{}, err
 		}
 
-		cl, err = clientFromCCache(cache, c)
+		cl, err = client.NewClientFromCCache(cache, c)
 		if err != nil {
 			return []byte{}, err
 		}
 	}
-
 	auth.krb5Client = cl
 	auth.state = initiatorStart
-
-	tkt, sessionKey, err := getServiceTicket(cl, auth.serverSPN)
+	tkt, sessionKey, err := cl.GetServiceTicket(auth.serverSPN)
 	if err != nil {
 		return []byte{}, err
 	}
 
-	negTok, err := spnegoNewNegToken(auth.krb5Client, tkt, sessionKey)
+	negTok, err := spnego.NewNegTokenInitKRB5(auth.krb5Client, tkt, sessionKey)
 	if err != nil {
 		return []byte{}, err
 	}
 
-	outToken, err := negTokenMarshal(negTok)
+	outToken, err := negTok.Marshal()
 	if err != nil {
 		return []byte{}, err
 	}
@@ -163,7 +139,8 @@ func (auth *krb5Auth) Free() {
 }
 
 func (auth *krb5Auth) NextBytes(token []byte) ([]byte, error) {
-	if err := spnegoUnmarshal(token); err != nil {
+	var spnegoToken spnego.SPNEGOToken
+	if err := spnegoToken.Unmarshal(token); err != nil {
 		err := fmt.Errorf("unmarshal APRep token failed: %w", err)
 		return []byte{}, err
 	}

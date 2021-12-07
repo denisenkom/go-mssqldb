@@ -1,7 +1,6 @@
 package mssql
 
 import (
-	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -10,17 +9,12 @@ import (
 
 	"gopkg.in/jcmturner/gokrb5.v7/client"
 	"gopkg.in/jcmturner/gokrb5.v7/config"
-	"gopkg.in/jcmturner/gokrb5.v7/credentials"
 	"gopkg.in/jcmturner/gokrb5.v7/keytab"
-	"gopkg.in/jcmturner/gokrb5.v7/messages"
-	"gopkg.in/jcmturner/gokrb5.v7/spnego"
-	"gopkg.in/jcmturner/gokrb5.v7/types"
 )
 
 func createKrbFile(filename string, t *testing.T) string {
-	//The byte array is used to create a basic file for testing purpose
-	ans := []byte{84, 104, 105, 115, 32, 105, 115, 32, 97, 32, 116, 101, 115, 116, 32, 102, 105, 108, 101, 46}
-	err := ioutil.WriteFile(filename, ans, 0644)
+	file := []byte("This is a test file")
+	err := ioutil.WriteFile(filename, file, 0644)
 	if err != nil {
 		t.Errorf("Could not write file")
 	}
@@ -32,18 +26,20 @@ func createKrbFile(filename string, t *testing.T) string {
 }
 
 func deleteFile(filename string, t *testing.T) {
-	if _, err := os.Stat(filename); err == nil {
-		err = os.Remove(filename)
-		if err != nil {
-			t.Errorf("Could not delete file: %v", filename)
+	defer func() {
+		if _, err := os.Stat(filename); err == nil {
+			err = os.Remove(filename)
+			if err != nil {
+				t.Errorf("Could not delete file: %v", filename)
+			}
 		}
-	}
+	}()
 }
 
 func TestGetKRB5Auth(t *testing.T) {
 	keytabFile := createKrbFile("admin.keytab", t)
 	got, _ := getKRB5Auth("", "MSSQLSvc/mssql.domain.com:1433", "/etc/krb5.conf", keytabFile, "", true)
-	var keytab auth = &krb5Auth{username: "",
+	keytab := &krb5Auth{username: "",
 		realm:             "domain.com",
 		serverSPN:         "MSSQLSvc/mssql.domain.com:1433",
 		password:          "",
@@ -78,7 +74,7 @@ func TestGetKRB5Auth(t *testing.T) {
 
 	_, val := getKRB5Auth("", "MSSQLSvc/mssql.domain.com", "/etc/krb5.conf", keytabFile, "", true)
 	if val {
-		t.Errorf("Failed to get correct krb5Auth object")
+		t.Errorf("Failed to get correct krb5Auth object: no port defined")
 	}
 
 	got, _ = getKRB5Auth("", "MSSQLSvc/mssql.domain.com:1433@DOMAIN.COM", "/etc/krb5.conf", keytabFile, "", true)
@@ -101,178 +97,93 @@ func TestGetKRB5Auth(t *testing.T) {
 	if val {
 		t.Errorf("Failed to get correct krb5Auth object due to incorrect serverSPN name")
 	}
-	defer deleteFile(krbcacheFile, t)
-	defer deleteFile(keytabFile, t)
+
+	_, val = getKRB5Auth("", "MSSQLSvc/mssql.domain.com:port@domain.com", "", keytabFile, "", true)
+	if val {
+		t.Errorf("Failed to get correct krb5Auth object due to incorrect port")
+	}
+
+	_, val = getKRB5Auth("", "MSSQLSvc/mssql.domain.com:port", "", keytabFile, "", true)
+	if val {
+		t.Errorf("Failed to get correct krb5Auth object due to incorrect port")
+	}
+
+	deleteFile(krbcacheFile, t)
+	deleteFile(keytabFile, t)
 }
 
 func TestInitialBytes(t *testing.T) {
+	krb5ConfFile := createKrbFile("krb5.conf", t)
 	krbcacheFile := createKrbFile("krbcache_1000", t)
 	krbObj := &krb5Auth{username: "",
 		realm:             "domain.com",
 		serverSPN:         "MSSQLSvc/mssql.domain.com:1433",
 		password:          "",
 		port:              1433,
-		krb5ConfFile:      "/etc/krb5.conf",
+		krb5ConfFile:      krb5ConfFile,
 		krbFile:           krbcacheFile,
 		initkrbwithkeytab: false,
 		state:             0,
 	}
 
-	loadCCache = func(cpath string) (*credentials.CCache, error) {
-		return &credentials.CCache{}, nil
-	}
-
-	clientFromCCache = func(c *credentials.CCache, krb5conf *config.Config, settings ...func(*client.Settings)) (*client.Client, error) {
-		return &client.Client{}, nil
-	}
-
-	getServiceTicket = func(cl *client.Client, spn string) (messages.Ticket, types.EncryptionKey, error) {
-		return messages.Ticket{}, types.EncryptionKey{}, nil
-	}
-	spnegoNewNegToken = func(cl *client.Client, tkt messages.Ticket, sessionKey types.EncryptionKey) (spnego.NegTokenInit, error) {
-		return spnego.NegTokenInit{}, nil
-	}
-
 	_, err := krbObj.InitialBytes()
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-
-	loadCCache = func(cpath string) (*credentials.CCache, error) {
-		return &credentials.CCache{}, errors.New("Error loading cache file")
-	}
-
-	_, err = krbObj.InitialBytes()
 	if err == nil {
-		t.Errorf(err.Error())
-	}
-
-	loadCCache = func(cpath string) (*credentials.CCache, error) {
-		return &credentials.CCache{}, nil
-	}
-	clientFromCCache = func(c *credentials.CCache, krb5conf *config.Config, settings ...func(*client.Settings)) (*client.Client, error) {
-		return &client.Client{}, errors.New("Failed to create a client from CCache")
-	}
-	_, err = krbObj.InitialBytes()
-	if err == nil {
-		t.Errorf(err.Error())
-	}
-
-	clientFromCCache = func(c *credentials.CCache, krb5conf *config.Config, settings ...func(*client.Settings)) (*client.Client, error) {
-		return &client.Client{}, nil
-	}
-	getServiceTicket = func(cl *client.Client, spn string) (messages.Ticket, types.EncryptionKey, error) {
-		return messages.Ticket{}, types.EncryptionKey{}, errors.New("Failed to create service ticket")
-	}
-
-	_, err = krbObj.InitialBytes()
-	if err == nil {
-		t.Errorf(err.Error())
+		t.Errorf("Failed to get Initial bytes")
 	}
 
 	keytabFile := createKrbFile("admin.keytab", t)
+	krbObj.krbFile = keytabFile
 	krbObj.initkrbwithkeytab = true
-	krbObj.krbFile = keytabFile
-
-	getServiceTicket = func(cl *client.Client, spn string) (messages.Ticket, types.EncryptionKey, error) {
-		return messages.Ticket{}, types.EncryptionKey{}, nil
-	}
-	ktUnmarshal = func(b []byte) error {
-		return nil
-	}
-
-	clientWithKeytab = func(username string, realm string, kt *keytab.Keytab, krb5conf *config.Config, settings ...func(*client.Settings)) *client.Client {
-		return &client.Client{}
-	}
-
-	_, err = krbObj.InitialBytes()
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-
-	krbObj.krbFile = "Test"
 
 	_, err = krbObj.InitialBytes()
 	if err == nil {
-		t.Errorf(err.Error())
+		t.Errorf("Failed to get Initial bytes")
 	}
 
-	krbObj.krbFile = keytabFile
-	ktUnmarshal = func(b []byte) error {
-		return errors.New("Failed to unmarshal keytab file")
-	}
-
+	krbObj.krb5ConfFile = "test/krb5.conf"
 	_, err = krbObj.InitialBytes()
 	if err == nil {
-		t.Errorf(err.Error())
+		t.Errorf("Should failed to get Initial bytes as the krb5.conf file path is wrong")
 	}
 
-	ktUnmarshal = func(b []byte) error {
-		return nil
-	}
-
-	spnegoNewNegToken = func(cl *client.Client, tkt messages.Ticket, sessionKey types.EncryptionKey) (spnego.NegTokenInit, error) {
-		return spnego.NegTokenInit{}, errors.New("Failed to create a new spnego token")
-	}
-
+	krbObj.krb5ConfFile = krb5ConfFile
+	krbObj.krbFile = keytabFile + ".test"
 	_, err = krbObj.InitialBytes()
 	if err == nil {
-		t.Errorf(err.Error())
+		t.Errorf("Should failed to get Initial bytes as the krb5.conf file path is wrong")
 	}
 
-	spnegoNewNegToken = func(cl *client.Client, tkt messages.Ticket, sessionKey types.EncryptionKey) (spnego.NegTokenInit, error) {
-		return spnego.NegTokenInit{}, nil
-	}
-
-	negTokenMarshal = func(negTok spnego.NegTokenInit) ([]byte, error) {
-		return []byte{}, errors.New("Failed to marshal neg token")
-	}
-
-	_, err = krbObj.InitialBytes()
-	if err == nil {
-		t.Errorf(err.Error())
-	}
-
-	defer deleteFile(krbcacheFile, t)
-	defer deleteFile(keytabFile, t)
+	deleteFile(krbcacheFile, t)
+	deleteFile(keytabFile, t)
+	deleteFile(krb5ConfFile, t)
 }
 
 func TestNextBytes(t *testing.T) {
-	ans := []byte{84, 104, 105, 115, 32, 105, 115, 32, 97, 32, 116, 101, 115, 116, 32, 102, 105, 108, 101, 46}
-	spnegoUnmarshal = func(b []byte) error {
-		return nil
-	}
-
+	ans := []byte{}
 	keytabFile := createKrbFile("admin.keytab", t)
+	krb5ConfFile := createKrbFile("krb5.conf", t)
 	var krbObj auth = &krb5Auth{username: "",
 		realm:             "domain.com",
 		serverSPN:         "MSSQLSvc/mssql.domain.com:1433",
 		password:          "",
 		port:              1433,
-		krb5ConfFile:      "/etc/krb5.conf",
+		krb5ConfFile:      krb5ConfFile,
 		krbFile:           keytabFile,
 		initkrbwithkeytab: true,
 		state:             0}
 
 	_, err := krbObj.NextBytes(ans)
-	if err != nil {
+	if err == nil {
 		t.Errorf("Error getting next byte")
 	}
 
-	spnegoUnmarshal = func(b []byte) error {
-		return errors.New("Failed to unmarshal")
-	}
-
-	_, err = krbObj.NextBytes(ans)
-	if err == nil {
-		t.Errorf("Should fail to unmarshal but passed")
-	}
-
-	defer deleteFile(keytabFile, t)
+	deleteFile(keytabFile, t)
+	deleteFile(krb5ConfFile, t)
 }
 
 func TestFree(t *testing.T) {
 	keytabFile := createKrbFile("admin.keytab", t)
+	krb5ConfFile := createKrbFile("krb5.conf", t)
 	kt := &keytab.Keytab{}
 	c := &config.Config{}
 	cl := client.NewClientWithKeytab("Administrator", "DOMAIN.COM", kt, c, client.DisablePAFXFAST(true))
@@ -281,7 +192,7 @@ func TestFree(t *testing.T) {
 		serverSPN:         "MSSQLSvc/mssql.domain.com:1433",
 		password:          "",
 		port:              1433,
-		krb5ConfFile:      "/etc/krb5.conf",
+		krb5ConfFile:      krb5ConfFile,
 		krbFile:           keytabFile,
 		initkrbwithkeytab: true,
 		state:             0,
@@ -289,5 +200,6 @@ func TestFree(t *testing.T) {
 	}
 
 	krbObj.Free()
-	defer deleteFile(keytabFile, t)
+	deleteFile(keytabFile, t)
+	deleteFile(krb5ConfFile, t)
 }
