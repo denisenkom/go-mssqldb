@@ -1011,6 +1011,7 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger Cont
 		if err != nil {
 			return nil, err
 		}
+
 		l.OptionFlags2 |= fIntSecurity
 		return l, nil
 
@@ -1160,9 +1161,9 @@ initiate_connection:
 	var authOk bool
 	if p.EnableKerberos {
 		if p.Initkrbwithkeytab {
-			auth, authOk = getKRB5Auth(p.User, p.ServerSPN, p.Krb5ConfFilePath, p.KeytabFilePath, p.Password, p.Initkrbwithkeytab)
+			auth, authOk = getKRB5Auth(p.User, p.Password, p.ServerSPN, p.Krb5Conf, p.KrbKeytab, p.KrbCache, p.Initkrbwithkeytab)
 		} else {
-			auth, authOk = getKRB5Auth(p.User, p.ServerSPN, p.Krb5ConfFilePath, p.KrbCachePath, p.Password, p.Initkrbwithkeytab)
+			auth, authOk = getKRB5Auth(p.User, p.Password, p.ServerSPN, p.Krb5Conf, p.KrbKeytab, p.KrbCache, p.Initkrbwithkeytab)
 		}
 	} else {
 		auth, authOk = getAuth(p.User, p.Password, p.ServerSPN, p.Workstation)

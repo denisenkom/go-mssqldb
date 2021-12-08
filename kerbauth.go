@@ -2,16 +2,14 @@ package mssql
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
 	"strconv"
 	"strings"
 
-	"gopkg.in/jcmturner/gokrb5.v7/client"
-	"gopkg.in/jcmturner/gokrb5.v7/config"
-	"gopkg.in/jcmturner/gokrb5.v7/credentials"
-	"gopkg.in/jcmturner/gokrb5.v7/keytab"
-	"gopkg.in/jcmturner/gokrb5.v7/spnego"
+	"github.com/jcmturner/gokrb5/v8/client"
+	"github.com/jcmturner/gokrb5/v8/config"
+	"github.com/jcmturner/gokrb5/v8/credentials"
+	"github.com/jcmturner/gokrb5/v8/keytab"
+	"github.com/jcmturner/gokrb5/v8/spnego"
 )
 
 type krb5Auth struct {
@@ -20,14 +18,15 @@ type krb5Auth struct {
 	serverSPN         string
 	password          string
 	port              uint64
-	krb5ConfFile      string
-	krbFile           string
+	krb5Config        *config.Config
+	krbKeytab         *keytab.Keytab
+	krbCache          *credentials.CCache
 	initkrbwithkeytab bool
 	krb5Client        *client.Client
 	state             krb5ClientState
 }
 
-func getKRB5Auth(user, serverSPN, krb5Conf, krbFile, password string, initkrbwithkeytab bool) (auth, bool) {
+func getKRB5Auth(user, password, serverSPN string, krb5Conf *config.Config, keytabContent *keytab.Keytab, cacheContent *credentials.CCache, initkrbwithkeytab bool) (auth, bool) {
 	var port uint64
 	var realm, serviceStr string
 	var err error
@@ -72,44 +71,25 @@ func getKRB5Auth(user, serverSPN, krb5Conf, krbFile, password string, initkrbwit
 		serverSPN:         serviceStr,
 		port:              port,
 		realm:             realm,
-		krb5ConfFile:      krb5Conf,
-		krbFile:           krbFile,
+		krb5Config:        krb5Conf,
+		krbKeytab:         keytabContent,
+		krbCache:          cacheContent,
 		password:          password,
 		initkrbwithkeytab: initkrbwithkeytab,
 	}, true
 }
 
 func (auth *krb5Auth) InitialBytes() ([]byte, error) {
-	krb5CnfFile, err := os.Open(auth.krb5ConfFile)
-	if err != nil {
-		return []byte{}, err
-	}
-	c, err := config.NewConfigFromReader(krb5CnfFile)
-	if err != nil {
-		return []byte{}, err
-	}
 	// Set to lookup KDCs in DNS
-	c.LibDefaults.DNSLookupKDC = false
-	var kt = &keytab.Keytab{}
+	auth.krb5Config.LibDefaults.DNSLookupKDC = false
 	var cl *client.Client
+	var err error
 	// Init keytab from conf
 	if auth.initkrbwithkeytab {
-		keytabConf, err := ioutil.ReadFile(auth.krbFile)
-		if err != nil {
-			return []byte{}, err
-		}
-		if err = kt.Unmarshal([]byte(keytabConf)); err != nil {
-			return []byte{}, err
-		}
 		// Init krb5 client and login
-		cl = client.NewClientWithKeytab(auth.username, auth.realm, kt, c, client.DisablePAFXFAST(true))
+		cl = client.NewWithKeytab(auth.username, auth.realm, auth.krbKeytab, auth.krb5Config, client.DisablePAFXFAST(true))
 	} else {
-		cache, err := credentials.LoadCCache(auth.krbFile)
-		if err != nil {
-			return []byte{}, err
-		}
-
-		cl, err = client.NewClientFromCCache(cache, c)
+		cl, err = client.NewFromCCache(auth.krbCache, auth.krb5Config)
 		if err != nil {
 			return []byte{}, err
 		}

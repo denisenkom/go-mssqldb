@@ -1,6 +1,9 @@
 package msdsn
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -53,6 +56,7 @@ func TestValidConnectionString(t *testing.T) {
 		{"server=server\\instance;database=testdb;user id=tester;password=pwd", func(p Config) bool {
 			return p.Host == "server" && p.Instance == "instance" && p.User == "tester" && p.Password == "pwd"
 		}},
+
 		{"server=.", func(p Config) bool { return p.Host == "localhost" }},
 		{"server=(local)", func(p Config) bool { return p.Host == "localhost" }},
 		{"ServerSPN=serverspn;Workstation ID=workstid", func(p Config) bool { return p.ServerSPN == "serverspn" && p.Workstation == "workstid" }},
@@ -198,7 +202,6 @@ func TestConnParseRoundTripFixed(t *testing.T) {
 }
 
 func TestInvalidConnectionStringKerberos(t *testing.T) {
-
 	connStrings := []string{
 		"server=server;port=1345;realm=domain;trustservercertificate=true;keytabfile=/path/to/administrator2.keytab;enablekerberos=true",
 		"server=server;port=1345;realm=domain;trustservercertificate=true;krbcache=;enablekerberos=true",
@@ -219,18 +222,46 @@ func TestInvalidConnectionStringKerberos(t *testing.T) {
 }
 
 func TestValidConnectionStringKerberos(t *testing.T) {
+	krbcache := createKrbFile("krbcache_1000", t)
+	keytab := createKrbFile("admin.keytab", t)
+	krbconf := createKrbFile("krb5.conf", t)
 	connStrings := []string{
-		"server=server;user id=user;port=1345;realm=domain;trustservercertificate=true;krb5conffile=/etc/krb5.conf;keytabfile=/path/to/admin.keytab;enablekerberos=true;initkrbwithkeytab=true",
-		"server=server;port=1345;realm=domain;trustservercertificate=true;krb5conffile=/etc/krb5.conf;krbcache=/tmp/krb5cc_1000;enablekerberos=true",
+		"server=server;user id=user;port=1345;realm=domain;trustservercertificate=true;krb5conffile=" + krbconf + ";keytabfile=" + keytab + ";enablekerberos=true;initkrbwithkeytab=true",
+		"server=server;port=1345;realm=domain;trustservercertificate=true;krb5conffile=" + krbconf + ";krbcache=" + krbcache + ";enablekerberos=true",
 	}
 
 	for _, connStr := range connStrings {
 		_, _, err := Parse(connStr)
 		if err == nil {
-			t.Logf("Connection string was parsed successfully %s", connStrings)
-		} else {
-			t.Errorf("Connection string %s failed to parse with error %s", connStrings, err)
+			t.Errorf("Connection string %s should fail to parse with error %s", connStrings, err)
 		}
 	}
 
+	deleteFile(krbcache, t)
+	deleteFile(krbconf, t)
+	deleteFile(keytab, t)
+}
+
+func createKrbFile(filename string, t *testing.T) string {
+	file := []byte("This is a test file")
+	err := ioutil.WriteFile(filename, file, 0644)
+	if err != nil {
+		t.Errorf("Could not write file")
+	}
+	filedirectory := filepath.Dir(filename)
+	thepath, _ := filepath.Abs(filedirectory)
+	filePath := thepath + "/" + filename
+
+	return filePath
+}
+
+func deleteFile(filename string, t *testing.T) {
+	defer func() {
+		if _, err := os.Stat(filename); err == nil {
+			err = os.Remove(filename)
+			if err != nil {
+				t.Errorf("Could not delete file: %v", filename)
+			}
+		}
+	}()
 }
