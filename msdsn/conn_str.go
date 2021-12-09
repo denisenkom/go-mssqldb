@@ -203,14 +203,13 @@ func Parse(dsn string) (Config, map[string]string, error) {
 		var err error
 		p.EnableKerberos, err = strconv.ParseBool(enablekerberos)
 		if err != nil {
-			f := "invalid enablekerberos flag '%v': %v"
-			return p, params, fmt.Errorf(f, enablekerberos, err.Error())
+			return p, params, fmt.Errorf("invalid enablekerberos flag '%v': %v", enablekerberos, err.Error())
 		}
 	}
 	if p.EnableKerberos {
 		missingParam := checkMissingKRBConfig(params)
 		if missingParam != "" {
-			return p, params, fmt.Errorf(" %s cannot be empty", missingParam)
+			return p, params, fmt.Errorf("missing parameter:%s", missingParam)
 		}
 
 		realm, ok := params["realm"]
@@ -223,7 +222,7 @@ func Parse(dsn string) (Config, map[string]string, error) {
 			var err error
 			p.KrbCache, err = setupKerbCache(krbCache)
 			if err != nil {
-				return p, params, fmt.Errorf("cannot read kerberos cache file: %v", err)
+				return p, params, fmt.Errorf("cannot read kerberos cache file: %v", err.Error())
 			}
 		}
 
@@ -232,7 +231,7 @@ func Parse(dsn string) (Config, map[string]string, error) {
 			var err error
 			p.Krb5Conf, err = setupKerbConfig(krb5ConfFile)
 			if err != nil {
-				return p, params, fmt.Errorf("cannot read kerberos configuration file: %v", err)
+				return p, params, fmt.Errorf("cannot read kerberos configuration file: %v", err.Error())
 			}
 
 		}
@@ -242,8 +241,7 @@ func Parse(dsn string) (Config, map[string]string, error) {
 			var err error
 			p.Initkrbwithkeytab, err = strconv.ParseBool(initkrbwithkeytab)
 			if err != nil {
-				f := "invalid initkrbwithkeytab flag '%v': %v"
-				return p, params, fmt.Errorf(f, initkrbwithkeytab, err.Error())
+				return p, params, fmt.Errorf("invalid initkrbwithkeytab flag '%v': %v", initkrbwithkeytab, err.Error())
 			}
 		}
 
@@ -252,7 +250,7 @@ func Parse(dsn string) (Config, map[string]string, error) {
 			var err error
 			p.KrbKeytab, err = setupKerbKeytab(keytabfile)
 			if err != nil {
-				return p, params, fmt.Errorf("cannot read kerberos keytab file: %v", err)
+				return p, params, fmt.Errorf("cannot read kerberos keytab file: %v", err.Error())
 			}
 		}
 	}
@@ -410,9 +408,11 @@ func checkMissingKRBConfig(c map[string]string) (missingParam string) {
 	if c["initkrbwithkeytab"] == "true" {
 		if c["keytabfile"] == "" {
 			missingParam = "keytabfile"
+			return
 		}
 		if c["realm"] == "" {
 			missingParam = "realm"
+			return
 		}
 	} else if c["krbcache"] == "" {
 		missingParam = "krbcache"
