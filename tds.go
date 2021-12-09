@@ -1135,7 +1135,7 @@ initiate_connection:
 			}
 		}
 		if config == nil {
-			config, err = msdsn.SetupTLS("", false, p.Host)
+			config, err = msdsn.SetupTLS("", false, p.Host, false)
 			if err != nil {
 				return nil, err
 			}
