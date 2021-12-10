@@ -15,7 +15,6 @@ func TestInvalidConnectionString(t *testing.T) {
 		"dial timeout=invalid",
 		"keepalive=invalid",
 		"encrypt=invalid",
-		"allownonstandardhostname=invalid",
 		"trustservercertificate=invalid",
 		"failoverport=invalid",
 		"applicationintent=ReadOnly",
@@ -62,8 +61,6 @@ func TestValidConnectionString(t *testing.T) {
 		{"encrypt=disable", func(p Config) bool { return p.Encryption == EncryptionDisabled }},
 		{"encrypt=true", func(p Config) bool { return p.Encryption == EncryptionRequired }},
 		{"encrypt=false", func(p Config) bool { return p.Encryption == EncryptionOff }},
-		{"allownonstandardhostname=true", func(p Config) bool { return p.AllowNonstandardHostname == true }},
-		{"allownonstandardhostname=false", func(p Config) bool { return p.AllowNonstandardHostname == false }},
 		{"connection timeout=3;dial timeout=4;keepalive=5", func(p Config) bool {
 			return p.ConnTimeout == 3*time.Second && p.DialTimeout == 4*time.Second && p.KeepAlive == 5*time.Second
 		}},

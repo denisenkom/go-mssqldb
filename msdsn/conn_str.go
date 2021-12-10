@@ -52,10 +52,6 @@ type Config struct {
 	// If true the TLSConfig servername should use the routed server.
 	HostInCertificateProvided bool
 
-	// If true allow non-standard TLSConfig servername specified via
-	// hostnameincertificate as the routed servername used for verification.
-	AllowNonstandardHostname bool
-
 	// Read Only intent for application database.
 	// NOTE: This does not make queries to most databases read-only.
 	ReadOnlyIntent bool
@@ -78,47 +74,53 @@ type Config struct {
 	PacketSize  uint16
 }
 
-func SetupTLS(certificate string, insecureSkipVerify bool, hostInCertificate string, allowNonstandardHostname bool) (*tls.Config, error) {
-	var config tls.Config
-	config.ServerName = hostInCertificate
-	if certificate != "" {
-		pem, err := ioutil.ReadFile(certificate)
-		if err != nil {
-			return nil, fmt.Errorf("cannot read certificate %q: %v", certificate, err)
-		}
-		if !allowNonstandardHostname {
-			certs := x509.NewCertPool()
-			certs.AppendCertsFromPEM(pem)
-			config.RootCAs = certs
-			if insecureSkipVerify {
-				config.InsecureSkipVerify = true
-			}
-		} else {
-			// Set InsecureSkipVerify to skip the default hostname validation that this is
-			// replacing. This does not disable VerifyConnection.
-			config.InsecureSkipVerify = true
-			config.VerifyConnection = func(cs tls.ConnectionState) error {
-				commonName := cs.PeerCertificates[0].Subject.CommonName
-				if commonName != cs.ServerName {
-					return fmt.Errorf("invalid certificate name %q, expected %q", commonName, cs.ServerName)
-				}
-				opts := x509.VerifyOptions{
-					Roots:         nil,
-					Intermediates: x509.NewCertPool(),
-				}
-				opts.Intermediates.AppendCertsFromPEM(pem)
-				_, err := cs.PeerCertificates[0].Verify(opts)
-				return err
-			}
-		}
+func SetupTLS(certificate string, insecureSkipVerify bool, hostInCertificate string) (*tls.Config, error) {
+	config := tls.Config{
+		ServerName: hostInCertificate,
+
+		// fix for https://github.com/denisenkom/go-mssqldb/issues/166
+		// Go implementation of TLS payload size heuristic algorithm splits single TDS package to multiple TCP segments,
+		// while SQL Server seems to expect one TCP segment per encrypted TDS package.
+		// Setting DynamicRecordSizingDisabled to true disables that algorithm and uses 16384 bytes per TLS package
+		DynamicRecordSizingDisabled: true,
 	}
-
-	// fix for https://github.com/denisenkom/go-mssqldb/issues/166
-	// Go implementation of TLS payload size heuristic algorithm splits single TDS package to multiple TCP segments,
-	// while SQL Server seems to expect one TCP segment per encrypted TDS package.
-	// Setting DynamicRecordSizingDisabled to true disables that algorithm and uses 16384 bytes per TLS package
-	config.DynamicRecordSizingDisabled = true
-
+	if len(certificate) == 0 {
+		return &config, nil
+	}
+	pem, err := ioutil.ReadFile(certificate)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read certificate %q: %v", certificate, err)
+	}
+	if strings.Contains(config.ServerName, ":") && !insecureSkipVerify {
+		// fix for https://github.com/denisenkom/go-mssqldb/issues/704
+		// A SSL/TLS certificate Common Name (CN) containing the ":" character
+		// (which is a non-standard character) will cause normal verification to fail.
+		// Since the VerifyConnection callback runs after normal certificate
+		// verification, confirm that SetupTLS() has been called
+		// with "insecureSkipVerify=false", then InsecureSkipVerify must be set to true
+		// for this VerifyConnection callback to accomplish certificate verification.
+		config.InsecureSkipVerify = true
+		config.VerifyConnection = func(cs tls.ConnectionState) error {
+			commonName := cs.PeerCertificates[0].Subject.CommonName
+			if commonName != cs.ServerName {
+				return fmt.Errorf("invalid certificate name %q, expected %q", commonName, cs.ServerName)
+			}
+			opts := x509.VerifyOptions{
+				Roots:         nil,
+				Intermediates: x509.NewCertPool(),
+			}
+			opts.Intermediates.AppendCertsFromPEM(pem)
+			_, err := cs.PeerCertificates[0].Verify(opts)
+			return err
+		}
+		return &config, nil
+	}
+	certs := x509.NewCertPool()
+	certs.AppendCertsFromPEM(pem)
+	config.RootCAs = certs
+	if insecureSkipVerify {
+		config.InsecureSkipVerify = true
+	}
 	return &config, nil
 }
 
@@ -231,10 +233,9 @@ func Parse(dsn string) (Config, map[string]string, error) {
 	}
 
 	var (
-		trustServerCert          = false
-		certificate              = ""
-		hostInCertificate        = ""
-		allowNonstandardHostname = false
+		trustServerCert   = false
+		certificate       = ""
+		hostInCertificate = ""
 	)
 	encrypt, ok := params["encrypt"]
 	if ok {
@@ -271,22 +272,9 @@ func Parse(dsn string) (Config, map[string]string, error) {
 		p.HostInCertificateProvided = false
 	}
 
-	allownonstandardhostname, ok := params["allownonstandardhostname"]
-	if ok {
-		var err error
-		p.AllowNonstandardHostname = true
-		allowNonstandardHostname, err = strconv.ParseBool(allownonstandardhostname)
-		if err != nil {
-			f := "invalid allow nonstandard hostname '%s': %s"
-			return p, params, fmt.Errorf(f, allownonstandardhostname, err.Error())
-		}
-	} else {
-		p.AllowNonstandardHostname = false
-	}
-
 	if p.Encryption != EncryptionDisabled {
 		var err error
-		p.TLSConfig, err = SetupTLS(certificate, trustServerCert, hostInCertificate, allowNonstandardHostname)
+		p.TLSConfig, err = SetupTLS(certificate, trustServerCert, hostInCertificate)
 		if err != nil {
 			return p, params, fmt.Errorf("failed to setup TLS: %w", err)
 		}

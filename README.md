@@ -54,9 +54,6 @@ Other supported formats are listed below.
   * true - Server certificate is not checked. Default is true if encrypt is not specified. If trust server certificate is true, driver accepts any certificate presented by the server and any host name in that certificate. In this mode, TLS is susceptible to man-in-the-middle attacks. This should be used only for testing.
 * `certificate` - The file that contains the public key certificate of the CA that signed the SQL Server certificate. The specified certificate overrides the go platform specific CA certificates.
 * `hostNameInCertificate` - Specifies the Common Name (CN) in the server certificate. Default value is the server host.
-* `allowNonstandardHostname`
-  * false - Require standard Common Name (CN) (specified via `hostnameincertificate`) as the routed servername used for CA certificate verification. Default is false.
-  * true - Allow non-standard Common Name (CN) (specified via `hostnameincertificate`) as the routed servername used for CA certificate verification.
 * `ServerSPN` - The kerberos SPN (Service Principal Name) for the server. Default is MSSQLSvc/host:port.
 * `Workstation ID` - The workstation name (default is the host name)
 * `ApplicationIntent` - Can be given the value `ReadOnly` to initiate a read-only connection to an Availability Group listener. The `database` must be specified when connecting with `Application Intent` set to `ReadOnly`.
