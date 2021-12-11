@@ -3,6 +3,7 @@ package msdsn
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -89,31 +90,13 @@ func SetupTLS(certificate string, insecureSkipVerify bool, hostInCertificate str
 	}
 	pem, err := ioutil.ReadFile(certificate)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read certificate %q: %v", certificate, err)
+		return nil, fmt.Errorf("cannot read certificate %q: %w", certificate, err)
 	}
 	if strings.Contains(config.ServerName, ":") && !insecureSkipVerify {
-		// fix for https://github.com/denisenkom/go-mssqldb/issues/704
-		// A SSL/TLS certificate Common Name (CN) containing the ":" character
-		// (which is a non-standard character) will cause normal verification to fail.
-		// Since the VerifyConnection callback runs after normal certificate
-		// verification, confirm that SetupTLS() has been called
-		// with "insecureSkipVerify=false", then InsecureSkipVerify must be set to true
-		// for this VerifyConnection callback to accomplish certificate verification.
-		config.InsecureSkipVerify = true
-		config.VerifyConnection = func(cs tls.ConnectionState) error {
-			commonName := cs.PeerCertificates[0].Subject.CommonName
-			if commonName != cs.ServerName {
-				return fmt.Errorf("invalid certificate name %q, expected %q", commonName, cs.ServerName)
-			}
-			opts := x509.VerifyOptions{
-				Roots:         nil,
-				Intermediates: x509.NewCertPool(),
-			}
-			opts.Intermediates.AppendCertsFromPEM(pem)
-			_, err := cs.PeerCertificates[0].Verify(opts)
-			return err
+		err := setupTLSCommonName(&config, pem)
+		if err != skipSetup {
+			return &config, err
 		}
-		return &config, nil
 	}
 	certs := x509.NewCertPool()
 	certs.AppendCertsFromPEM(pem)
@@ -123,6 +106,8 @@ func SetupTLS(certificate string, insecureSkipVerify bool, hostInCertificate str
 	}
 	return &config, nil
 }
+
+var skipSetup = errors.New("skip setting up TLS")
 
 func Parse(dsn string) (Config, map[string]string, error) {
 	p := Config{}
