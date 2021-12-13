@@ -203,7 +203,7 @@ func Parse(dsn string) (Config, map[string]string, error) {
 		var err error
 		p.EnableKerberos, err = strconv.ParseBool(enablekerberos)
 		if err != nil {
-			return p, params, fmt.Errorf("invalid enablekerberos flag '%v': %v", enablekerberos, err.Error())
+			return p, params, fmt.Errorf("invalid enablekerberos flag '%v': %w", enablekerberos, err)
 		}
 	}
 	if p.EnableKerberos {
@@ -222,7 +222,7 @@ func Parse(dsn string) (Config, map[string]string, error) {
 			var err error
 			p.KrbCache, err = setupKerbCache(krbCache)
 			if err != nil {
-				return p, params, fmt.Errorf("cannot read kerberos cache file: %v", err.Error())
+				return p, params, fmt.Errorf("cannot read kerberos cache file: %w", err)
 			}
 		}
 
@@ -231,7 +231,7 @@ func Parse(dsn string) (Config, map[string]string, error) {
 			var err error
 			p.Krb5Conf, err = setupKerbConfig(krb5ConfFile)
 			if err != nil {
-				return p, params, fmt.Errorf("cannot read kerberos configuration file: %v", err.Error())
+				return p, params, fmt.Errorf("cannot read kerberos configuration file: %w", err)
 			}
 
 		}
@@ -241,7 +241,7 @@ func Parse(dsn string) (Config, map[string]string, error) {
 			var err error
 			p.Initkrbwithkeytab, err = strconv.ParseBool(initkrbwithkeytab)
 			if err != nil {
-				return p, params, fmt.Errorf("invalid initkrbwithkeytab flag '%v': %v", initkrbwithkeytab, err.Error())
+				return p, params, fmt.Errorf("invalid initkrbwithkeytab flag '%v': %w", initkrbwithkeytab, err)
 			}
 		}
 
@@ -250,7 +250,7 @@ func Parse(dsn string) (Config, map[string]string, error) {
 			var err error
 			p.KrbKeytab, err = setupKerbKeytab(keytabfile)
 			if err != nil {
-				return p, params, fmt.Errorf("cannot read kerberos keytab file: %v", err.Error())
+				return p, params, fmt.Errorf("cannot read kerberos keytab file: %w", err)
 			}
 		}
 	}

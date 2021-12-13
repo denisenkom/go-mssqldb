@@ -121,7 +121,7 @@ func (auth *krb5Auth) Free() {
 func (auth *krb5Auth) NextBytes(token []byte) ([]byte, error) {
 	var spnegoToken spnego.SPNEGOToken
 	if err := spnegoToken.Unmarshal(token); err != nil {
-		err := fmt.Errorf("unmarshal APRep token failed: %v", err)
+		err := fmt.Errorf("unmarshal APRep token failed: %w", err)
 		return []byte{}, err
 	}
 	auth.state = initiatorReady
