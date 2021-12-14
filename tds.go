@@ -847,8 +847,7 @@ func dialConnection(ctx context.Context, c *Connector, p msdsn.Config) (conn net
 	var ips []net.IP
 	ip := net.ParseIP(p.Host)
 	if ip == nil {
-		host := strings.Split(p.Host, "\\")[0]
-		ips, err = net.LookupIP(host)		
+		ips, err = net.LookupIP(p.Host)		
 		if err != nil {
 			return
 		}
@@ -1251,7 +1250,12 @@ initiate_connection:
 
 	if sess.routedServer != "" {
 		toconn.Close()
-		p.Host = sess.routedServer
+		var routedServer []string
+		routedServer = strings.Split(sess.routedServer, "\\")
+		p.Host = routedServer[0]
+		if len(routedServer) == 2 {
+			p.Instance = routedServer[1]
+		}
 		p.Port = uint64(sess.routedPort)
 		if !p.HostInCertificateProvided && p.TLSConfig != nil {
 			p.TLSConfig = p.TLSConfig.Clone()
