@@ -847,7 +847,8 @@ func dialConnection(ctx context.Context, c *Connector, p msdsn.Config) (conn net
 	var ips []net.IP
 	ip := net.ParseIP(p.Host)
 	if ip == nil {
-		ips, err = net.LookupIP(p.Host)
+		host := strings.Split(p.Host, "\\")[0]
+		ips, err = net.LookupIP(host)		
 		if err != nil {
 			return
 		}
