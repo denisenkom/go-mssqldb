@@ -1251,10 +1251,10 @@ initiate_connection:
 	if sess.routedServer != "" {
 		toconn.Close()
 		// Need to handle case when routedServer is in "host\instance" format.
-		var routedParts []string := strings.SplitN(sess.routedServer, "\\", 2)
-		p.Host = routedServer[0]
+		routedParts := strings.SplitN(sess.routedServer, "\\", 2)
+		p.Host = routedParts[0]
 		if len(routedServer) == 2 {
-			p.Instance = routedServer[1]
+			p.Instance = routedParts[1]
 		}
 		p.Port = uint64(sess.routedPort)
 		if !p.HostInCertificateProvided && p.TLSConfig != nil {
