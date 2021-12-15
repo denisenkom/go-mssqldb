@@ -1253,7 +1253,7 @@ initiate_connection:
 		// Need to handle case when routedServer is in "host\instance" format.
 		routedParts := strings.SplitN(sess.routedServer, "\\", 2)
 		p.Host = routedParts[0]
-		if len(routedServer) == 2 {
+		if len(routedParts) == 2 {
 			p.Instance = routedParts[1]
 		}
 		p.Port = uint64(sess.routedPort)
