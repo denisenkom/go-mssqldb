@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -1403,26 +1404,26 @@ func TestProcessQueryNextErrors(t *testing.T) {
 		t.Fatal("Next should not return EOF, instead should fail when it encounters closed connection")
 	}
 	err = rows.Next([]driver.Value{&val})
-	if err != driver.ErrBadConn {
-		t.Fatal("Connection should be bad")
+	if !errors.Is(err, driver.ErrBadConn) {
+		t.Fatalf("Connection should be bad A, is: %[1]T %[1]v", err)
 	}
 	err = conn.Ping(context.Background())
-	if err != driver.ErrBadConn {
-		t.Fatal("Connection should be bad")
+	if !errors.Is(err, driver.ErrBadConn) {
+		t.Fatalf("Connection should be bad B, is: %[1]T %[1]v", err)
 	}
 	_, err = conn.BeginTx(
 		context.Background(),
 		driver.TxOptions{})
-	if err != driver.ErrBadConn {
-		t.Fatal("Connection should be bad")
+	if !errors.Is(err, driver.ErrBadConn) {
+		t.Fatalf("Connection should be bad C, is: %[1]T %[1]v", err)
 	}
 	_, err = stmt.QueryContext(context.Background(), []driver.NamedValue{})
-	if err != driver.ErrBadConn {
-		t.Fatal("Connection should be bad")
+	if !errors.Is(err, driver.ErrBadConn) {
+		t.Fatalf("Connection should be bad D, is: %[1]T %[1]v", err)
 	}
 	_, err = stmt.ExecContext(context.Background(), []driver.NamedValue{})
-	if err != driver.ErrBadConn {
-		t.Fatal("Connection should be bad")
+	if !errors.Is(err, driver.ErrBadConn) {
+		t.Fatalf("Connection should be bad E, is: %[1]T %[1]v", err)
 	}
 }
 

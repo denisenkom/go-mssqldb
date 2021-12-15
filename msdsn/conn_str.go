@@ -77,7 +77,8 @@ type Config struct {
 
 func SetupTLS(certificate string, insecureSkipVerify bool, hostInCertificate string) (*tls.Config, error) {
 	config := tls.Config{
-		ServerName: hostInCertificate,
+		ServerName:         hostInCertificate,
+		InsecureSkipVerify: insecureSkipVerify,
 
 		// fix for https://github.com/denisenkom/go-mssqldb/issues/166
 		// Go implementation of TLS payload size heuristic algorithm splits single TDS package to multiple TCP segments,
@@ -101,9 +102,6 @@ func SetupTLS(certificate string, insecureSkipVerify bool, hostInCertificate str
 	certs := x509.NewCertPool()
 	certs.AppendCertsFromPEM(pem)
 	config.RootCAs = certs
-	if insecureSkipVerify {
-		config.InsecureSkipVerify = true
-	}
 	return &config, nil
 }
 
