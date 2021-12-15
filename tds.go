@@ -1250,8 +1250,8 @@ initiate_connection:
 
 	if sess.routedServer != "" {
 		toconn.Close()
-		// Need to handle case when routedServer is in "host\instance" format
-		routedParts := strings.SplitN(sess.routedServer, "\\", 2)
+		// Need to handle case when routedServer is in "host\instance" format.
+		var routedParts []string := strings.SplitN(sess.routedServer, "\\", 2)
 		p.Host = routedServer[0]
 		if len(routedServer) == 2 {
 			p.Instance = routedServer[1]
