@@ -1250,11 +1250,16 @@ initiate_connection:
 
 	if sess.routedServer != "" {
 		toconn.Close()
-		p.Host = sess.routedServer
+		// Need to handle case when routedServer is in "host\instance" format.
+		routedParts := strings.SplitN(sess.routedServer, "\\", 2)
+		p.Host = routedParts[0]
+		if len(routedParts) == 2 {
+			p.Instance = routedParts[1]
+		}
 		p.Port = uint64(sess.routedPort)
 		if !p.HostInCertificateProvided && p.TLSConfig != nil {
 			p.TLSConfig = p.TLSConfig.Clone()
-			p.TLSConfig.ServerName = sess.routedServer
+			p.TLSConfig.ServerName = p.Host
 		}
 		goto initiate_connection
 	}
