@@ -8,4 +8,4 @@ require (
 	golang.org/x/crypto v0.0.0-20211215153901-e495a2d5b3d3
 )
 
-require golang.org/x/net v0.0.0-20211215060638-4ddde0e984e9 // indirect
+require golang.org/x/net v0.0.0-20211216030914-fe4d6282115f // indirect
