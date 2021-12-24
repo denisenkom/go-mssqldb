@@ -969,13 +969,20 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger Cont
 	if p.ReadOnlyIntent {
 		typeFlags |= fReadOnlyIntent
 	}
+	// We need to include Instance in ServerName field of LOGIN7 record
+	var serverName string
+	if len(p.Instance) > 0 {
+		serverName = p.Host + "\\" + p.Instance
+	} else {
+		serverName = p.Host
+	}
 	l = &login{
 		TDSVersion:   verTDS74,
 		PacketSize:   packetSize,
 		Database:     p.Database,
 		OptionFlags2: fODBC, // to get unlimited TEXTSIZE
 		HostName:     p.Workstation,
-		ServerName:   p.Host,
+		ServerName:   serverName,
 		AppName:      p.AppName,
 		TypeFlags:    typeFlags,
 	}
