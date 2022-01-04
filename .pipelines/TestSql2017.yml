@@ -57,6 +57,8 @@ steps:
   displayName: 'run tests'
   env:
     SQLPASSWORD: $(SQLPASSWORD)
+    AZURESERVER_DSN: $(AZURESERVER_DSN)
+    SQLSERVER_DSN: $(SQLSERVER_DSN)
   continueOnError: true
 - task: PublishTestResults@2
   displayName: "Publish junit-style results"
