@@ -66,7 +66,7 @@ func TestLogger(t *testing.T) {
 	// Set up a retryable error and the test cases that will exercise it
 	errMsg := "Retryable Test Error"
 	retryPrefix := "RETRY: "
-	inErr := StreamError{Message: errMsg}
+	inErr := StreamError{InnerError: fmt.Errorf(errMsg)}
 
 	testcases := [...]struct {
 		name        string
@@ -98,7 +98,7 @@ func TestLogger(t *testing.T) {
 			logger:      bufLogger{&captureBuf},
 			ctxLogger:   nil,
 			flags:       msdsn.LogRetries,
-			expectedMsg: retryPrefix + errMsg,
+			expectedMsg: retryPrefix + "Invalid TDS stream: " + errMsg,
 		},
 		{
 			name:        "sqlserver with Logger logging",
@@ -106,7 +106,7 @@ func TestLogger(t *testing.T) {
 			logger:      bufLogger{&captureBuf},
 			ctxLogger:   nil,
 			flags:       msdsn.LogRetries,
-			expectedMsg: retryPrefix + errMsg,
+			expectedMsg: retryPrefix + "Invalid TDS stream: " + errMsg,
 		},
 		{
 			name:        "mssql with ContextLogger logging",
@@ -114,7 +114,7 @@ func TestLogger(t *testing.T) {
 			logger:      nil,
 			ctxLogger:   bufContextLogger{&captureBuf},
 			flags:       msdsn.LogRetries,
-			expectedMsg: errMsg,
+			expectedMsg: "Invalid TDS stream: " + errMsg,
 		},
 		{
 			name:        "sqlserver with ContextLogger logging",
@@ -122,7 +122,7 @@ func TestLogger(t *testing.T) {
 			logger:      nil,
 			ctxLogger:   bufContextLogger{&captureBuf},
 			flags:       msdsn.LogRetries,
-			expectedMsg: errMsg,
+			expectedMsg: "Invalid TDS stream: " + errMsg,
 		},
 		{
 			name:        "mssql with Logger logging but no flags set",

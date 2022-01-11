@@ -393,7 +393,7 @@ func (e *featureExtFedAuth) toBytes() []byte {
 	var d []byte
 
 	switch e.FedAuthLibrary {
-	case fedAuthLibrarySecurityToken:
+	case FedAuthLibrarySecurityToken:
 		d = make([]byte, 5)
 		d[0] = options
 
@@ -407,7 +407,7 @@ func (e *featureExtFedAuth) toBytes() []byte {
 			d = append(d, e.Nonce...)
 		}
 
-	case fedAuthLibraryADAL:
+	case FedAuthLibraryADAL:
 		d = []byte{options, e.ADALWorkflow}
 	}
 
@@ -937,7 +937,7 @@ func preparePreloginFields(p msdsn.Config, fe *featureExtFedAuth) map[uint8][]by
 		preloginMARS:       {0}, // MARS disabled
 	}
 
-	if fe.FedAuthLibrary != fedAuthLibraryReserved {
+	if fe.FedAuthLibrary != FedAuthLibraryReserved {
 		fields[preloginFEDAUTHREQUIRED] = []byte{1}
 	}
 
@@ -955,7 +955,7 @@ func interpretPreloginResponse(p msdsn.Config, fe *featureExtFedAuth, fields map
 
 		// We need to be able to echo the value back to the server
 		fe.FedAuthEcho = fedAuthSupport[0] != 0
-	} else if fe.FedAuthLibrary != fedAuthLibraryReserved {
+	} else if fe.FedAuthLibrary != FedAuthLibraryReserved {
 		return 0, fmt.Errorf("federated authentication is not supported by the server")
 	}
 
@@ -976,6 +976,13 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger Cont
 	if p.ReadOnlyIntent {
 		typeFlags |= fReadOnlyIntent
 	}
+	// We need to include Instance in ServerName field of LOGIN7 record
+	var serverName string
+	if len(p.Instance) > 0 {
+		serverName = p.Host + "\\" + p.Instance
+	} else {
+		serverName = p.Host
+	}
 	l = &login{
 		TDSVersion:   verTDS74,
 		PacketSize:   packetSize,
@@ -983,12 +990,12 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger Cont
 		OptionFlags2: fODBC, // to get unlimited TEXTSIZE
 		OptionFlags1: fUseDB | fSetLang,
 		HostName:     p.Workstation,
-		ServerName:   p.Host,
+		ServerName:   serverName,
 		AppName:      p.AppName,
 		TypeFlags:    typeFlags,
 	}
 	switch {
-	case fe.FedAuthLibrary == fedAuthLibrarySecurityToken:
+	case fe.FedAuthLibrary == FedAuthLibrarySecurityToken:
 		if uint64(p.LogFlags)&logDebug != 0 {
 			logger.Log(ctx, msdsn.LogDebug, "Starting federated authentication using security token")
 		}
@@ -1003,7 +1010,7 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger Cont
 
 		l.FeatureExt.Add(fe)
 
-	case fe.FedAuthLibrary == fedAuthLibraryADAL:
+	case fe.FedAuthLibrary == FedAuthLibraryADAL:
 		if uint64(p.LogFlags)&logDebug != 0 {
 			logger.Log(ctx, msdsn.LogDebug, "Starting federated authentication using ADAL")
 		}
@@ -1104,7 +1111,7 @@ initiate_connection:
 	}
 
 	fedAuth := &featureExtFedAuth{
-		FedAuthLibrary: fedAuthLibraryReserved,
+		FedAuthLibrary: FedAuthLibraryReserved,
 	}
 	if c.fedAuthRequired {
 		fedAuth.FedAuthLibrary = c.fedAuthLibrary
@@ -1258,11 +1265,16 @@ initiate_connection:
 
 	if sess.routedServer != "" {
 		toconn.Close()
-		p.Host = sess.routedServer
+		// Need to handle case when routedServer is in "host\instance" format.
+		routedParts := strings.SplitN(sess.routedServer, "\\", 2)
+		p.Host = routedParts[0]
+		if len(routedParts) == 2 {
+			p.Instance = routedParts[1]
+		}
 		p.Port = uint64(sess.routedPort)
 		if !p.HostInCertificateProvided && p.TLSConfig != nil {
 			p.TLSConfig = p.TLSConfig.Clone()
-			p.TLSConfig.ServerName = sess.routedServer
+			p.TLSConfig.ServerName = p.Host
 		}
 		goto initiate_connection
 	}

@@ -41,7 +41,7 @@ func TestConstantsDefined(t *testing.T) {
 	}
 
 	for _, i := range []int{
-		fedAuthLibraryLiveIDCompactToken, fChangePassword, fSendYukonBinaryXML,
+		FedAuthLibraryLiveIDCompactToken, fChangePassword, fSendYukonBinaryXML,
 	} {
 		if i < 0 {
 			t.Fail()
@@ -120,7 +120,7 @@ func TestSendLoginWithFeatureExt(t *testing.T) {
 		ClientLCID:     0x204,
 	}
 	login.FeatureExt.Add(&featureExtFedAuth{
-		FedAuthLibrary: fedAuthLibrarySecurityToken,
+		FedAuthLibrary: FedAuthLibrarySecurityToken,
 		FedAuthToken:   "fedauthtoken",
 	})
 	err := sendLogin(buf, &login)

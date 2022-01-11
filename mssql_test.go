@@ -108,7 +108,7 @@ func equalErrors(e1 error, e2 error) bool {
 func TestCheckBadConn(t *testing.T) {
 
 	netErr := &net.OpError{Err: fmt.Errorf("fake net.Error")}
-	streamErr := StreamError{Message: "fake StreamError"}
+	streamErr := StreamError{InnerError: fmt.Errorf("fake StreamError")}
 	serverErr := ServerError{sqlError: Error{Message: "fake ServerError"}}
 	goodConnErr := fmt.Errorf("fake error that leaves connection good")
 

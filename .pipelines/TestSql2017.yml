@@ -2,6 +2,8 @@ pool:
    vmImage: 'ubuntu-latest'
 
 trigger: none
+variables:
+  TESTPASSWORD: $(SQLPASSWORD)
 
 steps: 
 - task: GoTool@0
@@ -39,17 +41,17 @@ steps:
     arguments: 'github.com/AlekSi/gocov-xml@latest'
     workingDirectory: '$(System.DefaultWorkingDirectory)'
 
-#Your build pipeline references an undefined variables named SQLPASSWORD and HOST. 
+#Your build pipeline references an undefined variables named SQLPASSWORD and AZURESERVER_DSN. 
 #Create or edit the build pipeline for this YAML file, define the variable on the Variables tab. See https://go.microsoft.com/fwlink/?linkid=865972
 
 - task: Docker@2
   displayName: 'Run SQL 2017 docker image'
   inputs:
     command: run
-    arguments: '-m 2GB -e ACCEPT_EULA=1 -d --name sql2017 -p:1433:1433 -e SA_PASSWORD=$(SQLPASSWORD) mcr.microsoft.com/mssql/server:2017-latest'
+    arguments: '-m 2GB -e ACCEPT_EULA=1 -d --name sql2017 -p:1433:1433 -e SA_PASSWORD=$(TESTPASSWORD) mcr.microsoft.com/mssql/server:2017-latest'
 
 - script: |
-    ~/go/bin/gotestsum --junitfile testresults.xml -- -coverprofile=coverage.txt -covermode count
+    ~/go/bin/gotestsum --junitfile testresults.xml -- -coverprofile=coverage.txt -covermode count ./...
     ~/go/bin/gocov convert coverage.txt > coverage.json
     ~/go/bin/gocov-xml < coverage.json > coverage.xml
     mkdir coverage
