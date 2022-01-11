@@ -166,7 +166,7 @@ func TestLoginWithSecurityTokenAuth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	conn, err := newSecurityTokenConnector(config,
+	conn, err := NewSecurityTokenConnector(config,
 		func(ctx context.Context) (string, error) {
 			return "<token>", nil
 		},
@@ -227,9 +227,9 @@ func TestLoginWithADALUsernamePasswordAuth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	conn, err := newActiveDirectoryTokenConnector(
+	conn, err := NewActiveDirectoryTokenConnector(
 		config,
-		fedAuthADALWorkflowPassword,
+		FedAuthADALWorkflowPassword,
 		func(ctx context.Context, serverSPN, stsURL string) (string, error) {
 			return "<token>", nil
 		},
@@ -301,9 +301,9 @@ func TestLoginWithADALManagedIdentityAuth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	conn, err := newActiveDirectoryTokenConnector(
+	conn, err := NewActiveDirectoryTokenConnector(
 		config,
-		fedAuthADALWorkflowMSI,
+		FedAuthADALWorkflowMSI,
 		func(ctx context.Context, serverSPN, stsURL string) (string, error) {
 			return "<token>", nil
 		},
