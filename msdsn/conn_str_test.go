@@ -222,12 +222,10 @@ func TestInvalidConnectionStringKerberos(t *testing.T) {
 }
 
 func TestValidConnectionStringKerberos(t *testing.T) {
-	krbcache := createKrbFile("krbcache_1000", t)
-	keytab := createKrbFile("admin.keytab", t)
-	krbconf := createKrbFile("krb5.conf", t)
+	kerberosTestFile := createKrbFile("test.txt", t)
 	connStrings := []string{
-		"server=server;user id=user;port=1345;realm=domain;trustservercertificate=true;krb5conffile=" + krbconf + ";keytabfile=" + keytab + ";enablekerberos=true;initkrbwithkeytab=true",
-		"server=server;port=1345;realm=domain;trustservercertificate=true;krb5conffile=" + krbconf + ";krbcache=" + krbcache + ";enablekerberos=true",
+		"server=server;user id=user;port=1345;realm=domain;trustservercertificate=true;krb5conffile=" + kerberosTestFile + ";keytabfile=" + kerberosTestFile,
+		"server=server;port=1345;realm=domain;trustservercertificate=true;krb5conffile=" + kerberosTestFile + ";krbcache=" + kerberosTestFile,
 	}
 
 	for _, connStr := range connStrings {
@@ -236,15 +234,19 @@ func TestValidConnectionStringKerberos(t *testing.T) {
 			t.Errorf("Connection string %s should fail to parse with error %s", connStrings, err)
 		}
 	}
-
-	deleteFile(krbcache, t)
-	deleteFile(krbconf, t)
-	deleteFile(keytab, t)
+	deleteFile(t)
 }
 
 func createKrbFile(filename string, t *testing.T) string {
+	if _, err := os.Stat("temp"); os.IsNotExist(err) {
+		err := os.Mkdir("temp", 0755)
+		// TODO: handle error
+		if err != nil {
+			t.Errorf("Failed to create a temporary directory")
+		}
+	}
 	file := []byte("This is a test file")
-	err := ioutil.WriteFile(filename, file, 0644)
+	err := ioutil.WriteFile("temp/"+filename, file, 0644)
 	if err != nil {
 		t.Errorf("Could not write file")
 	}
@@ -255,13 +257,11 @@ func createKrbFile(filename string, t *testing.T) string {
 	return filePath
 }
 
-func deleteFile(filename string, t *testing.T) {
+func deleteFile(t *testing.T) {
 	defer func() {
-		if _, err := os.Stat(filename); err == nil {
-			err = os.Remove(filename)
-			if err != nil {
-				t.Errorf("Could not delete file: %v", filename)
-			}
+		err := os.RemoveAll("temp")
+		if err != nil {
+			t.Errorf("Could not delete directory")
 		}
 	}()
 }

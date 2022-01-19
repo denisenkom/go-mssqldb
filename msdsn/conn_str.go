@@ -3,6 +3,7 @@ package msdsn
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -42,6 +43,21 @@ const (
 	LogRetries     Log = 128
 )
 
+type Kerberos struct {
+	// Kerberos configuration details
+	Krb5Conf *config.Config
+
+	// Credential cache
+	KrbCache *credentials.CCache
+
+	// A Kerberos realm is the domain over which a Kerberos authentication server has the authority
+	// to authenticate a user, host or service.
+	KrbRealm string
+
+	// Kerberos keytab that stores long-term keys for one or more principals
+	KrbKeytab *keytab.Keytab
+}
+
 type Config struct {
 	Port       uint64
 	Host       string
@@ -79,53 +95,49 @@ type Config struct {
 	KeepAlive   time.Duration // Leave at default.
 	PacketSize  uint16
 
-	// Kerberos configuration details
-	Krb5Conf *config.Config
-
-	// Credential cache
-	KrbCache *credentials.CCache
-
-	// A Kerberos realm is the domain over which a Kerberos authentication server has the authority
-	// to authenticate a user, host or service.
-	KrbRealm string
-
-	// Flag to authenticate using keytab file
-	Initkrbwithkeytab bool
-
-	// Kerberos keytab that stores long-term keys for one or more principals
-	KrbKeytab *keytab.Keytab
+	Kerberos *Kerberos
 
 	// Flag to enable kerberos authentication
 	EnableKerberos bool
 }
 
 func SetupTLS(certificate string, insecureSkipVerify bool, hostInCertificate string) (*tls.Config, error) {
-	var config tls.Config
-	if certificate != "" {
-		pem, err := ioutil.ReadFile(certificate)
-		if err != nil {
-			return nil, fmt.Errorf("cannot read certificate %q: %v", certificate, err)
+	config := tls.Config{
+		ServerName:         hostInCertificate,
+		InsecureSkipVerify: insecureSkipVerify,
+
+		// fix for https://github.com/denisenkom/go-mssqldb/issues/166
+		// Go implementation of TLS payload size heuristic algorithm splits single TDS package to multiple TCP segments,
+		// while SQL Server seems to expect one TCP segment per encrypted TDS package.
+		// Setting DynamicRecordSizingDisabled to true disables that algorithm and uses 16384 bytes per TLS package
+		DynamicRecordSizingDisabled: true,
+	}
+	if len(certificate) == 0 {
+		return &config, nil
+	}
+	pem, err := ioutil.ReadFile(certificate)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read certificate %q: %w", certificate, err)
+	}
+	if strings.Contains(config.ServerName, ":") && !insecureSkipVerify {
+		err := setupTLSCommonName(&config, pem)
+		if err != skipSetup {
+			return &config, err
 		}
-		certs := x509.NewCertPool()
-		certs.AppendCertsFromPEM(pem)
-		config.RootCAs = certs
 	}
-	if insecureSkipVerify {
-		config.InsecureSkipVerify = true
-	}
-	config.ServerName = hostInCertificate
-
-	// fix for https://github.com/denisenkom/go-mssqldb/issues/166
-	// Go implementation of TLS payload size heuristic algorithm splits single TDS package to multiple TCP segments,
-	// while SQL Server seems to expect one TCP segment per encrypted TDS package.
-	// Setting DynamicRecordSizingDisabled to true disables that algorithm and uses 16384 bytes per TLS package
-	config.DynamicRecordSizingDisabled = true
-
+	certs := x509.NewCertPool()
+	certs.AppendCertsFromPEM(pem)
+	config.RootCAs = certs
 	return &config, nil
 }
 
+var skipSetup = errors.New("skip setting up TLS")
+
 func Parse(dsn string) (Config, map[string]string, error) {
 	p := Config{}
+	k := Kerberos{}
+
+	p.Kerberos = &k
 
 	var params map[string]string
 	if strings.HasPrefix(dsn, "odbc:") {
@@ -198,15 +210,16 @@ func Parse(dsn string) (Config, map[string]string, error) {
 		}
 	}
 
-	enablekerberos, ok := params["enablekerberos"]
+	krb5ConfFile, ok := params["krb5conffile"]
 	if ok {
 		var err error
-		p.EnableKerberos, err = strconv.ParseBool(enablekerberos)
+		p.Kerberos.Krb5Conf, err = setupKerbConfig(krb5ConfFile)
 		if err != nil {
-			return p, params, fmt.Errorf("invalid enablekerberos flag '%v': %w", enablekerberos, err)
+			return p, params, fmt.Errorf("cannot read kerberos configuration file: %w", err)
 		}
 	}
-	if p.EnableKerberos {
+
+	if ok {
 		missingParam := checkMissingKRBConfig(params)
 		if missingParam != "" {
 			return p, params, fmt.Errorf("missing parameter:%s", missingParam)
@@ -214,49 +227,28 @@ func Parse(dsn string) (Config, map[string]string, error) {
 
 		realm, ok := params["realm"]
 		if ok {
-			p.KrbRealm = realm
+			p.Kerberos.KrbRealm = realm
 		}
 
 		krbCache, ok := params["krbcache"]
 		if ok {
 			var err error
-			p.KrbCache, err = setupKerbCache(krbCache)
+			p.Kerberos.KrbCache, err = setupKerbCache(krbCache)
 			if err != nil {
 				return p, params, fmt.Errorf("cannot read kerberos cache file: %w", err)
-			}
-		}
-
-		krb5ConfFile, ok := params["krb5conffile"]
-		if ok {
-			var err error
-			p.Krb5Conf, err = setupKerbConfig(krb5ConfFile)
-			if err != nil {
-				return p, params, fmt.Errorf("cannot read kerberos configuration file: %w", err)
-			}
-
-		}
-
-		initkrbwithkeytab, ok := params["initkrbwithkeytab"]
-		if ok {
-			var err error
-			p.Initkrbwithkeytab, err = strconv.ParseBool(initkrbwithkeytab)
-			if err != nil {
-				return p, params, fmt.Errorf("invalid initkrbwithkeytab flag '%v': %w", initkrbwithkeytab, err)
 			}
 		}
 
 		keytabfile, ok := params["keytabfile"]
 		if ok {
 			var err error
-			p.KrbKeytab, err = setupKerbKeytab(keytabfile)
+			p.Kerberos.KrbKeytab, err = setupKerbKeytab(keytabfile)
 			if err != nil {
 				return p, params, fmt.Errorf("cannot read kerberos keytab file: %w", err)
 			}
 		}
 	}
-
 	// https://msdn.microsoft.com/en-us/library/dd341108.aspx
-	//
 	// Do not set a connection timeout. Use Context to manage such things.
 	// Default to zero, but still allow it to be set.
 	if strconntimeout, ok := params["connection timeout"]; ok {
@@ -341,7 +333,7 @@ func Parse(dsn string) (Config, map[string]string, error) {
 	if ok {
 		p.ServerSPN = serverSPN
 	} else {
-		p.ServerSPN = generateSpn(p.Host, resolveServerPort(p.Port), p.KrbRealm)
+		p.ServerSPN = generateSpn(p.Host, resolveServerPort(p.Port), k.KrbRealm)
 	}
 
 	workstation, ok := params["workstation id"]
@@ -396,26 +388,19 @@ func Parse(dsn string) (Config, map[string]string, error) {
 	} else {
 		p.DisableRetry = disableRetryDefault
 	}
-
 	return p, params, nil
 }
 
 func checkMissingKRBConfig(c map[string]string) (missingParam string) {
-	if c["krb5conffile"] == "" {
-		missingParam = "krb5conffile"
-		return
-	}
-	if c["initkrbwithkeytab"] == "true" {
-		if c["keytabfile"] == "" {
-			missingParam = "keytabfile"
-			return
-		}
+	if c["keytabfile"] != "" {
 		if c["realm"] == "" {
 			missingParam = "realm"
 			return
 		}
-	} else if c["krbcache"] == "" {
-		missingParam = "krbcache"
+	}
+	if c["krbcache"] == "" && c["keytabfile"] == "" {
+		missingParam = "krbcache or keytab"
+		return
 	}
 	return
 }

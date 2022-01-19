@@ -13,20 +13,19 @@ import (
 )
 
 type krb5Auth struct {
-	username          string
-	realm             string
-	serverSPN         string
-	password          string
-	port              uint64
-	krb5Config        *config.Config
-	krbKeytab         *keytab.Keytab
-	krbCache          *credentials.CCache
-	initkrbwithkeytab bool
-	krb5Client        *client.Client
-	state             krb5ClientState
+	username   string
+	realm      string
+	serverSPN  string
+	password   string
+	port       uint64
+	krb5Config *config.Config
+	krbKeytab  *keytab.Keytab
+	krbCache   *credentials.CCache
+	krb5Client *client.Client
+	state      krb5ClientState
 }
 
-func getKRB5Auth(user, password, serverSPN string, krb5Conf *config.Config, keytabContent *keytab.Keytab, cacheContent *credentials.CCache, initkrbwithkeytab bool) (auth, bool) {
+func getKRB5Auth(user, password, serverSPN string, krb5Conf *config.Config, keytabContent *keytab.Keytab, cacheContent *credentials.CCache) (auth, bool) {
 	var port uint64
 	var realm, serviceStr string
 	var err error
@@ -67,15 +66,14 @@ func getKRB5Auth(user, password, serverSPN string, krb5Conf *config.Config, keyt
 	}
 
 	return &krb5Auth{
-		username:          user,
-		serverSPN:         serviceStr,
-		port:              port,
-		realm:             realm,
-		krb5Config:        krb5Conf,
-		krbKeytab:         keytabContent,
-		krbCache:          cacheContent,
-		password:          password,
-		initkrbwithkeytab: initkrbwithkeytab,
+		username:   user,
+		serverSPN:  serviceStr,
+		port:       port,
+		realm:      realm,
+		krb5Config: krb5Conf,
+		krbKeytab:  keytabContent,
+		krbCache:   cacheContent,
+		password:   password,
 	}, true
 }
 
@@ -85,7 +83,7 @@ func (auth *krb5Auth) InitialBytes() ([]byte, error) {
 	var cl *client.Client
 	var err error
 	// Init keytab from conf
-	if auth.initkrbwithkeytab {
+	if auth.krbKeytab != nil {
 		// Init krb5 client and login
 		cl = client.NewWithKeytab(auth.username, auth.realm, auth.krbKeytab, auth.krb5Config, client.DisablePAFXFAST(true))
 	} else {
