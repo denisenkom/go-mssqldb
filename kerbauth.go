@@ -78,8 +78,6 @@ func getKRB5Auth(user, password, serverSPN string, krb5Conf *config.Config, keyt
 }
 
 func (auth *krb5Auth) InitialBytes() ([]byte, error) {
-	// Set to lookup KDCs in DNS
-	auth.krb5Config.LibDefaults.DNSLookupKDC = false
 	var cl *client.Client
 	var err error
 	// Init keytab from conf
