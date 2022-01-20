@@ -132,9 +132,6 @@ var skipSetup = errors.New("skip setting up TLS")
 
 func Parse(dsn string) (Config, map[string]string, error) {
 	p := Config{}
-	k := Kerberos{}
-
-	p.Kerberos = &k
 
 	var params map[string]string
 	if strings.HasPrefix(dsn, "odbc:") {
@@ -209,14 +206,13 @@ func Parse(dsn string) (Config, map[string]string, error) {
 
 	krb5ConfFile, ok := params["krb5conffile"]
 	if ok {
+		p.Kerberos = &Kerberos{}
 		var err error
 		p.Kerberos.Krb5Conf, err = setupKerbConfig(krb5ConfFile)
 		if err != nil {
 			return p, params, fmt.Errorf("cannot read kerberos configuration file: %w", err)
 		}
-	}
 
-	if ok {
 		missingParam := checkMissingKRBConfig(params)
 		if missingParam != "" {
 			return p, params, fmt.Errorf("missing parameter:%s", missingParam)
@@ -330,7 +326,7 @@ func Parse(dsn string) (Config, map[string]string, error) {
 	if ok {
 		p.ServerSPN = serverSPN
 	} else {
-		p.ServerSPN = generateSpn(p.Host, resolveServerPort(p.Port), k.KrbRealm)
+		p.ServerSPN = generateSpn(p.Host, resolveServerPort(p.Port), p.Kerberos.KrbRealm)
 	}
 
 	workstation, ok := params["workstation id"]
@@ -396,7 +392,7 @@ func checkMissingKRBConfig(c map[string]string) (missingParam string) {
 		}
 	}
 	if c["krbcache"] == "" && c["keytabfile"] == "" {
-		missingParam = "krbcache or keytab"
+		missingParam = "atleast krbcache or keytab is required"
 		return
 	}
 	return

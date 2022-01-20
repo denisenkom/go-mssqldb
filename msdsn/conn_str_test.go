@@ -3,7 +3,6 @@ package msdsn
 import (
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -203,9 +202,9 @@ func TestConnParseRoundTripFixed(t *testing.T) {
 
 func TestInvalidConnectionStringKerberos(t *testing.T) {
 	connStrings := []string{
-		"server=server;port=1345;realm=domain;trustservercertificate=true;krb5conffile=/etc/krb5.conf;",
-		"server=server;user id=user;password=pwd;port=1345;realm=domain;trustservercertificate=true;krb5conffile=/etc/krb5.conf;",
-		"server=server;user id=user;password=pwd;port=1345;trustservercertificate=true;krb5conffile=/etc/krb5.conf;keytabfile=/path/to/administrator2.keytab;",
+		"server=server;port=1345;realm=domain;trustservercertificate=true;krb5conffile=/path/krb5.conf;",
+		"server=server;user id=user;password=pwd;port=1345;realm=domain;trustservercertificate=true;krb5conffile=/path/krb5.conf;",
+		"server=server;user id=user;password=pwd;port=1345;trustservercertificate=true;krb5conffile=/path/krb5.conf;keytabfile=/path/to/administrator2.keytab;",
 	}
 	for _, connStr := range connStrings {
 		_, _, err := Parse(connStr)
@@ -217,7 +216,7 @@ func TestInvalidConnectionStringKerberos(t *testing.T) {
 }
 
 func TestValidConnectionStringKerberos(t *testing.T) {
-	kerberosTestFile := createKrbFile("test.txt", t)
+	kerberosTestFile := createKrbFile(t)
 	connStrings := []string{
 		"server=server;user id=user;port=1345;realm=domain;trustservercertificate=true;krb5conffile=" + kerberosTestFile + ";keytabfile=" + kerberosTestFile,
 		"server=server;port=1345;realm=domain;trustservercertificate=true;krb5conffile=" + kerberosTestFile + ";krbcache=" + kerberosTestFile,
@@ -232,30 +231,21 @@ func TestValidConnectionStringKerberos(t *testing.T) {
 	deleteFile(t)
 }
 
-func createKrbFile(filename string, t *testing.T) string {
-	if _, err := os.Stat("temp"); os.IsNotExist(err) {
-		err := os.Mkdir("temp", 0755)
-		if err != nil {
-			t.Errorf("Failed to create a temporary directory")
-		}
-	}
-	file := []byte("This is a test file")
-	err := ioutil.WriteFile("temp/"+filename, file, 0644)
+func createKrbFile(t *testing.T) string {
+	err := os.Mkdir("temp", 0755)
 	if err != nil {
-		t.Errorf("Could not write file")
+		t.Errorf("Failed to create a temporary directory")
 	}
-	filedirectory := filepath.Dir(filename)
-	thepath, _ := filepath.Abs(filedirectory)
-	filePath := thepath + "/" + filename
-
-	return filePath
+	file, err := ioutil.TempFile("temp", "test-*.txt")
+	if err != nil {
+		t.Errorf("Failed to create a temp file")
+	}
+	if _, err := file.Write([]byte("This is a test file\n")); err != nil {
+		t.Errorf("Failed to write file")
+	}
+	return file.Name()
 }
 
 func deleteFile(t *testing.T) {
-	defer func() {
-		err := os.RemoveAll("temp")
-		if err != nil {
-			t.Errorf("Could not delete directory")
-		}
-	}()
+	os.RemoveAll("temp")
 }
