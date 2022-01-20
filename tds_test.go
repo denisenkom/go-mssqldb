@@ -202,25 +202,43 @@ func TestSendSqlBatch(t *testing.T) {
 // returns parsed connection parameters derived from
 // environment variables
 func testConnParams(t testing.TB) msdsn.Config {
+	params, err := GetConnParams()
+	if err != nil {
+		t.Fatal("unable to parse SQLSERVER_DSN or read .connstr", err)
+	}
+	if params == nil {
+		t.Skip("no database connection string")
+		return msdsn.Config{}
+	}
+	return *params
+}
+
+// TestConnParams returns a connection configuration based on environment variables or the contents of a text file
+// Set environment variable SQLSERVER_DSN to provide an entire connection string
+// Set environment variables HOST and DATABASE from which a minimal config will be created.
+//  If HOST and DATABASE are set, you can optionally set INSTANCE, SQLUSER, and SQLPASSWORD as well
+// If environment variables are not set, it will look in the working directory for a file named .connstr
+//   If the file exists it will use the first line of the file as the file as the DSN
+func GetConnParams() (*msdsn.Config, error) {
 	dsn := os.Getenv("SQLSERVER_DSN")
 	const logFlags = 127
 	if len(dsn) > 0 {
 		params, _, err := msdsn.Parse(dsn)
 		if err != nil {
-			t.Fatal("unable to parse SQLSERVER_DSN", err)
+			return nil, err
 		}
 		params.LogFlags = logFlags
-		return params
+		return &params, nil
 	}
 	if len(os.Getenv("HOST")) > 0 && len(os.Getenv("DATABASE")) > 0 {
-		return msdsn.Config{
+		return &msdsn.Config{
 			Host:     os.Getenv("HOST"),
 			Instance: os.Getenv("INSTANCE"),
 			Database: os.Getenv("DATABASE"),
 			User:     os.Getenv("SQLUSER"),
 			Password: os.Getenv("SQLPASSWORD"),
 			LogFlags: logFlags,
-		}
+		}, nil
 	}
 	// try loading connection string from file
 	f, err := os.Open(".connstr")
@@ -228,17 +246,17 @@ func testConnParams(t testing.TB) msdsn.Config {
 		rdr := bufio.NewReader(f)
 		dsn, err := rdr.ReadString('\n')
 		if err != io.EOF && err != nil {
-			t.Fatal(err)
+			return nil, err
 		}
 		params, _, err := msdsn.Parse(dsn)
 		if err != nil {
-			t.Fatal("unable to parse connection string loaded from file", err)
+			return nil, err
 		}
 		params.LogFlags = logFlags
-		return params
+		return &params, nil
 	}
-	t.Skip("no database connection string")
-	return msdsn.Config{}
+
+	return nil, nil
 }
 
 func checkConnStr(t testing.TB) {

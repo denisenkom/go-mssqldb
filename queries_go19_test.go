@@ -7,9 +7,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"reflect"
 	"regexp"
 	"testing"
 	"time"
+
+	"github.com/golang-sql/sqlexp"
 )
 
 func TestOutputParam(t *testing.T) {
@@ -1103,5 +1106,265 @@ func TestClearReturnStatus(t *testing.T) {
 
 	if rs != 42 {
 		t.Errorf("expected status=42, got %d", rs)
+	}
+}
+
+func TestMessageQueue(t *testing.T) {
+	conn, logger := open(t)
+	defer conn.Close()
+	defer logger.StopLogging()
+	retmsg := &sqlexp.ReturnMessage{}
+	latency, _ := getLatency(t)
+	ctx, cancel := context.WithTimeout(context.Background(), latency+200000*time.Millisecond)
+	defer cancel()
+	rows, err := conn.QueryContext(ctx, "PRINT 'msg1'; select 100 as c; PRINT 'msg2'", retmsg)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	defer rows.Close()
+	active := true
+
+	msgs := []interface{}{
+		sqlexp.MsgNotice{Message: "msg1"},
+		sqlexp.MsgNext{},
+		sqlexp.MsgRowsAffected{Count: 1},
+		sqlexp.MsgNotice{Message: "msg2"},
+		sqlexp.MsgNextResultSet{},
+	}
+	i := 0
+	rsCount := 0
+	for active {
+		msg := retmsg.Message(ctx)
+		if i >= len(msgs) {
+			t.Fatalf("Got extra message:%+v", msg)
+		}
+		t.Log(reflect.TypeOf(msg))
+		if reflect.TypeOf(msgs[i]) != reflect.TypeOf(msg) {
+			t.Fatalf("Out of order or incorrect message at %d. Actual: %+v. Expected: %+v", i, reflect.TypeOf(msg), reflect.TypeOf(msgs[i]))
+		}
+		switch m := msg.(type) {
+		case sqlexp.MsgNotice:
+			t.Log(m.Message)
+		case sqlexp.MsgNextResultSet:
+			active = rows.NextResultSet()
+			if active {
+				t.Fatal("NextResultSet returned true")
+			}
+			rsCount++
+		case sqlexp.MsgNext:
+			if !rows.Next() {
+				t.Fatal("rows.Next() returned false")
+			}
+			var c int
+			err = rows.Scan(&c)
+			if err != nil {
+				t.Fatalf("rows.Scan() failed: %s", err.Error())
+			}
+			if c != 100 {
+				t.Fatalf("query returned wrong value: %d", c)
+			}
+		}
+		i++
+	}
+}
+
+func TestAdvanceResultSetAfterPartialRead(t *testing.T) {
+	conn, logger := open(t)
+	defer conn.Close()
+	defer logger.StopLogging()
+
+	ctx := context.Background()
+	retmsg := &sqlexp.ReturnMessage{}
+
+	rows, err := conn.QueryContext(ctx, "select top 2 object_id from sys.all_objects; print 'this is a message'; select 100 as Count; ", retmsg)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	defer rows.Close()
+
+	rows.Next()
+	var g interface{}
+	err = rows.Scan(&g)
+	if err != nil {
+		t.Fatalf("Scan failed: %v", err)
+	}
+	next := rows.NextResultSet()
+	if !next {
+		t.Fatalf("NextResultSet returned false")
+	}
+	next = rows.Next()
+	if !next {
+		t.Fatalf("Next on the second result set returned false")
+	}
+	cols, err := rows.Columns()
+	if err != nil {
+		t.Fatalf("Columns() error: %s", err)
+	}
+	if cols[0] != "Count" {
+		t.Fatalf("Wrong column in second result:%s, expected Count", cols[0])
+	}
+	var c int
+	err = rows.Scan(&c)
+	if err != nil {
+		t.Fatalf("Scan errored out on second result: %s", err)
+	}
+	if c != 100 {
+		t.Fatalf("Scan returned incorrect value on second result set: %d, expected 100", c)
+	}
+}
+func TestMessageQueueWithErrors(t *testing.T) {
+	conn, logger := open(t)
+	defer conn.Close()
+	defer logger.StopLogging()
+
+	msgs, errs, results, rowcounts := testMixedQuery(conn, t)
+	if msgs != 1 {
+		t.Fatalf("Got %d messages, expected 1", msgs)
+	}
+	if errs != 1 {
+		t.Fatalf("Got %d errors, expected 1", errs)
+	}
+	if results != 4 {
+		t.Fatalf("Got %d results, expected 4", results)
+	}
+	if rowcounts != 4 {
+		t.Fatalf("Got %d row counts, expected 4", rowcounts)
+	}
+}
+
+const mixedQuery = `select top 5 name from sys.system_columns
+select getdate()
+PRINT N'This is a message'
+select 199
+RAISERROR (N'Testing!' , 11, 1)
+select 300
+`
+
+func testMixedQuery(conn *sql.DB, b testing.TB) (msgs, errs, results, rowcounts int) {
+	ctx := context.Background()
+	retmsg := &sqlexp.ReturnMessage{}
+	r, err := conn.QueryContext(ctx, mixedQuery, retmsg)
+	if err != nil {
+		b.Fatal(err.Error())
+	}
+	defer r.Close()
+	active := true
+	first := true
+	for active {
+		msg := retmsg.Message(ctx)
+		switch m := msg.(type) {
+		case sqlexp.MsgNotice:
+			b.Logf("MsgNotice:%s", m.Message)
+			msgs++
+		case sqlexp.MsgNext:
+			b.Logf("MsgNext")
+			inresult := true
+			for inresult {
+				inresult = r.Next()
+				if first {
+					if !inresult {
+						b.Fatalf("First Next call returned false")
+					}
+					results++
+				}
+				if inresult {
+					var d interface{}
+					err = r.Scan(&d)
+					if err != nil {
+						b.Fatalf("Scan failed:%v", err)
+					}
+					b.Logf("Row data:%v", d)
+				}
+				first = false
+			}
+		case sqlexp.MsgNextResultSet:
+			b.Log("MsgNextResultSet")
+			active = r.NextResultSet()
+			first = true
+		case sqlexp.MsgError:
+			b.Logf("MsgError:%v", m.Error)
+			errs++
+		case sqlexp.MsgRowsAffected:
+			b.Logf("MsgRowsAffected:%d", m.Count)
+			rowcounts++
+		}
+	}
+	return msgs, errs, results, rowcounts
+}
+
+func TestTimeoutWithNoResults(t *testing.T) {
+	conn, logger := open(t)
+	defer conn.Close()
+	defer logger.StopLogging()
+
+	latency, _ := getLatency(t)
+	ctx, cancel := context.WithTimeout(context.Background(), latency+5000*time.Millisecond)
+	defer cancel()
+	retmsg := &sqlexp.ReturnMessage{}
+	r, err := conn.QueryContext(ctx, `waitfor delay '00:00:15'; select 100`, retmsg)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	defer r.Close()
+	active := true
+	for active {
+		msg := retmsg.Message(ctx)
+		t.Logf("Got a message: %s", reflect.TypeOf(msg))
+		switch m := msg.(type) {
+		case sqlexp.MsgNextResultSet:
+			active = r.NextResultSet()
+			if active {
+				t.Fatal("NextResultSet returned true")
+			}
+		case sqlexp.MsgNext:
+			if r.Next() {
+				t.Fatal("Got a successful Next even though the query should have timed out")
+			}
+		case sqlexp.MsgRowsAffected:
+			t.Fatalf("Got a MsgRowsAffected %d", m.Count)
+		}
+	}
+	if r.Err() != context.DeadlineExceeded {
+		t.Fatalf("Unexpected error: %v", r.Err())
+	}
+
+}
+
+func TestCancelWithNoResults(t *testing.T) {
+	conn, logger := open(t)
+	defer conn.Close()
+	defer logger.StopLogging()
+
+	latency, _ := getLatency(t)
+	ctx, cancel := context.WithTimeout(context.Background(), latency+5000*time.Millisecond)
+	retmsg := &sqlexp.ReturnMessage{}
+	r, err := conn.QueryContext(ctx, `waitfor delay '00:00:15'; select 100`, retmsg)
+	if err != nil {
+		cancel()
+		t.Fatal(err.Error())
+	}
+	defer r.Close()
+	time.Sleep(latency + 100*time.Millisecond)
+	cancel()
+	active := true
+	for active {
+		msg := retmsg.Message(ctx)
+		t.Logf("Got a message: %s", reflect.TypeOf(msg))
+		switch m := msg.(type) {
+		case sqlexp.MsgNextResultSet:
+			active = r.NextResultSet()
+			if active {
+				t.Fatal("NextResultSet returned true")
+			}
+		case sqlexp.MsgNext:
+			if r.Next() {
+				t.Fatal("Got a successful Next even though the query should been cancelled")
+			}
+		case sqlexp.MsgRowsAffected:
+			t.Fatalf("Got a MsgRowsAffected %d", m.Count)
+		}
+	}
+	if r.Err() != context.Canceled {
+		t.Fatalf("Unexpected error: %v", r.Err())
 	}
 }

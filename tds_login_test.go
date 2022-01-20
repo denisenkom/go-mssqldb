@@ -75,8 +75,16 @@ func testLoginSequenceServer(result chan error, conn net.Conn, expectedPackets, 
 
 			for bi := 0; bi < n; bi++ {
 				if expectedBytes[bi+b] != packet[bi] {
-					err = fmt.Errorf("Client sent unexpected byte %02X != %02X at offset %d of packet %d",
-						packet[bi], expectedBytes[bi+b], bi+b, i)
+					suffix := ""
+					if bi > 0 {
+						suffix = fmt.Sprintf("Previous byte: %02X", packet[bi-1])
+					}
+					if bi < n {
+						suffix = fmt.Sprintf("%s Next byte:%02X", suffix, packet[bi+1])
+					}
+					err = fmt.Errorf("Client sent unexpected byte %02X != %02X at offset %d of packet %d. %s",
+						packet[bi], expectedBytes[bi+b], bi+b, i, suffix)
+
 					result <- err
 					return
 				}
@@ -126,7 +134,7 @@ func TestLoginWithSQLServerAuth(t *testing.T) {
 				"01 ff 00 00 00 00 00 00  00 00 00 00 00 00 00\n",
 			"  10 01 00 b2 00 00 01 00  aa 00 00 00 04 00 00 74\n" +
 				"00 10 00 00 00 00 00 00  00 00 00 00 00 00 00 00\n" +
-				"00 02 00 00 00 00 00 00  00 00 00 00 5e 00 09 00\n" +
+				"A0 02 00 00 00 00 00 00  00 00 00 00 5e 00 09 00\n" +
 				"70 00 04 00 78 00 06 00  84 00 0a 00 98 00 09 00\n" +
 				"00 00 00 00 aa 00 00 00  aa 00 00 00 aa 00 00 00\n" +
 				"00 00 00 00 00 00 aa 00  00 00 aa 00 00 00 aa 00\n" +
@@ -187,7 +195,7 @@ func TestLoginWithSecurityTokenAuth(t *testing.T) {
 				"00 00 00 00 01\n",
 			"  10 01 00 BB 00 00 01 00  B3 00 00 00 04 00 00 74\n" +
 				"00 10 00 00 00 00 00 00  00 00 00 00 00 00 00 00\n" +
-				"00 02 00 10 00 00 00 00  00 00 00 00 5E 00 09 00\n" +
+				"A0 02 00 10 00 00 00 00  00 00 00 00 5E 00 09 00\n" +
 				"70 00 00 00 70 00 00 00  70 00 0A 00 84 00 09 00\n" +
 				"96 00 04 00 96 00 00 00  96 00 00 00 96 00 00 00\n" +
 				"00 00 00 00 00 00 96 00  00 00 96 00 00 00 96 00\n" +
@@ -250,7 +258,7 @@ func TestLoginWithADALUsernamePasswordAuth(t *testing.T) {
 				"00 00 00 00 01\n",
 			"  10 01 00 aa 00 00 01 00  a2 00 00 00 04 00 00 74\n" +
 				"00 10 00 00 00 00 00 00  00 00 00 00 00 00 00 00\n" +
-				"00 02 00 10 00 00 00 00  00 00 00 00 5e 00 09 00\n" +
+				"A0 02 00 10 00 00 00 00  00 00 00 00 5e 00 09 00\n" +
 				"70 00 00 00 70 00 00 00  70 00 0a 00 84 00 09 00\n" +
 				"96 00 04 00 96 00 00 00  96 00 00 00 96 00 00 00\n" +
 				"00 00 00 00 00 00 96 00  00 00 96 00 00 00 96 00\n" +
@@ -324,7 +332,7 @@ func TestLoginWithADALManagedIdentityAuth(t *testing.T) {
 				"00 00 00 00 01\n",
 			"  10 01 00 aa 00 00 01 00  a2 00 00 00 04 00 00 74\n" +
 				"00 10 00 00 00 00 00 00  00 00 00 00 00 00 00 00\n" +
-				"00 02 00 10 00 00 00 00  00 00 00 00 5e 00 09 00\n" +
+				"A0 02 00 10 00 00 00 00  00 00 00 00 5e 00 09 00\n" +
 				"70 00 00 00 70 00 00 00  70 00 0a 00 84 00 09 00\n" +
 				"96 00 04 00 96 00 00 00  96 00 00 00 96 00 00 00\n" +
 				"00 00 00 00 00 00 96 00  00 00 96 00 00 00 96 00\n" +

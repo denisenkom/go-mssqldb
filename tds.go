@@ -245,6 +245,13 @@ func readPrelogin(r *tdsBuffer) (map[uint8][]byte, error) {
 	return results, nil
 }
 
+// OptionFlags1
+// http://msdn.microsoft.com/en-us/library/dd304019.aspx
+const (
+	fUseDB   = 0x20
+	fSetLang = 0x80
+)
+
 // OptionFlags2
 // http://msdn.microsoft.com/en-us/library/dd304019.aspx
 const (
@@ -981,6 +988,7 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger Cont
 		PacketSize:   packetSize,
 		Database:     p.Database,
 		OptionFlags2: fODBC, // to get unlimited TEXTSIZE
+		OptionFlags1: fUseDB | fSetLang,
 		HostName:     p.Workstation,
 		ServerName:   serverName,
 		AppName:      p.AppName,

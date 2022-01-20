@@ -58,9 +58,9 @@ steps:
   workingDirectory: '$(Build.SourcesDirectory)'
   displayName: 'run tests'
   env:
-    SQLSERVER_DSN: 'server=.;user id=sa;password=$(TESTPASSWORD)'
+    SQLPASSWORD: $(SQLPASSWORD)
     AZURESERVER_DSN: $(AZURESERVER_DSN)
-
+    SQLSERVER_DSN: $(SQLSERVER_DSN)
   continueOnError: true
 - task: PublishTestResults@2
   displayName: "Publish junit-style results"
