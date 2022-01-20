@@ -1,3 +1,4 @@
+//go:build go1.9
 // +build go1.9
 
 package mssql
@@ -1159,5 +1160,191 @@ func TestTVPObject(t *testing.T) {
 				return
 			}
 		})
+	}
+}
+
+// fix pointer uint in tvp https://github.com/denisenkom/go-mssqldb/issues/703
+func TestTVPUnsigned(t *testing.T) {
+	checkConnStr(t)
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
+
+	c := makeConnStr(t).String()
+	db, err := sql.Open("sqlserver", c)
+	if err != nil {
+		t.Fatalf("failed to open driver sqlserver")
+	}
+	defer db.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sqltextcreatetable := `
+		CREATE TYPE unsignedTvpTableTypes AS TABLE
+		(
+			p_tinyint 			TINYINT,
+			p_tinyintNull 		TINYINT,
+			p_smallint          SMALLINT,
+			p_smallintNull      SMALLINT,
+			p_int               INT,
+			p_intNull           INT,
+			p_bigint            BIGINT,
+			p_bigintNull        BIGINT,
+			pInt              	INT,
+			pIntNull          	INT
+		); `
+
+	sqltextdroptable := `DROP TYPE unsignedTvpTableTypes;`
+
+	sqltextcreatesp := `
+	CREATE PROCEDURE spwithtvpUnsigned
+		@param1 unsignedTvpTableTypes READONLY,
+		@param2 unsignedTvpTableTypes READONLY,
+		@param3 NVARCHAR(10)
+	AS   
+	BEGIN
+		SET NOCOUNT ON; 
+		SELECT * FROM @param1;
+		SELECT * FROM @param2;
+		SELECT @param3;
+	END;`
+
+	type TvptableRow struct {
+		PTinyint      uint8   `db:"p_tinyint"`
+		PTinyintNull  *uint8  `db:"p_tinyintNull"`
+		PSmallint     uint16  `db:"p_smallint"`
+		PSmallintNull *uint16 `db:"p_smallintNull"`
+		PInt          uint32  `db:"p_int"`
+		PIntNull      *uint32 `db:"p_intNull"`
+		PBigint       uint64  `db:"p_bigint"`
+		PBigintNull   *uint64 `db:"p_bigintNull"`
+		Pint          uint    `db:"pInt"`
+		PintNull      *uint   `db:"pIntNull"`
+	}
+
+	sqltextdropsp := `DROP PROCEDURE spwithtvpUnsigned;`
+
+	_, err = db.ExecContext(ctx, sqltextcreatetable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.ExecContext(ctx, sqltextdroptable)
+
+	_, err = db.ExecContext(ctx, sqltextcreatesp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.ExecContext(ctx, sqltextdropsp)
+	i8 := uint8(1)
+	i16 := uint16(2)
+	i32 := uint32(3)
+	i64 := uint64(4)
+	i := uint(5)
+	param1 := []TvptableRow{
+		{
+			PTinyint:  i8,
+			PSmallint: i16,
+			PInt:      i32,
+			PBigint:   i64,
+			Pint:      355,
+		},
+		{
+			PTinyint:  5,
+			PSmallint: 16000,
+			PInt:      20000000,
+			PBigint:   2000000020000000,
+			Pint:      455,
+		},
+		{
+			PTinyintNull:  &i8,
+			PSmallintNull: &i16,
+			PIntNull:      &i32,
+			PBigintNull:   &i64,
+			PintNull:      &i,
+		},
+		{
+			PTinyint:      5,
+			PSmallint:     16000,
+			PInt:          20000000,
+			PBigint:       2000000020000000,
+			PTinyintNull:  &i8,
+			PSmallintNull: &i16,
+			PIntNull:      &i32,
+			PBigintNull:   &i64,
+			PintNull:      &i,
+		},
+	}
+
+	tvpType := TVP{
+		TypeName: "unsignedTvpTableTypes",
+		Value:    param1,
+	}
+	tvpTypeEmpty := TVP{
+		TypeName: "unsignedTvpTableTypes",
+		Value:    []TvptableRow{},
+	}
+
+	rows, err := db.QueryContext(ctx,
+		"exec spwithtvpUnsigned @param1, @param2, @param3",
+		sql.Named("param1", tvpType),
+		sql.Named("param2", tvpTypeEmpty),
+		sql.Named("param3", "test"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+
+	var result1 []TvptableRow
+	for rows.Next() {
+		var val TvptableRow
+		err := rows.Scan(
+			&val.PTinyint,
+			&val.PTinyintNull,
+			&val.PSmallint,
+			&val.PSmallintNull,
+			&val.PInt,
+			&val.PIntNull,
+			&val.PBigint,
+			&val.PBigintNull,
+			&val.Pint,
+			&val.PintNull,
+		)
+		if err != nil {
+			t.Fatalf("scan failed with error: %s", err)
+		}
+
+		result1 = append(result1, val)
+	}
+
+	if !reflect.DeepEqual(param1, result1) {
+		t.Logf("expected: %+v", param1)
+		t.Logf("actual: %+v", result1)
+		t.Errorf("first resultset did not match param1")
+	}
+
+	if !rows.NextResultSet() {
+		t.Errorf("second resultset did not exist")
+	}
+
+	if rows.Next() {
+		t.Errorf("second resultset was not empty")
+	}
+
+	if !rows.NextResultSet() {
+		t.Errorf("third resultset did not exist")
+	}
+
+	if !rows.Next() {
+		t.Errorf("third resultset was empty")
+	}
+
+	var result3 string
+	if err := rows.Scan(&result3); err != nil {
+		t.Errorf("error scanning third result set: %s", err)
+	}
+	if result3 != "test" {
+		t.Errorf("third result set had wrong value expected: %s actual: %s", "test", result3)
 	}
 }
