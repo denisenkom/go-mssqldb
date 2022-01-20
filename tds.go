@@ -1166,7 +1166,7 @@ initiate_connection:
 	}
 	var auth auth
 	var authOk bool
-	if p.Kerberos != nil {
+	if p.Kerberos.Krb5Conf != nil {
 		auth, authOk = getKRB5Auth(p.User, p.Password, p.ServerSPN, p.Kerberos.Krb5Conf, p.Kerberos.KrbKeytab, p.Kerberos.KrbCache)
 	} else {
 		auth, authOk = getAuth(p.User, p.Password, p.ServerSPN, p.Workstation)

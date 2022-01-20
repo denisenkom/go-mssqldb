@@ -31,10 +31,8 @@ Other supported formats are listed below.
 
 ### Kerberos Parameters
 
-- `enablekerberos`-It is a boolean flag to enable kerberos authentication mechanism.
 - `krb5conffile`-File path for kerberos configuration file.
 - `realm`-Domain name for kerberos authentication.
-- `initkrbwithkeytab`-It is a boolean flag to enable kerberos authentication using keytab file.
 - `keytabfile`-Keytab file path.
 - `krbcache`-Credential cache path.
 
@@ -96,16 +94,16 @@ Other supported formats are listed below.
 
    ```
 
-   - `sqlserver://username@host/instance?enablekerberos=true&krb5conffile=path/to/file&initkrbwithkeytab=false&krbcache=/path/to/cache`
-   - `sqlserver://username@host/instance?enablekerberos=true&krb5conffile=path/to/file&realm=domain.com&initkrbwithkeytab=true&keytabfile=/path/to/keytabfile`
+   - `sqlserver://username@host/instance?krb5conffile=path/to/file&krbcache=/path/to/cache`
+   - `sqlserver://username@host/instance?krb5conffile=path/to/file&realm=domain.com&keytabfile=/path/to/keytabfile`
 
 2. ADO: `key=value` pairs separated by `;`. Values may not contain `;`, leading and trailing whitespace is ignored.
    Examples:
 
    - `server=localhost\\SQLExpress;user id=sa;database=master;app name=MyAppName`
    - `server=localhost;user id=sa;database=master;app name=MyAppName`
-   - `server=localhost;user id=sa;database=master;app name=MyAppName;enablekerberos=true;krb5conffile=path/to/file;initkrbwithkeytab=false;krbcache=path/to/cache`
-   - `server=localhost;user id=sa;database=master;app name=MyAppName;enablekerberos=true;krb5conffile=path/to/file;realm=domain.com;initkrbwithkeytab=true;keytabfile=path/to/keytabfile`
+   - `server=localhost;user id=sa;database=master;app name=MyAppName;krb5conffile=path/to/file;krbcache=path/to/cache`
+   - `server=localhost;user id=sa;database=master;app name=MyAppName;krb5conffile=path/to/file;realm=domain.com;keytabfile=path/to/keytabfile`
 
    ADO strings support synonyms for database, app name, user id, and server
 
@@ -126,8 +124,8 @@ Other supported formats are listed below.
    - `odbc:server=localhost;user id=sa;password=foo}bar` // Literal `}`, password is "foo}bar"
    - `odbc:server=localhost;user id=sa;password={foo{bar}` // Literal `{`, password is "foo{bar"
    - `odbc:server=localhost;user id=sa;password={foo}}bar}` // Escaped `} with`}}`, password is "foo}bar"
-   - `odbc:server=localhost;user id=sa;database=master;app name=MyAppName;enablekerberos=true;krb5conffile=path/to/file;initkrbwithkeytab=false;krbcache=path/to/cache`
-   - `odbc:server=localhost;user id=sa;database=master;app name=MyAppName;enablekerberos=true;krb5conffile=path/to/file;initkrbwithkeytab=true;realm=domain.com;keytabfile=path/to/keytabfile`
+   - `odbc:server=localhost;user id=sa;database=master;app name=MyAppName;krb5conffile=path/to/file;krbcache=path/to/cache`
+   - `odbc:server=localhost;user id=sa;database=master;app name=MyAppName;krb5conffile=path/to/file;realm=domain.com;keytabfile=path/to/keytabfile`
 
 ### Azure Active Directory authentication
 
@@ -324,6 +322,7 @@ are supported:
 - Supports Single-Sign-On on Windows
 - Supports connections to AlwaysOn Availability Group listeners, including re-direction to read-only replicas.
 - Supports query notifications
+- Supports Kerberos Authentication
 
 ## Tests
 

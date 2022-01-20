@@ -96,9 +96,6 @@ type Config struct {
 	PacketSize  uint16
 
 	Kerberos *Kerberos
-
-	// Flag to enable kerberos authentication
-	EnableKerberos bool
 }
 
 func SetupTLS(certificate string, insecureSkipVerify bool, hostInCertificate string) (*tls.Config, error) {
