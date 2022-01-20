@@ -64,6 +64,9 @@ Other supported formats are listed below.
 * `realm` - Domain name for kerberos authentication.
 * `keytabfile` - Keytab file path.
 * `krbcache` - Credential cache path.
+* For further information on usage: 
+  * <https://web.mit.edu/kerberos/krb5-1.12/doc/admin/conf_files/krb5_conf.html>
+  * <https://web.mit.edu/kerberos/krb5-1.12/doc/basic/index.html>
 
 ### The connection string can be specified in one of three formats
 

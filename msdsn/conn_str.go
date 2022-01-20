@@ -48,14 +48,14 @@ type Kerberos struct {
 	Krb5Conf *config.Config
 
 	// Credential cache
-	KrbCache *credentials.CCache
+	Cache *credentials.CCache
 
 	// A Kerberos realm is the domain over which a Kerberos authentication server has the authority
 	// to authenticate a user, host or service.
-	KrbRealm string
+	Realm string
 
 	// Kerberos keytab that stores long-term keys for one or more principals
-	KrbKeytab *keytab.Keytab
+	Keytab *keytab.Keytab
 }
 
 type Config struct {
@@ -220,13 +220,13 @@ func Parse(dsn string) (Config, map[string]string, error) {
 
 		realm, ok := params["realm"]
 		if ok {
-			p.Kerberos.KrbRealm = realm
+			p.Kerberos.Realm = realm
 		}
 
 		krbCache, ok := params["krbcache"]
 		if ok {
 			var err error
-			p.Kerberos.KrbCache, err = setupKerbCache(krbCache)
+			p.Kerberos.Cache, err = setupKerbCache(krbCache)
 			if err != nil {
 				return p, params, fmt.Errorf("cannot read kerberos cache file: %w", err)
 			}
@@ -235,7 +235,7 @@ func Parse(dsn string) (Config, map[string]string, error) {
 		keytabfile, ok := params["keytabfile"]
 		if ok {
 			var err error
-			p.Kerberos.KrbKeytab, err = setupKerbKeytab(keytabfile)
+			p.Kerberos.Keytab, err = setupKerbKeytab(keytabfile)
 			if err != nil {
 				return p, params, fmt.Errorf("cannot read kerberos keytab file: %w", err)
 			}
@@ -326,7 +326,7 @@ func Parse(dsn string) (Config, map[string]string, error) {
 	if ok {
 		p.ServerSPN = serverSPN
 	} else {
-		p.ServerSPN = generateSpn(p.Host, resolveServerPort(p.Port), p.Kerberos.KrbRealm)
+		p.ServerSPN = generateSpn(p.Host, resolveServerPort(p.Port), p.Kerberos.Realm)
 	}
 
 	workstation, ok := params["workstation id"]
