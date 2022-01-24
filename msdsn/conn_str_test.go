@@ -1,7 +1,6 @@
 package msdsn
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"reflect"
@@ -229,13 +228,11 @@ func TestValidConnectionStringKerberos(t *testing.T) {
 			t.Errorf("Connection string %s should fail to parse with error %s", connStrings, err)
 		}
 	}
-	deleteFile(kerberosTestFile, t)
+	os.Remove(kerberosTestFile)
 }
 
 func createKrbFile(t *testing.T) string {
-	dir := os.TempDir()
-	fmt.Println(dir)
-	file, err := ioutil.TempFile(dir, "test-*.txt")
+	file, err := ioutil.TempFile("", "test-*.txt")
 	if err != nil {
 		t.Errorf("Failed to create a temp file")
 	}
@@ -243,8 +240,4 @@ func createKrbFile(t *testing.T) string {
 		t.Errorf("Failed to write file")
 	}
 	return file.Name()
-}
-
-func deleteFile(filename string, t *testing.T) {
-	os.Remove(filename)
 }

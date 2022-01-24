@@ -45,7 +45,7 @@ const (
 
 type Kerberos struct {
 	// Kerberos configuration details
-	Krb5Conf *config.Config
+	Krb5Config *config.Config
 
 	// Credential cache
 	Cache *credentials.CCache
@@ -208,7 +208,7 @@ func Parse(dsn string) (Config, map[string]string, error) {
 	if ok {
 		p.Kerberos = &Kerberos{}
 		var err error
-		p.Kerberos.Krb5Conf, err = setupKerbConfig(krb5ConfFile)
+		p.Kerberos.Krb5Config, err = setupKerbConfig(krb5ConfFile)
 		if err != nil {
 			return p, params, fmt.Errorf("cannot read kerberos configuration file: %w", err)
 		}
