@@ -1,29 +1,17 @@
+//go:build go1.10
 // +build go1.10
 
 package mssql_test
 
 import (
 	"database/sql"
-	"flag"
-	"fmt"
 	"log"
 )
 
 // This example shows the usage of Connector type
 func ExampleLastInsertId() {
-	flag.Parse()
-
-	if *debug {
-		fmt.Printf(" password:%s\n", *password)
-		fmt.Printf(" port:%d\n", *port)
-		fmt.Printf(" server:%s\n", *server)
-		fmt.Printf(" user:%s\n", *user)
-	}
 
 	connString := makeConnURL().String()
-	if *debug {
-		fmt.Printf(" connString:%s\n", connString)
-	}
 
 	db, err := sql.Open("sqlserver", connString)
 	if err != nil {

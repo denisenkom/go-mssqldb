@@ -2077,7 +2077,7 @@ func TestLoginTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), latency+(2*increment))
 	defer cancel()
 	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:03'")
-	t.Log("Got error ", err)
+	t.Logf("Got error type %v: %s ", reflect.TypeOf(err), err.Error())
 	if oe, ok := err.(*net.OpError); ok {
 		if !oe.Timeout() {
 			t.Fatalf("Got non-timeout error %s", oe.Error())
