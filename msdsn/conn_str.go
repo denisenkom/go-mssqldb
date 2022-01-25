@@ -45,7 +45,7 @@ const (
 
 type Kerberos struct {
 	// Kerberos configuration details
-	Krb5Config *config.Config
+	Config *config.Config
 
 	// Credential cache
 	Cache *credentials.CCache
@@ -132,6 +132,7 @@ var skipSetup = errors.New("skip setting up TLS")
 
 func Parse(dsn string) (Config, map[string]string, error) {
 	p := Config{}
+	p.Kerberos = &Kerberos{}
 
 	var params map[string]string
 	if strings.HasPrefix(dsn, "odbc:") {
@@ -206,9 +207,8 @@ func Parse(dsn string) (Config, map[string]string, error) {
 
 	krb5ConfFile, ok := params["krb5conffile"]
 	if ok {
-		p.Kerberos = &Kerberos{}
 		var err error
-		p.Kerberos.Krb5Config, err = setupKerbConfig(krb5ConfFile)
+		p.Kerberos.Config, err = setupKerbConfig(krb5ConfFile)
 		if err != nil {
 			return p, params, fmt.Errorf("cannot read kerberos configuration file: %w", err)
 		}

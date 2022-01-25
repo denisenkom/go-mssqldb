@@ -1174,8 +1174,8 @@ initiate_connection:
 	}
 	var auth auth
 	var authOk bool
-	if p.Kerberos != nil && p.Kerberos.Krb5Config != nil {
-		auth, authOk = getKRB5Auth(p.User, p.Password, p.ServerSPN, p.Kerberos.Krb5Config, p.Kerberos.Keytab, p.Kerberos.Cache)
+	if p.Kerberos != nil && p.Kerberos.Config != nil {
+		auth, authOk = getKRB5Auth(p.User, p.Password, p.ServerSPN, p.Kerberos.Config, p.Kerberos.Keytab, p.Kerberos.Cache)
 	} else {
 		auth, authOk = getAuth(p.User, p.Password, p.ServerSPN, p.Workstation)
 	}

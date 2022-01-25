@@ -210,13 +210,13 @@ func TestInvalidConnectionStringKerberos(t *testing.T) {
 		_, _, err := Parse(connStr)
 		if err == nil {
 			t.Errorf("Connection expected to fail for connection string %s but it didn't", connStr)
-			continue
 		}
 	}
 }
 
 func TestValidConnectionStringKerberos(t *testing.T) {
 	kerberosTestFile := createKrbFile(t)
+	defer os.Remove(kerberosTestFile)
 	connStrings := []string{
 		"server=server;user id=user;port=1345;realm=domain;trustservercertificate=true;krb5conffile=" + kerberosTestFile + ";keytabfile=" + kerberosTestFile,
 		"server=server;port=1345;realm=domain;trustservercertificate=true;krb5conffile=" + kerberosTestFile + ";krbcache=" + kerberosTestFile,
@@ -228,16 +228,15 @@ func TestValidConnectionStringKerberos(t *testing.T) {
 			t.Errorf("Connection string %s should fail to parse with error %s", connStrings, err)
 		}
 	}
-	os.Remove(kerberosTestFile)
 }
 
 func createKrbFile(t *testing.T) string {
 	file, err := ioutil.TempFile("", "test-*.txt")
 	if err != nil {
-		t.Errorf("Failed to create a temp file")
+		t.Fatalf("Failed to create a temp file:%v",err)
 	}
 	if _, err := file.Write([]byte("This is a test file\n")); err != nil {
-		t.Errorf("Failed to write file")
+		t.Fatalf("Failed to write file:%v",err)
 	}
 	return file.Name()
 }
