@@ -16,7 +16,6 @@ type krb5Auth struct {
 	username   string
 	realm      string
 	serverSPN  string
-	password   string
 	port       uint64
 	krb5Config *config.Config
 	krbKeytab  *keytab.Keytab
@@ -25,7 +24,7 @@ type krb5Auth struct {
 	state      krb5ClientState
 }
 
-func getKRB5Auth(user, password, serverSPN string, krb5Conf *config.Config, keytabContent *keytab.Keytab, cacheContent *credentials.CCache) (auth, bool) {
+func getKRB5Auth(user, serverSPN string, krb5Conf *config.Config, keytabContent *keytab.Keytab, cacheContent *credentials.CCache) (auth, bool) {
 	var port uint64
 	var realm, serviceStr string
 	var err error
@@ -73,7 +72,6 @@ func getKRB5Auth(user, password, serverSPN string, krb5Conf *config.Config, keyt
 		krb5Config: krb5Conf,
 		krbKeytab:  keytabContent,
 		krbCache:   cacheContent,
-		password:   password,
 	}, true
 }
 

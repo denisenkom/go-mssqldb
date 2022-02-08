@@ -15,11 +15,10 @@ func TestGetKRB5Auth(t *testing.T) {
 	krbKeytab := &keytab.Keytab{}
 	krbCache := &credentials.CCache{}
 
-	got, _ := getKRB5Auth("", "", "MSSQLSvc/mssql.domain.com:1433", krbConf, krbKeytab, krbCache)
+	got, _ := getKRB5Auth("", "MSSQLSvc/mssql.domain.com:1433", krbConf, krbKeytab, krbCache)
 	keytab := &krb5Auth{username: "",
 		realm:      "domain.com",
 		serverSPN:  "MSSQLSvc/mssql.domain.com:1433",
-		password:   "",
 		port:       1433,
 		krb5Config: krbConf,
 		krbKeytab:  krbKeytab,
@@ -31,11 +30,10 @@ func TestGetKRB5Auth(t *testing.T) {
 		t.Errorf("Failed to get correct krb5Auth object\nExpected:%v\nRecieved:%v", keytab, got)
 	}
 
-	got, _ = getKRB5Auth("", "", "MSSQLSvc/mssql.domain.com:1433", krbConf, krbKeytab, krbCache)
+	got, _ = getKRB5Auth("", "MSSQLSvc/mssql.domain.com:1433", krbConf, krbKeytab, krbCache)
 	keytab = &krb5Auth{username: "",
 		realm:      "domain.com",
 		serverSPN:  "MSSQLSvc/mssql.domain.com:1433",
-		password:   "",
 		port:       1433,
 		krb5Config: krbConf,
 		krbKeytab:  krbKeytab,
@@ -47,16 +45,15 @@ func TestGetKRB5Auth(t *testing.T) {
 		t.Errorf("Failed to get correct krb5Auth object\nExpected:%v\nRecieved:%v", keytab, got)
 	}
 
-	_, val := getKRB5Auth("", "", "MSSQLSvc/mssql.domain.com", krbConf, krbKeytab, krbCache)
+	_, val := getKRB5Auth("", "MSSQLSvc/mssql.domain.com", krbConf, krbKeytab, krbCache)
 	if val {
 		t.Errorf("Failed to get correct krb5Auth object: no port defined")
 	}
 
-	got, _ = getKRB5Auth("", "", "MSSQLSvc/mssql.domain.com:1433@DOMAIN.COM", krbConf, krbKeytab, krbCache)
+	got, _ = getKRB5Auth("", "MSSQLSvc/mssql.domain.com:1433@DOMAIN.COM", krbConf, krbKeytab, krbCache)
 	keytab = &krb5Auth{username: "",
 		realm:      "DOMAIN.COM",
 		serverSPN:  "MSSQLSvc/mssql.domain.com:1433",
-		password:   "",
 		port:       1433,
 		krb5Config: krbConf,
 		krbKeytab:  krbKeytab,
@@ -68,17 +65,17 @@ func TestGetKRB5Auth(t *testing.T) {
 		t.Errorf("Failed to get correct krb5Auth object\nExpected:%v\nRecieved:%v", keytab, got)
 	}
 
-	_, val = getKRB5Auth("", "", "MSSQLSvc/mssql.domain.com:1433@domain.com@test", krbConf, krbKeytab, krbCache)
+	_, val = getKRB5Auth("", "MSSQLSvc/mssql.domain.com:1433@domain.com@test", krbConf, krbKeytab, krbCache)
 	if val {
 		t.Errorf("Failed to get correct krb5Auth object due to incorrect serverSPN name")
 	}
 
-	_, val = getKRB5Auth("", "", "MSSQLSvc/mssql.domain.com:port@domain.com", krbConf, krbKeytab, krbCache)
+	_, val = getKRB5Auth("", "MSSQLSvc/mssql.domain.com:port@domain.com", krbConf, krbKeytab, krbCache)
 	if val {
 		t.Errorf("Failed to get correct krb5Auth object due to incorrect port")
 	}
 
-	_, val = getKRB5Auth("", "", "MSSQLSvc/mssql.domain.com:port", krbConf, krbKeytab, krbCache)
+	_, val = getKRB5Auth("", "MSSQLSvc/mssql.domain.com:port", krbConf, krbKeytab, krbCache)
 	if val {
 		t.Errorf("Failed to get correct krb5Auth object due to incorrect port")
 	}
@@ -91,7 +88,6 @@ func TestInitialBytes(t *testing.T) {
 	krbObj := &krb5Auth{username: "",
 		realm:      "domain.com",
 		serverSPN:  "MSSQLSvc/mssql.domain.com:1433",
-		password:   "",
 		port:       1433,
 		krb5Config: krbConf,
 		krbKeytab:  krbKeytab,
@@ -119,7 +115,6 @@ func TestNextBytes(t *testing.T) {
 	var krbObj auth = &krb5Auth{username: "",
 		realm:      "domain.com",
 		serverSPN:  "MSSQLSvc/mssql.domain.com:1433",
-		password:   "",
 		port:       1433,
 		krb5Config: krbConf,
 		krbKeytab:  krbKeytab,
@@ -143,7 +138,6 @@ func TestFree(t *testing.T) {
 	var krbObj auth = &krb5Auth{username: "",
 		realm:      "domain.com",
 		serverSPN:  "MSSQLSvc/mssql.domain.com:1433",
-		password:   "",
 		port:       1433,
 		krb5Config: krbConf,
 		krbKeytab:  krbKeytab,
