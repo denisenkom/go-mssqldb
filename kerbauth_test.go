@@ -104,7 +104,6 @@ func TestInitialBytes(t *testing.T) {
 		t.Errorf("Failed to get Initial bytes")
 	}
 
-	//krbObj.initkrbwithkeytab = true
 	_, err = krbObj.InitialBytes()
 	if err == nil {
 		t.Errorf("Failed to get Initial bytes")
