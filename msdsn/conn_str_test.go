@@ -55,7 +55,6 @@ func TestValidConnectionString(t *testing.T) {
 		{"server=server\\instance;database=testdb;user id=tester;password=pwd", func(p Config) bool {
 			return p.Host == "server" && p.Instance == "instance" && p.User == "tester" && p.Password == "pwd"
 		}},
-
 		{"server=.", func(p Config) bool { return p.Host == "localhost" }},
 		{"server=(local)", func(p Config) bool { return p.Host == "localhost" }},
 		{"ServerSPN=serverspn;Workstation ID=workstid", func(p Config) bool { return p.ServerSPN == "serverspn" && p.Workstation == "workstid" }},
@@ -221,7 +220,6 @@ func TestValidConnectionStringKerberos(t *testing.T) {
 		"server=server;user id=user;port=1345;realm=domain;trustservercertificate=true;krb5conffile=" + kerberosTestFile + ";keytabfile=" + kerberosTestFile,
 		"server=server;port=1345;realm=domain;trustservercertificate=true;krb5conffile=" + kerberosTestFile + ";krbcache=" + kerberosTestFile,
 	}
-
 	for _, connStr := range connStrings {
 		_, _, err := Parse(connStr)
 		if err == nil {
