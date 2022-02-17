@@ -20,7 +20,7 @@ type header struct {
 
 // bufpool provides buffers which are used for reading and writing in the tdsBuffer instances
 var bufpool = sync.Pool{
-	New: func() interface{} { return make([]byte, 1<<17) },
+	New: func() interface{} { return make([]byte, 1<<16) },
 }
 
 // tdsBuffer reads and writes TDS packets of data to the transport.
@@ -61,8 +61,8 @@ func newTdsBuffer(bufsize uint16, transport io.ReadWriteCloser) *tdsBuffer {
 
 	return &tdsBuffer{
 		packetSize: int(bufsize),
-		wbuf:       buf[:1<<16],
-		rbuf:       buf[1<<16:],
+		wbuf:       buf[:1<<15],
+		rbuf:       buf[1<<15:],
 		bufClose:   func() { bufpool.Put(buf) },
 		rpos:       8,
 		transport:  transport,

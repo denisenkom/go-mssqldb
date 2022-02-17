@@ -136,7 +136,7 @@ func makeLargeDataBuffer() []byte {
 func TestReadUint16Succeeds(t *testing.T) {
 
 	data := makeLargeDataBuffer()
-	size := 0x9 + (1 << 15)
+	size := 0x9 + (1 << 14)
 	buffer := makeBuf(uint16(size), append([]byte{0x01 /*id*/, 0xFF /*status*/, byte((size >> 8) & 0xFF), byte(size & 0xFF) /*size*/, 0xff, 0xff, 0xff, 0xff, 0xff /* byte pattern data to follow */}, data...))
 
 	id, err := buffer.BeginRead()
@@ -153,7 +153,7 @@ func TestReadUint16Succeeds(t *testing.T) {
 
 	defer func() {
 
-		if iterations != (1<<15)/4 {
+		if iterations != (1<<14)/4 {
 			t.Fatalf("Expected to read all data, but only read %v", iterations*4)
 		}
 
@@ -191,7 +191,7 @@ func TestReadUint16Succeeds(t *testing.T) {
 func TestReadUint32Succeeds(t *testing.T) {
 
 	data := makeLargeDataBuffer()
-	size := 0x9 + (1 << 15)
+	size := 0x9 + (1 << 14)
 	buffer := makeBuf(uint16(size), append([]byte{0x01 /*id*/, 0xFF /*status*/, byte((size >> 8) & 0xFF), byte(size & 0xFF) /*size*/, 0xff, 0xff, 0xff, 0xff, 0xff /* byte pattern data to follow */}, data...))
 
 	id, err := buffer.BeginRead()
@@ -206,7 +206,7 @@ func TestReadUint32Succeeds(t *testing.T) {
 
 	iterations := 0
 	defer func() {
-		if iterations != (1<<15)/4 {
+		if iterations != (1<<14)/4 {
 			t.Fatalf("Expected to read all data, but only read %v", iterations*4)
 		}
 
@@ -236,7 +236,7 @@ func TestReadUint32Succeeds(t *testing.T) {
 func TestReadUint64Succeeds(t *testing.T) {
 
 	data := makeLargeDataBuffer()
-	size := 0x9 + (1 << 15)
+	size := 0x9 + (1 << 14)
 	buffer := makeBuf(uint16(size), append([]byte{0x01 /*id*/, 0xFF /*status*/, byte((size >> 8) & 0xFF), byte(size & 0xFF) /*size*/, 0xff, 0xff, 0xff, 0xff, 0xff /* byte pattern data to follow */}, data...))
 
 	id, err := buffer.BeginRead()
@@ -251,7 +251,7 @@ func TestReadUint64Succeeds(t *testing.T) {
 
 	iterations := 0
 	defer func() {
-		if iterations != (1<<15)/8 {
+		if iterations != (1<<14)/8 {
 			t.Fatalf("Expected to read all data, but only read %v", iterations*4)
 		}
 
