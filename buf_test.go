@@ -2,8 +2,10 @@ package mssql
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"testing"
+	"unicode/utf16"
 )
 
 type closableBuffer struct {
@@ -115,6 +117,165 @@ func TestBeginReadSucceeds(t *testing.T) {
 		t.Fatal("Read was expected to return error but it didn't")
 	} else {
 		t.Log("Read failed as expected with error:", err.Error())
+	}
+}
+
+func makeLargeDataBuffer() []byte {
+	data := make([]byte, 1<<15)
+
+	for i := 0; i < len(data); i += 4 {
+		data[i] = 0xFE
+		data[i+1] = 0xDC
+		data[i+2] = 0xBA
+		data[i+3] = 0x89
+	}
+
+	return data
+}
+
+func TestReadUint16Succeeds(t *testing.T) {
+
+	data := makeLargeDataBuffer()
+	size := 0x9 + (1 << 15)
+	buffer := makeBuf(uint16(size), append([]byte{0x01 /*id*/, 0xFF /*status*/, byte((size >> 8) & 0xFF), byte(size & 0xFF) /*size*/, 0xff, 0xff, 0xff, 0xff, 0xff /* byte pattern data to follow */}, data...))
+
+	id, err := buffer.BeginRead()
+	if err != nil {
+		t.Fatal("BeginRead failed:", err.Error())
+	}
+	if id != 1 {
+		t.Fatalf("Expected id to be 1 but it is %d", id)
+	}
+
+	buffer.byte()
+
+	iterations := 0
+
+	defer func() {
+
+		if iterations != (1<<15)/4 {
+			t.Fatalf("Expected to read all data, but only read %v", iterations*4)
+		}
+
+		v := recover()
+		if v == nil {
+			t.Fatalf("Expected EOF but got nil")
+		}
+
+		if err, ok := v.(error); ok {
+			if err.Error() != "Invalid TDS stream: EOF" {
+				t.Fatalf("Expected EOF but got %v", err)
+			}
+		} else {
+			t.Fatalf("Expected EOF but got %v", v)
+		}
+	}()
+
+	for {
+
+		a := buffer.uint16()
+		if a != 0xdcfe {
+			t.Fatalf("Expected read uint16 to be 0xfedc but it is %d", a)
+		}
+
+		b := buffer.uint16()
+		if b != 0x89ba {
+			t.Fatalf("Expected read uint16 to be 0x89ba but it is %d", a)
+		}
+
+		iterations++
+	}
+
+}
+
+func TestReadUint32Succeeds(t *testing.T) {
+
+	data := makeLargeDataBuffer()
+	size := 0x9 + (1 << 15)
+	buffer := makeBuf(uint16(size), append([]byte{0x01 /*id*/, 0xFF /*status*/, byte((size >> 8) & 0xFF), byte(size & 0xFF) /*size*/, 0xff, 0xff, 0xff, 0xff, 0xff /* byte pattern data to follow */}, data...))
+
+	id, err := buffer.BeginRead()
+	if err != nil {
+		t.Fatal("BeginRead failed:", err.Error())
+	}
+	if id != 1 {
+		t.Fatalf("Expected id to be 1 but it is %d", id)
+	}
+
+	buffer.byte()
+
+	iterations := 0
+	defer func() {
+		if iterations != (1<<15)/4 {
+			t.Fatalf("Expected to read all data, but only read %v", iterations*4)
+		}
+
+		v := recover()
+		if v == nil {
+			t.Fatalf("Expected EOF but got nil")
+		}
+
+		if err, ok := v.(error); ok {
+			if err.Error() != "Invalid TDS stream: EOF" {
+				t.Fatalf("Expected EOF but got %v", err)
+			}
+		} else {
+			t.Fatalf("Expected EOF but got %v", v)
+		}
+	}()
+	for {
+		a := buffer.uint32()
+		if a != 0x89badcfe {
+			t.Fatalf("Expected read uint16 to be 0x89badcfe but it is %d", a)
+		}
+
+		iterations++
+	}
+}
+
+func TestReadUint64Succeeds(t *testing.T) {
+
+	data := makeLargeDataBuffer()
+	size := 0x9 + (1 << 15)
+	buffer := makeBuf(uint16(size), append([]byte{0x01 /*id*/, 0xFF /*status*/, byte((size >> 8) & 0xFF), byte(size & 0xFF) /*size*/, 0xff, 0xff, 0xff, 0xff, 0xff /* byte pattern data to follow */}, data...))
+
+	id, err := buffer.BeginRead()
+	if err != nil {
+		t.Fatal("BeginRead failed:", err.Error())
+	}
+	if id != 1 {
+		t.Fatalf("Expected id to be 1 but it is %d", id)
+	}
+
+	buffer.byte()
+
+	iterations := 0
+	defer func() {
+		if iterations != (1<<15)/8 {
+			t.Fatalf("Expected to read all data, but only read %v", iterations*4)
+		}
+
+		v := recover()
+		if v == nil {
+			t.Fatalf("Expected EOF but got nil")
+		}
+
+		if err, ok := v.(error); ok {
+			if err.Error() != "Invalid TDS stream: EOF" {
+				t.Fatalf("Expected EOF but got %v", err)
+			}
+		} else {
+			t.Fatalf("Expected EOF but got %v", v)
+		}
+	}()
+
+	for {
+		a := buffer.uint64()
+		if a != 0x89badcfe89badcfe {
+			t.Fatalf("Expected read uint16 to be 0x89badcfe89badcfe but it is %d", a)
+		}
+
+		iterations++
 	}
 }
 
@@ -297,6 +458,88 @@ func TestReadUsVarCharOrPanic(t *testing.T) {
 	memBuf = bytes.NewBuffer([]byte{})
 	_ = readUsVarCharOrPanic(memBuf)
 	t.Fatal("UsVarChar() should panic, but it didn't")
+}
+
+func TestReadUsVarCharOrPanicWideChars(t *testing.T) {
+	str := "百度一下，你就知道"
+	runes := utf16.Encode([]rune(str))
+	encodedBytes := make([]byte, len(runes)*2)
+
+	for i := 0; i < len(runes); i++ {
+		binary.LittleEndian.PutUint16(encodedBytes[i*2:], runes[i])
+	}
+
+	memBuf := bytes.NewBuffer(append([]byte{byte(len(runes)), 0}, encodedBytes...))
+
+	s := readUsVarCharOrPanic(memBuf)
+	if s != str {
+		t.Errorf("UsVarChar expected to return 123 but it returned %s", s)
+	}
+}
+
+func TestReadBVarCharOrPanicWideChars(t *testing.T) {
+	str := "百度一下，你就知道"
+	runes := utf16.Encode([]rune(str))
+	encodedBytes := make([]byte, len(runes)*2)
+
+	for i := 0; i < len(runes); i++ {
+		binary.LittleEndian.PutUint16(encodedBytes[i*2:], runes[i])
+	}
+
+	memBuf := bytes.NewBuffer(append([]byte{byte(len(runes))}, encodedBytes...))
+
+	s := readBVarCharOrPanic(memBuf)
+	if s != str {
+		t.Errorf("UsVarChar expected to return 123 but it returned %s", s)
+	}
+}
+
+var sideeffect_string string
+
+func BenchmarkReadBVarCharOrPanicWideChars(b *testing.B) {
+	str := "百度一下，你就知道"
+
+	runes := utf16.Encode([]rune(str))
+	encodedBytes := make([]byte, len(runes)*2)
+
+	for i := 0; i < len(runes); i++ {
+		binary.LittleEndian.PutUint16(encodedBytes[i*2:], runes[i])
+	}
+
+	encodedBytes = append([]byte{byte(len(runes))}, encodedBytes...)
+
+	memBuf := bytes.NewReader(encodedBytes)
+
+	for n := 0; n < b.N; n++ {
+
+		s := readBVarCharOrPanic(memBuf)
+		sideeffect_string = s
+
+		memBuf.Reset(encodedBytes)
+	}
+}
+
+func BenchmarkReadBVarCharOrPanicOnly1WideChar(b *testing.B) {
+	str := "abcdefghijklmno百p"
+
+	runes := utf16.Encode([]rune(str))
+	encodedBytes := make([]byte, len(runes)*2)
+
+	for i := 0; i < len(runes); i++ {
+		binary.LittleEndian.PutUint16(encodedBytes[i*2:], runes[i])
+	}
+
+	encodedBytes = append([]byte{byte(len(runes))}, encodedBytes...)
+
+	memBuf := bytes.NewReader(encodedBytes)
+
+	for n := 0; n < b.N; n++ {
+
+		s := readBVarCharOrPanic(memBuf)
+		sideeffect_string = s
+
+		memBuf.Reset(encodedBytes)
+	}
 }
 
 func TestReadBVarCharOrPanic(t *testing.T) {
