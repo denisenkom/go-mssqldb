@@ -129,18 +129,6 @@ func createDesKey(bytes, material []byte) {
 	material[7] = (byte)(bytes[6] << 1)
 }
 
-func oddParity(bytes []byte) {
-	for i := 0; i < len(bytes); i++ {
-		b := bytes[i]
-		needsParity := (((b >> 7) ^ (b >> 6) ^ (b >> 5) ^ (b >> 4) ^ (b >> 3) ^ (b >> 2) ^ (b >> 1)) & 0x01) == 0
-		if needsParity {
-			bytes[i] = bytes[i] | byte(0x01)
-		} else {
-			bytes[i] = bytes[i] & byte(0xfe)
-		}
-	}
-}
-
 func encryptDes(key []byte, cleartext []byte, ciphertext []byte) {
 	var desKey [8]byte
 	createDesKey(key, desKey[:])
