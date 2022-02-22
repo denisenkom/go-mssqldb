@@ -23,6 +23,7 @@ const (
 var (
 	ErrorEmptyTVPTypeName = errors.New("TypeName must not be empty")
 	ErrorTypeSlice        = errors.New("TVP must be slice type")
+	ErrorTypeSliceStructs = errors.New("TVP must be slice type with struct type elements")
 	ErrorTypeSliceIsEmpty = errors.New("TVP mustn't be null value")
 	ErrorSkip             = errors.New("all fields mustn't skip")
 	ErrorObjectName       = errors.New("wrong tvp name")
@@ -55,7 +56,7 @@ func (tvp TVP) check() error {
 		return ErrorTypeSliceIsEmpty
 	}
 	if reflect.TypeOf(tvp.Value).Elem().Kind() != reflect.Struct {
-		return ErrorTypeSlice
+		return ErrorTypeSliceStructs
 	}
 	return nil
 }
