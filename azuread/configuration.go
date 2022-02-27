@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -38,6 +39,8 @@ type azureFedAuthConfig struct {
 	tenantID        string
 	clientSecret    string
 	certificatePath string
+	// ManagedIdentity logins
+	managedIdentityOpts *azidentity.ManagedIdentityCredentialOptions
 
 	// AD password/managed identity/interactive
 	user                string
@@ -92,7 +95,15 @@ func (p *azureFedAuthConfig) validateParameters(params map[string]string) error 
 		// When using MSI, to request a specific client ID or user-assigned identity,
 		// provide the ID in the "user id" parameter
 		p.adalWorkflow = mssql.FedAuthADALWorkflowMSI
-		p.clientID, _ = splitTenantAndClientID(params["user id"])
+		resourceID, ok := params["resource id"]
+		if ok {
+			p.managedIdentityOpts = &azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ResourceID(resourceID)}
+		} else {
+			clientID, _ := splitTenantAndClientID(params["user id"])
+			if clientID != "" {
+				p.managedIdentityOpts = &azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ClientID(clientID)}
+			}
+		}
 	case strings.EqualFold(fedAuthWorkflow, ActiveDirectoryApplication) || strings.EqualFold(fedAuthWorkflow, ActiveDirectoryServicePrincipal):
 		p.adalWorkflow = mssql.FedAuthADALWorkflowPassword
 		// Split the clientID@tenantID format
@@ -164,16 +175,22 @@ func (p *azureFedAuthConfig) provideActiveDirectoryToken(ctx context.Context, se
 	case ActiveDirectoryServicePrincipal, ActiveDirectoryApplication:
 		switch {
 		case p.certificatePath != "":
-			cred, err = azidentity.NewClientCertificateCredential(tenant, p.clientID, p.certificatePath, &azidentity.ClientCertificateCredentialOptions{Password: p.clientSecret})
+			certData, err := os.ReadFile(p.certificatePath)
+			if err != nil {
+			certs, key, err := azidentity.ParseCertificates(certData, []byte(p.clientSecret))
+			if err != nil {
+			cred, err = azidentity.NewClientCertificateCredential(tenant, p.clientID, certs, key, nil)
+			}
+		}
 		default:
 			cred, err = azidentity.NewClientSecretCredential(tenant, p.clientID, p.clientSecret, nil)
 		}
 	case ActiveDirectoryPassword:
 		cred, err = azidentity.NewUsernamePasswordCredential(tenant, p.applicationClientID, p.user, p.password, nil)
 	case ActiveDirectoryMSI, ActiveDirectoryManagedIdentity:
-		cred, err = azidentity.NewManagedIdentityCredential(p.clientID, nil)
+		cred, err = azidentity.NewManagedIdentityCredential(p.managedIdentityOpts)
 	case ActiveDirectoryInteractive:
-		cred, err = azidentity.NewInteractiveBrowserCredential(&azidentity.InteractiveBrowserCredentialOptions{AuthorityHost: authority, ClientID: p.applicationClientID})
+		cred, err = azidentity.NewInteractiveBrowserCredential(&azidentity.InteractiveBrowserCredentialOptions{AuthorityHost: azidentity.AuthorityHost(authority), ClientID: p.applicationClientID})
 
 	default:
 		// Integrated just uses Default until azidentity adds Windows-specific authentication
