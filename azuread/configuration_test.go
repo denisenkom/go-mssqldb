@@ -3,7 +3,6 @@ package azuread
 import (
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	mssql "github.com/denisenkom/go-mssqldb"
 	"github.com/denisenkom/go-mssqldb/msdsn"
 )
@@ -85,19 +84,19 @@ func TestValidateParameters(t *testing.T) {
 			dsn:  "server=someserver.database.windows.net;fedauth=ActiveDirectoryManagedIdentity;user id=identity-client-id",
 			expected: &azureFedAuthConfig{
 				adalWorkflow:    mssql.FedAuthADALWorkflowMSI,
-				managedIdentityOpts: &azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ClientID("identity-client-id")},
-				fedAuthWorkflow: ActiveDirectoryManagedIdentity,
+				clientID: "identity-client-id",
+			    fedAuthWorkflow: ActiveDirectoryManagedIdentity,
 			},
 		},
 		{
 			name: "managed identity with resource id",
-				dsn:  "server=someserver.database.windows.net;fedauth=ActiveDirectoryManagedIdentity;resource id=/resource/id",
-				expected: &azureFedAuthConfig{
+			dsn:  "server=someserver.database.windows.net;fedauth=ActiveDirectoryManagedIdentity;resource id=/subscriptions/{guid}/resourceGroups/{resource-group-name}/{resource-provider-namespace}/{resource-type}/{resource-name}",
+			expected: &azureFedAuthConfig{
 				adalWorkflow:        mssql.FedAuthADALWorkflowMSI,
-				managedIdentityOpts: &azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ResourceID("/resource/id")},
+				resourceID:          "/subscriptions/{guid}/resourceGroups/{resource-group-name}/{resource-provider-namespace}/{resource-type}/{resource-name}",
 				fedAuthWorkflow:     ActiveDirectoryManagedIdentity,
 			},
-			},
+		},
 	}
 	for _, tst := range tests {
 		config, err := parse(tst.dsn)
@@ -114,11 +113,6 @@ func TestValidateParameters(t *testing.T) {
 		if tst.expected.fedAuthLibrary != mssql.FedAuthLibraryReserved {
 			if tst.expected.fedAuthLibrary == 0 {
 				tst.expected.fedAuthLibrary = mssql.FedAuthLibraryADAL
-			}
-		}
-		if tst.expected.managedIdentityOpts != config.managedIdentityOpts {
-			if tst.expected.managedIdentityOpts.ID.String() == config.managedIdentityOpts.ID.String() {
-				tst.expected.managedIdentityOpts = config.managedIdentityOpts
 			}
 		}
 		// mssqlConfig is not idempotent due to pointers in it, plus we aren't testing its correctness here

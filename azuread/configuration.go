@@ -39,8 +39,7 @@ type azureFedAuthConfig struct {
 	tenantID        string
 	clientSecret    string
 	certificatePath string
-	// ManagedIdentity logins
-	managedIdentityOpts *azidentity.ManagedIdentityCredentialOptions
+	resourceID      string
 
 	// AD password/managed identity/interactive
 	user                string
@@ -95,15 +94,8 @@ func (p *azureFedAuthConfig) validateParameters(params map[string]string) error 
 		// When using MSI, to request a specific client ID or user-assigned identity,
 		// provide the ID in the "user id" parameter
 		p.adalWorkflow = mssql.FedAuthADALWorkflowMSI
-		resourceID, ok := params["resource id"]
-		if ok {
-			p.managedIdentityOpts = &azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ResourceID(resourceID)}
-		} else {
-			clientID, _ := splitTenantAndClientID(params["user id"])
-			if clientID != "" {
-				p.managedIdentityOpts = &azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ClientID(clientID)}
-			}
-		}
+		p.resourceID, _ = params["resource id"]
+		p.clientID, _ = splitTenantAndClientID(params["user id"])
 	case strings.EqualFold(fedAuthWorkflow, ActiveDirectoryApplication) || strings.EqualFold(fedAuthWorkflow, ActiveDirectoryServicePrincipal):
 		p.adalWorkflow = mssql.FedAuthADALWorkflowPassword
 		// Split the clientID@tenantID format
@@ -188,7 +180,13 @@ func (p *azureFedAuthConfig) provideActiveDirectoryToken(ctx context.Context, se
 	case ActiveDirectoryPassword:
 		cred, err = azidentity.NewUsernamePasswordCredential(tenant, p.applicationClientID, p.user, p.password, nil)
 	case ActiveDirectoryMSI, ActiveDirectoryManagedIdentity:
-		cred, err = azidentity.NewManagedIdentityCredential(p.managedIdentityOpts)
+		if p.resourceID != "" {
+			cred, err = azidentity.NewManagedIdentityCredential(&azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ResourceID(p.resourceID)})
+		} else if p.clientID != "" {
+			cred, err = azidentity.NewManagedIdentityCredential(&azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ClientID(p.clientID)})
+		} else {
+			cred, err = azidentity.NewManagedIdentityCredential(nil)
+		}
 	case ActiveDirectoryInteractive:
 		cred, err = azidentity.NewInteractiveBrowserCredential(&azidentity.InteractiveBrowserCredentialOptions{AuthorityHost: azidentity.AuthorityHost(authority), ClientID: p.applicationClientID})
 
