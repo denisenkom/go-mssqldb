@@ -1157,7 +1157,6 @@ func (rc *Rowsq) Next(dest []driver.Value) error {
 						dest[i] = tokdata[i]
 					}
 					return nil
-				case doneInProcStruct:
 				case doneStruct:
 					if tokdata.Status&doneMore == 0 {
 						rc.requestDone = true
