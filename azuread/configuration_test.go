@@ -84,8 +84,17 @@ func TestValidateParameters(t *testing.T) {
 			dsn:  "server=someserver.database.windows.net;fedauth=ActiveDirectoryManagedIdentity;user id=identity-client-id",
 			expected: &azureFedAuthConfig{
 				adalWorkflow:    mssql.FedAuthADALWorkflowMSI,
-				clientID:        "identity-client-id",
-				fedAuthWorkflow: ActiveDirectoryManagedIdentity,
+				clientID: "identity-client-id",
+			    fedAuthWorkflow: ActiveDirectoryManagedIdentity,
+			},
+		},
+		{
+			name: "managed identity with resource id",
+			dsn:  "server=someserver.database.windows.net;fedauth=ActiveDirectoryManagedIdentity;resource id=/subscriptions/{guid}/resourceGroups/{resource-group-name}/{resource-provider-namespace}/{resource-type}/{resource-name}",
+			expected: &azureFedAuthConfig{
+				adalWorkflow:        mssql.FedAuthADALWorkflowMSI,
+				resourceID:          "/subscriptions/{guid}/resourceGroups/{resource-group-name}/{resource-provider-namespace}/{resource-type}/{resource-name}",
+				fedAuthWorkflow:     ActiveDirectoryManagedIdentity,
 			},
 		},
 	}
