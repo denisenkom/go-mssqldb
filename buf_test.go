@@ -473,7 +473,7 @@ func TestReadUsVarCharOrPanicWideChars(t *testing.T) {
 
 	s := readUsVarCharOrPanic(memBuf)
 	if s != str {
-		t.Errorf("UsVarChar expected to return 123 but it returned %s", s)
+		t.Errorf("UsVarChar expected to return %s but it returned %s", str, s)
 	}
 }
 
@@ -490,7 +490,7 @@ func TestReadBVarCharOrPanicWideChars(t *testing.T) {
 
 	s := readBVarCharOrPanic(memBuf)
 	if s != str {
-		t.Errorf("UsVarChar expected to return 123 but it returned %s", s)
+		t.Errorf("UsVarChar expected to return %s but it returned %s", str, s)
 	}
 }
 
