@@ -1396,8 +1396,14 @@ func TestSprocWithCursorNoResult(t *testing.T) {
 	defer conn.Close()
 	defer logger.StopLogging()
 
-	conn.Exec(DropSprocWithCursor)
-	conn.Exec(CreateSprocWithCursor)
+	_, e := conn.Exec(DropSprocWithCursor)
+	if e != nil {
+		t.Fatalf("Unable to drop test sproc: %v", e)
+	}
+	_, e = conn.Exec(CreateSprocWithCursor)
+	if e != nil {
+		t.Fatalf("Unable to create test sproc: %v", e)
+	}
 	defer conn.Exec(DropSprocWithCursor)
 	latency, _ := getLatency(t)
 	ctx, cancel := context.WithTimeout(context.Background(), latency+5000*time.Millisecond)
