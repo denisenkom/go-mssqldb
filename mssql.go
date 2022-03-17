@@ -1074,7 +1074,6 @@ type Rowsq struct {
 	stmt        *Stmt
 	cols        []columnStruct
 	reader      *tokenProcessor
-	nextCols    []columnStruct
 	cancel      func()
 	requestDone bool
 	inResultSet bool
@@ -1102,8 +1101,11 @@ func (rc *Rowsq) Close() error {
 	}
 }
 
-// data/sql calls Columns during the app's call to Next
+// ProcessSingleResponse queues MsgNext for every columns token.
+// data/sql calls Columns during the app's call to Next.
 func (rc *Rowsq) Columns() (res []string) {
+	// r.cols is nil if the first query in a batch is a SELECT or similar query that returns a rowset.
+	// if will be non-nil for subsequent queries where NextResultSet() has populated it
 	if rc.cols == nil {
 	scan:
 		for {
@@ -1146,6 +1148,10 @@ func (rc *Rowsq) Next(dest []driver.Value) error {
 				return io.EOF
 			} else {
 				switch tokdata := tok.(type) {
+				case doneInProcStruct:
+					tok = (doneStruct)(tokdata)
+				}
+				switch tokdata := tok.(type) {
 				case []interface{}:
 					for i := range dest {
 						dest[i] = tokdata[i]
@@ -1172,9 +1178,11 @@ func (rc *Rowsq) Next(dest []driver.Value) error {
 					if rc.reader.outs.returnStatus != nil {
 						*rc.reader.outs.returnStatus = tokdata
 					}
+				case ServerError:
+					rc.requestDone = true
+					return tokdata
 				}
 			}
-
 		} else {
 			return rc.stmt.c.checkBadConn(rc.reader.ctx, err, false)
 		}
@@ -1187,7 +1195,7 @@ func (rc *Rowsq) HasNextResultSet() bool {
 	return !rc.requestDone
 }
 
-// Scans to the next set of columns in the stream
+// Scans to the end of the current statement being processed
 // Note that the caller may not have read all the rows in the prior set
 func (rc *Rowsq) NextResultSet() error {
 	if rc.requestDone {
@@ -1195,7 +1203,6 @@ func (rc *Rowsq) NextResultSet() error {
 	}
 scan:
 	for {
-		// we should have a columns token in the channel if we aren't at the end
 		tok, err := rc.reader.nextToken()
 		if rc.reader.sess.logFlags&logDebug != 0 {
 			rc.reader.sess.logger.Log(rc.reader.ctx, msdsn.LogDebug, fmt.Sprintf("NextResultSet() token type:%v", reflect.TypeOf(tok)))
@@ -1208,23 +1215,42 @@ scan:
 			return io.EOF
 		}
 		switch tokdata := tok.(type) {
+		case doneInProcStruct:
+			tok = (doneStruct)(tokdata)
+		}
+		// ProcessSingleResponse queues a MsgNextResult for every "done" and "server error" token
+		// The only tokens to consume after a "done" should be "done", "server error", or "columns"
+		switch tokdata := tok.(type) {
 		case []columnStruct:
-			rc.nextCols = tokdata
+			rc.cols = tokdata
 			rc.inResultSet = true
 			break scan
 		case doneStruct:
 			if tokdata.Status&doneMore == 0 {
-				rc.nextCols = nil
 				rc.requestDone = true
-				break scan
 			}
+			if tokdata.isError() {
+				e := rc.stmt.c.checkBadConn(rc.reader.ctx, tokdata.getError(), false)
+				switch e.(type) {
+				case Error:
+					// Ignore non-fatal server errors. Fatal errors are of type ServerError
+				default:
+					return e
+				}
+			}
+			rc.inResultSet = false
+			rc.cols = nil
+			break scan
+		case ReturnStatus:
+			if rc.reader.outs.returnStatus != nil {
+				*rc.reader.outs.returnStatus = tokdata
+			}
+		case ServerError:
+			rc.requestDone = true
+			return tokdata
 		}
 	}
-	rc.cols = rc.nextCols
-	rc.nextCols = nil
-	if rc.cols == nil {
-		return io.EOF
-	}
+
 	return nil
 }
 
