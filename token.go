@@ -710,6 +710,11 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 				_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
 			}
 			if done.Status&doneMore == 0 {
+				// Rows marks the request as done when seeing this done token. We queue another result set message
+				// so the app calls NextResultSet again which will return false.
+				if outs.msgq != nil {
+					_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
+				}
 				return
 			}
 		case tokenDone, tokenDoneProc:
@@ -741,6 +746,11 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 				_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
 			}
 			if done.Status&doneMore == 0 {
+				// Rows marks the request as done when seeing this done token. We queue another result set message
+				// so the app calls NextResultSet again which will return false.
+				if outs.msgq != nil {
+					_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
+				}
 				return
 			}
 		case tokenColMetadata:

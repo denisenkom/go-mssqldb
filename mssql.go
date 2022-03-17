@@ -1250,9 +1250,7 @@ scan:
 			return tokdata
 		}
 	}
-	if rc.requestDone {
-		return io.EOF
-	}
+
 	return nil
 }
 
