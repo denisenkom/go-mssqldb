@@ -96,7 +96,7 @@ func (b *Bulk) sendBulkCommand(ctx context.Context) (err error) {
 	//create the bulk command
 
 	//columns definitions
-	var col_defs bytes.Buffer
+	var col_defs strings.Builder
 	for i, col := range b.bulkColumns {
 		if i != 0 {
 			col_defs.WriteString(", ")
