@@ -101,7 +101,10 @@ func (b *Bulk) sendBulkCommand(ctx context.Context) (err error) {
 		if i != 0 {
 			col_defs.WriteString(", ")
 		}
-		col_defs.WriteString("[" + col.ColName + "] " + makeDecl(col.ti))
+		col_defs.WriteByte('[')
+		col_defs.WriteString(col.ColName)
+		col_defs.WriteByte(']')
+		col_defs.WriteString(makeDecl(col.ti))
 	}
 
 	//options
