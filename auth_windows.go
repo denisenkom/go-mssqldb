@@ -2,7 +2,7 @@
 
 package mssql
 
-import "github.com/denisenkom/go-mssqldb/auth/winsspi"
+import "github.com/denisenkom/go-mssqldb/integratedauth/winsspi"
 
 func init() {
 	defaultAuthProvider = winsspi.AuthProvider

@@ -12,7 +12,7 @@ import (
 	"time"
 	"unicode/utf16"
 
-	"github.com/denisenkom/go-mssqldb/auth"
+	"github.com/denisenkom/go-mssqldb/integratedauth"
 
 	//lint:ignore SA1019 MD4 is used by legacy NTLM
 	"golang.org/x/crypto/md4"
@@ -65,7 +65,7 @@ type Auth struct {
 
 // getAuth returns an authentication handle Auth to provide authentication content
 // to mssql.connect
-func getAuth(user, password, service, workstation string) (auth.Auth, bool) {
+func getAuth(user, password, service, workstation string) (integratedauth.IntegratedAuthenticator, bool) {
 	if !strings.ContainsRune(user, '\\') {
 		return nil, false
 	}

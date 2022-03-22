@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/denisenkom/go-mssqldb/auth"
+	"github.com/denisenkom/go-mssqldb/integratedauth"
 )
 
 var (
@@ -119,7 +119,7 @@ type Auth struct {
 
 // getAuth returns an authentication handle Auth to provide authentication content
 // to mssql.connect
-func getAuth(user, password, service, workstation string) (auth.Auth, bool) {
+func getAuth(user, password, service, workstation string) (integratedauth.IntegratedAuthenticator, bool) {
 	if user == "" {
 		return &Auth{Service: service}, true
 	}

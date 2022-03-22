@@ -3,7 +3,7 @@ package mssql
 import (
 	"testing"
 
-	"github.com/denisenkom/go-mssqldb/auth"
+	"github.com/denisenkom/go-mssqldb/integratedauth"
 )
 
 type stubAuth struct {
@@ -17,53 +17,53 @@ func (s *stubAuth) Free()                            {}
 type stubProvider struct {
 }
 
-func (p *stubProvider) GetAuth(user, password, service, workstation string) (auth.Auth, bool) {
+func (p *stubProvider) GetIntegratedAuthenticator(user, password, service, workstation string) (integratedauth.IntegratedAuthenticator, bool) {
 	return &stubAuth{user, password, service, workstation}, true
 }
 
-func TestSetAuthProviderReturnsCorrectInstance(t *testing.T) {
+func TestSetIntegratedAuthenticationProviderReturnsCorrectInstance(t *testing.T) {
 	p := &stubProvider{}
 
-	SetAuthProvider(p)
+	SetIntegratedAuthenticationProvider(p)
 
 	if authProvider != p {
-		t.Errorf("SetAuthProvider() authProvider: %v, want %v", authProvider, p)
+		t.Errorf("SetIntegratedAuthenticationProvider() authProvider: %v, want %v", authProvider, p)
 	}
 
-	SetAuthProvider(nil)
+	SetIntegratedAuthenticationProvider(nil)
 }
 
-func TestSetAuthProviderInstanceIsPassedValues(t *testing.T) {
+func TestSetIntegratedAuthenticationProviderInstanceIsPassedValues(t *testing.T) {
 	p := &stubProvider{}
 
-	SetAuthProvider(p)
+	SetIntegratedAuthenticationProvider(p)
 
-	result, ok := getAuth("username", "password", "service", "workstation")
+	result, ok := getIntegratedAuthenticator("username", "password", "service", "workstation")
 
 	if !ok {
-		t.Errorf("expected getAuth() to return ok")
+		t.Errorf("expected getIntegratedAuthenticator() to return ok")
 	}
 
 	a, ok := result.(*stubAuth)
 	if !ok {
-		t.Errorf("expected result of getAuth() to be an instance of stubAuth")
+		t.Errorf("expected result of getIntegratedAuthenticator() to be an instance of stubAuth")
 	}
 
 	if a.user != "username" {
 		t.Errorf("expected stubAuth username to be correct")
 	}
 
-	SetAuthProvider(nil)
+	SetIntegratedAuthenticationProvider(nil)
 }
 
-func TestSetAuthProviderInstanceIsDefaultWhenNil(t *testing.T) {
+func TestSetIntegratedAuthenticationProviderInstanceIsDefaultWhenNil(t *testing.T) {
 
-	SetAuthProvider(nil)
+	SetIntegratedAuthenticationProvider(nil)
 
-	result, ok := getAuth("username", "password", "service", "workstation")
+	result, ok := getIntegratedAuthenticator("username", "password", "service", "workstation")
 
 	_, ok = result.(*stubAuth)
 	if ok {
-		t.Errorf("expected result of getAuth() to not be an instance of stubAuth")
+		t.Errorf("expected result of getIntegratedAuthenticator() to not be an instance of stubAuth")
 	}
 }
