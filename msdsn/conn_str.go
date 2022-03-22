@@ -267,7 +267,8 @@ func Parse(dsn string) (Config, map[string]string, error) {
 	if ok {
 		p.ServerSPN = serverSPN
 	} else {
-		p.ServerSPN = generateSpn(p.Host, p.Port)
+		// allow connections to sql server instances
+		p.ServerSPN = generateSpn(p.Host, instanceOrPort(p.Instance, p.Port))
 	}
 
 	workstation, ok := params["workstation id"]
@@ -605,6 +606,26 @@ func normalizeOdbcKey(s string) string {
 	return strings.ToLower(strings.TrimRightFunc(s, unicode.IsSpace))
 }
 
-func generateSpn(host string, port uint64) string {
-	return fmt.Sprintf("MSSQLSvc/%s:%d", host, port)
+func instanceOrPort(instance string, port uint64) string {
+	if len(instance) > 0 {
+		return instance
+	}
+
+	port = resolveServerPort(port)
+
+	return strconv.FormatInt(int64(port), 10)
+}
+
+const defaultServerPort = 1433
+
+func resolveServerPort(port uint64) uint64 {
+	if port == 0 {
+		return defaultServerPort
+	}
+
+	return port
+}
+
+func generateSpn(host string, port string) string {
+	return fmt.Sprintf("MSSQLSvc/%s:%s", host, port)
 }

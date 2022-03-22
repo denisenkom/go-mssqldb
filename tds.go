@@ -16,6 +16,7 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
+	"github.com/denisenkom/go-mssqldb/integratedauth"
 	"github.com/denisenkom/go-mssqldb/msdsn"
 )
 
@@ -841,12 +842,6 @@ func sendAttention(buf *tdsBuffer) error {
 	return buf.FinishPacket()
 }
 
-type auth interface {
-	InitialBytes() ([]byte, error)
-	NextBytes([]byte) ([]byte, error)
-	Free()
-}
-
 // SQL Server AlwaysOn Availability Group Listeners are bound by DNS to a
 // list of IP addresses.  So if there is more than one, try them all and
 // use the first one that allows a connection.
@@ -971,7 +966,7 @@ func interpretPreloginResponse(p msdsn.Config, fe *featureExtFedAuth, fields map
 	return
 }
 
-func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger ContextLogger, auth auth, fe *featureExtFedAuth, packetSize uint32) (l *login, err error) {
+func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger ContextLogger, auth integratedauth.IntegratedAuthenticator, fe *featureExtFedAuth, packetSize uint32) (l *login, err error) {
 	var typeFlags uint8
 	if p.ReadOnlyIntent {
 		typeFlags |= fReadOnlyIntent
@@ -1173,7 +1168,7 @@ initiate_connection:
 		}
 	}
 
-	auth, authOk := getAuth(p.User, p.Password, p.ServerSPN, p.Workstation)
+	auth, authOk := getIntegratedAuthenticator(p.User, p.Password, p.ServerSPN, p.Workstation)
 	if authOk {
 		defer auth.Free()
 	} else {

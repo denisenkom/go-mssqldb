@@ -1,6 +1,4 @@
-// +build !windows
-
-package mssql
+package ntlm
 
 import (
 	"crypto/des"
@@ -13,6 +11,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf16"
+
+	"github.com/denisenkom/go-mssqldb/integratedauth"
 
 	//lint:ignore SA1019 MD4 is used by legacy NTLM
 	"golang.org/x/crypto/md4"
@@ -56,19 +56,21 @@ const _NEGOTIATE_FLAGS = _NEGOTIATE_UNICODE |
 	_NEGOTIATE_ALWAYS_SIGN |
 	_NEGOTIATE_EXTENDED_SESSIONSECURITY
 
-type ntlmAuth struct {
+type Auth struct {
 	Domain      string
 	UserName    string
 	Password    string
 	Workstation string
 }
 
-func getAuth(user, password, service, workstation string) (auth, bool) {
+// getAuth returns an authentication handle Auth to provide authentication content
+// to mssql.connect
+func getAuth(user, password, service, workstation string) (integratedauth.IntegratedAuthenticator, bool) {
 	if !strings.ContainsRune(user, '\\') {
 		return nil, false
 	}
 	domain_user := strings.SplitN(user, "\\", 2)
-	return &ntlmAuth{
+	return &Auth{
 		Domain:      domain_user[0],
 		UserName:    domain_user[1],
 		Password:    password,
@@ -90,7 +92,7 @@ func utf16le(val string) []byte {
 	return v
 }
 
-func (auth *ntlmAuth) InitialBytes() ([]byte, error) {
+func (auth *Auth) InitialBytes() ([]byte, error) {
 	domain_len := len(auth.Domain)
 	workstation_len := len(auth.Workstation)
 	msg := make([]byte, 40+domain_len+workstation_len)
@@ -358,7 +360,7 @@ func buildNTLMResponsePayload(lm, nt []byte, flags uint32, domain, workstation, 
 	return msg, nil
 }
 
-func (auth *ntlmAuth) NextBytes(bytes []byte) ([]byte, error) {
+func (auth *Auth) NextBytes(bytes []byte) ([]byte, error) {
 	signature := string(bytes[0:8])
 	if signature != "NTLMSSP\x00" {
 		return nil, errorNTLM
@@ -389,5 +391,5 @@ func (auth *ntlmAuth) NextBytes(bytes []byte) ([]byte, error) {
 	return buildNTLMResponsePayload(lm, nt, flags, auth.Domain, auth.Workstation, auth.UserName)
 }
 
-func (auth *ntlmAuth) Free() {
+func (auth *Auth) Free() {
 }

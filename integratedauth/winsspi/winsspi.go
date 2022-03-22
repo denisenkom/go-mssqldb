@@ -1,10 +1,14 @@
-package mssql
+// +build windows
+
+package winsspi
 
 import (
 	"fmt"
 	"strings"
 	"syscall"
 	"unsafe"
+
+	"github.com/denisenkom/go-mssqldb/integratedauth"
 )
 
 var (
@@ -104,7 +108,7 @@ type SecBufferDesc struct {
 	pBuffers  *SecBuffer
 }
 
-type SSPIAuth struct {
+type Auth struct {
 	Domain   string
 	UserName string
 	Password string
@@ -113,15 +117,17 @@ type SSPIAuth struct {
 	ctxt     SecHandle
 }
 
-func getAuth(user, password, service, workstation string) (auth, bool) {
+// getAuth returns an authentication handle Auth to provide authentication content
+// to mssql.connect
+func getAuth(user, password, service, workstation string) (integratedauth.IntegratedAuthenticator, bool) {
 	if user == "" {
-		return &SSPIAuth{Service: service}, true
+		return &Auth{Service: service}, true
 	}
 	if !strings.ContainsRune(user, '\\') {
 		return nil, false
 	}
 	domain_user := strings.SplitN(user, "\\", 2)
-	return &SSPIAuth{
+	return &Auth{
 		Domain:   domain_user[0],
 		UserName: domain_user[1],
 		Password: password,
@@ -129,7 +135,7 @@ func getAuth(user, password, service, workstation string) (auth, bool) {
 	}, true
 }
 
-func (auth *SSPIAuth) InitialBytes() ([]byte, error) {
+func (auth *Auth) InitialBytes() ([]byte, error) {
 	var identity *SEC_WINNT_AUTH_IDENTITY
 	if auth.UserName != "" {
 		identity = &SEC_WINNT_AUTH_IDENTITY{
@@ -202,7 +208,7 @@ func (auth *SSPIAuth) InitialBytes() ([]byte, error) {
 	return outbuf[:buf.cbBuffer], nil
 }
 
-func (auth *SSPIAuth) NextBytes(bytes []byte) ([]byte, error) {
+func (auth *Auth) NextBytes(bytes []byte) ([]byte, error) {
 	var in_buf, out_buf SecBuffer
 	var in_desc, out_desc SecBufferDesc
 
@@ -254,7 +260,7 @@ func (auth *SSPIAuth) NextBytes(bytes []byte) ([]byte, error) {
 	return outbuf[:out_buf.cbBuffer], nil
 }
 
-func (auth *SSPIAuth) Free() {
+func (auth *Auth) Free() {
 	syscall.Syscall6(sec_fn.DeleteSecurityContext,
 		1,
 		uintptr(unsafe.Pointer(&auth.ctxt)),
