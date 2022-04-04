@@ -22,14 +22,12 @@ jobs:
       run: |
         go version
         go get -d
-        go build
         export SQLCMDPASSWORD=$(date +%s|sha256sum|base64|head -c 32)
         export SQLCMDUSER=sa
         export SQLUSER=sa
         export SQLPASSWORD=$SQLCMDPASSWORD
         export DATABASE=test
-        docker run -m 2GB -e ACCEPT_EULA=1 -d --name sql2017 -p:1433:1433 -e SA_PASSWORD=$SQLCMDPASSWORD mcr.microsoft.com/mssql/server:${{ matrix.sqlImage }}
-        wget  https://github.com/microsoft/go-sqlcmd/releases/download/v0.5.0/sqlcmd-v0.5.0-linux-x64.tar.bz2 -O sqlcmd.tar.bz2
-        tar -xvf sqlcmd.tar.bz2
+        docker run -m 2GB -e ACCEPT_EULA=1 -d --name sqlserver -p:1433:1433 -e SA_PASSWORD=$SQLCMDPASSWORD mcr.microsoft.com/mssql/server:${{ matrix.sqlImage }}
+        sleep 10
         sqlcmd -Q "CREATE DATABASE test"
         go test -race -cpu 4 ./...
