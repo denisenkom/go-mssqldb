@@ -32,7 +32,7 @@ Other supported formats are listed below.
 ### Connection parameters for ODBC and ADO style connection strings
 
 * `server` - host or host\instance (default localhost)
-* `port` - used only when there is no instance in server (default 1433)
+* `port` - specifies the host\instance port (default 1433). If instance name is provided but no port, the driver will use SQL Server Browser to discover the port.
 
 ### Less common parameters
 
@@ -75,7 +75,7 @@ Other supported formats are listed below.
 
     query := url.Values{}
     query.Add("app name", "MyAppName")
-    
+
     u := &url.URL{
     	Scheme:   "sqlserver",
     	User:     url.UserPassword(username, password),
