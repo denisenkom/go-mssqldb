@@ -1236,7 +1236,8 @@ select getdate()
 PRINT N'This is a message'
 select 199
 RAISERROR (N'Testing!' , 11, 1)
-select 300
+declare @d int = 300
+select @d
 `
 
 func testMixedQuery(conn *sql.DB, b testing.TB) (msgs, errs, results, rowcounts int) {
