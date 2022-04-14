@@ -752,15 +752,14 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 			}
 			ch <- done
 			if done.Status&doneCount != 0 {
-				if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
+				if sess.logFlags&logRows != 0 {
 					sess.logger.Log(ctx, msdsn.LogRows, fmt.Sprintf("(%d row(s) affected)", done.RowCount))
 				}
 
-				if done.Status&doneCount != 0 {
-					if (colsReceived || done.CurCmd != cmdSelect) && outs.msgq != nil {
-						_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgRowsAffected{Count: int64(done.RowCount)})
-					}
+				if (colsReceived || done.CurCmd != cmdSelect) && outs.msgq != nil {
+					_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgRowsAffected{Count: int64(done.RowCount)})
 				}
+
 			}
 			colsReceived = false
 			if outs.msgq != nil {
