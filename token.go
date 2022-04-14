@@ -49,6 +49,20 @@ const (
 	doneSrvError = 0x100
 )
 
+// CurCmd values in done (undocumented)
+const (
+	cmdSelect = 0xc1
+	// cmdInsert     = 0xc3
+	// cmdDelete     = 0xc4
+	// cmdUpdate     = 0xc5
+	// cmdAbort      = 0xd2
+	// cmdBeginXaxt  = 0xd4
+	// cmdEndXact    = 0xd5
+	// cmdBulkInsert = 0xf0
+	// cmdOpenCursor = 0x20
+	// cmdMerge      = 0x117
+)
+
 // ENVCHANGE types
 // http://msdn.microsoft.com/en-us/library/dd303449.aspx
 const (
@@ -645,7 +659,6 @@ func parseReturnValue(r *tdsBuffer) (nv namedValue) {
 }
 
 func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenStruct, outs outputs) {
-	firstResult := true
 	defer func() {
 		if err := recover(); err != nil {
 			if sess.logFlags&logErrors != 0 {
@@ -655,7 +668,7 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 		}
 		close(ch)
 	}()
-
+	colsReceived := false
 	packet_type, err := sess.buf.BeginRead()
 	if err != nil {
 		if sess.logFlags&logErrors != 0 {
@@ -697,18 +710,26 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 			done := parseDoneInProc(sess.buf)
 
 			ch <- done
-			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
-				sess.logger.Log(ctx, msdsn.LogRows, fmt.Sprintf("(%d rows affected)", done.RowCount))
+			if done.Status&doneCount != 0 {
+				if sess.logFlags&logRows != 0 {
+					sess.logger.Log(ctx, msdsn.LogRows, fmt.Sprintf("(%d rows affected)", done.RowCount))
+				}
 
-				if outs.msgq != nil {
+				if (colsReceived || done.CurCmd != cmdSelect) && outs.msgq != nil {
 					_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgRowsAffected{Count: int64(done.RowCount)})
 				}
 			}
+			if outs.msgq != nil {
+				// For now we ignore ctx->Done errors that ReturnMessageEnqueue might return
+				// It's not clear how to handle them correctly here, and data/sql seems
+				// to set Rows.Err correctly when ctx expires already
+				_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
+			}
+			colsReceived = false
 			if done.Status&doneMore == 0 {
+				// Rows marks the request as done when seeing this done token. We queue another result set message
+				// so the app calls NextResultSet again which will return false.
 				if outs.msgq != nil {
-					// For now we ignore ctx->Done errors that ReturnMessageEnqueue might return
-					// It's not clear how to handle them correctly here, and data/sql seems
-					// to set Rows.Err correctly when ctx expires already
 					_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
 				}
 				return
@@ -729,16 +750,24 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 				}
 				return
 			}
-			if sess.logFlags&logRows != 0 && done.Status&doneCount != 0 {
-				sess.logger.Log(ctx, msdsn.LogRows, fmt.Sprintf("(%d row(s) affected)", done.RowCount))
-			}
 			ch <- done
 			if done.Status&doneCount != 0 {
-				if outs.msgq != nil {
+				if sess.logFlags&logRows != 0 {
+					sess.logger.Log(ctx, msdsn.LogRows, fmt.Sprintf("(%d row(s) affected)", done.RowCount))
+				}
+
+				if (colsReceived || done.CurCmd != cmdSelect) && outs.msgq != nil {
 					_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgRowsAffected{Count: int64(done.RowCount)})
 				}
+
+			}
+			colsReceived = false
+			if outs.msgq != nil {
+				_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
 			}
 			if done.Status&doneMore == 0 {
+				// Rows marks the request as done when seeing this done token. We queue another result set message
+				// so the app calls NextResultSet again which will return false.
 				if outs.msgq != nil {
 					_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
 				}
@@ -747,14 +776,10 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 		case tokenColMetadata:
 			columns = parseColMetadata72(sess.buf)
 			ch <- columns
-
+			colsReceived = true
 			if outs.msgq != nil {
-				if !firstResult {
-					_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNextResultSet{})
-				}
 				_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNext{})
 			}
-			firstResult = false
 
 		case tokenRow:
 			row := make([]interface{}, len(columns))

@@ -1,0 +1,33 @@
+name: pr-validation
+
+on:
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: ['1.16','1.17', '1.18']
+        sqlImage: ['2017-latest','2019-latest']
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '${{ matrix.go }}'
+    - name: Run tests against Linux SQL
+      run: |
+        go version
+        go get -d
+        export SQLCMDPASSWORD=$(date +%s|sha256sum|base64|head -c 32)
+        export SQLCMDUSER=sa
+        export SQLUSER=sa
+        export SQLPASSWORD=$SQLCMDPASSWORD
+        export DATABASE=test
+        docker run -m 2GB -e ACCEPT_EULA=1 -d --name sqlserver -p:1433:1433 -e SA_PASSWORD=$SQLCMDPASSWORD mcr.microsoft.com/mssql/server:${{ matrix.sqlImage }}
+        sleep 10
+        sqlcmd -Q "CREATE DATABASE test"
+        go test -race -cpu 4 ./...

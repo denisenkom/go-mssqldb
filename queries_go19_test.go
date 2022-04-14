@@ -1,3 +1,4 @@
+//go:build go1.9
 // +build go1.9
 
 package mssql
@@ -1126,17 +1127,19 @@ func TestMessageQueue(t *testing.T) {
 
 	msgs := []interface{}{
 		sqlexp.MsgNotice{Message: "msg1"},
+		sqlexp.MsgNextResultSet{},
 		sqlexp.MsgNext{},
 		sqlexp.MsgRowsAffected{Count: 1},
+		sqlexp.MsgNextResultSet{},
 		sqlexp.MsgNotice{Message: "msg2"},
+		sqlexp.MsgNextResultSet{},
 		sqlexp.MsgNextResultSet{},
 	}
 	i := 0
-	rsCount := 0
 	for active {
 		msg := retmsg.Message(ctx)
 		if i >= len(msgs) {
-			t.Fatalf("Got extra message:%+v", msg)
+			t.Fatalf("Got extra message:%+v", reflect.TypeOf(msg))
 		}
 		t.Log(reflect.TypeOf(msg))
 		if reflect.TypeOf(msgs[i]) != reflect.TypeOf(msg) {
@@ -1147,10 +1150,6 @@ func TestMessageQueue(t *testing.T) {
 			t.Log(m.Message)
 		case sqlexp.MsgNextResultSet:
 			active = rows.NextResultSet()
-			if active {
-				t.Fatal("NextResultSet returned true")
-			}
-			rsCount++
 		case sqlexp.MsgNext:
 			if !rows.Next() {
 				t.Fatal("rows.Next() returned false")
@@ -1237,7 +1236,8 @@ select getdate()
 PRINT N'This is a message'
 select 199
 RAISERROR (N'Testing!' , 11, 1)
-select 300
+declare @d int = 300
+select @d
 `
 
 func testMixedQuery(conn *sql.DB, b testing.TB) (msgs, errs, results, rowcounts int) {
@@ -1366,5 +1366,137 @@ func TestCancelWithNoResults(t *testing.T) {
 	}
 	if r.Err() != context.Canceled {
 		t.Fatalf("Unexpected error: %v", r.Err())
+	}
+}
+
+const DropSprocWithCursor = `IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[TestSqlCmd]') AND type in (N'P', N'PC'))
+DROP PROCEDURE [dbo].[TestSqlCmd]
+`
+
+// This query generates half a dozen tokenDoneInProc tokens which fill the channel if the app isn't scanning Rowsq
+const CreateSprocWithCursor = `
+CREATE PROCEDURE [dbo].[TestSqlCmd]
+AS
+BEGIN
+	DECLARE @tmp int;
+	DECLARE Server_Cursor CURSOR FOR
+	SELECT 1 UNION SELECT 2
+	OPEN Server_Cursor;
+	FETCH NEXT FROM Server_Cursor INTO @tmp;
+	WHILE @@FETCH_STATUS = 0
+		BEGIN
+		    PRINT @tmp
+			FETCH NEXT FROM Server_Cursor INTO @tmp;
+		END;
+	CLOSE Server_Cursor;
+	DEALLOCATE Server_Cursor;
+END
+`
+
+func TestSprocWithCursorNoResult(t *testing.T) {
+	conn, logger := open(t)
+	defer conn.Close()
+	defer logger.StopLogging()
+
+	_, e := conn.Exec(DropSprocWithCursor)
+	if e != nil {
+		t.Fatalf("Unable to drop test sproc: %v", e)
+	}
+	_, e = conn.Exec(CreateSprocWithCursor)
+	if e != nil {
+		t.Fatalf("Unable to create test sproc: %v", e)
+	}
+	defer conn.Exec(DropSprocWithCursor)
+	latency, _ := getLatency(t)
+	ctx, cancel := context.WithTimeout(context.Background(), latency+500*time.Millisecond)
+	defer cancel()
+	retmsg := &sqlexp.ReturnMessage{}
+	// Use a sproc instead of the cursor loop directly to cover the different code path in token.go
+	r, err := conn.QueryContext(ctx, `exec [dbo].[TestSqlCmd]`, retmsg)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	defer r.Close()
+	active := true
+	rsCount := 0
+	msgCount := 0
+	for active {
+		msg := retmsg.Message(ctx)
+		t.Logf("Got a message: %v", reflect.TypeOf(msg))
+		switch m := msg.(type) {
+		case sqlexp.MsgNext:
+			t.Fatalf("Got a MsgNext from a query with no rows")
+		case sqlexp.MsgError:
+			t.Fatalf("Got an error: %s", m.Error.Error())
+		case sqlexp.MsgNotice:
+			msgCount++
+		case sqlexp.MsgNextResultSet:
+			if active = r.NextResultSet(); active {
+				rsCount++
+			}
+		}
+	}
+	if r.Err() != nil {
+		t.Fatalf("Got an error: %v", r.Err())
+	}
+	if rsCount != 13 {
+		t.Fatalf("Unexpected record set count: %v", rsCount)
+	}
+	if msgCount != 2 {
+		t.Fatalf("Unexpected message count: %v", msgCount)
+	}
+}
+
+func TestErrorAsLastResult(t *testing.T) {
+	conn, logger := open(t)
+	defer conn.Close()
+	defer logger.StopLogging()
+	latency, _ := getLatency(t)
+	ctx, cancel := context.WithTimeout(context.Background(), latency+5000*time.Millisecond)
+	defer cancel()
+	retmsg := &sqlexp.ReturnMessage{}
+	// Use a sproc instead of the cursor loop directly to cover the different code path in token.go
+	r, err := conn.QueryContext(ctx,
+		`
+		Print N'message'
+		select 1
+		raiserror(N'Error!', 16, 1)`,
+		retmsg)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	defer r.Close()
+	active := true
+	d := 0
+	err = nil
+	for active {
+		msg := retmsg.Message(ctx)
+		t.Logf("Got a message: %s", reflect.TypeOf(msg))
+		switch m := msg.(type) {
+		case sqlexp.MsgNext:
+			if !r.Next() {
+				t.Fatalf("Next returned false")
+			}
+			r.Scan(&d)
+			if r.Next() {
+				t.Fatal("Second Next returned true")
+			}
+		case sqlexp.MsgError:
+			err = m.Error
+		case sqlexp.MsgNextResultSet:
+			active = r.NextResultSet()
+		}
+	}
+	if err == nil {
+		t.Fatal("Should have gotten an error message")
+	} else {
+		switch e := err.(type) {
+		case Error:
+			if e.Message != "Error!" || e.Class != 16 {
+				t.Fatalf("Got the wrong mssql error %v", e)
+			}
+		default:
+			t.Fatalf("Got an unexpected error %v", e)
+		}
 	}
 }
