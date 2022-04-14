@@ -49,18 +49,18 @@ const (
 	doneSrvError = 0x100
 )
 
-// CurCmd values in done
+// CurCmd values in done (undocumented)
 const (
-	cmdSelect     = 0xc1
-	cmdInsert     = 0xc3
-	cmdDelete     = 0xc4
-	cmdUpdate     = 0xc5
-	cmdAbort      = 0xd2
-	cmdBeginXaxt  = 0xd4
-	cmdEndXact    = 0xd5
-	cmdBulkInsert = 0xf0
-	cmdOpenCursor = 0x20
-	cmdMerge      = 0x117
+	cmdSelect = 0xc1
+	// cmdInsert     = 0xc3
+	// cmdDelete     = 0xc4
+	// cmdUpdate     = 0xc5
+	// cmdAbort      = 0xd2
+	// cmdBeginXaxt  = 0xd4
+	// cmdEndXact    = 0xd5
+	// cmdBulkInsert = 0xf0
+	// cmdOpenCursor = 0x20
+	// cmdMerge      = 0x117
 )
 
 // ENVCHANGE types
