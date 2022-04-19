@@ -265,8 +265,10 @@ func Parse(dsn string) (Config, map[string]string, error) {
 			tlsMinVer = tls.VersionTLS11
 		case "TLS1.2":
 			tlsMinVer = tls.VersionTLS12
+		/*comment by go1.8 ~ go1.11 has no tls.VersionTLS13
 		case "TLS1.3":
 			tlsMinVer = tls.VersionTLS13
+		*/
 		default:
 			tlsMinVer = 0
 		}
