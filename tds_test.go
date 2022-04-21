@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"database/sql"
 	"encoding/hex"
 	"fmt"
@@ -756,5 +757,29 @@ func runBatch(t testing.TB, p msdsn.Config) {
 			t.Error("Invalid value returned, should be 1", value)
 			return
 		}
+	}
+}
+
+func Test_prepareTLSConfig(t *testing.T) {
+
+	tests := []struct {
+		name       string
+		p          msdsn.Config
+		wantConfig *tls.Config
+		wantErr    bool
+	}{
+		{name: "1.TLSConfig is null ", p: msdsn.Config{Host: "testserver"}, wantConfig: &tls.Config{ServerName: "testserver"}, wantErr: false},
+		{name: "2.TLSConfig not null ,DynamicRecordSizingDisabled=false", p: msdsn.Config{TLSConfig: &tls.Config{DynamicRecordSizingDisabled: false, ServerName: "testserver", MinVersion: tls.VersionTLS10}}, wantConfig: &tls.Config{ServerName: "testserver", DynamicRecordSizingDisabled: true, MinVersion: tls.VersionTLS10}, wantErr: false},
+		{name: "3.TLSConfig not null ,DynamicRecordSizingDisabled=true", p: msdsn.Config{TLSConfig: &tls.Config{DynamicRecordSizingDisabled: true, ServerName: "testserver", MinVersion: tls.VersionTLS10}}, wantConfig: &tls.Config{ServerName: "testserver", DynamicRecordSizingDisabled: true, MinVersion: tls.VersionTLS10}, wantErr: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotConfig := prepareTLSConfig(tt.p)
+
+			if gotConfig.ServerName != tt.wantConfig.ServerName ||
+				gotConfig.MinVersion != tt.wantConfig.MinVersion {
+				t.Errorf("prepareTLSConfig() = %v, want %v", gotConfig, tt.wantConfig)
+			}
+		})
 	}
 }

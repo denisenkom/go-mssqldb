@@ -1136,25 +1136,8 @@ initiate_connection:
 	}
 
 	if encrypt != encryptNotSup {
-		var config *tls.Config
-		if pc := p.TLSConfig; pc != nil {
-			config = pc
-			if config.DynamicRecordSizingDisabled == false {
-				config = config.Clone()
-
-				// fix for https://github.com/denisenkom/go-mssqldb/issues/166
-				// Go implementation of TLS payload size heuristic algorithm splits single TDS package to multiple TCP segments,
-				// while SQL Server seems to expect one TCP segment per encrypted TDS package.
-				// Setting DynamicRecordSizingDisabled to true disables that algorithm and uses 16384 bytes per TLS package
-				config.DynamicRecordSizingDisabled = true
-			}
-		}
-		if config == nil {
-			config, err = msdsn.SetupTLS("", false, p.Host, 0)
-			if err != nil {
-				return nil, err
-			}
-		}
+		//refactor tls config build.
+		config := prepareTLSConfig(p)
 
 		// setting up connection handler which will allow wrapping of TLS handshake packets inside TDS stream
 		handshakeConn := tlsHandshakeConn{buf: outbuf}
@@ -1287,4 +1270,24 @@ func resolveServerPort(port uint64) uint64 {
 	}
 
 	return port
+}
+
+func prepareTLSConfig(p msdsn.Config) (config *tls.Config) {
+	if pc := p.TLSConfig; pc != nil {
+		config = pc
+		if config.DynamicRecordSizingDisabled == false {
+			config = config.Clone()
+
+			// fix for https://github.com/denisenkom/go-mssqldb/issues/166
+			// Go implementation of TLS payload size heuristic algorithm splits single TDS package to multiple TCP segments,
+			// while SQL Server seems to expect one TCP segment per encrypted TDS package.
+			// Setting DynamicRecordSizingDisabled to true disables that algorithm and uses 16384 bytes per TLS package
+			config.DynamicRecordSizingDisabled = true
+		}
+	}
+	if config == nil {
+		//In this scenario, error will not appear
+		config, _ = msdsn.SetupTLS("", false, p.Host, 0)
+	}
+	return
 }
