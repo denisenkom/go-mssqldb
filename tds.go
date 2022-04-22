@@ -1050,50 +1050,7 @@ func connect(ctx context.Context, c *Connector, logger ContextLogger, p msdsn.Co
 		dialCtx, cancel = context.WithTimeout(ctx, dt)
 		defer cancel()
 	}
-	// if instance is specified use instance resolution service
-	if len(p.Instance) > 0 && p.Port != 0 && uint64(p.LogFlags)&logDebug != 0 {
-		// both instance name and port specified
-		// when port is specified instance name is not used
-		// you should not provide instance name when you provide port
-		logger.Log(ctx, msdsn.LogDebug, "WARN: You specified both instance name and port in the connection string, port will be used and instance name will be ignored")
-	}
-	if len(p.Instance) > 0 {
-		p.Instance = strings.ToUpper(p.Instance)
-		d := c.getDialer(&p)
-		instances, err := getInstances(dialCtx, d, p.Host)
-		if err != nil {
-			f := "unable to get instances from Sql Server Browser on host %v: %v"
-			return nil, fmt.Errorf(f, p.Host, err.Error())
-		}
-		strport, ok := instances[p.Instance]["tcp"]
-		if !ok {
-			f := "no instance matching '%v' returned from host '%v'"
-			return nil, fmt.Errorf(f, p.Instance, p.Host)
-		}
-		port, err := strconv.ParseUint(strport, 0, 16)
-		if err != nil {
-			f := "invalid tcp port returned from Sql Server Browser '%v': %v"
-			return nil, fmt.Errorf(f, strport, err.Error())
-		}
-		p.Port = port
-	}
-	if p.Port == 0 {
-		p.Port = defaultServerPort
-	}
-
-	packetSize := p.PacketSize
-	if packetSize == 0 {
-		packetSize = defaultPacketSize
-	}
-	// Ensure packet size falls within the TDS protocol range of 512 to 32767 bytes
-	// NOTE: Encrypted connections have a maximum size of 16383 bytes.  If you request
-	// a higher packet size, the server will respond with an ENVCHANGE request to
-	// alter the packet size to 16383 bytes.
-	if packetSize < 512 {
-		packetSize = 512
-	} else if packetSize > 32767 {
-		packetSize = 32767
-	}
+	err = prepareMSDSN(ctx, c, logger, &p)
 
 initiate_connection:
 	conn, err := dialConnection(dialCtx, c, p)
@@ -1103,7 +1060,7 @@ initiate_connection:
 
 	toconn := newTimeoutConn(conn, p.ConnTimeout)
 
-	outbuf := newTdsBuffer(packetSize, toconn)
+	outbuf := newTdsBuffer(p.PacketSize, toconn)
 	sess := tdsSession{
 		buf:      outbuf,
 		logger:   logger,
@@ -1290,4 +1247,56 @@ func prepareTLSConfig(p msdsn.Config) (config *tls.Config) {
 		config, _ = msdsn.SetupTLS("", false, p.Host, 0)
 	}
 	return
+}
+
+func prepareMSDSN(dialCtx context.Context, c *Connector, logger ContextLogger, p *msdsn.Config) (err error) {
+
+	// if instance is specified use instance resolution service
+	if len(p.Instance) > 0 && p.Port != 0 && uint64(p.LogFlags)&logDebug != 0 {
+		// both instance name and port specified
+		// when port is specified instance name is not used
+		// you should not provide instance name when you provide port
+		logger.Log(dialCtx, msdsn.LogDebug, "WARN: You specified both instance name and port in the connection string, port will be used and instance name will be ignored")
+	}
+	if len(p.Instance) > 0 {
+		p.Instance = strings.ToUpper(p.Instance)
+		d := c.getDialer(p)
+		instances, err := getInstances(dialCtx, d, p.Host)
+		if err != nil {
+			const f = "unable to get instances from Sql Server Browser on host %v: %v"
+			return fmt.Errorf(f, p.Host, err.Error())
+		}
+		strport, ok := instances[p.Instance]["tcp"]
+		if !ok {
+			const f = "no instance matching '%v' returned from host '%v'"
+			return fmt.Errorf(f, p.Instance, p.Host)
+		}
+		port, err := strconv.ParseUint(strport, 0, 16)
+		if err != nil {
+			const f = "invalid tcp port returned from Sql Server Browser '%v': %v"
+			return fmt.Errorf(f, strport, err.Error())
+		}
+		p.Port = port
+	}
+	if p.Port == 0 {
+		p.Port = defaultServerPort
+	}
+
+	packetSize := p.PacketSize
+	if packetSize == 0 {
+		packetSize = defaultPacketSize
+	}
+	// Ensure packet size falls within the TDS protocol range of 512 to 32767 bytes
+	// NOTE: Encrypted connections have a maximum size of 16383 bytes.  If you request
+	// a higher packet size, the server will respond with an ENVCHANGE request to
+	// alter the packet size to 16383 bytes.
+	if packetSize < 512 {
+		packetSize = 512
+	} else if packetSize > 32767 {
+		packetSize = 32767
+	}
+
+	p.PacketSize = packetSize
+	return err
+
 }
