@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"log"
 
-	mssql "github.com/denisenkom/go-mssqldb"
 	"github.com/golang-sql/sqlexp"
+	mssql "github.com/microsoft/go-mssqldb"
 )
 
 const (

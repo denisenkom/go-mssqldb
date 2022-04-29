@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/denisenkom/go-mssqldb/msdsn"
+	"github.com/microsoft/go-mssqldb/msdsn"
 )
 
 // bufLogger implements the Logger interface for testing purposes.

@@ -9,8 +9,8 @@ import (
 	"io/ioutil"
 	"strconv"
 
-	"github.com/denisenkom/go-mssqldb/msdsn"
 	"github.com/golang-sql/sqlexp"
+	"github.com/microsoft/go-mssqldb/msdsn"
 )
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type token

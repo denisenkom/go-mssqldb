@@ -3,7 +3,7 @@ version: 1.0.{build}
 image:
   - Visual Studio 2015
 
-clone_folder: c:\gopath\src\github.com\denisenkom\go-mssqldb
+clone_folder: c:\gopath\src\github.com\microsoft\go-mssqldb
 
 environment:
   GOPATH: c:\gopath
