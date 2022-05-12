@@ -280,6 +280,16 @@ are supported:
 * "github.com/golang-sql/civil".Time -> time
 * mssql.TVP -> Table Value Parameter (TDS version dependent)
 
+```go
+// If this is passed directly as a parameter, 
+// the SQL parameter generated would be nvarchar
+name := "Bob"
+// If the user_name is defined as varchar,
+// it needs to be converted like this:
+db.QueryContext(ctx, `select * from t2 where user_name = @p1;`, mssql.VarChar(name))
+// Note: Mismatched data types on table and parameter may cause long running queries
+```
+
 ## Important Notes
 
 * [LastInsertId](https://golang.org/pkg/database/sql/#Result.LastInsertId) should
