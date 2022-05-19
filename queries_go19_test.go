@@ -1126,12 +1126,12 @@ func TestMessageQueue(t *testing.T) {
 	active := true
 
 	msgs := []interface{}{
-		sqlexp.MsgNotice{Message: "msg1"},
+		sqlexp.MsgNotice{Message: Error{Message: "msg1"}},
 		sqlexp.MsgNextResultSet{},
 		sqlexp.MsgNext{},
 		sqlexp.MsgRowsAffected{Count: 1},
 		sqlexp.MsgNextResultSet{},
-		sqlexp.MsgNotice{Message: "msg2"},
+		sqlexp.MsgNotice{Message: Error{Message: "msg2"}},
 		sqlexp.MsgNextResultSet{},
 		sqlexp.MsgNextResultSet{},
 	}
