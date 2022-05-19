@@ -14,7 +14,7 @@ type Error struct {
 	Number     int32
 	State      uint8
 	Class      uint8
-	Message    string
+	Message    Message
 	ServerName string
 	ProcName   string
 	LineNo     int32
@@ -23,8 +23,14 @@ type Error struct {
 	All []Error
 }
 
+type Message string
+
 func (e Error) Error() string {
-	return "mssql: " + e.Message
+	return "mssql: " + e.Message.String()
+}
+
+func (m Message) String() string {
+	return string(m)
 }
 
 // SQLErrorNumber returns the SQL Server error number.
@@ -41,7 +47,7 @@ func (e Error) SQLErrorClass() uint8 {
 }
 
 func (e Error) SQLErrorMessage() string {
-	return e.Message
+	return e.Message.String()
 }
 
 func (e Error) SQLErrorServerName() string {
