@@ -601,7 +601,7 @@ func parseError72(r *tdsBuffer) (res Error) {
 	res.Number = r.int32()
 	res.State = r.byte()
 	res.Class = r.byte()
-	res.Message = r.UsVarChar()
+	res.Message = Message(r.UsVarChar())
 	res.ServerName = r.BVarChar()
 	res.ProcName = r.BVarChar()
 	res.LineNo = r.int32()
@@ -615,7 +615,7 @@ func parseInfo(r *tdsBuffer) (res Error) {
 	res.Number = r.int32()
 	res.State = r.byte()
 	res.Class = r.byte()
-	res.Message = r.UsVarChar()
+	res.Message = Message(r.UsVarChar())
 	res.ServerName = r.BVarChar()
 	res.ProcName = r.BVarChar()
 	res.LineNo = r.int32()
@@ -773,7 +773,7 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 			}
 			errs = append(errs, err)
 			if sess.logFlags&logErrors != 0 {
-				sess.logger.Log(ctx, msdsn.LogErrors, err.Message)
+				sess.logger.Log(ctx, msdsn.LogErrors, err.Message.String())
 			}
 			if outs.msgq != nil {
 				_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgError{Error: err})
@@ -784,7 +784,7 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 				sess.logger.Log(ctx, msdsn.LogDebug, fmt.Sprintf("got INFO %d %s", info.Number, info.Message))
 			}
 			if sess.logFlags&logMessages != 0 {
-				sess.logger.Log(ctx, msdsn.LogMessages, info.Message)
+				sess.logger.Log(ctx, msdsn.LogMessages, info.Message.String())
 			}
 			if outs.msgq != nil {
 				_ = sqlexp.ReturnMessageEnqueue(ctx, outs.msgq, sqlexp.MsgNotice{Message: info.Message})
