@@ -1,3 +1,4 @@
+//go:build go1.9
 // +build go1.9
 
 package mssql
@@ -1125,10 +1126,10 @@ func TestMessageQueue(t *testing.T) {
 	active := true
 
 	msgs := []interface{}{
-		sqlexp.MsgNotice{Message: Message("msg1")},
+		sqlexp.MsgNotice{Message: Error{Message: "msg1"}},
 		sqlexp.MsgNext{},
 		sqlexp.MsgRowsAffected{Count: 1},
-		sqlexp.MsgNotice{Message: Message("msg2")},
+		sqlexp.MsgNotice{Message: Error{Message: "msg2"}},
 		sqlexp.MsgNextResultSet{},
 	}
 	i := 0
