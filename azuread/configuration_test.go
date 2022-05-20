@@ -9,6 +9,7 @@ import (
 
 func TestValidateParameters(t *testing.T) {
 	passphrase := "somesecret"
+	authToken := "some-auth-token"
 	certificatepath := "/user/cert/cert.pfx"
 	appid := "applicationclientid=someguid"
 	certprop := "clientcertpath=" + certificatepath
@@ -88,6 +89,15 @@ func TestValidateParameters(t *testing.T) {
 				fedAuthWorkflow: ActiveDirectoryManagedIdentity,
 			},
 		},
+		{
+			name: "application with auth token",
+			dsn:  "server=someserver.database.windows.net;fedauth=ActiveDirectoryServicePrincipalAuthToken;password=some-auth-token;",
+			expected: &azureFedAuthConfig{
+				password:    authToken,
+				adalWorkflow:    mssql.FedAuthADALWorkflowNone,
+				fedAuthWorkflow: ActiveDirectoryServicePrincipalAuthToken,
+			},
+		},
 	}
 	for _, tst := range tests {
 		config, err := parse(tst.dsn)
@@ -109,7 +119,7 @@ func TestValidateParameters(t *testing.T) {
 		// mssqlConfig is not idempotent due to pointers in it, plus we aren't testing its correctness here
 		config.mssqlConfig = msdsn.Config{}
 		if *config != *tst.expected {
-			t.Errorf("Captured parameters do not match in test case '%s'. Expected:%+v, Actual:%+v", tst.name, tst.expected, config)
+			t.Errorf("Captured parameters do not match in test case '%s'. \nExpected:%+v, \nActual:%+v", tst.name, tst.expected, config)
 		}
 	}
 
