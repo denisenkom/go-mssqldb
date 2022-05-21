@@ -28,7 +28,7 @@ func main() {
 		fmt.Printf(" database:%s\n", *database)
 	}
 
-	connString := fmt.Sprintf("server=%s;password=%s;port=%d;database=%s;fedauth=ActiveDirectoryServicePrincipalAuthToken;", *server, *password, *port, *database)
+	connString := fmt.Sprintf("server=%s;password=%s;port=%d;database=%s;fedauth=ActiveDirectoryServicePrincipalAccessToken;", *server, *password, *port, *database)
 	if *debug {
 		fmt.Printf(" connString:%s\n", connString)
 	}

@@ -9,7 +9,7 @@ import (
 
 func TestValidateParameters(t *testing.T) {
 	passphrase := "somesecret"
-	authToken := "some-auth-token"
+	accessToken := "some-access-token"
 	certificatepath := "/user/cert/cert.pfx"
 	appid := "applicationclientid=someguid"
 	certprop := "clientcertpath=" + certificatepath
@@ -90,12 +90,13 @@ func TestValidateParameters(t *testing.T) {
 			},
 		},
 		{
-			name: "application with auth token",
-			dsn:  "server=someserver.database.windows.net;fedauth=ActiveDirectoryServicePrincipalAuthToken;password=some-auth-token;",
+			name: "application with access token",
+			dsn:  "server=someserver.database.windows.net;fedauth=ActiveDirectoryServicePrincipalAccessToken;password=some-access-token;",
 			expected: &azureFedAuthConfig{
-				password:    authToken,
+				password:        accessToken,
 				adalWorkflow:    mssql.FedAuthADALWorkflowNone,
-				fedAuthWorkflow: ActiveDirectoryServicePrincipalAuthToken,
+				fedAuthWorkflow: ActiveDirectoryServicePrincipalAccessToken,
+				fedAuthLibrary: mssql.FedAuthLibrarySecurityToken,
 			},
 		},
 	}
