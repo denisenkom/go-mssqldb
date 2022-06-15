@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -582,6 +583,32 @@ func TestBadHost(t *testing.T) {
 	params.Host = "badhost"
 	params.Instance = ""
 	testConnectionBad(t, params.URL().String())
+}
+
+func TestSqlBrowserNotUsedIfPortSpecified(t *testing.T) {
+	const errorSubstrStringToCheckFor = "unable to get instances from Sql Server Browser"
+
+	// Connect to an instance on a host that doesn't exist (so connection will always expectedly fail)
+	params := testConnParams(t)
+	params.Host = "badhost"
+	params.Instance = "foobar"
+
+	// Specify no port, so error must indicate SQL Browser lookup failed
+	params.Port = 0 // No port spcified, sql browser should be used
+
+	err := testConnectionBad(t, params.URL().String())
+
+	if !strings.Contains(err.Error(), errorSubstrStringToCheckFor) {
+		t.Fatal("Connection should have tried to use SQL Browser")
+	}
+
+	// Specify port, ensure error does not indicate SQL Browser lookup failed
+	params.Port = 1500 // Specify a port, sql browser should not be tried
+	err = testConnectionBad(t, params.URL().String())
+
+	if strings.Contains(err.Error(), errorSubstrStringToCheckFor) {
+		t.Fatal("Connection should not have tried to use SQL Browser, because none zero Port specified")
+	}
 }
 
 func TestSSPIAuth(t *testing.T) {
