@@ -1,3 +1,4 @@
+//go:build go1.9
 // +build go1.9
 
 package mssql
@@ -81,6 +82,10 @@ func TestBulkcopy(t *testing.T) {
 		{"test_binary", []byte("1"), nil},
 		{"test_binary_16", bin, nil},
 		{"test_intvarchar", 1234, "1234"},
+		{"test_int64nvarchar", int64(123456), "123456"},
+		{"test_int32nvarchar", int32(12345), "12345"},
+		{"test_int16nvarchar", int16(1234), "1234"},
+		{"test_int8nvarchar", int8(12), "12"},
 		{"test_intnvarchar", 1234, "1234"},
 	}
 
@@ -278,6 +283,10 @@ func setupTable(ctx context.Context, t *testing.T, conn *sql.Conn, tableName str
 	[test_binary] BINARY NOT NULL,
 	[test_binary_16] BINARY(16) NOT NULL,
 	[test_intvarchar] [varchar](4) NULL,
+	[test_int64nvarchar] [varchar](6) NULL,
+	[test_int32nvarchar] [varchar](5) NULL,
+	[test_int16nvarchar] [varchar](4) NULL,
+	[test_int8nvarchar] [varchar](3) NULL,
 	[test_intnvarchar] [varchar](4) NULL,
  CONSTRAINT [PK_` + tableName + `_id] PRIMARY KEY CLUSTERED
 (

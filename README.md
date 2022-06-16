@@ -281,6 +281,9 @@ are supported:
 * "github.com/golang-sql/civil".Time -> time
 * mssql.TVP -> Table Value Parameter (TDS version dependent)
 
+Using an `int` parameter will send a 4 byte value (int) from a 32bit app and an 8 byte value (bigint) from a 64bit app. 
+To make sure your integer parameter matches the size of the SQL parameter, use the appropriate sized type like `int32` or `int8`.
+
 ```go
 // If this is passed directly as a parameter, 
 // the SQL parameter generated would be nvarchar

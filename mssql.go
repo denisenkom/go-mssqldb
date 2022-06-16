@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/bits"
 	"net"
 	"reflect"
 	"strings"
@@ -906,6 +907,34 @@ func (s *Stmt) makeParam(val driver.Value) (res param, err error) {
 		return
 	}
 	switch val := val.(type) {
+	case int:
+		res.ti.TypeId = typeIntN
+		// Rather than guess if the caller intends to pass a 32bit int from a 64bit app based on the
+		// value of the int, we'll just match the runtime size of int.
+		// Apps that want a 32bit int should use int32
+		if bits.UintSize == 32 {
+			res.buffer = make([]byte, 4)
+			res.ti.Size = 4
+			binary.LittleEndian.PutUint32(res.buffer, uint32(val))
+		} else {
+			res.buffer = make([]byte, 8)
+			res.ti.Size = 8
+			binary.LittleEndian.PutUint64(res.buffer, uint64(val))
+		}
+	case int8:
+		res.ti.TypeId = typeIntN
+		res.buffer = []byte{byte(val)}
+		res.ti.Size = 1
+	case int16:
+		res.ti.TypeId = typeIntN
+		res.buffer = make([]byte, 2)
+		res.ti.Size = 2
+		binary.LittleEndian.PutUint16(res.buffer, uint16(val))
+	case int32:
+		res.ti.TypeId = typeIntN
+		res.buffer = make([]byte, 4)
+		res.ti.Size = 4
+		binary.LittleEndian.PutUint32(res.buffer, uint32(val))
 	case int64:
 		res.ti.TypeId = typeIntN
 		res.buffer = make([]byte, 8)

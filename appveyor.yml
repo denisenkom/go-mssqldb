@@ -13,8 +13,6 @@ environment:
   DATABASE: test
   GOVERSION: 113
   matrix:
-    - GOVERSION: 18
-      SQLINSTANCE: SQL2017
     - GOVERSION: 19
       SQLINSTANCE: SQL2017
     - GOVERSION: 110
@@ -50,7 +48,7 @@ install:
   - go env
   - go get -u github.com/golang-sql/civil
   - go get -u github.com/golang-sql/sqlexp
-
+  
 build_script:
   - go build
 

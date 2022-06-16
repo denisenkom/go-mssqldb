@@ -1,3 +1,4 @@
+//go:build go1.9
 // +build go1.9
 
 package mssql
@@ -42,6 +43,8 @@ type DateTimeOffset time.Time
 
 func convertInputParameter(val interface{}) (interface{}, error) {
 	switch v := val.(type) {
+	case int, int16, int32, int64, int8:
+		return val, nil
 	case VarChar:
 		return val, nil
 	case NVarCharMax:
