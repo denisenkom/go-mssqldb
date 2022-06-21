@@ -17,6 +17,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf16"
 
 	"github.com/microsoft/go-mssqldb/msdsn"
 )
@@ -654,6 +655,160 @@ func TestUcs22Str(t *testing.T) {
 	_, err = ucs22str([]byte{0})
 	if err == nil {
 		t.Error("ucs22str should fail on single byte input, but it didn't")
+	}
+}
+
+var encoded123456789Bytes = []byte{0x31, 0, 0x32, 0, 0x33, 0, 0x34, 0, 0x35, 0, 0x36, 0, 0x37, 0, 0x38, 0, 0x39, 0}
+var encoded12345678Bytes = []byte{0x31, 0, 0x32, 0, 0x33, 0, 0x34, 0, 0x35, 0, 0x36, 0, 0x37, 0, 0x38, 0}
+var encoded1234567Bytes = []byte{0x31, 0, 0x32, 0, 0x33, 0, 0x34, 0, 0x35, 0, 0x36, 0, 0x37, 0}
+var encoded123456Bytes = []byte{0x31, 0, 0x32, 0, 0x33, 0, 0x34, 0, 0x35, 0, 0x36, 0}
+var encoded12345Bytes = []byte{0x31, 0, 0x32, 0, 0x33, 0, 0x34, 0, 0x35, 0}
+var encoded1234Bytes = []byte{0x31, 0, 0x32, 0, 0x33, 0, 0x34, 0}
+var encoded123Bytes = []byte{0x31, 0, 0x32, 0, 0x33, 0}
+var encoded12Bytes = []byte{0x31, 0, 0x32, 0}
+var encoded1Bytes = []byte{0x31, 0}
+
+var encodedLongASCIIBytes = []byte{0x31, 0, 0x32, 0, 0x33, 0, 0x34, 0, 0x35, 0, 0x36, 0, 0x37, 0, 0x38, 0, 0x39, 0,
+	// a-z
+	0x61, 0x0, 0x62, 0x0, 0x63, 0x0, 0x64, 0x0, 0x65, 0x0, 0x66, 0x0, 0x67, 0x0, 0x68, 0x0, 0x69, 0x0, 0x6a, 0x0, 0x6b, 0x0, 0x6c, 0x0, 0x6d, 0x0, 0x6e, 0x0, 0x6f, 0x0, 0x70, 0x0, 0x71, 0x0, 0x72, 0x0, 0x73, 0x0, 0x74, 0x0, 0x75, 0x0, 0x76, 0x0, 0x77, 0x0, 0x78, 0x0, 0x79, 0x0, 0x7a, 0x0,
+	// A-Z
+	0x41, 0x0, 0x42, 0x0, 0x43, 0x0, 0x44, 0x0, 0x45, 0x0, 0x46, 0x0, 0x47, 0x0, 0x48, 0x0, 0x49, 0x0, 0x4a, 0x0, 0x4b, 0x0, 0x4c, 0x0, 0x4d, 0x0, 0x4e, 0x0, 0x4f, 0x0, 0x50, 0x0, 0x51, 0x0, 0x52, 0x0, 0x53, 0x0, 0x54, 0x0, 0x55, 0x0, 0x56, 0x0, 0x57, 0x0, 0x58, 0x0, 0x59, 0x0, 0x5a, 0x0,
+}
+var decodedLongASCIIString string = "123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+// multiple copies of the above
+var encodedLongerASCIIBytes []byte
+var decodedLongerASCIIString string
+
+var encodedUnicode1 = []byte{0x61, 0x0, 0x62, 0x0, 0x63, 0x0, 0x64, 0x0, 0x65, 0x0, 0x66, 0x0, 0x67, 0x0, 0x68, 0x0, 0x69, 0x0, 0x6a, 0x1}
+var encodedUnicode2 = []byte{0x61, 0x0, 0x62, 0x0, 0x63, 0x0, 0x64, 0x0, 0x65, 0x0, 0x66, 0x0, 0x67, 0x0, 0x68, 0x0, 0x69, 0x0, 0x6a, 0x0, 0x6b, 0x0, 0x6c, 0x0, 0x6d, 0x1}
+var encodedUnicode3 = []byte{0x61, 0x0, 0x62, 0x0, 0x63, 0x0, 0x64, 0x0, 0x65, 0x0, 0x66, 0x0, 0x67, 0x0, 0x68, 0x0, 0x69, 0x0, 0x6a, 0x0, 0x6b, 0x0, 0x6c, 0x0, 0x6d, 0x1, 0x1, 0x1}
+var encodedASCIIWithTrailingUnicode = []byte{0x61, 0x0, 0x62, 0x0, 0x63, 0x0, 0x64, 0x0, 0x65, 0x0, 0x66, 0x0, 0x67, 0x0, 0x68, 0x0, 0x69, 0x0, 0x6a, 0x0, 0x6b, 0x0, 0x6c, 0x0, 0x6d, 0x0, 0x6e, 0x0, 0x6f, 0x0, 0x7e, 0x76, 0x70, 0x0}
+var stringASCIIWithTrailingUnicode = "abcdefghijklmno百p"
+var longEmoji = "😀😃😄😁😆😅🤣😂🙂🙃😉😊😇😍🤩😘😗"
+var longEmojiBytes []byte
+var encodedASCIIWithTrailingUnicode2 []byte
+
+// create various test strings and byte slices for the ucs22str function
+func init() {
+
+	uint16s := utf16.Encode([]rune(longEmoji))
+
+	longEmojiBytes = make([]byte, len(uint16s)*2)
+
+	for i := 0; i < len(uint16s); i++ {
+		longEmojiBytes[i*2] = byte(uint16s[i] & 0xFF)
+		longEmojiBytes[(i*2)+1] = byte((uint16s[i] >> 8) & 0xFF)
+	}
+
+	uint16s = utf16.Encode([]rune(stringASCIIWithTrailingUnicode))
+
+	encodedASCIIWithTrailingUnicode2 = make([]byte, len(uint16s)*2)
+
+	for i := 0; i < len(uint16s); i++ {
+		encodedASCIIWithTrailingUnicode2[i*2] = byte(uint16s[i] & 0xFF)
+		encodedASCIIWithTrailingUnicode2[(i*2)+1] = byte((uint16s[i] >> 8) & 0xFF)
+	}
+
+	equal := bytes.Compare(encodedASCIIWithTrailingUnicode, encodedASCIIWithTrailingUnicode2)
+
+	if equal != 0 {
+		fmt.Print("Expected array to equal.")
+	}
+
+	for i := 0; i < 10; i++ {
+		encodedLongerASCIIBytes = append(encodedLongerASCIIBytes, encodedLongASCIIBytes...)
+		decodedLongerASCIIString = decodedLongerASCIIString + decodedLongASCIIString
+	}
+}
+
+func ExerciseUCS2ToStringFunction(name string, sut func([]byte) (string, error), t *testing.T) {
+
+	tests := []struct {
+		name     string
+		input    []byte
+		expected string
+	}{
+		{"Ascii 1", encoded1Bytes, "1"},
+		{"Ascii 2", encoded12Bytes, "12"},
+		{"Ascii 3", encoded123Bytes, "123"},
+		{"Ascii 4", encoded1234Bytes, "1234"},
+		{"Ascii 5", encoded12345Bytes, "12345"},
+		{"Ascii 6", encoded123456Bytes, "123456"},
+		{"Ascii 7", encoded1234567Bytes, "1234567"},
+		{"Ascii 8", encoded12345678Bytes, "12345678"},
+		{"Ascii 9", encoded123456789Bytes, "123456789"},
+		{"Long Ascii", encodedLongASCIIBytes, decodedLongASCIIString},
+		{"Longer Ascii", encodedLongerASCIIBytes, decodedLongerASCIIString},
+		{"Random Unicode1", encodedUnicode1, "abcdefghiŪ"},
+		{"Random Unicode2", encodedUnicode2, "abcdefghijklŭ"},
+		{"Random Unicode3", encodedUnicode3, "abcdefghijklŭā"},
+		{"TrailingUnicode", encodedASCIIWithTrailingUnicode, stringASCIIWithTrailingUnicode},
+		{"LongEmoji", longEmojiBytes, longEmoji},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			actual, err := sut(tt.input)
+
+			if err != nil {
+				t.Errorf("%s errored: %s", name, err)
+			}
+
+			if actual != tt.expected {
+				t.Errorf("%s expected to return %s but it returned %s", name, tt.expected, actual)
+			}
+		})
+	}
+}
+
+func TestUcs22str(t *testing.T) {
+	ExerciseUCS2ToStringFunction("ucs22str", ucs22str, t)
+}
+
+var sideeffect_varchar string
+
+//ucs22str benchmarks
+func BenchmarkUcs22strAscii(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		s, _ := ucs22str(encoded123Bytes)
+		sideeffect_varchar = s
+	}
+}
+
+func BenchmarkUcs22strMediumAscii(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		s, _ := ucs22str(encoded123456789Bytes)
+		sideeffect_varchar = s
+	}
+}
+
+func BenchmarkUcs22strLongAscii(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		s, _ := ucs22str(encodedLongASCIIBytes)
+		sideeffect_varchar = s
+	}
+}
+
+func BenchmarkUcs22strLongerAscii(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		s, _ := ucs22str(encodedLongerASCIIBytes)
+		sideeffect_varchar = s
+	}
+}
+
+func BenchmarkUcs22strTrailingUnicode(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		s, _ := ucs22str(encodedASCIIWithTrailingUnicode)
+		sideeffect_varchar = s
+	}
+}
+
+func BenchmarkUcs22strLongEmojis(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		s, _ := ucs22str(longEmojiBytes)
+		sideeffect_varchar = s
 	}
 }
 

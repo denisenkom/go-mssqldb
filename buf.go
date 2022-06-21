@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"sync"
 )
 
 type packetType uint8
@@ -17,6 +18,16 @@ type header struct {
 	Pad        uint8
 }
 
+// bufpool provides buffers which are used for reading and writing in the tdsBuffer instances
+var bufpool = sync.Pool{
+	New: func() interface{} {
+		b := make([]byte, 1<<16)
+		// If the return value is not a pointer, any conversion from interface{} will
+		// involve an allocation.
+		return &b
+	},
+}
+
 // tdsBuffer reads and writes TDS packets of data to the transport.
 // The write and read buffers are separate to make sending attn signals
 // possible without locks. Currently attn signals are only sent during
@@ -25,6 +36,9 @@ type tdsBuffer struct {
 	transport io.ReadWriteCloser
 
 	packetSize int
+
+	// bufClose is responsible for returning the buffer back to the pool
+	bufClose func()
 
 	// Write fields.
 	wbuf        []byte
@@ -46,10 +60,15 @@ type tdsBuffer struct {
 }
 
 func newTdsBuffer(bufsize uint16, transport io.ReadWriteCloser) *tdsBuffer {
+
+	// pull an existing buf if one is available or get and add a new buf to the bufpool
+	buf := bufpool.Get().(*[]byte)
+
 	return &tdsBuffer{
 		packetSize: int(bufsize),
-		wbuf:       make([]byte, bufsize),
-		rbuf:       make([]byte, bufsize),
+		wbuf:       (*buf)[:1<<15],
+		rbuf:       (*buf)[1<<15:],
+		bufClose:   func() { bufpool.Put(buf) },
 		rpos:       8,
 		transport:  transport,
 	}
@@ -201,16 +220,27 @@ func (r *tdsBuffer) byte() byte {
 }
 
 func (r *tdsBuffer) ReadFull(buf []byte) {
-	_, err := io.ReadFull(r, buf[:])
+	_, err := io.ReadFull(r, buf)
 	if err != nil {
 		badStreamPanic(err)
 	}
 }
 
 func (r *tdsBuffer) uint64() uint64 {
-	var buf [8]byte
-	r.ReadFull(buf[:])
-	return binary.LittleEndian.Uint64(buf[:])
+	// have we got enough room in the buffer to read 8 bytes, if not, do a ReadFull, else read directly from r.rbuf
+	if r.rpos+7 >= r.rsize {
+		var buf [8]byte
+		r.ReadFull(buf[:])
+
+		return uint64(buf[0]) | uint64(buf[1])<<8 | uint64(buf[2])<<16 | uint64(buf[3])<<24 |
+			uint64(buf[4])<<32 | uint64(buf[5])<<40 | uint64(buf[6])<<48 | uint64(buf[7])<<56
+	}
+
+	res := uint64(r.rbuf[r.rpos]) | uint64(r.rbuf[r.rpos+1])<<8 | uint64(r.rbuf[r.rpos+2])<<16 | uint64(r.rbuf[r.rpos+3])<<24 |
+		uint64(r.rbuf[r.rpos+4])<<32 | uint64(r.rbuf[r.rpos+5])<<40 | uint64(r.rbuf[r.rpos+6])<<48 | uint64(r.rbuf[r.rpos+7])<<56
+
+	r.rpos += 8
+	return res
 }
 
 func (r *tdsBuffer) int32() int32 {
@@ -218,15 +248,29 @@ func (r *tdsBuffer) int32() int32 {
 }
 
 func (r *tdsBuffer) uint32() uint32 {
-	var buf [4]byte
-	r.ReadFull(buf[:])
-	return binary.LittleEndian.Uint32(buf[:])
+	// have we got enough room in the buffer to read 4 bytes, if not, do a ReadFull, else read directly from r.rbuf
+	if r.rpos+3 >= r.rsize {
+		var buf [4]byte
+		r.ReadFull(buf[:])
+		return uint32(buf[0]) | uint32(buf[1])<<8 | uint32(buf[2])<<16 | uint32(buf[3])<<24
+	}
+
+	res := uint32(r.rbuf[r.rpos]) | uint32(r.rbuf[r.rpos+1])<<8 | uint32(r.rbuf[r.rpos+2])<<16 | uint32(r.rbuf[r.rpos+3])<<24
+	r.rpos += 4
+	return res
 }
 
 func (r *tdsBuffer) uint16() uint16 {
-	var buf [2]byte
-	r.ReadFull(buf[:])
-	return binary.LittleEndian.Uint16(buf[:])
+	// have we got enough room in the buffer to read 2 bytes, if not, do a ReadFull, else read directly from r.rbuf
+	if r.rpos+1 >= r.rsize {
+		var buf [2]byte
+		r.ReadFull(buf[:])
+		return uint16(buf[0]) | uint16(buf[1])<<8
+	}
+
+	res := uint16(r.rbuf[r.rpos]) | uint16(r.rbuf[r.rpos+1])<<8
+	r.rpos += 2
+	return res
 }
 
 func (r *tdsBuffer) BVarChar() string {

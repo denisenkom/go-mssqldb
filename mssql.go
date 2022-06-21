@@ -428,6 +428,7 @@ func (d *Driver) connect(ctx context.Context, c *Connector, params msdsn.Config)
 }
 
 func (c *Conn) Close() error {
+	c.sess.buf.bufClose()
 	return c.sess.buf.transport.Close()
 }
 
