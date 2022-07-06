@@ -1,3 +1,6 @@
+//go:build go1.18
+// +build go1.18
+
 package azuread
 
 import (
@@ -8,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	mssql "github.com/microsoft/go-mssqldb"
@@ -169,11 +173,11 @@ func (p *azureFedAuthConfig) provideActiveDirectoryToken(ctx context.Context, se
 		case p.certificatePath != "":
 			certData, err := os.ReadFile(p.certificatePath)
 			if err != nil {
-			certs, key, err := azidentity.ParseCertificates(certData, []byte(p.clientSecret))
-			if err != nil {
-			cred, err = azidentity.NewClientCertificateCredential(tenant, p.clientID, certs, key, nil)
+				certs, key, err := azidentity.ParseCertificates(certData, []byte(p.clientSecret))
+				if err != nil {
+					cred, err = azidentity.NewClientCertificateCredential(tenant, p.clientID, certs, key, nil)
+				}
 			}
-		}
 		default:
 			cred, err = azidentity.NewClientSecretCredential(tenant, p.clientID, p.clientSecret, nil)
 		}
@@ -188,7 +192,9 @@ func (p *azureFedAuthConfig) provideActiveDirectoryToken(ctx context.Context, se
 			cred, err = azidentity.NewManagedIdentityCredential(nil)
 		}
 	case ActiveDirectoryInteractive:
-		cred, err = azidentity.NewInteractiveBrowserCredential(&azidentity.InteractiveBrowserCredentialOptions{AuthorityHost: azidentity.AuthorityHost(authority), ClientID: p.applicationClientID})
+		c := cloud.Configuration{ActiveDirectoryAuthorityHost: authority}
+		config := azcore.ClientOptions{Cloud: c}
+		cred, err = azidentity.NewInteractiveBrowserCredential(&azidentity.InteractiveBrowserCredentialOptions{ClientOptions: config, ClientID: p.applicationClientID})
 
 	default:
 		// Integrated just uses Default until azidentity adds Windows-specific authentication
