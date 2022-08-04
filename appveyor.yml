@@ -12,9 +12,8 @@ environment:
   SQLPASSWORD: Password12!
   DATABASE: test
   GOVERSION: 113
+  RACE: -race -cpu 4
   matrix:
-    - GOVERSION: 19
-      SQLINSTANCE: SQL2017
     - GOVERSION: 110
       SQLINSTANCE: SQL2017
     - GOVERSION: 111
@@ -40,7 +39,17 @@ environment:
     - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
       GOVERSION: 116
       SQLINSTANCE: SQL2017
-
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
+      GOVERSION: 117
+      SQLINSTANCE: SQL2017
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
+      GOVERSION: 118
+      SQLINSTANCE: SQL2017
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
+      GOVERSION: 118-x86
+      SQLINSTANCE: SQL2017
+      GOARCH: 386
+      RACE:
 install:
   - set GOROOT=c:\go%GOVERSION%
   - set PATH=%GOPATH%\bin;%GOROOT%\bin;%PATH%
@@ -63,5 +72,5 @@ before_test:
   - pip install codecov
 
 test_script:
-  - go test -race -cpu 4 -coverprofile=coverage.txt -covermode=atomic
+  - go test %RACE% -coverprofile=coverage.txt -covermode=atomic
   - codecov -f coverage.txt
