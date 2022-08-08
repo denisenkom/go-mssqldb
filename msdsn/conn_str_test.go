@@ -1,6 +1,7 @@
 package msdsn
 
 import (
+	"crypto/tls"
 	"reflect"
 	"testing"
 	"time"
@@ -59,7 +60,23 @@ func TestValidConnectionString(t *testing.T) {
 		{"failoverpartner=fopartner;failoverport=2000", func(p Config) bool { return p.FailOverPartner == "fopartner" && p.FailOverPort == 2000 }},
 		{"app name=appname;applicationintent=ReadOnly;database=testdb", func(p Config) bool { return p.AppName == "appname" && p.ReadOnlyIntent }},
 		{"encrypt=disable", func(p Config) bool { return p.Encryption == EncryptionDisabled }},
-		{"encrypt=true", func(p Config) bool { return p.Encryption == EncryptionRequired }},
+		{"encrypt=disable;tlsmin=1.1", func(p Config) bool { return p.Encryption == EncryptionDisabled && p.TLSConfig == nil }},
+		{"encrypt=true", func(p Config) bool { return p.Encryption == EncryptionRequired && p.TLSConfig.MinVersion == 0 }},
+		{"encrypt=true;tlsmin=1.0", func(p Config) bool {
+			return p.Encryption == EncryptionRequired && p.TLSConfig.MinVersion == tls.VersionTLS10
+		}},
+		{"encrypt=false;tlsmin=1.0", func(p Config) bool {
+			return p.Encryption == EncryptionOff && p.TLSConfig.MinVersion == tls.VersionTLS10
+		}},
+		{"encrypt=true;tlsmin=1.1", func(p Config) bool {
+			return p.Encryption == EncryptionRequired && p.TLSConfig.MinVersion == tls.VersionTLS11
+		}},
+		{"encrypt=true;tlsmin=1.2", func(p Config) bool {
+			return p.Encryption == EncryptionRequired && p.TLSConfig.MinVersion == tls.VersionTLS12
+		}},
+		{"encrypt=true;tlsmin=1.4", func(p Config) bool {
+			return p.Encryption == EncryptionRequired && p.TLSConfig.MinVersion == 0
+		}},
 		{"encrypt=false", func(p Config) bool { return p.Encryption == EncryptionOff }},
 		{"connection timeout=3;dial timeout=4;keepalive=5", func(p Config) bool {
 			return p.ConnTimeout == 3*time.Second && p.DialTimeout == 4*time.Second && p.KeepAlive == 5*time.Second
@@ -158,6 +175,9 @@ func TestValidConnectionString(t *testing.T) {
 		}},
 		{"sqlserver://someuser@somehost?connection+timeout=30&disableretry=1", func(p Config) bool {
 			return p.Host == "somehost" && p.Port == 0 && p.Instance == "" && p.User == "someuser" && p.Password == "" && p.ConnTimeout == 30*time.Second && p.DisableRetry
+		}},
+		{"sqlserver://somehost?encrypt=true&tlsmin=1.1", func(p Config) bool {
+			return p.Host == "somehost" && p.Encryption == EncryptionRequired && p.TLSConfig.MinVersion == tls.VersionTLS11
 		}},
 	}
 	for _, ts := range connStrings {
