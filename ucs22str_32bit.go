@@ -1,3 +1,6 @@
+//go:build arm || 386
+// +build arm 386
+
 package mssql
 
 import (
