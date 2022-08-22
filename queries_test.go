@@ -2099,7 +2099,8 @@ func TestLoginTimeout(t *testing.T) {
 		if !oe.Timeout() {
 			t.Fatalf("Got non-timeout error %s", oe.Error())
 		}
-	} else if err != context.DeadlineExceeded {
+		// The type of error is not guaranteed so just look for "timeout"
+	} else if err != context.DeadlineExceeded && !strings.Contains(err.Error(), "timeout") {
 		t.Fatalf("wrong kind of error for login or query timeout: %+v", err)
 	}
 
