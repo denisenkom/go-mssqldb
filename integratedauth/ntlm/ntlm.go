@@ -1,6 +1,4 @@
-// +build !windows
-
-package mssql
+package ntlm
 
 import (
 	"crypto/des"
@@ -13,6 +11,9 @@ import (
 	"strings"
 	"time"
 	"unicode/utf16"
+
+	"github.com/microsoft/go-mssqldb/integratedauth"
+	"github.com/microsoft/go-mssqldb/msdsn"
 
 	//lint:ignore SA1019 MD4 is used by legacy NTLM
 	"golang.org/x/crypto/md4"
@@ -56,24 +57,26 @@ const _NEGOTIATE_FLAGS = _NEGOTIATE_UNICODE |
 	_NEGOTIATE_ALWAYS_SIGN |
 	_NEGOTIATE_EXTENDED_SESSIONSECURITY
 
-type ntlmAuth struct {
+type Auth struct {
 	Domain      string
 	UserName    string
 	Password    string
 	Workstation string
 }
 
-func getAuth(user, password, service, workstation string) (auth, bool) {
-	if !strings.ContainsRune(user, '\\') {
-		return nil, false
+// getAuth returns an authentication handle Auth to provide authentication content
+// to mssql.connect
+func getAuth(config msdsn.Config) (integratedauth.IntegratedAuthenticator, error) {
+	if !strings.ContainsRune(config.User, '\\') {
+		return nil, fmt.Errorf("ntlm : invalid username %v", config.User)
 	}
-	domain_user := strings.SplitN(user, "\\", 2)
-	return &ntlmAuth{
-		Domain:      domain_user[0],
-		UserName:    domain_user[1],
-		Password:    password,
-		Workstation: workstation,
-	}, true
+	domainUser := strings.SplitN(config.User, "\\", 2)
+	return &Auth{
+		Domain:      domainUser[0],
+		UserName:    domainUser[1],
+		Password:    config.Password,
+		Workstation: config.Workstation,
+	}, nil
 }
 
 func utf16le(val string) []byte {
@@ -90,7 +93,7 @@ func utf16le(val string) []byte {
 	return v
 }
 
-func (auth *ntlmAuth) InitialBytes() ([]byte, error) {
+func (auth *Auth) InitialBytes() ([]byte, error) {
 	domain_len := len(auth.Domain)
 	workstation_len := len(auth.Workstation)
 	msg := make([]byte, 40+domain_len+workstation_len)
@@ -358,7 +361,7 @@ func buildNTLMResponsePayload(lm, nt []byte, flags uint32, domain, workstation, 
 	return msg, nil
 }
 
-func (auth *ntlmAuth) NextBytes(bytes []byte) ([]byte, error) {
+func (auth *Auth) NextBytes(bytes []byte) ([]byte, error) {
 	signature := string(bytes[0:8])
 	if signature != "NTLMSSP\x00" {
 		return nil, errorNTLM
@@ -389,5 +392,5 @@ func (auth *ntlmAuth) NextBytes(bytes []byte) ([]byte, error) {
 	return buildNTLMResponsePayload(lm, nt, flags, auth.Domain, auth.Workstation, auth.UserName)
 }
 
-func (auth *ntlmAuth) Free() {
+func (auth *Auth) Free() {
 }

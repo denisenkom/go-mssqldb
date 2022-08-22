@@ -170,7 +170,7 @@ func TestLoginWithSQLServerAuth(t *testing.T) {
 }
 
 func TestLoginWithSecurityTokenAuth(t *testing.T) {
-	config, _, err := msdsn.Parse("sqlserver://localhost:1433?Workstation ID=localhost&log=128")
+	config, err := msdsn.Parse("sqlserver://localhost:1433?Workstation ID=localhost&log=128")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +231,7 @@ func TestLoginWithSecurityTokenAuth(t *testing.T) {
 }
 
 func TestLoginWithADALUsernamePasswordAuth(t *testing.T) {
-	config, _, err := msdsn.Parse("sqlserver://localhost:1433?Workstation ID=localhost&log=128")
+	config, err := msdsn.Parse("sqlserver://localhost:1433?Workstation ID=localhost&log=128")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -305,7 +305,7 @@ func TestLoginWithADALUsernamePasswordAuth(t *testing.T) {
 }
 
 func TestLoginWithADALManagedIdentityAuth(t *testing.T) {
-	config, _, err := msdsn.Parse("sqlserver://localhost:1433?Workstation ID=localhost&log=128")
+	config, err := msdsn.Parse("sqlserver://localhost:1433?Workstation ID=localhost&log=128")
 	if err != nil {
 		t.Fatal(err)
 	}

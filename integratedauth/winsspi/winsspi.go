@@ -1,10 +1,15 @@
-package mssql
+// +build windows
+
+package winsspi
 
 import (
 	"fmt"
 	"strings"
 	"syscall"
 	"unsafe"
+
+	"github.com/microsoft/go-mssqldb/integratedauth"
+	"github.com/microsoft/go-mssqldb/msdsn"
 )
 
 var (
@@ -104,7 +109,7 @@ type SecBufferDesc struct {
 	pBuffers  *SecBuffer
 }
 
-type SSPIAuth struct {
+type Auth struct {
 	Domain   string
 	UserName string
 	Password string
@@ -113,23 +118,25 @@ type SSPIAuth struct {
 	ctxt     SecHandle
 }
 
-func getAuth(user, password, service, workstation string) (auth, bool) {
-	if user == "" {
-		return &SSPIAuth{Service: service}, true
+// getAuth returns an authentication handle Auth to provide authentication content
+// to mssql.connect
+func getAuth(config msdsn.Config) (integratedauth.IntegratedAuthenticator, error) {
+	if config.User == "" {
+		return &Auth{Service: config.ServerSPN}, nil
 	}
-	if !strings.ContainsRune(user, '\\') {
-		return nil, false
+	if !strings.ContainsRune(config.User, '\\') {
+		return nil, fmt.Errorf("winsspi : invalid username %v", config.User)
 	}
-	domain_user := strings.SplitN(user, "\\", 2)
-	return &SSPIAuth{
-		Domain:   domain_user[0],
-		UserName: domain_user[1],
-		Password: password,
-		Service:  service,
-	}, true
+	domainUser := strings.SplitN(config.User, "\\", 2)
+	return &Auth{
+		Domain:   domainUser[0],
+		UserName: domainUser[1],
+		Password: config.Password,
+		Service:  config.ServerSPN,
+	}, nil
 }
 
-func (auth *SSPIAuth) InitialBytes() ([]byte, error) {
+func (auth *Auth) InitialBytes() ([]byte, error) {
 	var identity *SEC_WINNT_AUTH_IDENTITY
 	if auth.UserName != "" {
 		identity = &SEC_WINNT_AUTH_IDENTITY{
@@ -202,7 +209,7 @@ func (auth *SSPIAuth) InitialBytes() ([]byte, error) {
 	return outbuf[:buf.cbBuffer], nil
 }
 
-func (auth *SSPIAuth) NextBytes(bytes []byte) ([]byte, error) {
+func (auth *Auth) NextBytes(bytes []byte) ([]byte, error) {
 	var in_buf, out_buf SecBuffer
 	var in_desc, out_desc SecBufferDesc
 
@@ -254,7 +261,7 @@ func (auth *SSPIAuth) NextBytes(bytes []byte) ([]byte, error) {
 	return outbuf[:out_buf.cbBuffer], nil
 }
 
-func (auth *SSPIAuth) Free() {
+func (auth *Auth) Free() {
 	syscall.Syscall6(sec_fn.DeleteSecurityContext,
 		1,
 		uintptr(unsafe.Pointer(&auth.ctxt)),

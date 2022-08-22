@@ -1,6 +1,4 @@
-// +build !windows
-
-package mssql
+package ntlm
 
 import (
 	"bytes"

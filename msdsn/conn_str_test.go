@@ -35,7 +35,7 @@ func TestInvalidConnectionString(t *testing.T) {
 		"sqlserver://host?key=value1&key=value2", // duplicate keys
 	}
 	for _, connStr := range connStrings {
-		_, _, err := Parse(connStr)
+		_, err := Parse(connStr)
 		if err == nil {
 			t.Errorf("Connection expected to fail for connection string %s but it didn't", connStr)
 			continue
@@ -181,7 +181,7 @@ func TestValidConnectionString(t *testing.T) {
 		}},
 	}
 	for _, ts := range connStrings {
-		p, _, err := Parse(ts.connStr)
+		p, err := Parse(ts.connStr)
 		if err == nil {
 			t.Logf("Connection string was parsed successfully %s", ts.connStr)
 		} else {
@@ -203,16 +203,52 @@ func TestSplitConnectionStringURL(t *testing.T) {
 }
 
 func TestConnParseRoundTripFixed(t *testing.T) {
-	connStr := "sqlserver://sa:sa@localhost/sqlexpress?database=master&log=127"
-	params, _, err := Parse(connStr)
+	connStr := "sqlserver://sa:sa@localhost/sqlexpress?database=master&log=127&disableretry=true"
+	params, err := Parse(connStr)
 	if err != nil {
 		t.Fatal("Test URL is not valid", err)
 	}
-	rtParams, _, err := Parse(params.URL().String())
+	rtParams, err := Parse(params.URL().String())
 	if err != nil {
 		t.Fatal("Params after roundtrip are not valid", err)
 	}
 	if !reflect.DeepEqual(params, rtParams) {
 		t.Fatal("Parameters do not match after roundtrip", params, rtParams)
+	}
+}
+
+func TestAllKeysAreAvailableInParametersMap(t *testing.T) {
+	keys := map[string]string{
+		"user id":            "1",
+		"testparam":          "testvalue",
+		"password":           "test",
+		"thisisanunknownkey": "thisisthevalue",
+		"server":             "name",
+	}
+
+	connString := ""
+	for key, val := range keys {
+		connString += key + "=" + val + ";"
+	}
+
+	params, err := Parse(connString)
+	if err != nil {
+		t.Errorf("unexpected error while parsing, %v", err)
+	}
+
+	if params.Parameters == nil {
+		t.Error("Expected parameters map to be instanciated, found nil")
+		return
+	}
+
+	if len(params.Parameters) != len(keys) {
+		t.Errorf("Expected parameters map to be same length as input map length, expected %v, found %v", len(keys), len(params.Parameters))
+		return
+	}
+
+	for key, val := range keys {
+		if params.Parameters[key] != val {
+			t.Errorf("Expected parameters map to contain key %v and value %v, found %v", key, val, params.Parameters[key])
+		}
 	}
 }

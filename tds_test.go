@@ -156,7 +156,7 @@ func TestSendLoginWithFeatureExt(t *testing.T) {
 
 func TestSendSqlBatch(t *testing.T) {
 	checkConnStr(t)
-	p, _, err := msdsn.Parse(makeConnStr(t).String())
+	p, err := msdsn.Parse(makeConnStr(t).String())
 	if err != nil {
 		t.Error("parseConnectParams failed:", err.Error())
 		return
@@ -225,7 +225,7 @@ func GetConnParams() (*msdsn.Config, error) {
 	dsn := os.Getenv("SQLSERVER_DSN")
 	const logFlags = 127
 	if len(dsn) > 0 {
-		params, _, err := msdsn.Parse(dsn)
+		params, err := msdsn.Parse(dsn)
 		if err != nil {
 			return nil, err
 		}
@@ -250,7 +250,7 @@ func GetConnParams() (*msdsn.Config, error) {
 		if err != io.EOF && err != nil {
 			return nil, err
 		}
-		params, _, err := msdsn.Parse(dsn)
+		params, err := msdsn.Parse(dsn)
 		if err != nil {
 			return nil, err
 		}
@@ -875,7 +875,7 @@ func TestReadBVarByte(t *testing.T) {
 
 func BenchmarkPacketSize(b *testing.B) {
 	checkConnStr(b)
-	p, _, err := msdsn.Parse(makeConnStr(b).String())
+	p, err := msdsn.Parse(makeConnStr(b).String())
 	if err != nil {
 		b.Error("parseConnectParams failed:", err.Error())
 		return

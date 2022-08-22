@@ -57,7 +57,7 @@ install:
   - go env
   - go get -u github.com/golang-sql/civil
   - go get -u github.com/golang-sql/sqlexp
-  
+  - go get -u golang.org/x/crypto/md4
 build_script:
   - go build
 
