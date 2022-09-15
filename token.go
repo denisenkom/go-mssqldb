@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"strconv"
+	"strings"
 
 	"github.com/denisenkom/go-mssqldb/msdsn"
 	"github.com/golang-sql/sqlexp"
@@ -851,7 +852,8 @@ func (t *tokenProcessor) iterateResponse() error {
 						t.rowCount += int64(token.RowCount)
 					}
 					if token.isError() && t.firstError == nil {
-						t.firstError = token.getError()
+						all := token.getError().All
+						t.firstError = combineErrors(all)
 					}
 				case ReturnStatus:
 					if t.outs.returnStatus != nil {
@@ -867,6 +869,18 @@ func (t *tokenProcessor) iterateResponse() error {
 			return err
 		}
 	}
+}
+
+func combineErrors(all []Error) error {
+	var builder strings.Builder
+	length := len(all)
+	for i, err := range all {
+		builder.WriteString(err.Message)
+		if i+1 < length {
+			builder.WriteString("\r\n")
+		}
+	}
+	return errors.New(builder.String())
 }
 
 func (t tokenProcessor) nextToken() (tokenStruct, error) {
