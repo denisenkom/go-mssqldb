@@ -1348,3 +1348,108 @@ func TestTVPUnsigned(t *testing.T) {
 		t.Errorf("third result set had wrong value expected: %s actual: %s", "test", result3)
 	}
 }
+
+func TestTVPIdentity(t *testing.T) {
+	type TvpIdentityExample struct {
+		ID      *int `tvp:"@identity"`
+		Message string
+	}
+
+	const (
+		crateSchema = `create schema TestTVPSchema;`
+
+		dropSchema = `drop schema TestTVPSchema;`
+
+		createTVP = `
+		CREATE TYPE TestTVPSchema.exempleTVP AS TABLE
+		(
+		    id int  identity(1,1) not null,
+			message	NVARCHAR(100)
+		)`
+
+		dropTVP = `DROP TYPE TestTVPSchema.exempleTVP;`
+
+		procedureWithTVP = `	
+	CREATE PROCEDURE ExecTVP
+		@param1 TestTVPSchema.exempleTVP READONLY
+	AS   
+	BEGIN
+		SET NOCOUNT ON; 
+		SELECT * FROM @param1;
+	END;
+	`
+
+		dropProcedure = `drop PROCEDURE ExecTVP`
+
+		execTvp = `exec ExecTVP @param1;`
+	)
+
+	checkConnStr(t)
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
+
+	p := makeConnStr(t).String()
+	conn, err := sql.Open("sqlserver", p)
+	if err != nil {
+		log.Fatal("Open connection failed:", err.Error())
+	}
+	defer conn.Close()
+
+	_, err = conn.Exec(crateSchema)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	defer conn.Exec(dropSchema)
+
+	_, err = conn.Exec(createTVP)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	defer conn.Exec(dropTVP)
+
+	_, err = conn.Exec(procedureWithTVP)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	defer conn.Exec(dropProcedure)
+
+	exempleData := []TvpIdentityExample{
+		{
+			Message: "Hello",
+		},
+		{
+			Message: "World",
+		},
+		{
+			Message: "TVP",
+		},
+	}
+
+	tvpType := TVP{
+		TypeName: "TestTVPSchema.exempleTVP",
+		Value:    exempleData,
+	}
+
+	rows, err := conn.Query(execTvp,
+		sql.Named("param1", tvpType),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+
+	tvpResult := make([]TvpIdentityExample, 0)
+	for rows.Next() {
+		tvpExemple := TvpIdentityExample{}
+		err = rows.Scan(&tvpExemple.ID, &tvpExemple.Message)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tvpResult = append(tvpResult, tvpExemple)
+	}
+	log.Println(tvpResult)
+}
