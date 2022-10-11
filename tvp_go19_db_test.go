@@ -1419,15 +1419,12 @@ func TestTVPIdentity(t *testing.T) {
 
 	exempleData := []TvpIdentityExample{
 		{
-			ID:      1,
 			Message: "Hello",
 		},
 		{
-			ID:      2,
 			Message: "World",
 		},
 		{
-			ID:      3,
 			Message: "TVP",
 		},
 	}
@@ -1455,10 +1452,25 @@ func TestTVPIdentity(t *testing.T) {
 		tvpResult = append(tvpResult, tvpExemple)
 	}
 
-	if len(exempleData) != len(tvpResult) {
+	expectData := []TvpIdentityExample{
+		{
+			ID:      1,
+			Message: "Hello",
+		},
+		{
+			ID:      2,
+			Message: "World",
+		},
+		{
+			ID:      3,
+			Message: "TVP",
+		},
+	}
+
+	if len(expectData) != len(tvpResult) {
 		t.Fatal("TestTVPIdentity have to be len")
 	}
-	if !reflect.DeepEqual(exempleData, tvpResult) {
+	if !reflect.DeepEqual(expectData, tvpResult) {
 		t.Fatal("TestTVPIdentity have to be same")
 	}
 }
