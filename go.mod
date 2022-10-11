@@ -7,5 +7,5 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.11.0
 	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe
 	github.com/golang-sql/sqlexp v0.1.0
-	golang.org/x/crypto v0.0.0-20201016220609-9e8e0b390897
+	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d
 )
