@@ -42,13 +42,22 @@ func NewConnector(dsn string) (*mssql.Connector, error) {
 
 // newConnectorConfig creates a Connector from config.
 func newConnectorConfig(config *azureFedAuthConfig) (*mssql.Connector, error) {
-	if config.fedAuthLibrary == mssql.FedAuthLibraryADAL {
+	switch config.fedAuthLibrary {
+	case mssql.FedAuthLibraryADAL:
 		return mssql.NewActiveDirectoryTokenConnector(
 			config.mssqlConfig, config.adalWorkflow,
 			func(ctx context.Context, serverSPN, stsURL string) (string, error) {
 				return config.provideActiveDirectoryToken(ctx, serverSPN, stsURL)
 			},
 		)
+	case mssql.FedAuthLibrarySecurityToken:
+		return mssql.NewSecurityTokenConnector(
+			config.mssqlConfig,
+			func(ctx context.Context) (string, error) {
+				return config.password, nil
+			},
+		)
+	default:
+		return mssql.NewConnectorConfig(config.mssqlConfig), nil
 	}
-	return mssql.NewConnectorConfig(config.mssqlConfig), nil
 }
