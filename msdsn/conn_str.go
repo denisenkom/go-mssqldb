@@ -13,7 +13,13 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/jcmturner/gokrb5/v8/config"
+	"github.com/jcmturner/gokrb5/v8/credentials"
+	"github.com/jcmturner/gokrb5/v8/keytab"
 )
+
+const defaultServerPort = 1433
 
 type (
 	Encryption int
@@ -36,6 +42,21 @@ const (
 	LogDebug       Log = 64
 	LogRetries     Log = 128
 )
+
+type Kerberos struct {
+	// Kerberos configuration details
+	Config *config.Config
+
+	// Credential cache
+	Cache *credentials.CCache
+
+	// A Kerberos realm is the domain over which a Kerberos authentication server has the authority
+	// to authenticate a user, host or service.
+	Realm string
+
+	// Kerberos keytab that stores long-term keys for one or more principals
+	Keytab *keytab.Keytab
+}
 
 type Config struct {
 	Port       uint64
@@ -73,6 +94,8 @@ type Config struct {
 	ConnTimeout time.Duration // Use context for timeouts.
 	KeepAlive   time.Duration // Leave at default.
 	PacketSize  uint16
+
+	Kerberos *Kerberos
 }
 
 func SetupTLS(certificate string, insecureSkipVerify bool, hostInCertificate string) (*tls.Config, error) {
@@ -109,6 +132,7 @@ var skipSetup = errors.New("skip setting up TLS")
 
 func Parse(dsn string) (Config, map[string]string, error) {
 	p := Config{}
+	p.Kerberos = &Kerberos{}
 
 	var params map[string]string
 	if strings.HasPrefix(dsn, "odbc:") {
@@ -181,8 +205,43 @@ func Parse(dsn string) (Config, map[string]string, error) {
 		}
 	}
 
+	krb5ConfFile, ok := params["krb5conffile"]
+	if ok {
+		var err error
+		p.Kerberos.Config, err = setupKerbConfig(krb5ConfFile)
+		if err != nil {
+			return p, params, fmt.Errorf("cannot read kerberos configuration file: %w", err)
+		}
+
+		missingParam := checkMissingKRBConfig(params)
+		if missingParam != "" {
+			return p, params, fmt.Errorf("missing parameter:%s", missingParam)
+		}
+
+		realm, ok := params["realm"]
+		if ok {
+			p.Kerberos.Realm = realm
+		}
+
+		krbCache, ok := params["krbcache"]
+		if ok {
+			var err error
+			p.Kerberos.Cache, err = setupKerbCache(krbCache)
+			if err != nil {
+				return p, params, fmt.Errorf("cannot read kerberos cache file: %w", err)
+			}
+		}
+
+		keytabfile, ok := params["keytabfile"]
+		if ok {
+			var err error
+			p.Kerberos.Keytab, err = setupKerbKeytab(keytabfile)
+			if err != nil {
+				return p, params, fmt.Errorf("cannot read kerberos keytab file: %w", err)
+			}
+		}
+	}
 	// https://msdn.microsoft.com/en-us/library/dd341108.aspx
-	//
 	// Do not set a connection timeout. Use Context to manage such things.
 	// Default to zero, but still allow it to be set.
 	if strconntimeout, ok := params["connection timeout"]; ok {
@@ -267,7 +326,7 @@ func Parse(dsn string) (Config, map[string]string, error) {
 	if ok {
 		p.ServerSPN = serverSPN
 	} else {
-		p.ServerSPN = generateSpn(p.Host, p.Port)
+		p.ServerSPN = generateSpn(p.Host, resolveServerPort(p.Port), p.Kerberos.Realm)
 	}
 
 	workstation, ok := params["workstation id"]
@@ -322,8 +381,21 @@ func Parse(dsn string) (Config, map[string]string, error) {
 	} else {
 		p.DisableRetry = disableRetryDefault
 	}
-
 	return p, params, nil
+}
+
+func checkMissingKRBConfig(c map[string]string) (missingParam string) {
+	if c["keytabfile"] != "" {
+		if c["realm"] == "" {
+			missingParam = "realm"
+			return
+		}
+	}
+	if c["krbcache"] == "" && c["keytabfile"] == "" {
+		missingParam = "atleast krbcache or keytab is required"
+		return
+	}
+	return
 }
 
 // convert connectionParams to url style connection string
@@ -605,6 +677,48 @@ func normalizeOdbcKey(s string) string {
 	return strings.ToLower(strings.TrimRightFunc(s, unicode.IsSpace))
 }
 
-func generateSpn(host string, port uint64) string {
-	return fmt.Sprintf("MSSQLSvc/%s:%d", host, port)
+func resolveServerPort(port uint64) uint64 {
+	if port == 0 {
+		return defaultServerPort
+	}
+	return port
+}
+
+func generateSpn(host string, port uint64, realm string) string {
+	if realm == "" {
+		return fmt.Sprintf("MSSQLSvc/%s:%d", host, port)
+	}
+	return fmt.Sprintf("MSSQLSvc/%s:%d@%s", host, port, realm)
+}
+
+func setupKerbConfig(krb5configPath string) (*config.Config, error) {
+	krb5CnfFile, err := os.Open(krb5configPath)
+	if err != nil {
+		return nil, err
+	}
+	c, err := config.NewFromReader(krb5CnfFile)
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+func setupKerbCache(kerbCCahePath string) (*credentials.CCache, error) {
+	cache, err := credentials.LoadCCache(kerbCCahePath)
+	if err != nil {
+		return nil, err
+	}
+	return cache, nil
+}
+
+func setupKerbKeytab(keytabFilePath string) (*keytab.Keytab, error) {
+	var kt = &keytab.Keytab{}
+	keytabConf, err := ioutil.ReadFile(keytabFilePath)
+	if err != nil {
+		return nil, err
+	}
+	if err = kt.Unmarshal([]byte(keytabConf)); err != nil {
+		return nil, err
+	}
+	return kt, nil
 }

@@ -1,6 +1,8 @@
 package msdsn
 
 import (
+	"io/ioutil"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -195,4 +197,44 @@ func TestConnParseRoundTripFixed(t *testing.T) {
 	if !reflect.DeepEqual(params, rtParams) {
 		t.Fatal("Parameters do not match after roundtrip", params, rtParams)
 	}
+}
+
+func TestInvalidConnectionStringKerberos(t *testing.T) {
+	connStrings := []string{
+		"server=server;port=1345;realm=domain;trustservercertificate=true;krb5conffile=/path/krb5.conf;",
+		"server=server;user id=user;password=pwd;port=1345;realm=domain;trustservercertificate=true;krb5conffile=/path/krb5.conf;",
+		"server=server;user id=user;password=pwd;port=1345;trustservercertificate=true;krb5conffile=/path/krb5.conf;keytabfile=/path/to/administrator2.keytab;",
+	}
+	for _, connStr := range connStrings {
+		_, _, err := Parse(connStr)
+		if err == nil {
+			t.Errorf("Connection expected to fail for connection string %s but it didn't", connStr)
+		}
+	}
+}
+
+func TestValidConnectionStringKerberos(t *testing.T) {
+	kerberosTestFile := createKrbFile(t)
+	defer os.Remove(kerberosTestFile)
+	connStrings := []string{
+		"server=server;user id=user;port=1345;realm=domain;trustservercertificate=true;krb5conffile=" + kerberosTestFile + ";keytabfile=" + kerberosTestFile,
+		"server=server;port=1345;realm=domain;trustservercertificate=true;krb5conffile=" + kerberosTestFile + ";krbcache=" + kerberosTestFile,
+	}
+	for _, connStr := range connStrings {
+		_, _, err := Parse(connStr)
+		if err == nil {
+			t.Errorf("Connection string %s should fail to parse with error %s", connStrings, err)
+		}
+	}
+}
+
+func createKrbFile(t *testing.T) string {
+	file, err := ioutil.TempFile("", "test-*.txt")
+	if err != nil {
+		t.Fatalf("Failed to create a temp file:%v",err)
+	}
+	if _, err := file.Write([]byte("This is a test file\n")); err != nil {
+		t.Fatalf("Failed to write file:%v",err)
+	}
+	return file.Name()
 }

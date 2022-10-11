@@ -113,6 +113,17 @@ type xmlInfo struct {
 	XmlSchemaCollection string
 }
 
+// Kerberos Client State
+type krb5ClientState int
+
+const (
+	// Initiator states
+	initiatorStart krb5ClientState = iota
+	initiatorRestart
+	initiatorWaitForMutal
+	initiatorReady
+)
+
 func readTypeInfo(r *tdsBuffer) (res typeInfo) {
 	res.TypeId = r.byte()
 	switch res.TypeId {

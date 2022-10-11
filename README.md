@@ -60,6 +60,16 @@ Other supported formats are listed below.
 * `Workstation ID` - The workstation name (default is the host name)
 * `ApplicationIntent` - Can be given the value `ReadOnly` to initiate a read-only connection to an Availability Group listener. The `database` must be specified when connecting with `Application Intent` set to `ReadOnly`.
 
+### Kerberos Parameters
+
+* `krb5conffile` - File path for kerberos configuration file.
+* `realm` - Domain name for kerberos authentication.
+* `keytabfile` - Keytab file path.
+* `krbcache` - Credential cache path.
+* For further information on usage: 
+  * <https://web.mit.edu/kerberos/krb5-1.12/doc/admin/conf_files/krb5_conf.html>
+  * <https://web.mit.edu/kerberos/krb5-1.12/doc/basic/index.html>
+
 ### The connection string can be specified in one of three formats
 
 1. URL: with `sqlserver` scheme. username and password appears before the host. Any instance appears as
@@ -88,12 +98,16 @@ Other supported formats are listed below.
     db, err := sql.Open("sqlserver", u.String())
 
     ```
-
+    * `sqlserver://username@host/instance?krb5conffile=path/to/file&krbcache=/path/to/cache`
+    * `sqlserver://username@host/instance?krb5conffile=path/to/file&realm=domain.com&keytabfile=/path/to/keytabfile`
+    
 2. ADO: `key=value` pairs separated by `;`. Values may not contain `;`, leading and trailing whitespace is ignored.
      Examples:
 
     * `server=localhost\\SQLExpress;user id=sa;database=master;app name=MyAppName`
     * `server=localhost;user id=sa;database=master;app name=MyAppName`
+    * `server=localhost;user id=sa;database=master;app name=MyAppName;krb5conffile=path/to/file;krbcache=path/to/cache`
+    * `server=localhost;user id=sa;database=master;app name=MyAppName;krb5conffile=path/to/file;realm=domain.com;keytabfile=path/to/keytabfile`
 
     ADO strings support synonyms for database, app name, user id, and server
     * server <= addr, address, network address, data source
@@ -113,6 +127,8 @@ Other supported formats are listed below.
     * `odbc:server=localhost;user id=sa;password=foo}bar`   // Literal `}`, password is "foo}bar"
     * `odbc:server=localhost;user id=sa;password={foo{bar}` // Literal `{`, password is "foo{bar"
     * `odbc:server=localhost;user id=sa;password={foo}}bar}` // Escaped `} with`}}`, password is "foo}bar"
+    * `odbc:server=localhost;user id=sa;database=master;app name=MyAppName;krb5conffile=path/to/file;krbcache=path/to/cache`
+    * `odbc:server=localhost;user id=sa;database=master;app name=MyAppName;krb5conffile=path/to/file;realm=domain.com;keytabfile=path/to/keytabfile`
 
 ### Azure Active Directory authentication
 
@@ -309,6 +325,7 @@ are supported:
 * Supports Single-Sign-On on Windows
 * Supports connections to AlwaysOn Availability Group listeners, including re-direction to read-only replicas.
 * Supports query notifications
+* Supports Kerberos Authentication
 
 ## Tests
 
