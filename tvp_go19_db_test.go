@@ -1351,27 +1351,27 @@ func TestTVPUnsigned(t *testing.T) {
 
 func TestTVPIdentity(t *testing.T) {
 	type TvpIdentityExample struct {
-		ID      *int `tvp:"@identity"`
+		ID      int `tvp:"@identity"`
 		Message string
 	}
 
 	const (
-		crateSchema = `create schema TestTVPSchema;`
+		crateSchema = `create schema TestTVPSchemaIdentity;`
 
-		dropSchema = `drop schema TestTVPSchema;`
+		dropSchema = `drop schema TestTVPSchemaIdentity;`
 
 		createTVP = `
-		CREATE TYPE TestTVPSchema.exempleTVP AS TABLE
+		CREATE TYPE TestTVPSchemaIdentity.exempleTVP AS TABLE
 		(
 		    id int  identity(1,1) not null,
 			message	NVARCHAR(100)
 		)`
 
-		dropTVP = `DROP TYPE TestTVPSchema.exempleTVP;`
+		dropTVP = `DROP TYPE TestTVPSchemaIdentity.exempleTVP;`
 
 		procedureWithTVP = `	
-	CREATE PROCEDURE ExecTVP
-		@param1 TestTVPSchema.exempleTVP READONLY
+	CREATE PROCEDURE ExecIdentityTVP
+		@param1 TestTVPSchemaIdentity.exempleTVP READONLY
 	AS   
 	BEGIN
 		SET NOCOUNT ON; 
@@ -1379,9 +1379,9 @@ func TestTVPIdentity(t *testing.T) {
 	END;
 	`
 
-		dropProcedure = `drop PROCEDURE ExecTVP`
+		dropProcedure = `drop PROCEDURE ExecIdentityTVP`
 
-		execTvp = `exec ExecTVP @param1;`
+		execTvp = `exec ExecIdentityTVP @param1;`
 	)
 
 	checkConnStr(t)
@@ -1419,18 +1419,21 @@ func TestTVPIdentity(t *testing.T) {
 
 	exempleData := []TvpIdentityExample{
 		{
+			ID:      1,
 			Message: "Hello",
 		},
 		{
+			ID:      2,
 			Message: "World",
 		},
 		{
+			ID:      3,
 			Message: "TVP",
 		},
 	}
 
 	tvpType := TVP{
-		TypeName: "TestTVPSchema.exempleTVP",
+		TypeName: "TestTVPSchemaIdentity.exempleTVP",
 		Value:    exempleData,
 	}
 
@@ -1451,5 +1454,11 @@ func TestTVPIdentity(t *testing.T) {
 		}
 		tvpResult = append(tvpResult, tvpExemple)
 	}
-	log.Println(tvpResult)
+
+	if len(exempleData) != len(tvpResult) {
+		t.Fatal("TestTVPIdentity have to be len")
+	}
+	if !reflect.DeepEqual(exempleData, tvpResult) {
+		t.Fatal("TestTVPIdentity have to be same")
+	}
 }
