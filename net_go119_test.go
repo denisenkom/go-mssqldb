@@ -1,5 +1,5 @@
-//go:build go1.17
-// +build go1.17
+//go:build go1.19
+// +build go1.19
 
 package mssql
 
