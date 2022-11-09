@@ -228,6 +228,8 @@ func (c *Conn) checkBadConn(ctx context.Context, err error, mayRetry bool) error
 		return nil
 	case io.EOF:
 		c.connectionGood = false
+	case ErrorCancelConfirmation:
+		c.connectionGood = false
 	case driver.ErrBadConn:
 		// It is an internal programming error if driver.ErrBadConn
 		// is ever passed to this function. driver.ErrBadConn should
