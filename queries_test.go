@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -1363,6 +1364,46 @@ func TestProcessQueryErrors(t *testing.T) {
 	// should not fail with ErrBadConn because query was successfully sent to server
 	if err == driver.ErrBadConn {
 		t.Error("processQueryResponse expected to fail with error other than ErrBadConn but it failed with it")
+	}
+
+	if conn.connectionGood {
+		t.Fatal("Connection should be in a bad state")
+	}
+}
+
+type mockReadWriteCloser struct {
+	io.ReadWriteCloser
+}
+
+func (*mockReadWriteCloser) Read([]byte) (int, error) { return 0, errors.New("fake err") }
+
+func TestProcessQueryCancelConfirmationError(t *testing.T) {
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	conn := internalConnection(t, &tl)
+	defer conn.Close()
+
+	stmt, err := conn.prepareContext(context.Background(), "select 1")
+	if err != nil {
+		t.Fatal("prepareContext expected to succeed, but it failed with", err)
+	}
+	err = stmt.sendQuery(context.Background(), []namedValue{})
+	if err != nil {
+		t.Fatal("sendQuery expected to succeed, but it failed with", err)
+	}
+	// mock real connection to imitate situation when you write but dont get response
+	conn.sess.buf.transport = &mockReadWriteCloser{ReadWriteCloser: conn.sess.buf.transport}
+	// canceling context to try to send attention request
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err = stmt.processQueryResponse(ctx)
+	if err == nil {
+		t.Error("processQueryResponse expected to fail but it succeeded")
+	}
+	// should not fail with ErrBadConn because query was successfully sent to server
+	if err != ErrorCancelConfirmation {
+		t.Error("processQueryResponse expected to fail with ErrorCancelConfirmation error but failed with other error: ", err)
 	}
 
 	if conn.connectionGood {
