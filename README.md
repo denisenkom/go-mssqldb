@@ -8,7 +8,7 @@
 
 Requires Go 1.8 or above.
 
-Install with `go get github.com/microsoft/go-mssqldb` .
+Install with `go install github.com/microsoft/go-mssqldb@latest`.
 
 ## Connection Parameters and DSN
 
