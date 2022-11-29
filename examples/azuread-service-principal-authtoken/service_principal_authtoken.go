@@ -1,13 +1,13 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"flag"
 	"fmt"
 	"log"
 
-	mssql "github.com/microsoft/go-mssqldb"
+	_ "github.com/microsoft/go-mssqldb"
+	"github.com/microsoft/go-mssqldb/azuread"
 )
 
 var (
@@ -32,14 +32,7 @@ func main() {
 	if *debug {
 		fmt.Printf(" connString:%s\n", connString)
 	}
-
-	tokenProviderWithCtx := func(ctx context.Context) (string, error) {
-		return "access_token", nil
-	}
-
-	connector, err := mssql.NewConnectorWithAccessTokenProvider(connString, tokenProviderWithCtx)
-	conn := sql.OpenDB(connector)
-
+	conn, err := sql.Open(azuread.DriverName, connString)
 	if err != nil {
 		log.Fatal("Open connection failed:", err.Error())
 	}

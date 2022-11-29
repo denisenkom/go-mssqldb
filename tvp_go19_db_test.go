@@ -1348,3 +1348,129 @@ func TestTVPUnsigned(t *testing.T) {
 		t.Errorf("third result set had wrong value expected: %s actual: %s", "test", result3)
 	}
 }
+
+func TestTVPIdentity(t *testing.T) {
+	type TvpIdentityExample struct {
+		ID      int `tvp:"@identity"`
+		Message string
+	}
+
+	const (
+		crateSchema = `create schema TestTVPSchemaIdentity;`
+
+		dropSchema = `drop schema TestTVPSchemaIdentity;`
+
+		createTVP = `
+		CREATE TYPE TestTVPSchemaIdentity.exempleTVP AS TABLE
+		(
+		    id int  identity(1,1) not null,
+			message	NVARCHAR(100)
+		)`
+
+		dropTVP = `DROP TYPE TestTVPSchemaIdentity.exempleTVP;`
+
+		procedureWithTVP = `	
+	CREATE PROCEDURE ExecIdentityTVP
+		@param1 TestTVPSchemaIdentity.exempleTVP READONLY
+	AS   
+	BEGIN
+		SET NOCOUNT ON; 
+		SELECT * FROM @param1;
+	END;
+	`
+
+		dropProcedure = `drop PROCEDURE ExecIdentityTVP`
+
+		execTvp = `exec ExecIdentityTVP @param1;`
+	)
+
+	checkConnStr(t)
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
+
+	p := makeConnStr(t).String()
+	conn, err := sql.Open("sqlserver", p)
+	if err != nil {
+		log.Fatal("Open connection failed:", err.Error())
+	}
+	defer conn.Close()
+
+	_, err = conn.Exec(crateSchema)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	defer conn.Exec(dropSchema)
+
+	_, err = conn.Exec(createTVP)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	defer conn.Exec(dropTVP)
+
+	_, err = conn.Exec(procedureWithTVP)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	defer conn.Exec(dropProcedure)
+
+	exempleData := []TvpIdentityExample{
+		{
+			Message: "Hello",
+		},
+		{
+			Message: "World",
+		},
+		{
+			Message: "TVP",
+		},
+	}
+
+	tvpType := TVP{
+		TypeName: "TestTVPSchemaIdentity.exempleTVP",
+		Value:    exempleData,
+	}
+
+	rows, err := conn.Query(execTvp,
+		sql.Named("param1", tvpType),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+
+	tvpResult := make([]TvpIdentityExample, 0)
+	for rows.Next() {
+		tvpExemple := TvpIdentityExample{}
+		err = rows.Scan(&tvpExemple.ID, &tvpExemple.Message)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tvpResult = append(tvpResult, tvpExemple)
+	}
+
+	expectData := []TvpIdentityExample{
+		{
+			ID:      1,
+			Message: "Hello",
+		},
+		{
+			ID:      2,
+			Message: "World",
+		},
+		{
+			ID:      3,
+			Message: "TVP",
+		},
+	}
+
+	if len(expectData) != len(tvpResult) {
+		t.Fatal("TestTVPIdentity have to be len")
+	}
+	if !reflect.DeepEqual(expectData, tvpResult) {
+		t.Fatal("TestTVPIdentity have to be same")
+	}
+}

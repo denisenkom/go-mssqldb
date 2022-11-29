@@ -4,6 +4,8 @@
 [![Build status](https://ci.appveyor.com/api/projects/status/jrln8cs62wj9i0a2?svg=true)](https://ci.appveyor.com/project/microsoft/go-mssqldb)
 [![codecov](https://codecov.io/gh/microsoft/go-mssqldb/branch/master/graph/badge.svg)](https://codecov.io/gh/microsoft/go-mssqldb)
 
+For more recent updates, see the [Microsoft fork](https://github.com/microsoft/go-mssqldb).
+
 ## Install
 
 Requires Go 1.8 or above.
