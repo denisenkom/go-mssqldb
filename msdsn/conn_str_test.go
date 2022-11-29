@@ -203,7 +203,7 @@ func TestSplitConnectionStringURL(t *testing.T) {
 }
 
 func TestConnParseRoundTripFixed(t *testing.T) {
-	connStr := "sqlserver://sa:sa@localhost/sqlexpress?database=master&log=127&disableretry=true"
+	connStr := "sqlserver://sa:sa@localhost/sqlexpress?database=master&log=127&disableretry=true&dial+timeout=30"
 	params, err := Parse(connStr)
 	if err != nil {
 		t.Fatal("Test URL is not valid", err)

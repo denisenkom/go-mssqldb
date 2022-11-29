@@ -1499,7 +1499,7 @@ func TestLongConnection(t *testing.T) {
 		{"2", "00:00:01", 6 * time.Second, false},
 
 		// Check no connection timeout.
-		{"0", "00:00:01", 2 * time.Second, false},
+		{"0", "00:00:01", 6 * time.Second, false},
 		// {"0", "00:00:45", 60 * time.Second, false}, // Skip for normal testing to limit time.
 	}
 
@@ -1632,42 +1632,46 @@ func TestColumnTypeIntrospection(t *testing.T) {
 	defer conn.Close()
 	defer logger.StopLogging()
 	for _, tt := range tests {
-		rows, err := conn.Query("select " + tt.expr)
-		if err != nil {
-			t.Fatalf("Query failed with unexpected error %s", err)
-		}
-		defer rows.Close()
-		ct, err := rows.ColumnTypes()
-		if err != nil {
-			t.Fatalf("Query failed with unexpected error %s", err)
-		}
-		if ct[0].DatabaseTypeName() != tt.typeName {
-			t.Errorf("Expected type %s but returned %s", tt.typeName, ct[0].DatabaseTypeName())
-		}
-		size, ok := ct[0].Length()
-		if ok != tt.hasSize {
-			t.Errorf("Expected has size %v but returned %v for %s", tt.hasSize, ok, tt.expr)
-		} else {
-			if ok && size != tt.size {
-				t.Errorf("Expected size %d but returned %d for %s", tt.size, size, tt.expr)
+		t.Run(tt.expr, func(t *testing.T) {
+			rows, err := conn.Query("select " + tt.expr)
+			if err != nil {
+				t.Fatalf("Query failed with unexpected error %s", err)
 			}
-		}
+			// defer keyword is function scoped, so calling it inside a for loop within one function
+			// prevents the open connection from being reused in subsequent loop iterations
+			defer rows.Close()
+			ct, err := rows.ColumnTypes()
+			if err != nil {
+				t.Fatalf("Query failed with unexpected error %s", err)
+			}
+			if ct[0].DatabaseTypeName() != tt.typeName {
+				t.Errorf("Expected type %s but returned %s", tt.typeName, ct[0].DatabaseTypeName())
+			}
+			size, ok := ct[0].Length()
+			if ok != tt.hasSize {
+				t.Errorf("Expected has size %v but returned %v for %s", tt.hasSize, ok, tt.expr)
+			} else {
+				if ok && size != tt.size {
+					t.Errorf("Expected size %d but returned %d for %s", tt.size, size, tt.expr)
+				}
+			}
 
-		prec, scale, ok := ct[0].DecimalSize()
-		if ok != tt.hasPrecScale {
-			t.Errorf("Expected has prec/scale %v but returned %v for %s", tt.hasPrecScale, ok, tt.expr)
-		} else {
-			if ok && prec != tt.precision {
-				t.Errorf("Expected precision %d but returned %d for %s", tt.precision, prec, tt.expr)
+			prec, scale, ok := ct[0].DecimalSize()
+			if ok != tt.hasPrecScale {
+				t.Errorf("Expected has prec/scale %v but returned %v for %s", tt.hasPrecScale, ok, tt.expr)
+			} else {
+				if ok && prec != tt.precision {
+					t.Errorf("Expected precision %d but returned %d for %s", tt.precision, prec, tt.expr)
+				}
+				if ok && scale != tt.scale {
+					t.Errorf("Expected scale %d but returned %d for %s", tt.scale, scale, tt.expr)
+				}
 			}
-			if ok && scale != tt.scale {
-				t.Errorf("Expected scale %d but returned %d for %s", tt.scale, scale, tt.expr)
-			}
-		}
 
-		if ct[0].ScanType() != tt.reflType {
-			t.Errorf("Expected ScanType %v but got %v for %s", tt.reflType, ct[0].ScanType(), tt.expr)
-		}
+			if ct[0].ScanType() != tt.reflType {
+				t.Errorf("Expected ScanType %v but got %v for %s", tt.reflType, ct[0].ScanType(), tt.expr)
+			}
+		})
 	}
 }
 
@@ -2008,7 +2012,7 @@ func TestQueryCancelHighLevel(t *testing.T) {
 	defer logger.StopLogging()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	latency, _ := getLatency(t)
+	latency := getLatency(t)
 
 	go func() {
 		time.Sleep(latency + 500*time.Millisecond)
@@ -2029,35 +2033,38 @@ func TestQueryCancelHighLevel(t *testing.T) {
 }
 
 // returns the minimum time needed to connect to the server
-// Minimum return value is 1 ms, max is 2k ms
-func getLatency(t *testing.T) (latency time.Duration, increment time.Duration) {
-	latency = 1 * time.Millisecond
-	connstr := makeConnStr(t)
-	// .Host may not have a port
-	host := connstr.Hostname()
-	port := connstr.Port()
-	increment = 50 * time.Millisecond
-	if host == "." || host == "localhost" {
-		increment = 1 * time.Millisecond
+func getLatency(t *testing.T) time.Duration {
+	t.Helper()
+	params, err := msdsn.Parse(makeConnStr(t).String())
+	if err != nil {
+		t.Fatalf("Invalid connection string: %s", err.Error())
 	}
-	if port == "" {
-		port = "1433"
+	c := &Connector{params: params}
+	now := time.Now()
+	if err := queryBrowser(context.Background(), context.Background(), c, nil, &params); err != nil {
+		t.Fatalf("queryBrowser failed: %s", err.Error())
 	}
-	for latency < 2000*time.Millisecond {
-		t.Logf("Dialing host %s with timeout %s", host, latency)
-		_, err := net.DialTimeout("tcp", host+":"+port, latency)
-		if err == nil {
-			return latency, increment
-		}
-		if oe, ok := err.(*net.OpError); ok {
-			if !oe.Timeout() {
-				t.Logf("Got non-timeout error %s", oe.Error())
-				return latency, increment
+	// Dialing both tcp and np for a named-pipes only connection takes a long time
+	if len(params.Protocols) > 1 && testing.Short() {
+		t.Skip("short")
+	}
+	for _, protocol := range params.Protocols {
+		dialer := msdsn.ProtocolDialers[protocol]
+		sqlDialer, ok := dialer.(MssqlProtocolDialer)
+		if !ok {
+			conn, err := dialer.DialConnection(context.Background(), params)
+			if err == nil {
+				conn.Close()
 			}
-			latency += increment
+		} else {
+			conn, err := sqlDialer.DialSqlConnection(context.Background(), c, params)
+			if err == nil {
+				conn.Close()
+			}
 		}
+
 	}
-	return latency, increment
+	return time.Since(now)
 }
 
 func TestQueryTimeout(t *testing.T) {
@@ -2065,7 +2072,7 @@ func TestQueryTimeout(t *testing.T) {
 	defer conn.Close()
 	defer logger.StopLogging()
 	// 2 seconds should be enough time to complete the login
-	latency, _ := getLatency(t)
+	latency := getLatency(t)
 	ctx, cancel := context.WithTimeout(context.Background(), latency+2000*time.Millisecond)
 	defer cancel()
 	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:20'")
@@ -2089,9 +2096,9 @@ func TestLoginTimeout(t *testing.T) {
 	defer logger.StopLogging()
 	// Try to timeout during the login using a small delta from raw connect time
 	// In environments where latency is really low this degenerates into TestQueryTimeout
-	latency, increment := getLatency(t)
+	latency := getLatency(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), latency+(2*increment))
+	ctx, cancel := context.WithTimeout(context.Background(), latency+200*time.Millisecond)
 	defer cancel()
 	_, err := conn.ExecContext(ctx, "waitfor delay '00:00:03'")
 	t.Logf("Got error type %v: %s ", reflect.TypeOf(err), err.Error())
@@ -2288,6 +2295,8 @@ func TestDisconnect1(t *testing.T) {
 	if testing.Short() {
 		t.Skip("short")
 	}
+
+	skipIfNamedPipesEnabled(t)
 	checkConnStr(t)
 	tl := testLogger{t: t}
 	defer tl.StopLogging()
@@ -2344,6 +2353,7 @@ func TestDisconnect1(t *testing.T) {
 // TestDisconnect2 tests a read error so the query is started
 // but results cannot be read.
 func TestDisconnect2(t *testing.T) {
+	skipIfNamedPipesEnabled(t)
 	if testing.Short() {
 		t.Skip("short")
 	}
@@ -2351,7 +2361,7 @@ func TestDisconnect2(t *testing.T) {
 	tl := testLogger{t: t}
 	defer tl.StopLogging()
 	SetLogger(&tl)
-	latency, _ := getLatency(t)
+	latency := getLatency(t)
 
 	// Revert to the normal dialer after the test is done.
 	normalCreateDialer := createDialer
@@ -2420,6 +2430,7 @@ func TestDisconnect3(t *testing.T) {
 	if testing.Short() {
 		t.Skip("short")
 	}
+	skipIfNamedPipesEnabled(t)
 	checkConnStr(t)
 	tl := testLogger{t: t}
 	defer tl.StopLogging()
@@ -2703,5 +2714,12 @@ func TestTypeSizesFromQuery(t *testing.T) {
 	l, ok = c[2].Length()
 	if !ok || l != 30 {
 		t.Errorf("VARBINARY(30) reported as (variable, length): (%v, %d)", ok, l)
+	}
+}
+
+func skipIfNamedPipesEnabled(t *testing.T) {
+	t.Helper()
+	if len(msdsn.ProtocolParsers) > 1 {
+		t.Skip("Skipping test due to named pipes dialer")
 	}
 }

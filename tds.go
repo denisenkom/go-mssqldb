@@ -10,7 +10,6 @@ import (
 	"io/ioutil"
 	"net"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf16"
@@ -20,8 +19,8 @@ import (
 	"github.com/microsoft/go-mssqldb/msdsn"
 )
 
-func parseInstances(msg []byte) map[string]map[string]string {
-	results := map[string]map[string]string{}
+func parseInstances(msg []byte) msdsn.BrowserData {
+	results := msdsn.BrowserData{}
 	if len(msg) > 3 && msg[0] == 5 {
 		out_s := string(msg[3:])
 		tokens := strings.Split(out_s, ";")
@@ -49,8 +48,8 @@ func parseInstances(msg []byte) map[string]map[string]string {
 	return results
 }
 
-func getInstances(ctx context.Context, d Dialer, address string) (map[string]map[string]string, error) {
-	conn, err := d.DialContext(ctx, "udp", address+":1434")
+func getInstances(ctx context.Context, d Dialer, address string) (msdsn.BrowserData, error) {
+	conn, err := d.DialContext(ctx, "udp", net.JoinHostPort(address, "1434"))
 	if err != nil {
 		return nil, err
 	}
@@ -837,70 +836,30 @@ func sendAttention(buf *tdsBuffer) error {
 	return buf.FinishPacket()
 }
 
-// SQL Server AlwaysOn Availability Group Listeners are bound by DNS to a
-// list of IP addresses.  So if there is more than one, try them all and
-// use the first one that allows a connection.
-func dialConnection(ctx context.Context, c *Connector, p msdsn.Config) (conn net.Conn, err error) {
-	var ips []net.IP
-	ip := net.ParseIP(p.Host)
-	if ip == nil {
-		ips, err = net.LookupIP(p.Host)
-		if err != nil {
+// Makes an attempt to connect with each available protocol, in order, until one succeeds or the timeout elapses
+func dialConnection(ctx context.Context, c *Connector, p msdsn.Config, logger ContextLogger) (conn net.Conn, err error) {
+	for _, protocol := range p.Protocols {
+		dialer := msdsn.ProtocolDialers[protocol]
+		sqlDialer, ok := dialer.(MssqlProtocolDialer)
+		if logger != nil {
+			logger.Log(ctx, msdsn.LogDebug, "Dialing with protocol "+protocol)
+		}
+		if !ok {
+			conn, err = dialer.DialConnection(ctx, p)
+		} else {
+			conn, err = sqlDialer.DialSqlConnection(ctx, c, p)
+		}
+		if err != nil && logger != nil {
+			logger.Log(ctx, msdsn.LogErrors, "Unable to connect with protocol "+protocol+":"+err.Error())
+		}
+		if conn != nil {
+			if logger != nil {
+				logger.Log(ctx, msdsn.LogDebug, "Returning connection from protocol "+protocol)
+			}
 			return
 		}
-	} else {
-		ips = []net.IP{ip}
 	}
-	if len(ips) == 1 {
-		d := c.getDialer(&p)
-		addr := net.JoinHostPort(ips[0].String(), strconv.Itoa(int(resolveServerPort(p.Port))))
-		conn, err = d.DialContext(ctx, "tcp", addr)
-
-	} else {
-		//Try Dials in parallel to avoid waiting for timeouts.
-		connChan := make(chan net.Conn, len(ips))
-		errChan := make(chan error, len(ips))
-		portStr := strconv.Itoa(int(resolveServerPort(p.Port)))
-		for _, ip := range ips {
-			go func(ip net.IP) {
-				d := c.getDialer(&p)
-				addr := net.JoinHostPort(ip.String(), portStr)
-				conn, err := d.DialContext(ctx, "tcp", addr)
-				if err == nil {
-					connChan <- conn
-				} else {
-					errChan <- err
-				}
-			}(ip)
-		}
-		// Wait for either the *first* successful connection, or all the errors
-	wait_loop:
-		for i := range ips {
-			select {
-			case conn = <-connChan:
-				// Got a connection to use, close any others
-				go func(n int) {
-					for i := 0; i < n; i++ {
-						select {
-						case conn := <-connChan:
-							conn.Close()
-						case <-errChan:
-						}
-					}
-				}(len(ips) - i - 1)
-				// Remove any earlier errors we may have collected
-				err = nil
-				break wait_loop
-			case err = <-errChan:
-			}
-		}
-	}
-	// Can't do the usual err != nil check, as it is possible to have gotten an error before a successful connection
-	if conn == nil {
-		f := "unable to open tcp connection with host '%v:%v': %v"
-		return nil, fmt.Errorf(f, p.Host, resolveServerPort(p.Port), err.Error())
-	}
-	return conn, err
+	return
 }
 
 func preparePreloginFields(p msdsn.Config, fe *featureExtFedAuth) map[uint8][]byte {
@@ -1029,12 +988,58 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger Cont
 	return l, nil
 }
 
+func queryBrowser(ctx context.Context, dialCtx context.Context, c *Connector, logger ContextLogger, p *msdsn.Config) error {
+	var instances msdsn.BrowserData
+	var err error
+	pErrors := make(map[string]error)
+	for _, protocol := range p.Protocols {
+		pd, ok := msdsn.ProtocolDialers[protocol]
+		if !ok {
+			return fmt.Errorf("No dialer is configured for protocol '%s'", protocol)
+		}
+		if pd.CallBrowser(p) {
+			if instances == nil {
+				d := c.getDialer(p)
+				instances, err = getInstances(dialCtx, d, p.Host)
+				if err != nil {
+					f := "unable to get instances from Sql Server Browser on host %v: %v"
+					return fmt.Errorf(f, p.Host, err.Error())
+				}
+			}
+			pErr := pd.ParseBrowserData(instances, p)
+			if pErr != nil {
+				pErrors[protocol] = pErr
+				if logger != nil {
+					logger.Log(ctx, msdsn.Log(logErrors), "Removing protocol "+protocol+" from dialers. Error:"+pErr.Error())
+				}
+			}
+		}
+	}
+	// If any dialer got an error parsing instances, remove it from the dialer list
+	// If no dialers are left, return an error
+	if len(pErrors) == len(p.Protocols) {
+		return fmt.Errorf("Unable to find a matching instance for any supported protocol on host %v", p.Host)
+	}
+	if len(pErrors) > 0 {
+		validProtocols := make([]string, len(p.Protocols)-len(pErrors))
+		i := 0
+		for _, protocol := range p.Protocols {
+			_, hasError := pErrors[protocol]
+			if !hasError {
+				validProtocols[i] = protocol
+				i++
+			}
+		}
+	}
+	return nil
+}
+
 func connect(ctx context.Context, c *Connector, logger ContextLogger, p msdsn.Config) (res *tdsSession, err error) {
 	dialCtx := ctx
 	if p.DialTimeout >= 0 {
 		dt := p.DialTimeout
 		if dt == 0 {
-			dt = 15 * time.Second
+			dt = time.Duration(15*len(p.Protocols)) * time.Second
 		}
 		var cancel func()
 		dialCtx, cancel = context.WithTimeout(ctx, dt)
@@ -1047,29 +1052,12 @@ func connect(ctx context.Context, c *Connector, logger ContextLogger, p msdsn.Co
 		// when port is specified instance name is not used
 		// you should not provide instance name when you provide port
 		logger.Log(ctx, msdsn.LogDebug, "WARN: You specified both instance name and port in the connection string, port will be used and instance name will be ignored")
-	} else if len(p.Instance) > 0 && p.Port == 0 {
-		// If instance is specified, but no port, check SQL Server Browser
-		// for the instance and discover its port.
-		p.Instance = strings.ToUpper(p.Instance)
-		d := c.getDialer(&p)
-		instances, err := getInstances(dialCtx, d, p.Host)
-		if err != nil {
-			f := "unable to get instances from Sql Server Browser on host %v: %v"
-			return nil, fmt.Errorf(f, p.Host, err.Error())
-		}
-		strport, ok := instances[p.Instance]["tcp"]
-		if !ok {
-			f := "no instance matching '%v' returned from host '%v'"
-			return nil, fmt.Errorf(f, p.Instance, p.Host)
-		}
-		port, err := strconv.ParseUint(strport, 0, 16)
-		if err != nil {
-			f := "invalid tcp port returned from Sql Server Browser '%v': %v"
-			return nil, fmt.Errorf(f, strport, err.Error())
-		}
-		p.Port = port
 	}
 
+	err = queryBrowser(ctx, dialCtx, c, logger, &p)
+	if err != nil {
+		return nil, err
+	}
 	if p.Port == 0 {
 		p.Port = defaultServerPort
 	}
@@ -1089,7 +1077,7 @@ func connect(ctx context.Context, c *Connector, logger ContextLogger, p msdsn.Co
 	}
 
 initiate_connection:
-	conn, err := dialConnection(dialCtx, c, p)
+	conn, err := dialConnection(dialCtx, c, p, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -1278,12 +1266,4 @@ initiate_connection:
 		goto initiate_connection
 	}
 	return &sess, nil
-}
-
-func resolveServerPort(port uint64) uint64 {
-	if port == 0 {
-		return defaultServerPort
-	}
-
-	return port
 }

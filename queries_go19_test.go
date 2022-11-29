@@ -746,6 +746,7 @@ func TestParamNoName(t *testing.T) {
 //
 // Issue https://github.com/denisenkom/go-mssqldb/issues/166
 func TestTLSServerReadClose(t *testing.T) {
+	skipIfNamedPipesEnabled(t)
 	query := `
 with
     config_cte (config) as (
@@ -1079,7 +1080,7 @@ func TestMessageQueue(t *testing.T) {
 	defer conn.Close()
 	defer logger.StopLogging()
 	retmsg := &sqlexp.ReturnMessage{}
-	latency, _ := getLatency(t)
+	latency := getLatency(t)
 	ctx, cancel := context.WithTimeout(context.Background(), latency+200000*time.Millisecond)
 	defer cancel()
 	rows, err := conn.QueryContext(ctx, "PRINT 'msg1'; select 100 as c; PRINT 'msg2'", retmsg)
@@ -1261,7 +1262,7 @@ func TestTimeoutWithNoResults(t *testing.T) {
 	defer conn.Close()
 	defer logger.StopLogging()
 
-	latency, _ := getLatency(t)
+	latency := getLatency(t)
 	ctx, cancel := context.WithTimeout(context.Background(), latency+5000*time.Millisecond)
 	defer cancel()
 	retmsg := &sqlexp.ReturnMessage{}
@@ -1299,21 +1300,27 @@ func TestCancelWithNoResults(t *testing.T) {
 	defer conn.Close()
 	defer logger.StopLogging()
 
-	latency, _ := getLatency(t)
-	ctx, cancel := context.WithTimeout(context.Background(), latency+5000*time.Millisecond)
+	latency := getLatency(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), latency+15000*time.Millisecond)
 	retmsg := &sqlexp.ReturnMessage{}
+	t.Logf("Calling QueryContext")
 	r, err := conn.QueryContext(ctx, `waitfor delay '00:00:15'; select 100`, retmsg)
+	t.Logf("QueryContext returned")
 	if err != nil {
 		cancel()
 		t.Fatal(err.Error())
 	}
 	defer r.Close()
-	time.Sleep(latency + 100*time.Millisecond)
+	// QueryContext doesn't return until the connection is established
+	time.Sleep(100 * time.Millisecond)
+	t.Logf("Calling Cancel")
 	cancel()
+	t.Logf("Cancel returned")
 	active := true
 	for active {
 		msg := retmsg.Message(ctx)
-		t.Logf("Got a message: %s", reflect.TypeOf(msg))
+		t.Logf("%v Got a message: %s", time.Now(), reflect.TypeOf(msg))
 		switch m := msg.(type) {
 		case sqlexp.MsgNextResultSet:
 			active = r.NextResultSet()
@@ -1371,7 +1378,7 @@ func TestSprocWithCursorNoResult(t *testing.T) {
 		t.Fatalf("Unable to create test sproc: %v", e)
 	}
 	defer conn.Exec(DropSprocWithCursor)
-	latency, _ := getLatency(t)
+	latency := getLatency(t)
 	ctx, cancel := context.WithTimeout(context.Background(), latency+500*time.Millisecond)
 	defer cancel()
 	retmsg := &sqlexp.ReturnMessage{}
@@ -1415,7 +1422,7 @@ func TestErrorAsLastResult(t *testing.T) {
 	conn, logger := open(t)
 	defer conn.Close()
 	defer logger.StopLogging()
-	latency, _ := getLatency(t)
+	latency := getLatency(t)
 	ctx, cancel := context.WithTimeout(context.Background(), latency+5000*time.Millisecond)
 	defer cancel()
 	retmsg := &sqlexp.ReturnMessage{}

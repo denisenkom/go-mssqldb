@@ -14,4 +14,5 @@ require (
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8 // indirect
 	golang.org/x/crypto v0.0.0-20220511200225-c6db032c6c88
 	golang.org/x/sys v0.0.0-20220224120231-95c6836cb0e7 // indirect
+	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 )

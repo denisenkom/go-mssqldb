@@ -41,6 +41,7 @@ func init() {
 		}
 		return netDialer{&net.Dialer{KeepAlive: ka}}
 	}
+	msdsn.ProtocolDialers["tcp"] = tcpDialer{}
 }
 
 var createDialer func(p *msdsn.Config) Dialer

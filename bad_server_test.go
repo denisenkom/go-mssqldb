@@ -47,7 +47,7 @@ func testBadServer(t *testing.T, handler func(net.Conn)) {
 	tl := testLogger{t: t}
 	defer tl.StopLogging()
 	SetLogger(&tl)
-	testConnectionBad(t, fmt.Sprintf("host=%s;port=%d;log=255", addr.IP.String(), addr.Port))
+	_ = testConnectionBad(t, fmt.Sprintf("host=%s;port=%d;log=255;protocol=tcp", addr.IP.String(), addr.Port))
 }
 
 func TestBadServerCloseConnection(t *testing.T) {

@@ -1,3 +1,4 @@
+//go:build go1.10
 // +build go1.10
 
 package mssql
@@ -79,7 +80,7 @@ func TestNewAccessTokenConnector(t *testing.T) {
 
 func TestAccessTokenConnectorFailsToConnectIfNoAccessToken(t *testing.T) {
 	errorText := "This is a test"
-	dsn := "Server=server.database.windows.net;Database=db"
+	dsn := "Server=tcp:server.database.windows.net;Database=db"
 	tp := func() (string, error) { return "", errors.New(errorText) }
 	sut, err := NewAccessTokenConnector(dsn, tp)
 	if err != nil {

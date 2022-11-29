@@ -233,14 +233,22 @@ func GetConnParams() (*msdsn.Config, error) {
 		return &params, nil
 	}
 	if len(os.Getenv("HOST")) > 0 && len(os.Getenv("DATABASE")) > 0 {
-		return &msdsn.Config{
-			Host:     os.Getenv("HOST"),
-			Instance: os.Getenv("INSTANCE"),
-			Database: os.Getenv("DATABASE"),
-			User:     os.Getenv("SQLUSER"),
-			Password: os.Getenv("SQLPASSWORD"),
-			LogFlags: logFlags,
-		}, nil
+		c := &msdsn.Config{
+			Host:       os.Getenv("HOST"),
+			Instance:   os.Getenv("INSTANCE"),
+			Database:   os.Getenv("DATABASE"),
+			User:       os.Getenv("SQLUSER"),
+			Password:   os.Getenv("SQLPASSWORD"),
+			LogFlags:   logFlags,
+			Parameters: make(map[string]string),
+		}
+		if c.Instance == "" {
+			c.Instance = os.Getenv("SQLINSTANCE")
+		}
+		if os.Getenv("PROTOCOL") != "" {
+			c.Parameters["protocol"] = os.Getenv("PROTOCOL")
+		}
+		return c, nil
 	}
 	// try loading connection string from file
 	f, err := os.Open(".connstr")
@@ -358,6 +366,7 @@ func TestConnectViaIp(t *testing.T) {
 	if params.Encryption == msdsn.EncryptionRequired {
 		t.Skip("Unable to test connection to IP for servers that expect encryption")
 	}
+	skipIfNamedPipesEnabled(t)
 
 	if params.Host == "." {
 		params.Host = "127.0.0.1"
@@ -576,14 +585,14 @@ func TestBadCredentials(t *testing.T) {
 	params := testConnParams(t)
 	params.Password = "padpwd"
 	params.User = "baduser"
-	testConnectionBad(t, params.URL().String())
+	_ = testConnectionBad(t, params.URL().String())
 }
 
 func TestBadHost(t *testing.T) {
 	params := testConnParams(t)
 	params.Host = "badhost"
 	params.Instance = ""
-	testConnectionBad(t, params.URL().String())
+	_ = testConnectionBad(t, params.URL().String())
 }
 
 func TestSqlBrowserNotUsedIfPortSpecified(t *testing.T) {
@@ -593,6 +602,8 @@ func TestSqlBrowserNotUsedIfPortSpecified(t *testing.T) {
 	params := testConnParams(t)
 	params.Host = "badhost"
 	params.Instance = "foobar"
+	protocols := params.Protocols
+	params.Protocols = []string{"tcp"}
 
 	// Specify no port, so error must indicate SQL Browser lookup failed
 	params.Port = 0 // No port spcified, sql browser should be used
@@ -605,6 +616,7 @@ func TestSqlBrowserNotUsedIfPortSpecified(t *testing.T) {
 
 	// Specify port, ensure error does not indicate SQL Browser lookup failed
 	params.Port = 1500 // Specify a port, sql browser should not be tried
+	params.Protocols = protocols
 	err = testConnectionBad(t, params.URL().String())
 
 	if strings.Contains(err.Error(), errorSubstrStringToCheckFor) {

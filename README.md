@@ -22,7 +22,7 @@ Other supported formats are listed below.
 * `password`
 * `database`
 * `connection timeout` - in seconds (default is 0 for no timeout), set to 0 for no timeout. Recommended to set to 0 and use context to manage query and connection timeouts.
-* `dial timeout` - in seconds (default is 15), set to 0 for no timeout
+* `dial timeout` - in seconds (default is 15 times the number of registered protocols), set to 0 for no timeout.
 * `encrypt`
   * `disable` - Data send between client and server is not encrypted.
   * `false` - Data sent between client and server is not encrypted beyond the login packet. (Default)
@@ -358,6 +358,8 @@ db.QueryContext(ctx, `select * from t2 where user_name = @p1;`, mssql.VarChar(na
 * Supports connections to AlwaysOn Availability Group listeners, including re-direction to read-only replicas.
 * Supports query notifications
 * Supports Kerberos Authentication
+* Pluggable Dialer implementations through `msdsn.ProtocolParsers` and `msdsn.ProtocolDialers`
+* A `namedpipe` package to support connections using named pipes on Windows
 
 ## Tests
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"strconv"
 
 	"github.com/golang-sql/sqlexp"
@@ -673,6 +674,13 @@ func processSingleResponse(ctx context.Context, sess *tdsSession, ch chan tokenS
 	if err != nil {
 		if sess.logFlags&logErrors != 0 {
 			sess.logger.Log(ctx, msdsn.LogErrors, fmt.Sprintf("BeginRead failed %v", err))
+		}
+		switch e := err.(type) {
+		case *net.OpError:
+			err = e
+		default:
+			// the named pipe provider returns a raw win32 error so fake an OpError
+			err = &net.OpError{Op: "Read", Err: err}
 		}
 		ch <- err
 		return
