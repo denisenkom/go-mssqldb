@@ -27,9 +27,10 @@ const (
 	ActiveDirectoryMSI             = "ActiveDirectoryMSI"
 	ActiveDirectoryManagedIdentity = "ActiveDirectoryManagedIdentity"
 	// ActiveDirectoryApplication is a synonym for ActiveDirectoryServicePrincipal
-	ActiveDirectoryApplication      = "ActiveDirectoryApplication"
-	ActiveDirectoryServicePrincipal = "ActiveDirectoryServicePrincipal"
-	scopeDefaultSuffix              = "/.default"
+	ActiveDirectoryApplication                 = "ActiveDirectoryApplication"
+	ActiveDirectoryServicePrincipal            = "ActiveDirectoryServicePrincipal"
+	ActiveDirectoryServicePrincipalAccessToken = "ActiveDirectoryServicePrincipalAccessToken"
+	scopeDefaultSuffix                         = "/.default"
 )
 
 type azureFedAuthConfig struct {
@@ -127,7 +128,14 @@ func (p *azureFedAuthConfig) validateParameters(params map[string]string) error 
 		p.user, _ = params["user id"]
 		// we don't really have a password but we need to use some value.
 		p.adalWorkflow = mssql.FedAuthADALWorkflowPassword
+	case strings.EqualFold(fedAuthWorkflow, ActiveDirectoryServicePrincipalAccessToken):
+		p.fedAuthLibrary = mssql.FedAuthLibrarySecurityToken
+		p.adalWorkflow = mssql.FedAuthADALWorkflowNone
+		p.password, _ = params["password"]
 
+		if p.password == "" {
+			return errors.New("Must provide 'password' parameter when using ActiveDirectoryApplicationAuthToken authentication")
+		}
 	default:
 		return fmt.Errorf("Invalid federated authentication type '%s': expected one of %+v",
 			fedAuthWorkflow,
@@ -181,6 +189,8 @@ func (p *azureFedAuthConfig) provideActiveDirectoryToken(ctx context.Context, se
 		default:
 			cred, err = azidentity.NewClientSecretCredential(tenant, p.clientID, p.clientSecret, nil)
 		}
+	case ActiveDirectoryServicePrincipalAccessToken:
+		return p.password, nil
 	case ActiveDirectoryPassword:
 		cred, err = azidentity.NewUsernamePasswordCredential(tenant, p.applicationClientID, p.user, p.password, nil)
 	case ActiveDirectoryMSI, ActiveDirectoryManagedIdentity:
