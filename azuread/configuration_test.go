@@ -102,13 +102,14 @@ func TestValidateParameters(t *testing.T) {
 				fedAuthWorkflow: ActiveDirectoryManagedIdentity,
 			},
 		},
+		{
 			name: "application with access token",
 			dsn:  "server=someserver.database.windows.net;fedauth=ActiveDirectoryServicePrincipalAccessToken;password=some-access-token;",
 			expected: &azureFedAuthConfig{
 				password:        accessToken,
 				adalWorkflow:    mssql.FedAuthADALWorkflowNone,
 				fedAuthWorkflow: ActiveDirectoryServicePrincipalAccessToken,
-				fedAuthLibrary: mssql.FedAuthLibrarySecurityToken,
+				fedAuthLibrary:  mssql.FedAuthLibrarySecurityToken,
 			},
 		},
 	}

@@ -1,13 +1,12 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"flag"
 	"fmt"
 	"log"
 
-	mssql "github.com/microsoft/go-mssqldb"
+	_ "github.com/microsoft/go-mssqldb"
 	"github.com/microsoft/go-mssqldb/azuread"
 )
 
