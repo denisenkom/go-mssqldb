@@ -3,7 +3,6 @@ package mssql
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -967,7 +966,7 @@ func (t tokenProcessor) nextToken() (tokenStruct, error) {
 		}
 		// we did not get cancellation confirmation, something is not
 		// right, this connection is not usable anymore
-		return nil, errors.New("did not get cancellation confirmation from the server")
+		return nil, ServerError{Error{Message: "did not get cancellation confirmation from the server"}}
 	}
 }
 
