@@ -6,10 +6,9 @@ import (
 	"net"
 	"reflect"
 	"strings"
-	"time"
 
+	"github.com/microsoft/go-mssqldb/internal/np"
 	"github.com/microsoft/go-mssqldb/msdsn"
-	"gopkg.in/natefinch/npipe.v2"
 )
 
 type namedPipeData struct {
@@ -56,16 +55,16 @@ func (n namedPipeDialer) ParseBrowserData(data msdsn.BrowserData, p *msdsn.Confi
 	return nil
 }
 
-func (n namedPipeDialer) DialConnection(ctx context.Context, p msdsn.Config) (conn net.Conn, err error) {
+func (n namedPipeDialer) DialConnection(ctx context.Context, p *msdsn.Config) (conn net.Conn, err error) {
 	data := p.ProtocolParameters[n.Protocol()]
 	switch d := data.(type) {
 	case namedPipeData:
-		dl, ok := ctx.Deadline()
-		if ok {
-			duration := dl.Sub(time.Now())
-			return npipe.DialTimeout(d.PipeName, duration)
+		serverSPN := p.ServerSPN
+		conn, serverSPN, err = np.DialConnection(ctx, d.PipeName, p.Host, p.Instance, serverSPN)
+		if err == nil && p.ServerSPN == "" {
+			p.ServerSPN = serverSPN
 		}
-		return npipe.Dial(d.PipeName)
+		return
 	}
 	return nil, fmt.Errorf("Unexpected protocol data specified for connection: %v", reflect.TypeOf(data))
 }

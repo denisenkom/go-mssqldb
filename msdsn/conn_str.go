@@ -276,10 +276,7 @@ func Parse(dsn string) (Config, error) {
 	serverSPN, ok := params["serverspn"]
 	if ok {
 		p.ServerSPN = serverSPN
-	} else {
-		// allow connections to sql server instances
-		p.ServerSPN = generateSpn(p.Host, instanceOrPort(p.Instance, p.Port))
-	}
+	} // If not set by the app, ServerSPN will be set by the successful dialer.
 
 	workstation, ok := params["workstation id"]
 	if ok {
@@ -649,16 +646,6 @@ func normalizeOdbcKey(s string) string {
 	return strings.ToLower(strings.TrimRightFunc(s, unicode.IsSpace))
 }
 
-func instanceOrPort(instance string, port uint64) string {
-	if len(instance) > 0 {
-		return instance
-	}
-
-	port = resolveServerPort(port)
-
-	return strconv.FormatInt(int64(port), 10)
-}
-
 const defaultServerPort = 1433
 
 func resolveServerPort(port uint64) uint64 {
@@ -667,10 +654,6 @@ func resolveServerPort(port uint64) uint64 {
 	}
 
 	return port
-}
-
-func generateSpn(host string, port string) string {
-	return fmt.Sprintf("MSSQLSvc/%s:%s", host, port)
 }
 
 // ProtocolParser can populate Config with parameters to dial using its protocol

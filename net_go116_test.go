@@ -70,7 +70,7 @@ func TestTLSHandshakeConn(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	toconn, err := dialConnection(ctx, connector, connector.params, nil)
+	toconn, err := dialConnection(ctx, connector, &connector.params, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -130,7 +130,7 @@ func TestPassthroughConn(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	toconn, err := dialConnection(ctx, connector, connector.params, nil)
+	toconn, err := dialConnection(ctx, connector, &connector.params, nil)
 	if err != nil {
 		t.Error(err)
 	}

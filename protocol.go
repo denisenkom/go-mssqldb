@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 
@@ -12,7 +13,7 @@ import (
 
 type MssqlProtocolDialer interface {
 	// DialSqlConnection creates a net.Conn from a Connector based on the Config
-	DialSqlConnection(ctx context.Context, c *Connector, p msdsn.Config) (conn net.Conn, err error)
+	DialSqlConnection(ctx context.Context, c *Connector, p *msdsn.Config) (conn net.Conn, err error)
 }
 
 type tcpDialer struct{}
@@ -35,14 +36,14 @@ func (t tcpDialer) ParseBrowserData(data msdsn.BrowserData, p *msdsn.Config) err
 	return nil
 }
 
-func (t tcpDialer) DialConnection(ctx context.Context, p msdsn.Config) (conn net.Conn, err error) {
+func (t tcpDialer) DialConnection(ctx context.Context, p *msdsn.Config) (conn net.Conn, err error) {
 	return nil, fmt.Errorf("tcp dialer requires a Connector instance")
 }
 
 // SQL Server AlwaysOn Availability Group Listeners are bound by DNS to a
 // list of IP addresses.  So if there is more than one, try them all and
 // use the first one that allows a connection.
-func (t tcpDialer) DialSqlConnection(ctx context.Context, c *Connector, p msdsn.Config) (conn net.Conn, err error) {
+func (t tcpDialer) DialSqlConnection(ctx context.Context, c *Connector, p *msdsn.Config) (conn net.Conn, err error) {
 	var ips []net.IP
 	ip := net.ParseIP(p.Host)
 	if ip == nil {
@@ -54,7 +55,7 @@ func (t tcpDialer) DialSqlConnection(ctx context.Context, c *Connector, p msdsn.
 		ips = []net.IP{ip}
 	}
 	if len(ips) == 1 {
-		d := c.getDialer(&p)
+		d := c.getDialer(p)
 		addr := net.JoinHostPort(ips[0].String(), strconv.Itoa(int(resolveServerPort(p.Port))))
 		conn, err = d.DialContext(ctx, "tcp", addr)
 
@@ -65,7 +66,7 @@ func (t tcpDialer) DialSqlConnection(ctx context.Context, c *Connector, p msdsn.
 		portStr := strconv.Itoa(int(resolveServerPort(p.Port)))
 		for _, ip := range ips {
 			go func(ip net.IP) {
-				d := c.getDialer(&p)
+				d := c.getDialer(p)
 				addr := net.JoinHostPort(ip.String(), portStr)
 				conn, err := d.DialContext(ctx, "tcp", addr)
 				if err == nil {
@@ -102,11 +103,22 @@ func (t tcpDialer) DialSqlConnection(ctx context.Context, c *Connector, p msdsn.
 		f := "unable to open tcp connection with host '%v:%v': %v"
 		return nil, fmt.Errorf(f, p.Host, resolveServerPort(p.Port), err.Error())
 	}
+	if p.ServerSPN == "" {
+		p.ServerSPN = generateSpn(p.Host, instanceOrPort(p.Instance, p.Port))
+	}
 	return conn, err
 }
 
 func (t tcpDialer) CallBrowser(p *msdsn.Config) bool {
 	return len(p.Instance) > 0 && p.Port == 0
+}
+
+func instanceOrPort(instance string, port uint64) string {
+	if len(instance) > 0 {
+		return instance
+	}
+	port = resolveServerPort(port)
+	return strconv.FormatInt(int64(port), 10)
 }
 
 func resolveServerPort(port uint64) uint64 {
@@ -115,4 +127,12 @@ func resolveServerPort(port uint64) uint64 {
 	}
 
 	return port
+}
+
+func generateSpn(host string, port string) string {
+	ip := net.ParseIP(host)
+	if ip != nil && ip.IsLoopback() {
+		host, _ = os.Hostname()
+	}
+	return fmt.Sprintf("MSSQLSvc/%s:%s", host, port)
 }

@@ -23,7 +23,7 @@ func (n namedPipeDialer) ParseBrowserData(data msdsn.BrowserData, p *msdsn.Confi
 	return fmt.Errorf("Named pipe connections are not supported on this operating system")
 }
 
-func (n namedPipeDialer) DialConnection(ctx context.Context, p msdsn.Config) (conn net.Conn, err error) {
+func (n namedPipeDialer) DialConnection(ctx context.Context, p *msdsn.Config) (conn net.Conn, err error) {
 
 	return nil, fmt.Errorf("Named pipe connections are not supported on this operating system")
 }

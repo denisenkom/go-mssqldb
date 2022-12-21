@@ -46,6 +46,7 @@ environment:
     - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
       GOVERSION: 118
       SQLINSTANCE: SQL2017
+      # Cover 32bit and named pipes protocol
     - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
       GOVERSION: 118-x86
       SQLINSTANCE: SQL2017
@@ -53,6 +54,14 @@ environment:
       RACE:
       PROTOCOL: np
       TAGS: -tags np
+      # Cover SSPI and lpc protocol
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
+      GOVERSION: 118
+      SQLINSTANCE: SQL2019
+      PROTOCOL: lpc
+      TAGS: -tags sm
+      SQLUSER:
+      SQLPASSWORD:
 install:
   - set GOROOT=c:\go%GOVERSION%
   - set PATH=%GOPATH%\bin;%GOROOT%\bin;%PATH%

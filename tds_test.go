@@ -218,9 +218,9 @@ func testConnParams(t testing.TB) msdsn.Config {
 // TestConnParams returns a connection configuration based on environment variables or the contents of a text file
 // Set environment variable SQLSERVER_DSN to provide an entire connection string
 // Set environment variables HOST and DATABASE from which a minimal config will be created.
-//  If HOST and DATABASE are set, you can optionally set INSTANCE, SQLUSER, and SQLPASSWORD as well
+// If HOST and DATABASE are set, you can optionally set INSTANCE, SQLUSER, and SQLPASSWORD as well
 // If environment variables are not set, it will look in the working directory for a file named .connstr
-//   If the file exists it will use the first line of the file as the file as the DSN
+// If the file exists it will use the first line of the file as the file as the DSN
 func GetConnParams() (*msdsn.Config, error) {
 	dsn := os.Getenv("SQLSERVER_DSN")
 	const logFlags = 127
@@ -366,7 +366,6 @@ func TestConnectViaIp(t *testing.T) {
 	if params.Encryption == msdsn.EncryptionRequired {
 		t.Skip("Unable to test connection to IP for servers that expect encryption")
 	}
-	skipIfNamedPipesEnabled(t)
 
 	if params.Host == "." {
 		params.Host = "127.0.0.1"
@@ -600,6 +599,7 @@ func TestSqlBrowserNotUsedIfPortSpecified(t *testing.T) {
 
 	// Connect to an instance on a host that doesn't exist (so connection will always expectedly fail)
 	params := testConnParams(t)
+	delete(params.Parameters, "protocol")
 	params.Host = "badhost"
 	params.Instance = "foobar"
 	protocols := params.Protocols
@@ -611,7 +611,7 @@ func TestSqlBrowserNotUsedIfPortSpecified(t *testing.T) {
 	err := testConnectionBad(t, params.URL().String())
 
 	if !strings.Contains(err.Error(), errorSubstrStringToCheckFor) {
-		t.Fatal("Connection should have tried to use SQL Browser")
+		t.Fatalf("Connection should have tried to use SQL Browser. Error:%s", err.Error())
 	}
 
 	// Specify port, ensure error does not indicate SQL Browser lookup failed
@@ -781,7 +781,7 @@ func TestUcs22str(t *testing.T) {
 
 var sideeffect_varchar string
 
-//ucs22str benchmarks
+// ucs22str benchmarks
 func BenchmarkUcs22strAscii(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		s, _ := ucs22str(encoded123Bytes)

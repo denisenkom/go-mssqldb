@@ -2093,12 +2093,12 @@ func getLatency(t *testing.T) time.Duration {
 		dialer := msdsn.ProtocolDialers[protocol]
 		sqlDialer, ok := dialer.(MssqlProtocolDialer)
 		if !ok {
-			conn, err := dialer.DialConnection(context.Background(), params)
+			conn, err := dialer.DialConnection(context.Background(), &params)
 			if err == nil {
 				conn.Close()
 			}
 		} else {
-			conn, err := sqlDialer.DialSqlConnection(context.Background(), c, params)
+			conn, err := sqlDialer.DialSqlConnection(context.Background(), c, &params)
 			if err == nil {
 				conn.Close()
 			}

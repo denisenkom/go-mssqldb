@@ -361,7 +361,8 @@ db.QueryContext(ctx, `select * from t2 where user_name = @p1;`, mssql.VarChar(na
 * Supports query notifications
 * Supports Kerberos Authentication
 * Pluggable Dialer implementations through `msdsn.ProtocolParsers` and `msdsn.ProtocolDialers`
-* A `namedpipe` package to support connections using named pipes on Windows
+* A `namedpipe` package to support connections using named pipes (np:) on Windows
+* A `sharedmemory` package to support connections using shared memory (lpc:) on Windows
 
 ## Tests
 
