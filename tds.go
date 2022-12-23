@@ -166,6 +166,14 @@ func (p keySlice) Len() int           { return len(p) }
 func (p keySlice) Less(i, j int) bool { return p[i] < p[j] }
 func (p keySlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
+type preloginOption struct {
+	token  byte
+	offset uint16
+	length uint16
+}
+
+var preloginOptionSize = binary.Size(preloginOption{})
+
 // http://msdn.microsoft.com/en-us/library/dd357559.aspx
 func writePrelogin(packetType packetType, w *tdsBuffer, fields map[uint8][]byte) error {
 	var err error
@@ -231,18 +239,69 @@ func readPrelogin(r *tdsBuffer) (map[uint8][]byte, error) {
 	offset := 0
 	results := map[uint8][]byte{}
 	for {
-		rec_type := struct_buf[offset]
-		if rec_type == preloginTERMINATOR {
+		// read prelogin option
+		plOption, err := readPreloginOption(struct_buf, offset)
+		if err != nil {
+			return nil, err
+		}
+
+		if plOption.token == preloginTERMINATOR {
 			break
 		}
 
-		rec_offset := binary.BigEndian.Uint16(struct_buf[offset+1:])
-		rec_len := binary.BigEndian.Uint16(struct_buf[offset+3:])
-		value := struct_buf[rec_offset : rec_offset+rec_len]
-		results[rec_type] = value
-		offset += 5
+		// read prelogin option data
+		value, err := readPreloginOptionData(plOption, struct_buf)
+		if err != nil {
+			return nil, err
+		}
+		results[plOption.token] = value
+
+		offset += preloginOptionSize
 	}
 	return results, nil
+}
+
+func readPreloginOption(buffer []byte, offset int) (*preloginOption, error) {
+	buffer_length := len(buffer)
+
+	// check if prelogin option record exists in buffer
+	if offset >= buffer_length {
+		return nil, fmt.Errorf("invalid buffer, invalid prelogin option")
+	}
+
+	rec_type := buffer[offset]
+	if rec_type == preloginTERMINATOR {
+		return &preloginOption{token: rec_type}, nil
+	}
+
+	// check if prelogin option exists in buffer
+	if offset+preloginOptionSize >= buffer_length {
+		return nil, fmt.Errorf("invalid buffer, invalid prelogin option")
+	}
+
+	plOption := &preloginOption{
+		token:  rec_type,
+		offset: binary.BigEndian.Uint16(buffer[offset+1:]),
+		length: binary.BigEndian.Uint16(buffer[offset+3:]),
+	}
+
+	return plOption, nil
+}
+
+func readPreloginOptionData(plOption *preloginOption, buffer []byte) ([]byte, error) {
+	buffer_length := len(buffer)
+	// check if prelogin option data exists in buffer
+	if plOption == nil || int(plOption.length+plOption.offset) > buffer_length ||
+		int(plOption.offset) >= buffer_length {
+		return nil, fmt.Errorf("invalid buffer, invalid prelogin option")
+	}
+
+	if plOption.token == preloginTERMINATOR {
+		return nil, fmt.Errorf("cannot read data for prelogin terminator record")
+	}
+
+	value := buffer[plOption.offset : plOption.length+plOption.offset]
+	return value, nil
 }
 
 // OptionFlags1

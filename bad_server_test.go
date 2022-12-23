@@ -119,6 +119,42 @@ func TestBadServerPreLoginPacketWithJustEncryptionField(t *testing.T) {
 	})
 }
 
+func TestBadServerPreLoginPacketWithInvalidOptions(t *testing.T) {
+	testBadServer(t, func(conn net.Conn) {
+		buf := newTdsBuffer(defaultPacketSize, conn)
+		preloginPacket := []byte{4, 1, 0, 32, 0, 0, 1}
+
+		_, err := buf.Write(preloginPacket)
+		if err != nil {
+			t.Fatal("Writing PRELOGIN packet failed", err)
+		}
+	})
+}
+
+func TestBadServerPreLoginPacketWithNoTerminator(t *testing.T) {
+	testBadServer(t, func(conn net.Conn) {
+		buf := newTdsBuffer(defaultPacketSize, conn)
+		preloginPacket := []byte{4, 1, 0, 32, 0, 0, 1, 0, 0, 0, 16, 0, 6, 1, 0, 22, 0, 1, 6, 0, 23, 0, 1, 0, 12, 0, 7, 208, 0, 0, 2, 1}
+
+		_, err := buf.Write(preloginPacket)
+		if err != nil {
+			t.Fatal("Writing PRELOGIN packet failed", err)
+		}
+	})
+}
+
+func TestBadServerPreLoginPacketWithMissingData(t *testing.T) {
+	testBadServer(t, func(conn net.Conn) {
+		buf := newTdsBuffer(defaultPacketSize, conn)
+		preloginPacket := []byte{4, 1, 0, 32, 0, 0, 1, 0, 0, 0, 16, 0, 6, 1, 0, 22, 0, 1, 6, 0, 23, 0, 1, 255, 12, 0, 7, 208, 0, 0, 2, 1}
+
+		_, err := buf.Write(preloginPacket)
+		if err != nil {
+			t.Fatal("Writing PRELOGIN packet failed", err)
+		}
+	})
+}
+
 func goodPreloginSequence(t *testing.T, buf *tdsBuffer) {
 	// read prelogin request
 	packetType, err := buf.BeginRead()
