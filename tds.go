@@ -936,9 +936,10 @@ func preparePreloginFields(p msdsn.Config, fe *featureExtFedAuth) map[uint8][]by
 	case msdsn.EncryptionOff:
 		encrypt = encryptOff
 	}
-
+	v := getDriverVersion(driverVersion)
 	fields := map[uint8][]byte{
-		preloginVERSION:    {0, 0, 0, 0, 0, 0},
+		// 4 bytes for version and 2 bytes for minor version
+		preloginVERSION:    {byte(v), byte(v >> 8), byte(v >> 16), byte(v >> 24), 0, 0},
 		preloginENCRYPTION: {encrypt},
 		preloginINSTOPT:    instance_buf,
 		preloginTHREADID:   {0, 0, 0, 0},
@@ -992,15 +993,17 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger Cont
 		serverName = p.Host
 	}
 	l = &login{
-		TDSVersion:   verTDS74,
-		PacketSize:   packetSize,
-		Database:     p.Database,
-		OptionFlags2: fODBC, // to get unlimited TEXTSIZE
-		OptionFlags1: fUseDB | fSetLang,
-		HostName:     p.Workstation,
-		ServerName:   serverName,
-		AppName:      p.AppName,
-		TypeFlags:    typeFlags,
+		TDSVersion:    verTDS74,
+		PacketSize:    packetSize,
+		Database:      p.Database,
+		OptionFlags2:  fODBC, // to get unlimited TEXTSIZE
+		OptionFlags1:  fUseDB | fSetLang,
+		HostName:      p.Workstation,
+		ServerName:    serverName,
+		AppName:       p.AppName,
+		TypeFlags:     typeFlags,
+		CtlIntName:    "go-mssqldb",
+		ClientProgVer: getDriverVersion(driverVersion),
 	}
 	switch {
 	case fe.FedAuthLibrary == FedAuthLibrarySecurityToken:

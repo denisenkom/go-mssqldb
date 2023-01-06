@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -951,4 +952,18 @@ func runBatch(t testing.TB, p msdsn.Config) {
 			return
 		}
 	}
+}
+
+func TestGetDriverVersion(t *testing.T) {
+	v := getDriverVersion("v1.20.3")
+	t.Logf("driverVersion %08x (%s)", v, versionToHexString(v))
+	if v != (1<<24)|(20<<16)|(3) {
+		t.Fatalf("Incorrect getDriverVersion. In: v1.20.3 Out: 0x%x", v)
+	}
+}
+
+func versionToHexString(v uint32) string {
+	b := make([]byte, 4)
+	binary.LittleEndian.PutUint32(b, v)
+	return hex.EncodeToString(b)
 }
