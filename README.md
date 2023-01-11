@@ -45,13 +45,15 @@ Other supported formats are listed below.
 * `packet size` - in bytes; 512 to 32767 (default is 4096)
   * Encrypted connections have a maximum packet size of 16383 bytes
   * Further information on usage: <https://docs.microsoft.com/en-us/sql/database-engine/configure-windows/configure-the-network-packet-size-server-configuration-option>
-* `log` - logging flags (default 0/no logging, 63 for full logging)
-  * 1 log errors
-  * 2 log messages
-  * 4 log rows affected
-  * 8 trace sql statements
-  * 16 log statement parameters
-  * 32 log transaction begin/end
+* `log` - logging flags (default `0`/no logging, `255` for full logging)
+  * `1` log errors
+  * `2` log messages
+  * `4` log rows affected
+  * `8` trace sql statements
+  * `16` log statement parameters
+  * `32` log transaction begin/end
+  * `64` additional debug logs
+  * `128` log retries
 * `TrustServerCertificate`
   * false - Server certificate is checked. Default is false if encrypt is specified.
   * true - Server certificate is not checked. Default is true if encrypt is not specified. If trust server certificate is true, driver accepts any certificate presented by the server and any host name in that certificate. In this mode, TLS is susceptible to man-in-the-middle attacks. This should be used only for testing.
