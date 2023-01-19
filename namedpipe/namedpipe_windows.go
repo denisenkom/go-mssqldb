@@ -15,12 +15,19 @@ type namedPipeData struct {
 	PipeName string
 }
 
+var azureDomains = []string{
+	".database.windows.net",
+	".database.chinacloudapi.cn",
+	".database.usgovcloudapi.net",
+}
+
 func (n namedPipeDialer) ParseServer(server string, p *msdsn.Config) error {
-	// assume a server name starting with \\ is the full named pipe path
-	if strings.HasPrefix(server, `\\`) {
-		p.ProtocolParameters[n.Protocol()] = &namedPipeData{PipeName: server}
-	} else if p.Port > 0 {
+	if p.Port > 0 {
 		return fmt.Errorf("Named pipes disallowed due to port being specified")
+	}
+	if strings.HasPrefix(server, `\\`) {
+		// assume a server name starting with \\ is the full named pipe path
+		p.ProtocolParameters[n.Protocol()] = namedPipeData{PipeName: server}
 	} else if p.Host == "" { // if the string specifies np:host\instance, tcpParser won't have filled in p.Host
 		parts := strings.SplitN(server, `\`, 2)
 		p.Host = parts[0]
@@ -30,6 +37,17 @@ func (n namedPipeDialer) ParseServer(server string, p *msdsn.Config) error {
 		if len(parts) > 1 {
 			p.Instance = parts[1]
 		}
+	} else {
+		host := strings.ToLower(p.Host)
+		for _, domain := range azureDomains {
+			if strings.HasSuffix(host, domain) {
+				return fmt.Errorf("Named pipes disallowed for Azure SQL Database connections")
+			}
+		}
+	}
+	pipe, ok := p.Parameters["pipe"]
+	if ok {
+		p.ProtocolParameters[n.Protocol()] = namedPipeData{PipeName: fmt.Sprintf(`\\%s\pipe\%s`, p.Host, pipe)}
 	}
 	return nil
 }
@@ -46,7 +64,11 @@ func (n namedPipeDialer) ParseBrowserData(data msdsn.BrowserData, p *msdsn.Confi
 	if instance == "" {
 		instance = "MSSQLSERVER"
 	}
-	pipename, ok := data[instance]["np"]
+	ok := len(data) > 0
+	pipename := ""
+	if ok {
+		pipename, ok = data[instance]["np"]
+	}
 	if !ok {
 		f := "no named pipe instance matching '%v' returned from host '%v'"
 		return fmt.Errorf(f, p.Instance, p.Host)

@@ -197,20 +197,6 @@ func Parse(dsn string) (Config, error) {
 		}
 		p.ConnTimeout = time.Duration(timeout) * time.Second
 	}
-	f := len(p.Protocols)
-	if f == 0 {
-		f = 1
-	}
-	p.DialTimeout = time.Duration(15*f) * time.Second
-	if strdialtimeout, ok := params["dial timeout"]; ok {
-		timeout, err := strconv.ParseUint(strdialtimeout, 10, 64)
-		if err != nil {
-			f := "invalid dial timeout '%v': %v"
-			return p, fmt.Errorf(f, strdialtimeout, err.Error())
-		}
-
-		p.DialTimeout = time.Duration(timeout) * time.Second
-	}
 
 	// default keep alive should be 30 seconds according to spec:
 	// https://msdn.microsoft.com/en-us/library/dd341108.aspx
@@ -353,6 +339,21 @@ func Parse(dsn string) (Config, error) {
 		return p, fmt.Errorf("No protocol handler is available for protocol: '%s'", protocol)
 	}
 
+	f := len(p.Protocols)
+	if f == 0 {
+		f = 1
+	}
+	p.DialTimeout = time.Duration(15*f) * time.Second
+	if strdialtimeout, ok := params["dial timeout"]; ok {
+		timeout, err := strconv.ParseUint(strdialtimeout, 10, 64)
+		if err != nil {
+			f := "invalid dial timeout '%v': %v"
+			return p, fmt.Errorf(f, strdialtimeout, err.Error())
+		}
+
+		p.DialTimeout = time.Duration(timeout) * time.Second
+	}
+
 	return p, nil
 }
 
@@ -374,6 +375,10 @@ func (p Config) URL() *url.URL {
 	protocol, ok := p.Parameters["protocol"]
 	if ok {
 		q.Add("protocol", protocol)
+	}
+	pipe, ok := p.Parameters["pipe"]
+	if ok {
+		q.Add("pipe", pipe)
 	}
 	res := url.URL{
 		Scheme: "sqlserver",

@@ -249,6 +249,9 @@ func GetConnParams() (*msdsn.Config, error) {
 		if os.Getenv("PROTOCOL") != "" {
 			c.Parameters["protocol"] = os.Getenv("PROTOCOL")
 		}
+		if os.Getenv("PIPE") != "" {
+			c.Parameters["pipe"] = os.Getenv("PIPE")
+		}
 		return c, nil
 	}
 	// try loading connection string from file
@@ -364,7 +367,7 @@ func TestConnect(t *testing.T) {
 
 func TestConnectViaIp(t *testing.T) {
 	params := testConnParams(t)
-	if params.Encryption == msdsn.EncryptionRequired {
+	if params.Encryption == msdsn.EncryptionRequired || strings.Contains(params.Host, "database.windows.net") {
 		t.Skip("Unable to test connection to IP for servers that expect encryption")
 	}
 
@@ -596,7 +599,7 @@ func TestBadHost(t *testing.T) {
 }
 
 func TestSqlBrowserNotUsedIfPortSpecified(t *testing.T) {
-	const errorSubstrStringToCheckFor = "unable to get instances from Sql Server Browser"
+	const errorSubstrStringToCheckFor = "instance matching 'foobar' returned from host 'badhost'"
 
 	// Connect to an instance on a host that doesn't exist (so connection will always expectedly fail)
 	params := testConnParams(t)
@@ -611,7 +614,7 @@ func TestSqlBrowserNotUsedIfPortSpecified(t *testing.T) {
 
 	err := testConnectionBad(t, params.URL().String())
 
-	if !strings.Contains(err.Error(), errorSubstrStringToCheckFor) {
+	if !strings.Contains(strings.ToLower(err.Error()), errorSubstrStringToCheckFor) {
 		t.Fatalf("Connection should have tried to use SQL Browser. Error:%s", err.Error())
 	}
 

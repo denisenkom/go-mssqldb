@@ -2082,9 +2082,6 @@ func getLatency(t *testing.T) time.Duration {
 	}
 	c := &Connector{params: params}
 	now := time.Now()
-	if err := queryBrowser(context.Background(), context.Background(), c, nil, &params); err != nil {
-		t.Fatalf("queryBrowser failed: %s", err.Error())
-	}
 	// Dialing both tcp and np for a named-pipes only connection takes a long time
 	if len(params.Protocols) > 1 && testing.Short() {
 		t.Skip("short")

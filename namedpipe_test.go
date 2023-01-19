@@ -4,6 +4,7 @@
 package mssql
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/microsoft/go-mssqldb/msdsn"
@@ -22,7 +23,7 @@ func TestNamedPipeProtocolInstalled(t *testing.T) {
 func TestNamedPipeConnection(t *testing.T) {
 	params := testConnParams(t)
 	protocol, ok := params.Parameters["protocol"]
-	if ok && protocol != "np" {
+	if (ok && protocol != "np") || strings.Contains(params.Host, "database.windows.net") {
 		t.Skip("Test is not running with named pipe protocol set")
 	}
 	conn, _ := open(t)
@@ -31,6 +32,6 @@ func TestNamedPipeConnection(t *testing.T) {
 		t.Fatalf("Unable to query connection protocol %s", err.Error())
 	}
 	if protocol != "Named pipe" {
-		t.Fatalf("Named pips connection not made. Protocol: %s", protocol)
+		t.Fatalf("Named pipe connection not made. Protocol: %s", protocol)
 	}
 }

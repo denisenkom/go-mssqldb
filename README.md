@@ -63,6 +63,22 @@ Other supported formats are listed below.
 * `ServerSPN` - The kerberos SPN (Service Principal Name) for the server. Default is MSSQLSvc/host:port.
 * `Workstation ID` - The workstation name (default is the host name)
 * `ApplicationIntent` - Can be given the value `ReadOnly` to initiate a read-only connection to an Availability Group listener. The `database` must be specified when connecting with `Application Intent` set to `ReadOnly`.
+* `protocol` - forces use of a protocol. Make sure the corresponding package is imported.
+
+### Connection parameters for namedpipe package
+* `pipe`  - If set, no Browser query is made and named pipe used will be `\\<host>\pipe\<pipe>`
+* `protocol` can be set to `np`
+* For a non-URL DSN, the `server` parameter can be set to the full pipe name like `\\host\pipe\sql\query`
+
+If no pipe name can be derived from the DSN, connection attempts will first query the SQL Browser service to find the pipe name for the instance.
+
+### Protocol configuration
+
+To force a specific protocol for the connection there two several options:
+1. Prepend the server name in a DSN with the protocol and a colon, like `np:host` or `lpc:host` or `tcp:host`
+2. Set the `protocol` parameter to the protocol name
+
+`msdsn.ProtocolParsers` can be reordered to prioritize other protocols ahead of `tcp`
 
 ### Kerberos Active Directory authentication outside Windows
 The package supports authentication via 3 methods.

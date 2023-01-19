@@ -50,20 +50,21 @@ func parseInstances(msg []byte) msdsn.BrowserData {
 
 func getInstances(ctx context.Context, d Dialer, address string) (msdsn.BrowserData, error) {
 	conn, err := d.DialContext(ctx, "udp", net.JoinHostPort(address, "1434"))
+	emptyInstances := msdsn.BrowserData{}
 	if err != nil {
-		return nil, err
+		return emptyInstances, err
 	}
 	defer conn.Close()
 	deadline, _ := ctx.Deadline()
 	conn.SetDeadline(deadline)
 	_, err = conn.Write([]byte{3})
 	if err != nil {
-		return nil, err
+		return emptyInstances, err
 	}
 	var resp = make([]byte, 16*1024-1)
 	read, err := conn.Read(resp)
 	if err != nil {
-		return nil, err
+		return emptyInstances, err
 	}
 	return parseInstances(resp[:read]), nil
 }
@@ -897,8 +898,26 @@ func sendAttention(buf *tdsBuffer) error {
 
 // Makes an attempt to connect with each available protocol, in order, until one succeeds or the timeout elapses
 func dialConnection(ctx context.Context, c *Connector, p *msdsn.Config, logger ContextLogger) (conn net.Conn, err error) {
+	var instances msdsn.BrowserData
 	for _, protocol := range p.Protocols {
 		dialer := msdsn.ProtocolDialers[protocol]
+		if dialer.CallBrowser(p) {
+			if instances == nil {
+				d := c.getDialer(p)
+				instances, err = getInstances(ctx, d, p.Host)
+				if err != nil && logger != nil && uint64(p.LogFlags)&logErrors != 0 {
+					e := fmt.Sprintf("unable to get instances from Sql Server Browser on host %v: %v", p.Host, err.Error())
+					logger.Log(ctx, msdsn.Log(logErrors), e)
+				}
+			}
+			err = dialer.ParseBrowserData(instances, p)
+			if err != nil {
+				if logger != nil && uint64(p.LogFlags)&logErrors != 0 {
+					logger.Log(ctx, msdsn.Log(logErrors), "Skipping protocol "+protocol+". Error:"+err.Error())
+				}
+				continue
+			}
+		}
 		sqlDialer, ok := dialer.(MssqlProtocolDialer)
 		if logger != nil && uint64(p.LogFlags)&logDebug != 0 {
 			logger.Log(ctx, msdsn.LogDebug, "Dialing with protocol "+protocol)
@@ -1050,63 +1069,7 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger Cont
 	return l, nil
 }
 
-func queryBrowser(ctx context.Context, dialCtx context.Context, c *Connector, logger ContextLogger, p *msdsn.Config) error {
-	var instances msdsn.BrowserData
-	var err error
-	pErrors := make(map[string]error)
-	for _, protocol := range p.Protocols {
-		pd, ok := msdsn.ProtocolDialers[protocol]
-		if !ok {
-			return fmt.Errorf("No dialer is configured for protocol '%s'", protocol)
-		}
-		if pd.CallBrowser(p) {
-			if instances == nil {
-				d := c.getDialer(p)
-				instances, err = getInstances(dialCtx, d, p.Host)
-				if err != nil {
-					f := "unable to get instances from Sql Server Browser on host %v: %v"
-					return fmt.Errorf(f, p.Host, err.Error())
-				}
-			}
-			pErr := pd.ParseBrowserData(instances, p)
-			if pErr != nil {
-				pErrors[protocol] = pErr
-				if logger != nil && uint64(p.LogFlags)&logErrors != 0 {
-					logger.Log(ctx, msdsn.Log(logErrors), "Removing protocol "+protocol+" from dialers. Error:"+pErr.Error())
-				}
-			}
-		}
-	}
-	// If any dialer got an error parsing instances, remove it from the dialer list
-	// If no dialers are left, return an error
-	if len(pErrors) == len(p.Protocols) {
-		return fmt.Errorf("Unable to find a matching instance for any supported protocol on host %v", p.Host)
-	}
-	if len(pErrors) > 0 {
-		validProtocols := make([]string, len(p.Protocols)-len(pErrors))
-		i := 0
-		for _, protocol := range p.Protocols {
-			_, hasError := pErrors[protocol]
-			if !hasError {
-				validProtocols[i] = protocol
-				i++
-			}
-		}
-	}
-	return nil
-}
-
 func connect(ctx context.Context, c *Connector, logger ContextLogger, p msdsn.Config) (res *tdsSession, err error) {
-	dialCtx := ctx
-	if p.DialTimeout >= 0 {
-		dt := p.DialTimeout
-		if dt == 0 {
-			dt = time.Duration(15*len(p.Protocols)) * time.Second
-		}
-		var cancel func()
-		dialCtx, cancel = context.WithTimeout(ctx, dt)
-		defer cancel()
-	}
 
 	// if instance is specified use instance resolution service
 	if len(p.Instance) > 0 && p.Port != 0 && uint64(p.LogFlags)&logDebug != 0 {
@@ -1114,14 +1077,6 @@ func connect(ctx context.Context, c *Connector, logger ContextLogger, p msdsn.Co
 		// when port is specified instance name is not used
 		// you should not provide instance name when you provide port
 		logger.Log(ctx, msdsn.LogDebug, "WARN: You specified both instance name and port in the connection string, port will be used and instance name will be ignored")
-	}
-
-	err = queryBrowser(ctx, dialCtx, c, logger, &p)
-	if err != nil {
-		return nil, err
-	}
-	if p.Port == 0 {
-		p.Port = defaultServerPort
 	}
 
 	packetSize := p.PacketSize
@@ -1139,6 +1094,16 @@ func connect(ctx context.Context, c *Connector, logger ContextLogger, p msdsn.Co
 	}
 
 initiate_connection:
+	dialCtx := ctx
+	if p.DialTimeout >= 0 {
+		dt := p.DialTimeout
+		if dt == 0 {
+			dt = time.Duration(15*len(p.Protocols)) * time.Second
+		}
+		var cancel func()
+		dialCtx, cancel = context.WithTimeout(ctx, dt)
+		defer cancel()
+	}
 	conn, err := dialConnection(dialCtx, c, &p, logger)
 	if err != nil {
 		return nil, err
