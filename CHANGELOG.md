@@ -6,6 +6,10 @@
 
 * Add driver version and name to TDS login packets
 * Add `pipe` connection string parameter for named pipe dialer
+* Expose network errors that occur during connection establishment. Now they are
+wrapped, and can be detected by using errors.As/Is practise. This connection
+errors can, and could even before, happen anytime the sql.DB doesn't have free
+connection for executed query.
 
 ### Bug fixes
 

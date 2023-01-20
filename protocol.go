@@ -104,8 +104,7 @@ func (t tcpDialer) DialSqlConnection(ctx context.Context, c *Connector, p *msdsn
 	}
 	// Can't do the usual err != nil check, as it is possible to have gotten an error before a successful connection
 	if conn == nil {
-		f := "unable to open tcp connection with host '%v:%v': %v"
-		return nil, fmt.Errorf(f, p.Host, resolveServerPort(p.Port), err.Error())
+		return nil, wrapConnErr(p, err)
 	}
 	if p.ServerSPN == "" {
 		p.ServerSPN = generateSpn(p.Host, instanceOrPort(p.Instance, p.Port))
