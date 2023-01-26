@@ -20,6 +20,10 @@ func TestConnectError(t *testing.T) {
 		if params.Encryption == msdsn.EncryptionRequired {
 			t.Skip("Unable to test connection to IP for servers that expect encryption")
 		}
+		p, ok := params.Parameters["protocol"]
+		if ok && p != "tcp" {
+			t.Skip("Only works for tcp errors")
+		}
 		// clear instance name, so we don't tease SQL Server Browser.
 		params.Instance = ""
 
