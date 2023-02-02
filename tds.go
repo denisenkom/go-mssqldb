@@ -983,7 +983,7 @@ func interpretPreloginResponse(p msdsn.Config, fe *featureExtFedAuth, fields map
 
 		// We need to be able to echo the value back to the server
 		fe.FedAuthEcho = fedAuthSupport[0] != 0
-	} else if fe.FedAuthLibrary != FedAuthLibraryReserved {
+	} else if fe.FedAuthLibrary != FedAuthLibraryReserved && fe.ADALWorkflow > 0 {
 		return 0, fmt.Errorf("federated authentication is not supported by the server")
 	}
 
