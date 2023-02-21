@@ -10,6 +10,7 @@
 wrapped, and can be detected by using errors.As/Is practise. This connection
 errors can, and could even before, happen anytime the sql.DB doesn't have free
 connection for executed query.
+* Updated azidentity to 1.2.1, which adds in memory cache for managed credentials
 
 ### Bug fixes
 
