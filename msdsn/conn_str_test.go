@@ -217,6 +217,33 @@ func TestConnParseRoundTripFixed(t *testing.T) {
 	}
 }
 
+func TestServerNameInTLSConfig(t *testing.T) {
+	var tests = []struct {
+		dsn          string
+		host         string
+		hasTLSConfig bool
+	}{
+		{"sqlserver://someuser:somepass@somehost?TrustServerCertificate=false&encrypt=true", "somehost", true},
+		{"sqlserver://someuser:somepass@somehost?TrustServerCertificate=false&encrypt=false", "somehost", true},
+		{"sqlserver://someuser:somepass@somehost?TrustServerCertificate=false&encrypt=true&hostnameincertificate=someotherhost", "someotherhost", true},
+		{"sqlserver://someuser:somepass@somehost?TrustServerCertificate=false", "somehost", true},
+		{"sqlserver://someuser:somepass@somehost?TrustServerCertificate=false&encrypt=DISABLE", "", false},
+		{"sqlserver://someuser:somepass@somehost?TrustServerCertificate=false&encrypt=DISABLE&hostnameincertificate=someotherhost", "", false},
+		{"sqlserver://someuser:somepass@somehost?TrustServerCertificate=false&encrypt=false", "somehost", true},
+	}
+	for _, test := range tests {
+		cfg, err := Parse(test.dsn)
+		if err != nil {
+			t.Errorf("Could not parse valid connection string %s: %v", test.dsn, err)
+		}
+		if !test.hasTLSConfig && cfg.TLSConfig != nil {
+			t.Errorf("Expected empty TLS config, but got %v (cfg.Host was %s)", cfg.TLSConfig, cfg.Host)
+		}
+		if test.hasTLSConfig && cfg.TLSConfig.ServerName != test.host {
+			t.Errorf("Expected somehost as TLS server, but got %s (cfg.Host was %s)", cfg.TLSConfig.ServerName, cfg.Host)
+		}
+	}
+}
 func TestAllKeysAreAvailableInParametersMap(t *testing.T) {
 	keys := map[string]string{
 		"user id":            "1",

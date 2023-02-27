@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Bug fixes
+
+* Fixed uninitialized server name in TLS config ([#93](https://github.com/microsoft/go-mssqldb/issues/93))([#94](https://github.com/microsoft/go-mssqldb/pull/94))
+
 ## 0.20.0
 
 ### Features
