@@ -1,12 +1,14 @@
 # Changelog
 
-## 0.21.0
+## [Unreleased]
 
 ### Features
+
 * Updated azidentity to 1.2.1, which adds in memory cache for managed credentials
 
 ### Bug fixes
 
+* Fixed uninitialized server name in TLS config ([#93](https://github.com/microsoft/go-mssqldb/issues/93))([#94](https://github.com/microsoft/go-mssqldb/pull/94))
 
 ## 0.20.0
 
