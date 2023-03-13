@@ -1,215 +1,377 @@
-//go:build !windows && go1.13
-// +build !windows,go1.13
-
 package krb5
 
 import (
-	"io/ioutil"
-	"reflect"
+	"strings"
 	"testing"
 
-	"github.com/jcmturner/gokrb5/v8/client"
-	"github.com/jcmturner/gokrb5/v8/config"
-	"github.com/jcmturner/gokrb5/v8/credentials"
-	"github.com/jcmturner/gokrb5/v8/keytab"
-	"github.com/microsoft/go-mssqldb/integratedauth"
 	"github.com/microsoft/go-mssqldb/msdsn"
 )
 
-func TestGetAuth(t *testing.T) {
-	kerberos := getKerberos()
-	var err error
-	configParams := msdsn.Config{
-		User:      "",
-		ServerSPN: "MSSQLSvc/mssql.domain.com:1433",
-		Port:      1433,
+func TestReadKrb5ConfigHappyPath(t *testing.T) {
+	config := msdsn.Config{
+		User:      "username",
+		Password:  "password",
+		ServerSPN: "serverspn",
 		Parameters: map[string]string{
-			"krb5conffile": "krb5conffile",
-			"keytabfile":   "keytabfile",
-			"krbcache":     "krbcache",
-			"realm":        "domain.com",
+			"krb5-configfile":         "krb5-configfile",
+			"krb5-keytabfile":         "krb5-keytabfile",
+			"krb5-credcachefile":      "krb5-credcachefile",
+			"krb5-realm":              "krb5-realm",
+			"krb5-dnslookupkdc":       "false",
+			"krb5-udppreferencelimit": "1234",
 		},
 	}
 
-	SetKrbConfig = func(krb5configPath string) (*config.Config, error) {
-		return &config.Config{}, nil
-	}
-	SetKrbKeytab = func(keytabFilePath string) (*keytab.Keytab, error) {
-		return &keytab.Keytab{}, nil
-	}
-	SetKrbCache = func(kerbCCahePath string) (*credentials.CCache, error) {
-		return &credentials.CCache{}, nil
-	}
+	actual, err := readKrb5Config(config)
 
-	got, err := getAuth(configParams)
 	if err != nil {
-		t.Errorf("failed:%v", err)
-	}
-	kt := &krb5Auth{username: "",
-		realm:      "domain.com",
-		serverSPN:  "MSSQLSvc/mssql.domain.com:1433",
-		port:       1433,
-		krb5Config: kerberos.Config,
-		krbKeytab:  kerberos.Keytab,
-		krbCache:   kerberos.Cache,
-		state:      0}
-
-	res := reflect.DeepEqual(got, kt)
-	if !res {
-		t.Errorf("Failed to get correct krb5Auth object\nExpected:%v\nRecieved:%v", kt, got)
+		t.Errorf("Unexpected error %v", err)
 	}
 
-	configParams.ServerSPN = "MSSQLSvc/mssql.domain.com"
-
-	_, val := getAuth(configParams)
-	if val == nil {
-		t.Errorf("Failed to get correct krb5Auth object: no port defined")
+	if actual.Krb5ConfigFile != config.Parameters[keytabConfigFile] {
+		t.Errorf("Expected Krb5ConfigFile %v, found %v", config.Parameters[keytabConfigFile], actual.Krb5ConfigFile)
 	}
 
-	configParams.ServerSPN = "MSSQLSvc/mssql.domain.com:1433@DOMAIN.COM"
-
-	got, _ = getAuth(configParams)
-	kt = &krb5Auth{username: "",
-		realm:      "DOMAIN.COM",
-		serverSPN:  "MSSQLSvc/mssql.domain.com:1433",
-		port:       1433,
-		krb5Config: kerberos.Config,
-		krbKeytab:  kerberos.Keytab,
-		krbCache:   kerberos.Cache,
-		state:      0}
-
-	res = reflect.DeepEqual(got, kt)
-	if !res {
-		t.Errorf("Failed to get correct krb5Auth object\nExpected:%v\nRecieved:%v", kt, got)
+	if actual.KeytabFile != config.Parameters[keytabFile] {
+		t.Errorf("Expected KeytabFile %v, found %v", config.Parameters[keytabFile], actual.KeytabFile)
 	}
 
-	configParams.ServerSPN = "MSSQLSvc/mssql.domain.com:1433@domain.com@test"
-	_, val = getAuth(configParams)
-	if val == nil {
-		t.Errorf("Failed to get correct krb5Auth object due to incorrect serverSPN name")
+	if actual.CredCacheFile != config.Parameters[credCacheFile] {
+		t.Errorf("Expected CredCacheFile %v, found %v", config.Parameters[credCacheFile], actual.CredCacheFile)
 	}
 
-	configParams.ServerSPN = "MSSQLSvc/mssql.domain.com:port@domain.com"
-	_, val = getAuth(configParams)
-	if val == nil {
-		t.Errorf("Failed to get correct krb5Auth object due to incorrect port")
+	if actual.Realm != config.Parameters[realm] {
+		t.Errorf("Expected Realm %v, found %v", config.Parameters[realm], actual.Realm)
 	}
 
-	configParams.ServerSPN = "MSSQLSvc/mssql.domain.com:port"
-	_, val = getAuth(configParams)
-	if val == nil {
-		t.Errorf("Failed to get correct krb5Auth object due to incorrect port")
+	if actual.UserName != config.User {
+		t.Errorf("Expected username %v, found %v", config.User, actual.UserName)
+	}
+
+	if actual.Password != config.Password {
+		t.Errorf("Expected password %v, found %v", config.Password, actual.Password)
+	}
+
+	if actual.ServerSPN != config.ServerSPN {
+		t.Errorf("Expected serverSpn %v, found %v", config.ServerSPN, actual.ServerSPN)
+	}
+
+	if actual.DNSLookupKDC != false {
+		t.Errorf("Expected DNSLookupKDC %v, found %v", false, actual.DNSLookupKDC)
+	}
+
+	if actual.UDPPreferenceLimit != 1234 {
+		t.Errorf("Expected UDPPreferenceLimit %v, found %v", 1234, actual.UDPPreferenceLimit)
 	}
 }
 
-func TestInitialBytes(t *testing.T) {
-	kerberos := getKerberos()
-	krbObj := &krb5Auth{username: "",
-		realm:      "domain.com",
-		serverSPN:  "MSSQLSvc/mssql.domain.com:1433",
-		port:       1433,
-		krb5Config: kerberos.Config,
-		krbKeytab:  kerberos.Keytab,
-		krbCache:   kerberos.Cache,
-		state:      0,
+func TestReadKrb5ConfigErrorCases(t *testing.T) {
+
+	tests := []struct {
+		name               string
+		dnslookup          string
+		udpPreferenceLimit string
+		expectedError      string
+	}{
+
+		{
+			name:               "invalid dnslookupkdc",
+			dnslookup:          "a",
+			udpPreferenceLimit: "1234",
+			expectedError:      "invalid 'krb5-dnslookupkdc' parameter 'a': strconv.ParseBool: parsing \"a\": invalid syntax",
+		},
+		{
+			name:               "invalid udpPreferenceLimit",
+			dnslookup:          "true",
+			udpPreferenceLimit: "a",
+			expectedError:      "invalid 'krb5-udppreferencelimit' parameter 'a': strconv.Atoi: parsing \"a\": invalid syntax",
+		},
 	}
 
-	_, err := krbObj.InitialBytes()
-	if err == nil {
-		t.Errorf("Initial Bytes expected to fail but it didn't")
-	}
+	for _, tt := range tests {
+		config := msdsn.Config{
+			Parameters: map[string]string{
+				"krb5-dnslookupkdc":       tt.dnslookup,
+				"krb5-udppreferencelimit": tt.udpPreferenceLimit,
+			},
+		}
 
-	krbObj.krbKeytab = nil
-	_, err = krbObj.InitialBytes()
-	if err == nil {
-		t.Errorf("Initial Bytes expected to fail but it didn't")
-	}
+		actual, err := readKrb5Config(config)
 
-}
+		if actual != nil {
+			t.Errorf("Unexpected return value expected nil, found %v", actual)
+			continue
+		}
 
-func TestNextBytes(t *testing.T) {
-	ans := []byte{}
-	kerberos := getKerberos()
+		if err == nil {
+			t.Errorf("Expected error '%v', found nil", tt.expectedError)
+			continue
+		}
 
-	var krbObj integratedauth.IntegratedAuthenticator = &krb5Auth{username: "",
-		realm:      "domain.com",
-		serverSPN:  "MSSQLSvc/mssql.domain.com:1433",
-		port:       1433,
-		krb5Config: kerberos.Config,
-		krbKeytab:  kerberos.Keytab,
-		krbCache:   kerberos.Cache,
-		state:      0}
-
-	_, err := krbObj.NextBytes(ans)
-	if err == nil {
-		t.Errorf("Next Byte expected to fail but it didn't")
-	}
-}
-
-func TestFree(t *testing.T) {
-	kerberos := getKerberos()
-	kt := &keytab.Keytab{}
-	c := &config.Config{}
-
-	cl := client.NewWithKeytab("Administrator", "DOMAIN.COM", kt, c, client.DisablePAFXFAST(true))
-
-	var krbObj integratedauth.IntegratedAuthenticator = &krb5Auth{username: "",
-		realm:      "domain.com",
-		serverSPN:  "MSSQLSvc/mssql.domain.com:1433",
-		port:       1433,
-		krb5Config: kerberos.Config,
-		krbKeytab:  kerberos.Keytab,
-		krbCache:   kerberos.Cache,
-		state:      0,
-		krb5Client: cl,
-	}
-	krbObj.Free()
-	cacheEntries := len(kerberos.Cache.GetEntries())
-	if cacheEntries != 0 {
-		t.Errorf("Client not destroyed")
+		if err.Error() != tt.expectedError {
+			t.Errorf("Expected error %v, found %v", tt.expectedError, err)
+		}
 	}
 }
 
-func TestSetKrbConfig(t *testing.T) {
-	krb5conffile := createTempFile(t, "krb5conffile")
-	_, err := setupKerbConfig(krb5conffile)
+func TestValidateKrb5LoginParams(t *testing.T) {
+
+	tests := []struct {
+		name                string
+		input               *krb5Login
+		expectedLoginMethod loginMethod
+		expectedError       error
+	}{
+
+		{
+			name: "happy username and password",
+			input: &krb5Login{
+				Krb5ConfigFile: "exists",
+				Realm:          "realm",
+				UserName:       "username",
+				Password:       "password",
+			},
+			expectedLoginMethod: usernameAndPassword,
+			expectedError:       nil,
+		},
+		{
+			name: "username and password, missing realm",
+			input: &krb5Login{
+				Krb5ConfigFile: "exists",
+				Realm:          "",
+				UserName:       "username",
+				Password:       "password",
+			},
+			expectedLoginMethod: none,
+			expectedError:       ErrRealmRequiredWithUsernameAndPassword,
+		},
+		{
+			name: "username and password, missing Krb5ConfigFile",
+			input: &krb5Login{
+				Krb5ConfigFile: "",
+				Realm:          "realm",
+				UserName:       "username",
+				Password:       "password",
+			},
+			expectedLoginMethod: none,
+			expectedError:       ErrKrb5ConfigFileRequiredWithUsernameAndPassword,
+		},
+		{
+			name: "username and password, Krb5ConfigFile file not found",
+			input: &krb5Login{
+				Krb5ConfigFile: "missing",
+				Realm:          "realm",
+				UserName:       "username",
+				Password:       "password",
+			},
+			expectedLoginMethod: none,
+			expectedError:       ErrKrb5ConfigFileDoesNotExist,
+		},
+		{
+			name: "happy keytab",
+			input: &krb5Login{
+				KeytabFile:     "exists",
+				Krb5ConfigFile: "exists",
+				Realm:          "realm",
+				UserName:       "username",
+			},
+			expectedLoginMethod: keyTabFile,
+			expectedError:       nil,
+		},
+		{
+			name: "keytab, missing username",
+			input: &krb5Login{
+				KeytabFile:     "exists",
+				Krb5ConfigFile: "exists",
+				Realm:          "realm",
+				UserName:       "",
+			},
+			expectedLoginMethod: none,
+			expectedError:       ErrUsernameRequiredWithKeytab,
+		},
+		{
+			name: "keytab, missing realm",
+			input: &krb5Login{
+				KeytabFile:     "exists",
+				Krb5ConfigFile: "exists",
+				Realm:          "",
+				UserName:       "username",
+			},
+			expectedLoginMethod: none,
+			expectedError:       ErrRealmRequiredWithKeytab,
+		},
+		{
+			name: "keytab, missing Krb5ConfigFile",
+			input: &krb5Login{
+				KeytabFile:     "exists",
+				Krb5ConfigFile: "",
+				Realm:          "realm",
+				UserName:       "username",
+			},
+			expectedLoginMethod: none,
+			expectedError:       ErrKrb5ConfigFileRequiredWithKeytab,
+		},
+		{
+			name: "keytab, Krb5ConfigFile file not found",
+			input: &krb5Login{
+				KeytabFile:     "exists",
+				Krb5ConfigFile: "missing",
+				Realm:          "realm",
+				UserName:       "username",
+			},
+			expectedLoginMethod: none,
+			expectedError:       ErrKrb5ConfigFileDoesNotExist,
+		},
+		{
+			name: "keytab, KeytabFile file not found",
+			input: &krb5Login{
+				KeytabFile:     "missing",
+				Krb5ConfigFile: "exists",
+				Realm:          "realm",
+				UserName:       "username",
+			},
+			expectedLoginMethod: none,
+			expectedError:       ErrKeytabFileDoesNotExist,
+		},
+		{
+			name: "happy credential cache",
+			input: &krb5Login{
+				CredCacheFile:  "exists",
+				Krb5ConfigFile: "exists",
+			},
+			expectedLoginMethod: cachedCredentialsFile,
+			expectedError:       nil,
+		},
+		{
+			name: "credential cache, missing Krb5ConfigFile",
+			input: &krb5Login{
+				CredCacheFile:  "exists",
+				Krb5ConfigFile: "",
+			},
+			expectedLoginMethod: none,
+			expectedError:       ErrKrb5ConfigFileRequiredWithCredCache,
+		},
+		{
+			name: "credential cache, Krb5ConfigFile file not found",
+			input: &krb5Login{
+				CredCacheFile:  "exists",
+				Krb5ConfigFile: "missing",
+			},
+			expectedLoginMethod: none,
+			expectedError:       ErrKrb5ConfigFileDoesNotExist,
+		},
+		{
+			name: "credential cache, CredCacheFile file not found",
+			input: &krb5Login{
+				CredCacheFile:  "missing",
+				Krb5ConfigFile: "exists",
+			},
+			expectedLoginMethod: none,
+			expectedError:       ErrCredCacheFileDoesNotExist,
+		},
+		{
+			name:                "no login method math",
+			input:               &krb5Login{},
+			expectedLoginMethod: none,
+			expectedError:       ErrRequiredParametersMissing,
+		},
+	}
+
+	revert := mockFileExists()
+	defer revert()
+
+	for _, tt := range tests {
+		tt.input.loginMethod = none
+		err := validateKrb5LoginParams(tt.input)
+
+		if err != nil && tt.expectedError == nil {
+			t.Errorf("Unexpected error %v, expected nil", err)
+		}
+
+		if err == nil && tt.expectedError != nil {
+			t.Errorf("Expected error %v, found nil", tt.expectedError)
+		}
+
+		if err != tt.expectedError {
+			t.Errorf("Expected error %v, found %v", tt.expectedError, err)
+		}
+
+		if tt.input.loginMethod != tt.expectedLoginMethod {
+			t.Errorf("Expected loginMethod %v, found %v", tt.expectedLoginMethod, tt.input.loginMethod)
+		}
+	}
+}
+
+func mockFileExists() func() {
+	fileExists = func(filename string, errWhenFileNotFound error) (bool, error) {
+		if strings.Contains(filename, "exists") {
+			return true, nil
+		}
+
+		return false, errWhenFileNotFound
+	}
+
+	return func() { fileExists = fileExistsOS }
+}
+
+func TestGetAuth(t *testing.T) {
+	config := msdsn.Config{
+		User:      "username",
+		Password:  "password",
+		ServerSPN: "serverspn",
+		Parameters: map[string]string{
+			"krb5-configfile":         "exists",
+			"krb5-keytabfile":         "exists",
+			"krb5-keytabcachefile":    "exists",
+			"krb5-realm":              "krb5-realm",
+			"krb5-dnslookupkdc":       "false",
+			"krb5-udppreferencelimit": "1234",
+		},
+	}
+
+	revert := mockFileExists()
+	defer revert()
+
+	a, err := getAuth(config)
 	if err != nil {
-		t.Errorf("Failed to read krb5 config file")
+		t.Errorf("Unexpected error %v", err)
 	}
-}
 
-func TestSetKrbKeytab(t *testing.T) {
-	krbkeytab := createTempFile(t, "keytabfile")
-	_, err := setupKerbKeytab(krbkeytab)
-	if err == nil {
-		t.Errorf("Failed to read keytab file")
-	}
-}
+	actual := a.(*krbAuth)
 
-func TestSetKrbCache(t *testing.T) {
-	krbcache := createTempFile(t, "krbcache")
-	_, err := setupKerbCache(krbcache)
-	if err == nil {
-		t.Errorf("Failed to read cache file")
+	if actual.krb5Config.Krb5ConfigFile != config.Parameters[keytabConfigFile] {
+		t.Errorf("Expected Krb5ConfigFile %v, found %v", config.Parameters[keytabConfigFile], actual.krb5Config.Krb5ConfigFile)
 	}
-}
 
-func getKerberos() (krbParams *Kerberos) {
-	krbParams = &Kerberos{
-		Config: &config.Config{},
-		Keytab: &keytab.Keytab{},
-		Cache:  &credentials.CCache{},
+	if actual.krb5Config.KeytabFile != config.Parameters[keytabFile] {
+		t.Errorf("Expected KeytabFile %v, found %v", config.Parameters[keytabFile], actual.krb5Config.KeytabFile)
 	}
-	return
-}
 
-func createTempFile(t *testing.T, filename string) string {
-	file, err := ioutil.TempFile("", "test-"+filename+".txt")
-	if err != nil {
-		t.Fatalf("Failed to create a temp file:%v", err)
+	if actual.krb5Config.CredCacheFile != config.Parameters[credCacheFile] {
+		t.Errorf("Expected CredCacheFile %v, found %v", config.Parameters[credCacheFile], actual.krb5Config.CredCacheFile)
 	}
-	if _, err := file.Write([]byte("This is a test file\n")); err != nil {
-		t.Fatalf("Failed to write file:%v", err)
+
+	if actual.krb5Config.Realm != config.Parameters[realm] {
+		t.Errorf("Expected Realm %v, found %v", config.Parameters[realm], actual.krb5Config.Realm)
 	}
-	return file.Name()
+
+	if actual.krb5Config.UserName != config.User {
+		t.Errorf("Expected username %v, found %v", config.User, actual.krb5Config.UserName)
+	}
+
+	if actual.krb5Config.Password != config.Password {
+		t.Errorf("Expected password %v, found %v", config.Password, actual.krb5Config.Password)
+	}
+
+	if actual.krb5Config.ServerSPN != config.ServerSPN {
+		t.Errorf("Expected serverSpn %v, found %v", config.ServerSPN, actual.krb5Config.ServerSPN)
+	}
+
+	if actual.krb5Config.DNSLookupKDC != false {
+		t.Errorf("Expected DNSLookupKDC %v, found %v", false, actual.krb5Config.DNSLookupKDC)
+	}
+
+	if actual.krb5Config.UDPPreferenceLimit != 1234 {
+		t.Errorf("Expected UDPPreferenceLimit %v, found %v", 1234, actual.krb5Config.UDPPreferenceLimit)
+	}
 }
