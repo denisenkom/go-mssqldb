@@ -856,6 +856,13 @@ func dialConnection(ctx context.Context, c *Connector, p msdsn.Config) (conn net
 	if ip == nil {
 		ips, err = net.LookupIP(p.Host)
 		if err != nil {
+			// if the dialer has been updated and DNS can not be resolved, the dialer may be trying to
+			// proxy to a different network where the domain name is local. Try to connect via the custom dialer
+			if c.Dialer != nil {
+				d := c.getDialer(&p)
+				addr := net.JoinHostPort(p.Host, strconv.Itoa(int(resolveServerPort(p.Port))))
+				return d.DialContext(ctx, "tcp", addr)
+			}
 			return
 		}
 	} else {
