@@ -1,15 +1,15 @@
 # Changelog
 
-## [Unreleased]
+## 0.21.0
 
 ### Features
 
-* Updated azidentity to 1.2.1, which adds in memory cache for managed credentials
+* Updated azidentity to 1.2.1, which adds in memory cache for managed credentials ([#90](https://github.com/microsoft/go-mssqldb/pull/90))
 
 ### Bug fixes
 
 * Fixed uninitialized server name in TLS config ([#93](https://github.com/microsoft/go-mssqldb/issues/93))([#94](https://github.com/microsoft/go-mssqldb/pull/94))
-* Fixed several kerberos authentication usages on Linux with new krb5 authentication provider. 
+* Fixed several kerberos authentication usages on Linux with new krb5 authentication provider. ([#65](https://github.com/microsoft/go-mssqldb/pull/65))
 
 ### Changed
 
