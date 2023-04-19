@@ -1131,9 +1131,11 @@ initiate_connection:
 			certs.AppendCertsFromPEM([]byte(p.rawCertificate))
 			config.RootCAs = certs
 		}
+		/* #nosec */
 		if p.trustServerCertificate {
 			config.InsecureSkipVerify = true
 		}
+		/* #nosec */
 		if p.disableVerifyHostname {
 			config.InsecureSkipVerify = true
 		}
