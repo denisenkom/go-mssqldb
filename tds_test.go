@@ -216,9 +216,12 @@ func testConnParams(t testing.TB) msdsn.Config {
 // TestConnParams returns a connection configuration based on environment variables or the contents of a text file
 // Set environment variable SQLSERVER_DSN to provide an entire connection string
 // Set environment variables HOST and DATABASE from which a minimal config will be created.
-//  If HOST and DATABASE are set, you can optionally set INSTANCE, SQLUSER, and SQLPASSWORD as well
+//
+//	If HOST and DATABASE are set, you can optionally set INSTANCE, SQLUSER, and SQLPASSWORD as well
+//
 // If environment variables are not set, it will look in the working directory for a file named .connstr
-//   If the file exists it will use the first line of the file as the file as the DSN
+//
+//	If the file exists it will use the first line of the file as the file as the DSN
 func GetConnParams() (*msdsn.Config, error) {
 	dsn := os.Getenv("SQLSERVER_DSN")
 	const logFlags = 127
@@ -756,5 +759,43 @@ func runBatch(t testing.TB, p msdsn.Config) {
 			t.Error("Invalid value returned, should be 1", value)
 			return
 		}
+	}
+}
+
+func TestDialConnectionCustomDialer(t *testing.T) {
+	SetLogger(testLogger{t})
+
+	params := testConnParams(t)
+	params.host = "mssql"
+	connector, err := NewConnector(params.toUrl().String())
+	if err != nil {
+		t.Error(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	// if a dialer is specified, the dialer should be used to make the connection
+	mock := NewMockTransportDialer(
+		[]string{},
+		[]string{},
+	)
+	connector.Dialer = mock
+	if mock.count != 0 {
+		t.Error("expecting no connections")
+	}
+
+	conn, err := dialConnection(ctx, connector, params)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if mock.count != 1 {
+		t.Error("expecting 1 connection")
+	}
+
+	err = conn.Close()
+	if err != nil {
+		t.Error(err)
 	}
 }
