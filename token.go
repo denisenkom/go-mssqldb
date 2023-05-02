@@ -85,6 +85,8 @@ const (
 	// TODO implement more flags
 )
 
+var ErrorCancelConfirmation = errors.New("did not get cancellation confirmation from the server")
+
 // interface for all tokens
 type tokenStruct interface{}
 
@@ -934,7 +936,7 @@ func (t tokenProcessor) nextToken() (tokenStruct, error) {
 		}
 		// we did not get cancellation confirmation, something is not
 		// right, this connection is not usable anymore
-		return nil, errors.New("did not get cancellation confirmation from the server")
+		return nil, ErrorCancelConfirmation
 	}
 }
 
