@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"database/sql"
 	"encoding/hex"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"reflect"
 	"runtime"
 	"sync"
 	"testing"
@@ -756,5 +758,130 @@ func runBatch(t testing.TB, p msdsn.Config) {
 			t.Error("Invalid value returned, should be 1", value)
 			return
 		}
+	}
+}
+
+func Test_prepareTLSConfig(t *testing.T) {
+
+	tests := []struct {
+		name       string
+		p          msdsn.Config
+		wantConfig *tls.Config
+		wantErr    bool
+	}{
+		{name: "1.TLSConfig is null ", p: msdsn.Config{Host: "testserver"}, wantConfig: &tls.Config{ServerName: "testserver"}, wantErr: false},
+		{name: "2.TLSConfig not null ,DynamicRecordSizingDisabled=false", p: msdsn.Config{TLSConfig: &tls.Config{DynamicRecordSizingDisabled: false, ServerName: "testserver", MinVersion: tls.VersionTLS10}}, wantConfig: &tls.Config{ServerName: "testserver", DynamicRecordSizingDisabled: true, MinVersion: tls.VersionTLS10}, wantErr: false},
+		{name: "3.TLSConfig not null ,DynamicRecordSizingDisabled=true", p: msdsn.Config{TLSConfig: &tls.Config{DynamicRecordSizingDisabled: true, ServerName: "testserver", MinVersion: tls.VersionTLS10}}, wantConfig: &tls.Config{ServerName: "testserver", DynamicRecordSizingDisabled: true, MinVersion: tls.VersionTLS10}, wantErr: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotConfig := prepareTLSConfig(tt.p)
+
+			if gotConfig.ServerName != tt.wantConfig.ServerName ||
+				gotConfig.MinVersion != tt.wantConfig.MinVersion {
+				t.Errorf("prepareTLSConfig() = %v, want %v", gotConfig, tt.wantConfig)
+			}
+		})
+	}
+}
+
+func Test_prepareMSDSN(t *testing.T) {
+
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
+	var newdialerCallErr = func() Dialer {
+		return NewMockTransportDialer(
+			[]string{
+				"  03",
+			},
+			[]string{
+				"  05 00  00 49 6e 73 74 61 6e 63 65 4e 61 6d 65 3b 62 3b 3b",
+			},
+		)
+	}
+	var newdialerCallErr2 = func() Dialer {
+		return NewMockTransportDialer(
+			[]string{
+				"  03",
+			},
+			[]string{
+				"  05 00  00 49 6e 73 74 61 6e 63 65 4e 61 6d 65 3b 62 3b 74 63 70 3b 61 62 63 3b 3b",
+			},
+		)
+	}
+	var newdialerCallErr3 = func() Dialer {
+		return NewMockTransportDialer(
+			[]string{
+				"  04",
+			},
+			[]string{
+				"  05 00  00 49 6e 73 74 61 6e 63 65 4e 61 6d 65 3b 62 3b 74 63 70 3b 61 62 63 3b 3b",
+			},
+		)
+	}
+	var newdialerCallSuc = func() Dialer {
+		return NewMockTransportDialer(
+			[]string{
+				"  03",
+			},
+			[]string{
+				"  05 00  00 49 6e 73 74 61 6e 63 65 4e 61 6d 65 3b 62 3b 74 63 70 3b 31 34 33 33 3b 3b",
+			},
+		)
+	}
+
+	type args struct {
+		ctx context.Context
+		p   *msdsn.Config
+	}
+
+	tests := []struct {
+		name        string
+		args        args
+		dialCall    func() Dialer
+		wantDialCtx context.Context
+		wantErr     bool
+	}{
+		{name: "1.", dialCall: newdialerCallErr, args: args{ctx: context.Background(), p: &msdsn.Config{Instance: "test", Port: 1433, LogFlags: msdsn.LogDebug}}, wantDialCtx: nil, wantErr: true},
+		{name: "2.", dialCall: newdialerCallErr, args: args{ctx: context.Background(), p: &msdsn.Config{Instance: "test", Port: 0, LogFlags: msdsn.LogErrors}}, wantDialCtx: nil, wantErr: true},
+		{name: "3.", dialCall: newdialerCallErr, args: args{ctx: context.Background(), p: &msdsn.Config{Instance: "", PacketSize: 1, LogFlags: msdsn.LogErrors}}, wantDialCtx: nil, wantErr: false},
+		{name: "4.", dialCall: newdialerCallErr, args: args{ctx: context.Background(), p: &msdsn.Config{Instance: "", PacketSize: 32768, LogFlags: msdsn.LogErrors}}, wantDialCtx: nil, wantErr: false},
+		{name: "5.", dialCall: newdialerCallErr, args: args{ctx: context.Background(), p: &msdsn.Config{Instance: "", PacketSize: 32768, LogFlags: msdsn.LogErrors}}, wantDialCtx: nil, wantErr: false},
+		{name: "6.", dialCall: newdialerCallSuc, args: args{ctx: context.Background(), p: &msdsn.Config{Instance: "B", PacketSize: 4096, LogFlags: msdsn.LogErrors}}, wantDialCtx: nil, wantErr: false},
+		{name: "7.", dialCall: newdialerCallErr2, args: args{ctx: context.Background(), p: &msdsn.Config{Instance: "B", PacketSize: 4096, LogFlags: msdsn.LogErrors}}, wantDialCtx: nil, wantErr: true},
+		{name: "8.", dialCall: newdialerCallErr3, args: args{ctx: context.Background(), p: &msdsn.Config{Instance: "B", PacketSize: 4096, LogFlags: msdsn.LogErrors}}, wantDialCtx: nil, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			c := &Connector{params: *tt.args.p, Dialer: tt.dialCall()}
+			err := prepareMSDSN(tt.args.ctx, c, driverInstanceNoProcess.logger, tt.args.p)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("prepareMSDSN() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+		})
+	}
+}
+
+func Test_parseInstances(t *testing.T) {
+
+	tests := []struct {
+		name string
+		args []byte
+		want map[string]map[string]string
+	}{
+		{name: "1.len<=3", args: []byte(`abc`), want: map[string]map[string]string{}},
+		{name: "2.len byte[0]!=5", args: []byte{1, 0, 1, 1}, want: map[string]map[string]string{}},
+		{name: "3.normal-1", args: append([]byte{5, 0, 0}, []byte(`;b;`)...), want: map[string]map[string]string{}},
+		{name: "3.normal-2", args: append([]byte{5, 0, 0}, []byte(`InstanceName;b;;`)...), want: map[string]map[string]string{"B": map[string]string{"InstanceName": "b"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := parseInstances(tt.args); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("parseInstances() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

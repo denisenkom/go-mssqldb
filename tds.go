@@ -1050,50 +1050,7 @@ func connect(ctx context.Context, c *Connector, logger ContextLogger, p msdsn.Co
 		dialCtx, cancel = context.WithTimeout(ctx, dt)
 		defer cancel()
 	}
-	// if instance is specified use instance resolution service
-	if len(p.Instance) > 0 && p.Port != 0 && uint64(p.LogFlags)&logDebug != 0 {
-		// both instance name and port specified
-		// when port is specified instance name is not used
-		// you should not provide instance name when you provide port
-		logger.Log(ctx, msdsn.LogDebug, "WARN: You specified both instance name and port in the connection string, port will be used and instance name will be ignored")
-	}
-	if len(p.Instance) > 0 {
-		p.Instance = strings.ToUpper(p.Instance)
-		d := c.getDialer(&p)
-		instances, err := getInstances(dialCtx, d, p.Host)
-		if err != nil {
-			f := "unable to get instances from Sql Server Browser on host %v: %v"
-			return nil, fmt.Errorf(f, p.Host, err.Error())
-		}
-		strport, ok := instances[p.Instance]["tcp"]
-		if !ok {
-			f := "no instance matching '%v' returned from host '%v'"
-			return nil, fmt.Errorf(f, p.Instance, p.Host)
-		}
-		port, err := strconv.ParseUint(strport, 0, 16)
-		if err != nil {
-			f := "invalid tcp port returned from Sql Server Browser '%v': %v"
-			return nil, fmt.Errorf(f, strport, err.Error())
-		}
-		p.Port = port
-	}
-	if p.Port == 0 {
-		p.Port = defaultServerPort
-	}
-
-	packetSize := p.PacketSize
-	if packetSize == 0 {
-		packetSize = defaultPacketSize
-	}
-	// Ensure packet size falls within the TDS protocol range of 512 to 32767 bytes
-	// NOTE: Encrypted connections have a maximum size of 16383 bytes.  If you request
-	// a higher packet size, the server will respond with an ENVCHANGE request to
-	// alter the packet size to 16383 bytes.
-	if packetSize < 512 {
-		packetSize = 512
-	} else if packetSize > 32767 {
-		packetSize = 32767
-	}
+	err = prepareMSDSN(ctx, c, logger, &p)
 
 initiate_connection:
 	conn, err := dialConnection(dialCtx, c, p)
@@ -1103,7 +1060,7 @@ initiate_connection:
 
 	toconn := newTimeoutConn(conn, p.ConnTimeout)
 
-	outbuf := newTdsBuffer(packetSize, toconn)
+	outbuf := newTdsBuffer(p.PacketSize, toconn)
 	sess := tdsSession{
 		buf:      outbuf,
 		logger:   logger,
@@ -1136,25 +1093,8 @@ initiate_connection:
 	}
 
 	if encrypt != encryptNotSup {
-		var config *tls.Config
-		if pc := p.TLSConfig; pc != nil {
-			config = pc
-			if config.DynamicRecordSizingDisabled == false {
-				config = config.Clone()
-
-				// fix for https://github.com/denisenkom/go-mssqldb/issues/166
-				// Go implementation of TLS payload size heuristic algorithm splits single TDS package to multiple TCP segments,
-				// while SQL Server seems to expect one TCP segment per encrypted TDS package.
-				// Setting DynamicRecordSizingDisabled to true disables that algorithm and uses 16384 bytes per TLS package
-				config.DynamicRecordSizingDisabled = true
-			}
-		}
-		if config == nil {
-			config, err = msdsn.SetupTLS("", false, p.Host)
-			if err != nil {
-				return nil, err
-			}
-		}
+		//refactor tls config build.
+		config := prepareTLSConfig(p)
 
 		// setting up connection handler which will allow wrapping of TLS handshake packets inside TDS stream
 		handshakeConn := tlsHandshakeConn{buf: outbuf}
@@ -1287,4 +1227,76 @@ func resolveServerPort(port uint64) uint64 {
 	}
 
 	return port
+}
+
+func prepareTLSConfig(p msdsn.Config) (config *tls.Config) {
+	if pc := p.TLSConfig; pc != nil {
+		config = pc
+		if config.DynamicRecordSizingDisabled == false {
+			config = config.Clone()
+
+			// fix for https://github.com/denisenkom/go-mssqldb/issues/166
+			// Go implementation of TLS payload size heuristic algorithm splits single TDS package to multiple TCP segments,
+			// while SQL Server seems to expect one TCP segment per encrypted TDS package.
+			// Setting DynamicRecordSizingDisabled to true disables that algorithm and uses 16384 bytes per TLS package
+			config.DynamicRecordSizingDisabled = true
+		}
+	}
+	if config == nil {
+		//In this scenario, error will not appear
+		config, _ = msdsn.SetupTLS("", false, p.Host, 0)
+	}
+	return
+}
+
+func prepareMSDSN(dialCtx context.Context, c *Connector, logger ContextLogger, p *msdsn.Config) (err error) {
+
+	// if instance is specified use instance resolution service
+	if len(p.Instance) > 0 && p.Port != 0 && uint64(p.LogFlags)&logDebug != 0 {
+		// both instance name and port specified
+		// when port is specified instance name is not used
+		// you should not provide instance name when you provide port
+		logger.Log(dialCtx, msdsn.LogDebug, "WARN: You specified both instance name and port in the connection string, port will be used and instance name will be ignored")
+	}
+	if len(p.Instance) > 0 {
+		p.Instance = strings.ToUpper(p.Instance)
+		d := c.getDialer(p)
+		instances, err := getInstances(dialCtx, d, p.Host)
+		if err != nil {
+			const f = "unable to get instances from Sql Server Browser on host %v: %v"
+			return fmt.Errorf(f, p.Host, err.Error())
+		}
+		strport, ok := instances[p.Instance]["tcp"]
+		if !ok {
+			const f = "no instance matching '%v' returned from host '%v'"
+			return fmt.Errorf(f, p.Instance, p.Host)
+		}
+		port, err := strconv.ParseUint(strport, 0, 16)
+		if err != nil {
+			const f = "invalid tcp port returned from Sql Server Browser '%v': %v"
+			return fmt.Errorf(f, strport, err.Error())
+		}
+		p.Port = port
+	}
+	if p.Port == 0 {
+		p.Port = defaultServerPort
+	}
+
+	packetSize := p.PacketSize
+	if packetSize == 0 {
+		packetSize = defaultPacketSize
+	}
+	// Ensure packet size falls within the TDS protocol range of 512 to 32767 bytes
+	// NOTE: Encrypted connections have a maximum size of 16383 bytes.  If you request
+	// a higher packet size, the server will respond with an ENVCHANGE request to
+	// alter the packet size to 16383 bytes.
+	if packetSize < 512 {
+		packetSize = 512
+	} else if packetSize > 32767 {
+		packetSize = 32767
+	}
+
+	p.PacketSize = packetSize
+	return err
+
 }

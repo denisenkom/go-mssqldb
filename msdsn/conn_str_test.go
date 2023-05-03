@@ -1,6 +1,7 @@
 package msdsn
 
 import (
+	"crypto/tls"
 	"reflect"
 	"testing"
 	"time"
@@ -195,4 +196,32 @@ func TestConnParseRoundTripFixed(t *testing.T) {
 	if !reflect.DeepEqual(params, rtParams) {
 		t.Fatal("Parameters do not match after roundtrip", params, rtParams)
 	}
+}
+
+func TestConnParseWithTlsVersion(t *testing.T) {
+	tests := []struct {
+		name    string
+		connStr string
+		wantCfg *Config
+	}{
+		{name: "1.TLS1.0", connStr: "sqlserver://someuser@somehost?tlsminversion=tls1.0", wantCfg: &Config{TLSConfig: &tls.Config{MinVersion: tls.VersionTLS10}}},
+		{name: "2.TLS1.1", connStr: "sqlserver://someuser@somehost?tlsminversion=tls1.1", wantCfg: &Config{TLSConfig: &tls.Config{MinVersion: tls.VersionTLS11}}},
+		{name: "3.TLS1.2", connStr: "sqlserver://someuser@somehost?tlsminversion=tls1.2", wantCfg: &Config{TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12}}},
+		{name: "4.no tlsminversion parameter", connStr: "sqlserver://someuser@somehost", wantCfg: &Config{TLSConfig: &tls.Config{MinVersion: 0}}},
+		{name: "5.wrong tlsminversion parameter", connStr: "sqlserver://someuser@somehost?tlsminversion=wrongtlsversion", wantCfg: &Config{TLSConfig: &tls.Config{MinVersion: 0}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, _, err := Parse(tt.connStr)
+			if err != nil {
+				t.Errorf("%s Parse Error:%+v", tt.name, err)
+				return
+			}
+			if got.TLSConfig.MinVersion != tt.wantCfg.TLSConfig.MinVersion {
+				t.Errorf("%s Parse MinVersion not match. want:%d, got:%d", tt.name, tt.wantCfg.TLSConfig.MinVersion, got.TLSConfig.MinVersion)
+				return
+			}
+		})
+	}
+
 }
