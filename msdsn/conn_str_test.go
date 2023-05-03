@@ -136,28 +136,28 @@ func TestValidConnectionString(t *testing.T) {
 
 		// URL mode
 		{"sqlserver://somehost?connection+timeout=30", func(p Config) bool {
-			return p.Host == "somehost" && p.Port == 0 && p.Instance == "" && p.ConnTimeout == 30*time.Second
+			return p.Scheme == "sqlserver" && p.Host == "somehost" && p.Port == 0 && p.Instance == "" && p.ConnTimeout == 30*time.Second
 		}},
 		{"sqlserver://someuser@somehost?connection+timeout=30", func(p Config) bool {
-			return p.Host == "somehost" && p.Port == 0 && p.Instance == "" && p.User == "someuser" && p.Password == "" && p.ConnTimeout == 30*time.Second
+			return p.Scheme == "sqlserver" && p.Host == "somehost" && p.Port == 0 && p.Instance == "" && p.User == "someuser" && p.Password == "" && p.ConnTimeout == 30*time.Second
 		}},
 		{"sqlserver://someuser:@somehost?connection+timeout=30", func(p Config) bool {
-			return p.Host == "somehost" && p.Port == 0 && p.Instance == "" && p.User == "someuser" && p.Password == "" && p.ConnTimeout == 30*time.Second
+			return p.Scheme == "sqlserver" && p.Host == "somehost" && p.Port == 0 && p.Instance == "" && p.User == "someuser" && p.Password == "" && p.ConnTimeout == 30*time.Second
 		}},
 		{"sqlserver://someuser:foo%3A%2F%5C%21~%40;bar@somehost?connection+timeout=30", func(p Config) bool {
-			return p.Host == "somehost" && p.Port == 0 && p.Instance == "" && p.User == "someuser" && p.Password == "foo:/\\!~@;bar" && p.ConnTimeout == 30*time.Second
+			return p.Scheme == "sqlserver" && p.Host == "somehost" && p.Port == 0 && p.Instance == "" && p.User == "someuser" && p.Password == "foo:/\\!~@;bar" && p.ConnTimeout == 30*time.Second
 		}},
 		{"sqlserver://someuser:foo%3A%2F%5C%21~%40;bar@somehost:1434?connection+timeout=30", func(p Config) bool {
-			return p.Host == "somehost" && p.Port == 1434 && p.Instance == "" && p.User == "someuser" && p.Password == "foo:/\\!~@;bar" && p.ConnTimeout == 30*time.Second
+			return p.Scheme == "sqlserver" && p.Host == "somehost" && p.Port == 1434 && p.Instance == "" && p.User == "someuser" && p.Password == "foo:/\\!~@;bar" && p.ConnTimeout == 30*time.Second
 		}},
 		{"sqlserver://someuser:foo%3A%2F%5C%21~%40;bar@somehost:1434/someinstance?connection+timeout=30", func(p Config) bool {
-			return p.Host == "somehost" && p.Port == 1434 && p.Instance == "someinstance" && p.User == "someuser" && p.Password == "foo:/\\!~@;bar" && p.ConnTimeout == 30*time.Second
+			return p.Scheme == "sqlserver" && p.Host == "somehost" && p.Port == 1434 && p.Instance == "someinstance" && p.User == "someuser" && p.Password == "foo:/\\!~@;bar" && p.ConnTimeout == 30*time.Second
 		}},
 		{"sqlserver://someuser@somehost?disableretry=true", func(p Config) bool {
-			return p.Host == "somehost" && p.Port == 0 && p.Instance == "" && p.User == "someuser" && p.Password == "" && p.DisableRetry
+			return p.Scheme == "sqlserver" && p.Host == "somehost" && p.Port == 0 && p.Instance == "" && p.User == "someuser" && p.Password == "" && p.DisableRetry
 		}},
 		{"sqlserver://someuser@somehost?connection+timeout=30&disableretry=1", func(p Config) bool {
-			return p.Host == "somehost" && p.Port == 0 && p.Instance == "" && p.User == "someuser" && p.Password == "" && p.ConnTimeout == 30*time.Second && p.DisableRetry
+			return p.Scheme == "sqlserver" && p.Host == "somehost" && p.Port == 0 && p.Instance == "" && p.User == "someuser" && p.Password == "" && p.ConnTimeout == 30*time.Second && p.DisableRetry
 		}},
 	}
 	for _, ts := range connStrings {
@@ -170,6 +170,41 @@ func TestValidConnectionString(t *testing.T) {
 		}
 
 		if !ts.check(p) {
+			t.Errorf("Check failed on conn str %s", ts.connStr)
+		}
+	}
+}
+
+func TestValidConnectionStringWithParams(t *testing.T) {
+	// Like the test above, but strings where we want to have assertions on params being passed through;
+	// would be very verbose to change the test above
+	type testStruct struct {
+		connStr string
+		check   func(Config, map[string]string) bool
+	}
+	connStrings := []testStruct{
+		{"azuresql://somehost?connection+timeout=30&fedauth=ActiveDirectoryDefault", func(p Config, params map[string]string) bool {
+			// fedauth is in params, see TestParams
+			if !(p.Scheme == "azuresql" && p.Host == "somehost" && p.Port == 0 && p.Instance == "" && p.Password == "") {
+				return false
+			}
+			fedauth, ok := params["fedauth"]
+			if !ok {
+				return false
+			}
+			return fedauth == "ActiveDirectoryDefault"
+		}},
+	}
+	for _, ts := range connStrings {
+		p, params, err := Parse(ts.connStr)
+		if err == nil {
+			t.Logf("Connection string was parsed successfully %s", ts.connStr)
+		} else {
+			t.Errorf("Connection string %s failed to parse with error %s", ts.connStr, err)
+			continue
+		}
+
+		if !ts.check(p, params) {
 			t.Errorf("Check failed on conn str %s", ts.connStr)
 		}
 	}

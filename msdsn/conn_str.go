@@ -38,6 +38,7 @@ const (
 )
 
 type Config struct {
+	Scheme     string
 	Port       uint64
 	Host       string
 	Instance   string
@@ -117,7 +118,7 @@ func Parse(dsn string) (Config, map[string]string, error) {
 			return p, params, err
 		}
 		params = parameters
-	} else if strings.HasPrefix(dsn, "sqlserver://") {
+	} else if strings.HasPrefix(dsn, "sqlserver://") || strings.HasPrefix(dsn, "azuresql://") {
 		parameters, err := splitConnectionStringURL(dsn)
 		if err != nil {
 			return p, params, err
@@ -125,6 +126,11 @@ func Parse(dsn string) (Config, map[string]string, error) {
 		params = parameters
 	} else {
 		params = splitConnectionString(dsn)
+	}
+
+	p.Scheme = "sqlserver"
+	if strings.HasPrefix(dsn, "azuresql://") {
+		p.Scheme = "azuresql"
 	}
 
 	strlog, ok := params["log"]
@@ -342,7 +348,7 @@ func (p Config) URL() *url.URL {
 	}
 	q.Add("disableRetry", fmt.Sprintf("%t", p.DisableRetry))
 	res := url.URL{
-		Scheme: "sqlserver",
+		Scheme: p.Scheme,
 		Host:   host,
 		User:   url.UserPassword(p.User, p.Password),
 	}
@@ -410,7 +416,7 @@ func splitConnectionStringURL(dsn string) (map[string]string, error) {
 		return res, err
 	}
 
-	if u.Scheme != "sqlserver" {
+	if u.Scheme != "sqlserver" && u.Scheme != "azuresql" {
 		return res, fmt.Errorf("scheme %s is not recognized", u.Scheme)
 	}
 
