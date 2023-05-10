@@ -182,12 +182,12 @@ func TestTVPType_check(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "Value isn't right",
+			name: "Value is pointer",
 			fields: fields{
 				TVPName:  "Test",
 				TVPValue: []*fields{},
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name: "Value is right",
@@ -331,10 +331,10 @@ func BenchmarkColumnTypes(b *testing.B) {
 
 func TestIsSkipField(t *testing.T) {
 	type args struct {
-		tvpTagValue    string
-		isTvpValue     bool
-		jsonTagValue   string
-		isJsonTagValue bool
+		TvpTagValue    string
+		IsTvpValue     bool
+		JsonTagValue   string
+		IsJsonTagValue bool
 	}
 	tests := []struct {
 		name string
@@ -349,78 +349,78 @@ func TestIsSkipField(t *testing.T) {
 			name: "tvp is skip",
 			want: true,
 			args: args{
-				isTvpValue:  true,
-				tvpTagValue: skipTagValue,
+				IsTvpValue:  true,
+				TvpTagValue: skipTagValue,
 			},
 		},
 		{
 			name: "tvp is any",
 			want: false,
 			args: args{
-				isTvpValue:  true,
-				tvpTagValue: "tvp",
+				IsTvpValue:  true,
+				TvpTagValue: "tvp",
 			},
 		},
 		{
 			name: "Json is skip",
 			want: true,
 			args: args{
-				isJsonTagValue: true,
-				jsonTagValue:   skipTagValue,
+				IsJsonTagValue: true,
+				JsonTagValue:   skipTagValue,
 			},
 		},
 		{
 			name: "Json is any",
 			want: false,
 			args: args{
-				isJsonTagValue: true,
-				jsonTagValue:   "any",
+				IsJsonTagValue: true,
+				JsonTagValue:   "any",
 			},
 		},
 		{
 			name: "Json is skip tvp is skip",
 			want: true,
 			args: args{
-				isJsonTagValue: true,
-				jsonTagValue:   skipTagValue,
-				isTvpValue:     true,
-				tvpTagValue:    skipTagValue,
+				IsJsonTagValue: true,
+				JsonTagValue:   skipTagValue,
+				IsTvpValue:     true,
+				TvpTagValue:    skipTagValue,
 			},
 		},
 		{
 			name: "Json is skip tvp is any",
 			want: false,
 			args: args{
-				isJsonTagValue: true,
-				jsonTagValue:   skipTagValue,
-				isTvpValue:     true,
-				tvpTagValue:    "tvp",
+				IsJsonTagValue: true,
+				JsonTagValue:   skipTagValue,
+				IsTvpValue:     true,
+				TvpTagValue:    "tvp",
 			},
 		},
 		{
 			name: "Json is any tvp is skip",
 			want: true,
 			args: args{
-				isJsonTagValue: true,
-				jsonTagValue:   "json",
-				isTvpValue:     true,
-				tvpTagValue:    skipTagValue,
+				IsJsonTagValue: true,
+				JsonTagValue:   "json",
+				IsTvpValue:     true,
+				TvpTagValue:    skipTagValue,
 			},
 		},
 		{
 			name: "Json is any tvp is skip",
 			want: false,
 			args: args{
-				isJsonTagValue: true,
-				jsonTagValue:   "json",
-				isTvpValue:     true,
-				tvpTagValue:    "tvp",
+				IsJsonTagValue: true,
+				JsonTagValue:   "json",
+				IsTvpValue:     true,
+				TvpTagValue:    "tvp",
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := IsSkipField(tt.args.tvpTagValue, tt.args.isTvpValue, tt.args.jsonTagValue, tt.args.isJsonTagValue); got != tt.want {
+			if got := IsSkipField(tt.args.TvpTagValue, tt.args.IsTvpValue, tt.args.JsonTagValue, tt.args.IsJsonTagValue); got != tt.want {
 				t.Errorf("IsSkipField() = %v, schema %v", got, tt.want)
 			}
 		})

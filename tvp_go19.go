@@ -56,7 +56,7 @@ func (tvp TVP) check() error {
 	if valueOf.IsNil() {
 		return ErrorTypeSliceIsEmpty
 	}
-	if reflect.TypeOf(tvp.Value).Elem().Kind() != reflect.Struct {
+	if elem := reflect.TypeOf(tvp.Value).Elem(); (elem.Kind() == reflect.Ptr && elem.Elem().Kind() != reflect.Struct) && (elem.Kind() != reflect.Struct) {
 		return ErrorTypeSlice
 	}
 	return nil
@@ -162,6 +162,9 @@ func (tvp TVP) columnTypes() ([]columnStruct, []int, error) {
 		tvpTagValue, isTvpTag := field.Tag.Lookup(tvpTag)
 		jsonTagValue, isJsonTag := field.Tag.Lookup(jsonTag)
 		if IsSkipField(tvpTagValue, isTvpTag, jsonTagValue, isJsonTag) {
+			continue
+		}
+		if field.PkgPath == "" {
 			continue
 		}
 		tvpFieldIndexes = append(tvpFieldIndexes, i)
