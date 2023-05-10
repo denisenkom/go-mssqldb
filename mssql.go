@@ -451,6 +451,10 @@ func (s *Stmt) Close() error {
 	return nil
 }
 
+// Sets a Query Notification for the query in Stmt.
+// Options must be in the format:
+//  service=<service-name>[;(local database=<database> | broker instance=<broker instance>)]
+// https://docs.microsoft.com/en-us/previous-versions/sql/sql-server-2008-r2/ms181122(v=sql.105)
 func (s *Stmt) SetQueryNotification(id, options string, timeout time.Duration) {
 	// 2.2.5.3.1 Query Notifications Header
 	// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/e168d373-a7b7-41aa-b6ca-25985466a7e0
