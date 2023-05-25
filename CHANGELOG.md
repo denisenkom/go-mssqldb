@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0
+
+### Features
+
+* `admin` protocol for dedicated administrator connections
+
+### Changed
+
+* Added `Hidden()` method to `ProtocolParser` interface
+
 ## 0.21.0
 
 ### Features

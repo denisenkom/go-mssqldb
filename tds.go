@@ -19,6 +19,14 @@ import (
 	"github.com/microsoft/go-mssqldb/msdsn"
 )
 
+func parseDAC(msg []byte, instance string) msdsn.BrowserData {
+	results := msdsn.BrowserData{}
+	if len(msg) == 6 && msg[0] == 5 {
+		results[strings.ToUpper(instance)]["tcp"] = fmt.Sprint(binary.LittleEndian.Uint16(msg[5:]))
+	}
+	return results
+}
+
 func parseInstances(msg []byte) msdsn.BrowserData {
 	results := msdsn.BrowserData{}
 	if len(msg) > 3 && msg[0] == 5 {
@@ -48,23 +56,38 @@ func parseInstances(msg []byte) msdsn.BrowserData {
 	return results
 }
 
-func getInstances(ctx context.Context, d Dialer, address string) (msdsn.BrowserData, error) {
-	conn, err := d.DialContext(ctx, "udp", net.JoinHostPort(address, "1434"))
+func getInstances(ctx context.Context, d Dialer, address string, browserMsg msdsn.BrowserMsg, instance string) (msdsn.BrowserData, error) {
 	emptyInstances := msdsn.BrowserData{}
+	var bmsg []byte
+	var resp []byte
+	if browserMsg == msdsn.BrowserDAC {
+		bmsg = make([]byte, 3+len(instance))
+		bmsg[0] = byte(msdsn.BrowserDAC)
+		bmsg[1] = 1
+		_ = copy(bmsg[3:], instance)
+		resp = make([]byte, 6)
+	} else { // default to AllInstances
+		bmsg = []byte{byte(msdsn.BrowserAllInstances)}
+		resp = make([]byte, 16*1024-1)
+	}
+	conn, err := d.DialContext(ctx, "udp", net.JoinHostPort(address, "1434"))
 	if err != nil {
 		return emptyInstances, err
 	}
 	defer conn.Close()
 	deadline, _ := ctx.Deadline()
 	conn.SetDeadline(deadline)
-	_, err = conn.Write([]byte{3})
+	_, err = conn.Write(bmsg)
 	if err != nil {
 		return emptyInstances, err
 	}
-	var resp = make([]byte, 16*1024-1)
+
 	read, err := conn.Read(resp)
 	if err != nil {
 		return emptyInstances, err
+	}
+	if browserMsg == msdsn.BrowserDAC {
+		return parseDAC(resp[:read], instance), nil
 	}
 	return parseInstances(resp[:read]), nil
 }
@@ -904,7 +927,7 @@ func dialConnection(ctx context.Context, c *Connector, p *msdsn.Config, logger C
 		if dialer.CallBrowser(p) {
 			if instances == nil {
 				d := c.getDialer(p)
-				instances, err = getInstances(ctx, d, p.Host)
+				instances, err = getInstances(ctx, d, p.Host, p.BrowserMessage, p.Instance)
 				if err != nil && logger != nil && uint64(p.LogFlags)&logErrors != 0 {
 					e := fmt.Sprintf("unable to get instances from Sql Server Browser on host %v: %v", p.Host, err.Error())
 					logger.Log(ctx, msdsn.Log(logErrors), e)

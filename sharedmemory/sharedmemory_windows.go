@@ -41,6 +41,10 @@ func (n sharedMemoryDialer) Protocol() string {
 	return "lpc"
 }
 
+func (n sharedMemoryDialer) Hidden() bool {
+	return false
+}
+
 func (n sharedMemoryDialer) ParseBrowserData(data msdsn.BrowserData, p *msdsn.Config) error {
 	return nil
 }

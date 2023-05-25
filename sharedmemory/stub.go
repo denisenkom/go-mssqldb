@@ -19,6 +19,10 @@ func (n sharedMemoryDialer) Protocol() string {
 	return "np"
 }
 
+func (n sharedMemoryDialer) Hidden() bool {
+	return false
+}
+
 func (n sharedMemoryDialer) ParseBrowserData(data msdsn.BrowserData, p *msdsn.Config) error {
 	return fmt.Errorf("Shared memory connections are not supported on this operating system")
 }

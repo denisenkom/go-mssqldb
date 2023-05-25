@@ -1,3 +1,4 @@
+//go:build go1.10
 // +build go1.10
 
 package mssql
@@ -35,7 +36,7 @@ SET ARITHIGNORE ON; -- 128
 `
 
 	pool := sql.OpenDB(connector)
-
+	defer pool.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

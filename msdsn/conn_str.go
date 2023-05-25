@@ -18,6 +18,7 @@ import (
 type (
 	Encryption int
 	Log        uint64
+	BrowserMsg byte
 )
 
 const (
@@ -35,6 +36,12 @@ const (
 	LogTransaction Log = 32
 	LogDebug       Log = 64
 	LogRetries     Log = 128
+)
+
+const (
+	BrowserDefault      BrowserMsg = 0
+	BrowserAllInstances BrowserMsg = 0x03
+	BrowserDAC          BrowserMsg = 0x0f
 )
 
 type Config struct {
@@ -79,6 +86,8 @@ type Config struct {
 	Protocols []string
 	// ProtocolParameters are written by non-tcp ProtocolParser implementations
 	ProtocolParameters map[string]interface{}
+	// BrowserMsg is the message identifier to fetch instance data from SQL browser
+	BrowserMessage BrowserMsg
 }
 
 // Build a tls.Config object from the supplied certificate.
@@ -316,7 +325,7 @@ func Parse(dsn string) (Config, error) {
 	protocol, ok := params["protocol"]
 
 	for _, parser := range ProtocolParsers {
-		if !ok || parser.Protocol() == protocol {
+		if (!ok && !parser.Hidden()) || parser.Protocol() == protocol {
 			err = parser.ParseServer(server, &p)
 			if err != nil {
 				// if the caller only wants this protocol , fail right away
@@ -376,12 +385,27 @@ func (p Config) URL() *url.URL {
 		q.Add("log", strconv.FormatUint(uint64(p.LogFlags), 10))
 	}
 	host := p.Host
+	protocol := ""
+	// Can't just check for a : because of IPv6 host names
+	if strings.HasPrefix(host, "admin") || strings.HasPrefix(host, "np") || strings.HasPrefix(host, "sm") || strings.HasPrefix(host, "tcp") {
+		hostParts := strings.SplitN(p.Host, ":", 2)
+		if len(hostParts) > 1 {
+			host = hostParts[1]
+			protocol = hostParts[0]
+		}
+	}
 	if p.Port > 0 {
-		host = fmt.Sprintf("%s:%d", p.Host, p.Port)
+		host = fmt.Sprintf("%s:%d", host, p.Port)
 	}
 	q.Add("disableRetry", fmt.Sprintf("%t", p.DisableRetry))
-	protocol, ok := p.Parameters["protocol"]
+	protocolParam, ok := p.Parameters["protocol"]
 	if ok {
+		if protocol != "" && protocolParam != protocol {
+			panic("Mismatched protocol parameters!")
+		}
+		protocol = protocolParam
+	}
+	if protocol != "" {
 		q.Add("protocol", protocol)
 	}
 	pipe, ok := p.Parameters["pipe"]
@@ -661,16 +685,27 @@ func normalizeOdbcKey(s string) string {
 
 // ProtocolParser can populate Config with parameters to dial using its protocol
 type ProtocolParser interface {
+	// ParseServer updates the Config with protocol properties from the server. Returns an error if the server isn't compatible.
 	ParseServer(server string, p *Config) error
+	// Protocol returns the name of the protocol dialer
 	Protocol() string
+	// Hidden returns true if this protocol must be explicitly chosen by the application
+	Hidden() bool
 }
 
 // ProtocolParsers is an ordered list of protocols that can be dialed. Each parser must have a corresponding Dialer in mssql.ProtocolDialers
 var ProtocolParsers []ProtocolParser = []ProtocolParser{
-	tcpParser{},
+	tcpParser{Prefix: "tcp"},
+	tcpParser{Prefix: "admin"},
 }
 
-type tcpParser struct{}
+type tcpParser struct {
+	Prefix string
+}
+
+func (t tcpParser) Hidden() bool {
+	return t.Prefix == "admin"
+}
 
 func (t tcpParser) ParseServer(server string, p *Config) error {
 	// a server name can have different forms
@@ -682,9 +717,17 @@ func (t tcpParser) ParseServer(server string, p *Config) error {
 	if len(parts) > 1 {
 		p.Instance = parts[1]
 	}
+	if t.Prefix == "admin" {
+		if p.Instance == "" {
+			p.Port = 1434
+		}
+		p.BrowserMessage = BrowserDAC
+	} else {
+		p.BrowserMessage = BrowserAllInstances
+	}
 	return nil
 }
 
 func (t tcpParser) Protocol() string {
-	return "tcp"
+	return t.Prefix
 }

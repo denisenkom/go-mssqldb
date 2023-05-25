@@ -1048,6 +1048,7 @@ func TestClearReturnStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer conn.Close()
 
 	_, err = conn.ExecContext(ctx, "CREATE PROC #get_answer AS RETURN 42")
 	if err != nil {

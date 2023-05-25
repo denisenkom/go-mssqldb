@@ -80,6 +80,8 @@ To force a specific protocol for the connection there two several options:
 
 `msdsn.ProtocolParsers` can be reordered to prioritize other protocols ahead of `tcp`
 
+The `admin` protocol will not be used for dialing unless the connection string explicitly specifies it. Note SQL Server allows only 1 admin (or DAC) connection to be active at a time.
+
 ### Kerberos Active Directory authentication outside Windows
 
 To connect with kerberos authentication from a Linux server you can use the optional krb5 package. 
@@ -403,6 +405,7 @@ db.QueryContext(ctx, `select * from t2 where user_name = @p1;`, mssql.VarChar(na
 * Pluggable Dialer implementations through `msdsn.ProtocolParsers` and `msdsn.ProtocolDialers`
 * A `namedpipe` package to support connections using named pipes (np:) on Windows
 * A `sharedmemory` package to support connections using shared memory (lpc:) on Windows
+* Dedicated Administrator Connection (DAC) is supported using `admin` protocol
 
 ## Tests
 

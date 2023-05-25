@@ -56,6 +56,10 @@ func (n namedPipeDialer) Protocol() string {
 	return "np"
 }
 
+func (n namedPipeDialer) Hidden() bool {
+	return false
+}
+
 func (n namedPipeDialer) ParseBrowserData(data msdsn.BrowserData, p *msdsn.Config) error {
 	// If instance is specified, but no port, check SQL Server Browser
 	// for the instance and discover its port.

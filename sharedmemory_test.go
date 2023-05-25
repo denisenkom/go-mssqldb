@@ -26,6 +26,7 @@ func TestSharedMemoryConnection(t *testing.T) {
 		t.Skip("Test is not running with named pipe protocol set")
 	}
 	conn, _ := open(t)
+	defer conn.Close()
 	row := conn.QueryRow("SELECT net_transport FROM sys.dm_exec_connections WHERE session_id = @@SPID")
 	if err := row.Scan(&protocol); err != nil {
 		t.Fatalf("Unable to query connection protocol %s", err.Error())

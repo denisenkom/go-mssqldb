@@ -10,6 +10,10 @@ type testProtocol struct{}
 
 var protocolImpl = testProtocol{}
 
+func (t testProtocol) Hidden() bool {
+	return false
+}
+
 func (t testProtocol) ParseServer(server string, p *Config) error {
 	if strings.HasPrefix(server, "**") {
 		p.ProtocolParameters[t.Protocol()] = "special"

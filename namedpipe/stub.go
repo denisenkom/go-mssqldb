@@ -19,6 +19,10 @@ func (n namedPipeDialer) Protocol() string {
 	return "np"
 }
 
+func (n namedPipeDialer) Hidden() bool {
+	return false
+}
+
 func (n namedPipeDialer) ParseBrowserData(data msdsn.BrowserData, p *msdsn.Config) error {
 	return fmt.Errorf("Named pipe connections are not supported on this operating system")
 }
