@@ -7,16 +7,16 @@ import (
 	"os"
 	"time"
 
-	"gopkg.in/natefinch/npipe.v2"
+	"github.com/microsoft/go-mssqldb/internal/gopkg.in/natefinch/npipe.v2"
 )
 
 func DialConnection(ctx context.Context, pipename string, host string, instanceName string, inputServerSPN string) (conn net.Conn, serverSPN string, err error) {
 	dl, ok := ctx.Deadline()
 	if ok {
 		duration := time.Until(dl)
-		conn, err = npipe.DialTimeout(pipename, duration)
+		conn, err = npipe.DialTimeoutExisting(pipename, duration)
 	} else {
-		conn, err = npipe.Dial(pipename)
+		conn, err = npipe.DialExisting(pipename)
 	}
 	serverSPN = inputServerSPN
 	if err == nil && inputServerSPN == "" {
