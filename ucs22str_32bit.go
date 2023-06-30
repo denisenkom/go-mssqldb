@@ -1,5 +1,5 @@
-//go:build arm || 386
-// +build arm 386
+//go:build arm || 386 || mips || mipsle
+// +build arm 386 mips mipsle
 
 package mssql
 
