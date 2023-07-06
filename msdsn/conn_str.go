@@ -25,6 +25,7 @@ const (
 	EncryptionOff      = 0
 	EncryptionRequired = 1
 	EncryptionDisabled = 3
+	EncryptionStrict   = 4
 )
 
 const (
@@ -130,21 +131,24 @@ func parseTLS(params map[string]string, host string) (Encryption, *tls.Config, e
 	var encryption Encryption = EncryptionOff
 	encrypt, ok := params["encrypt"]
 	if ok {
-		if strings.EqualFold(encrypt, "DISABLE") {
+		encrypt = strings.ToLower(encrypt)
+		switch encrypt {
+		case "mandatory", "yes", "1", "t", "true":
+			encryption = EncryptionRequired
+		case "disable":
 			encryption = EncryptionDisabled
-		} else {
-			e, err := strconv.ParseBool(encrypt)
-			if err != nil {
-				f := "invalid encrypt '%s': %s"
-				return encryption, nil, fmt.Errorf(f, encrypt, err.Error())
-			}
-			if e {
-				encryption = EncryptionRequired
-			}
+		case "strict":
+			encryption = EncryptionStrict
+		case "optional", "no", "0", "f", "false":
+			encryption = EncryptionOff
+		default:
+			f := "invalid encrypt '%s'"
+			return encryption, nil, fmt.Errorf(f, encrypt)
 		}
 	} else {
 		trustServerCert = true
 	}
+
 	trust, ok := params["trustservercertificate"]
 	if ok {
 		var err error

@@ -62,6 +62,7 @@ func TestValidConnectionString(t *testing.T) {
 		{"encrypt=disable", func(p Config) bool { return p.Encryption == EncryptionDisabled }},
 		{"encrypt=disable;tlsmin=1.1", func(p Config) bool { return p.Encryption == EncryptionDisabled && p.TLSConfig == nil }},
 		{"encrypt=true", func(p Config) bool { return p.Encryption == EncryptionRequired && p.TLSConfig.MinVersion == 0 }},
+		{"encrypt=mandatory", func(p Config) bool { return p.Encryption == EncryptionRequired && p.TLSConfig.MinVersion == 0 }},
 		{"encrypt=true;tlsmin=1.0", func(p Config) bool {
 			return p.Encryption == EncryptionRequired && p.TLSConfig.MinVersion == tls.VersionTLS10
 		}},
@@ -78,6 +79,8 @@ func TestValidConnectionString(t *testing.T) {
 			return p.Encryption == EncryptionRequired && p.TLSConfig.MinVersion == 0
 		}},
 		{"encrypt=false", func(p Config) bool { return p.Encryption == EncryptionOff }},
+		{"encrypt=optional", func(p Config) bool { return p.Encryption == EncryptionOff }},
+		{"encrypt=strict", func(p Config) bool { return p.Encryption == EncryptionStrict }},
 		{"connection timeout=3;dial timeout=4;keepalive=5", func(p Config) bool {
 			return p.ConnTimeout == 3*time.Second && p.DialTimeout == 4*time.Second && p.KeepAlive == 5*time.Second
 		}},
