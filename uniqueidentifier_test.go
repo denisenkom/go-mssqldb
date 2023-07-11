@@ -69,8 +69,23 @@ func TestUniqueIdentifierString(t *testing.T) {
 func TestUniqueIdentifierMarshalText(t *testing.T) {
 	sut := UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF}
 	expected := []byte{48, 49, 50, 51, 52, 53, 54, 55, 45, 56, 57, 65, 66, 45, 67, 68, 69, 70, 45, 48, 49, 50, 51, 45, 52, 53, 54, 55, 56, 57, 65, 66, 67, 68, 69, 70}
-	if actual := sut.MarshalText(); !reflect.DeepEqual(actual, expected) {
+	text, _ := sut.MarshalText()
+	if actual := text; !reflect.DeepEqual(actual, expected) {
 		t.Errorf("sut.MarshalText() = %v; want %v", actual, expected)
+	}
+}
+
+func TestUniqueIdentifierUnmarshalJSON(t *testing.T) {
+	input := []byte("01234567-89AB-CDEF-0123-456789ABCDEF")
+	var u UniqueIdentifier
+
+	err := u.UnmarshalJSON(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := UniqueIdentifier{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF}
+	if u != expected {
+		t.Errorf("u.UnmarshalJSON() = %v; want %v", u, expected)
 	}
 }
 
