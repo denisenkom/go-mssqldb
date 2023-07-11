@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0
+
+### Features
+
+* A connector's dialer can now be used to resolve DNS if the dialer implements the `HostDialer` interface
+
 ## 1.0.0
 
 ### Features

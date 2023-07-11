@@ -43,6 +43,19 @@ func (d *MockTransportDialer) DialContext(ctx context.Context, network string, a
 	return d.client, nil
 }
 
+type MockHostTransportDialer struct {
+	Dialer *MockTransportDialer
+	Host   string
+}
+
+func (m MockHostTransportDialer) DialContext(ctx context.Context, network string, addr string) (conn net.Conn, err error) {
+	return m.Dialer.DialContext(ctx, network, addr)
+}
+
+func (m MockHostTransportDialer) HostName() string {
+	return m.Host
+}
+
 func testLoginSequenceServer(result chan error, conn net.Conn, expectedPackets, responsePackets []string) {
 	defer func() {
 		conn.Close()
