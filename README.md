@@ -72,6 +72,10 @@ Other supported formats are listed below.
 
 If no pipe name can be derived from the DSN, connection attempts will first query the SQL Browser service to find the pipe name for the instance.
 
+### DNS Resolution through a Custom Dialer
+
+Custom Dialers can be used to resolve DNS if the Connection's Dialer implements the `HostDialer` interface. This is helpful when the dialer is proxying requests to a different, private network and the DNS record is local to the private network.
+
 ### Protocol configuration
 
 To force a specific protocol for the connection there two several options:

@@ -971,3 +971,56 @@ func versionToHexString(v uint32) string {
 	binary.LittleEndian.PutUint32(b, v)
 	return hex.EncodeToString(b)
 }
+
+func TestDialSqlConnectionCustomDialer(t *testing.T) {
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
+
+	params := msdsn.Config{
+		Host: "nonexistant-dns.svc.cluster.local",
+	}
+	connector, err := NewConnector(params.URL().String())
+	if err != nil {
+		t.Error(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	// if a host dialer is specified, the dialer should be used to resolve the DNS
+	mock := NewMockTransportDialer(
+		[]string{},
+		[]string{},
+	)
+	connector.Dialer = MockHostTransportDialer{
+		Dialer: mock,
+		Host:   params.Host,
+	}
+
+	if mock.count != 0 {
+		t.Error("expecting no connections")
+	}
+	sqlDialer, _ := msdsn.ProtocolDialers["tcp"].(MssqlProtocolDialer)
+	conn, err := sqlDialer.DialSqlConnection(ctx, connector, &params)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if mock.count != 1 {
+		t.Error("expecting 1 connection")
+	}
+
+	err = conn.Close()
+	if err != nil {
+		t.Error(err)
+	}
+
+	// if it is not a host dialer, the dialer should not be used to resolve DNS
+	connector.Dialer = mock
+	sqlDialer, _ = msdsn.ProtocolDialers["tcp"].(MssqlProtocolDialer)
+	_, err = sqlDialer.DialSqlConnection(ctx, connector, &params)
+	if err == nil {
+		t.Error(fmt.Errorf("dialer should not be used to resolve dns if not a host dialer"))
+	}
+}

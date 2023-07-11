@@ -194,13 +194,22 @@ type Connector struct {
 	// SessionInitSQL is empty.
 	SessionInitSQL string
 
-	// Dialer sets a custom dialer for all network operations.
+	// Dialer sets a custom dialer for all network operations, except DNS resolution unless
+	// the dialer implements the HostDialer.
+	//
 	// If Dialer is not set, normal net dialers are used.
 	Dialer Dialer
 }
 
 type Dialer interface {
 	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
+}
+
+// HostDialer should be used if the dialer is proxying requests to a different network
+// and DNS should be resolved in that other network
+type HostDialer interface {
+	Dialer
+	HostName() string
 }
 
 func (c *Connector) getDialer(p *msdsn.Config) Dialer {
