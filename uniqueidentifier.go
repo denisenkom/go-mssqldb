@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 type UniqueIdentifier [16]byte
@@ -75,6 +76,24 @@ func (u UniqueIdentifier) String() string {
 
 // MarshalText converts Uniqueidentifier to bytes corresponding to the stringified hexadecimal representation of the Uniqueidentifier
 // e.g., "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA" -> [65 65 65 65 65 65 65 65 45 65 65 65 65 45 65 65 65 65 45 65 65 65 65 65 65 65 65 65 65 65 65]
-func (u UniqueIdentifier) MarshalText() []byte {
-	return []byte(u.String())
+func (u UniqueIdentifier) MarshalText() (text []byte, err error) {
+	text = []byte(u.String())
+	return
+}
+
+// Unmarshals a string representation of a UniqueIndentifier to bytes
+// "01234567-89AB-CDEF-0123-456789ABCDEF" -> [48, 49, 50, 51, 52, 53, 54, 55, 45, 56, 57, 65, 66, 45, 67, 68, 69, 70, 45, 48, 49, 50, 51, 45, 52, 53, 54, 55, 56, 57, 65, 66, 67, 68, 69, 70]
+func (u *UniqueIdentifier) UnmarshalJSON(b []byte) error {
+	// remove quotes
+	input := strings.Trim(string(b), `"`)
+	// decode
+	bytes, err := hex.DecodeString(strings.Replace(input, "-", "", -1))
+
+	if err != nil {
+		return err
+	}
+	// Copy the bytes to the UniqueIdentifier
+	copy(u[:], bytes)
+
+	return nil
 }
