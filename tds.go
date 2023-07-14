@@ -143,6 +143,7 @@ const (
 	encryptOn     = 1 // Encryption is available and on.
 	encryptNotSup = 2 // Encryption is not available.
 	encryptReq    = 3 // Encryption is required.
+	encryptStrict = 4
 )
 
 const (
@@ -977,6 +978,8 @@ func preparePreloginFields(p msdsn.Config, fe *featureExtFedAuth) map[uint8][]by
 		encrypt = encryptOn
 	case msdsn.EncryptionOff:
 		encrypt = encryptOff
+	case msdsn.EncryptionStrict:
+		encrypt = encryptStrict
 	}
 	v := getDriverVersion(driverVersion)
 	fields := map[uint8][]byte{
@@ -1133,8 +1136,38 @@ initiate_connection:
 	}
 
 	toconn := newTimeoutConn(conn, p.ConnTimeout)
-
 	outbuf := newTdsBuffer(packetSize, toconn)
+
+	if p.Encryption == msdsn.EncryptionStrict {
+		var config *tls.Config
+		if pc := p.TLSConfig; pc != nil {
+			config = pc
+			if config.DynamicRecordSizingDisabled == false {
+				config = config.Clone()
+
+				// fix for https://github.com/microsoft/go-mssqldb/issues/166
+				// Go implementation of TLS payload size heuristic algorithm splits single TDS package to multiple TCP segments,
+				// while SQL Server seems to expect one TCP segment per encrypted TDS package.
+				// Setting DynamicRecordSizingDisabled to true disables that algorithm and uses 16384 bytes per TLS package
+				config.DynamicRecordSizingDisabled = true
+			}
+		}
+		if config == nil {
+			config, err = msdsn.SetupTLS("", false, p.Host, "")
+			if err != nil {
+				return nil, err
+			}
+		}
+		//Set ALPN Sequence
+		config.NextProtos = []string{"tds/8.0"}
+
+		tlsConn := tls.Client(toconn.c, config)
+		err = tlsConn.Handshake()
+		outbuf.transport = tlsConn
+		if err != nil {
+			return nil, fmt.Errorf("TLS Handshake failed: %v", err)
+		}
+	}
 	sess := tdsSession{
 		buf:      outbuf,
 		logger:   logger,
@@ -1166,43 +1199,47 @@ initiate_connection:
 		return nil, err
 	}
 
-	if encrypt != encryptNotSup {
-		var config *tls.Config
-		if pc := p.TLSConfig; pc != nil {
-			config = pc
-			if config.DynamicRecordSizingDisabled == false {
-				config = config.Clone()
+	if p.Encryption != msdsn.EncryptionStrict {
+		if encrypt != encryptNotSup {
+			var config *tls.Config
+			if pc := p.TLSConfig; pc != nil {
+				config = pc
+				if config.DynamicRecordSizingDisabled == false {
+					config = config.Clone()
 
-				// fix for https://github.com/microsoft/go-mssqldb/issues/166
-				// Go implementation of TLS payload size heuristic algorithm splits single TDS package to multiple TCP segments,
-				// while SQL Server seems to expect one TCP segment per encrypted TDS package.
-				// Setting DynamicRecordSizingDisabled to true disables that algorithm and uses 16384 bytes per TLS package
-				config.DynamicRecordSizingDisabled = true
+					// fix for https://github.com/microsoft/go-mssqldb/issues/166
+					// Go implementation of TLS payload size heuristic algorithm splits single TDS package to multiple TCP segments,
+					// while SQL Server seems to expect one TCP segment per encrypted TDS package.
+					// Setting DynamicRecordSizingDisabled to true disables that algorithm and uses 16384 bytes per TLS package
+					config.DynamicRecordSizingDisabled = true
+				}
 			}
-		}
-		if config == nil {
-			config, err = msdsn.SetupTLS("", false, p.Host, "")
+			if config == nil {
+				config, err = msdsn.SetupTLS("", false, p.Host, "")
+				if err != nil {
+					return nil, err
+				}
+
+			}
+
+			// setting up connection handler which will allow wrapping of TLS handshake packets inside TDS stream
+			handshakeConn := tlsHandshakeConn{buf: outbuf}
+			passthrough := passthroughConn{c: &handshakeConn}
+			tlsConn := tls.Client(&passthrough, config)
+			err = tlsConn.Handshake()
+			passthrough.c = toconn
+			outbuf.transport = tlsConn
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("TLS Handshake failed: %v", err)
+			}
+			if encrypt == encryptOff {
+				outbuf.afterFirst = func() {
+					outbuf.transport = toconn
+				}
 			}
 		}
 
-		// setting up connection handler which will allow wrapping of TLS handshake packets inside TDS stream
-		handshakeConn := tlsHandshakeConn{buf: outbuf}
-		passthrough := passthroughConn{c: &handshakeConn}
-		tlsConn := tls.Client(&passthrough, config)
-		err = tlsConn.Handshake()
-		passthrough.c = toconn
-		outbuf.transport = tlsConn
-		if err != nil {
-			return nil, fmt.Errorf("TLS Handshake failed: %v", err)
-		}
-		if encrypt == encryptOff {
-			outbuf.afterFirst = func() {
-				outbuf.transport = toconn
-			}
-		}
-	}
+	} //p.Encryption != msdsn.EncryptionStrict
 
 	auth, err := integratedauth.GetIntegratedAuthenticator(p)
 	if err != nil {
