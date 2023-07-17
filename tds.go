@@ -102,6 +102,7 @@ const (
 	verTDS73     = verTDS73A
 	verTDS73B    = 0x730B0003
 	verTDS74     = 0x74000004
+	verTDS80     = 0x08000000
 )
 
 // packet types
@@ -1026,6 +1027,12 @@ func interpretPreloginResponse(p msdsn.Config, fe *featureExtFedAuth, fields map
 }
 
 func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger ContextLogger, auth integratedauth.IntegratedAuthenticator, fe *featureExtFedAuth, packetSize uint32) (l *login, err error) {
+	var TDSVersion uint32
+	if(p.Encryption == msdsn.EncryptionStrict) {
+		TDSVersion = verTDS80
+	} else {
+		TDSVersion = verTDS74
+	}
 	var typeFlags uint8
 	if p.ReadOnlyIntent {
 		typeFlags |= fReadOnlyIntent
@@ -1038,7 +1045,7 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger Cont
 		serverName = p.Host
 	}
 	l = &login{
-		TDSVersion:    verTDS74,
+		TDSVersion:    TDSVersion,
 		PacketSize:    packetSize,
 		Database:      p.Database,
 		OptionFlags2:  fODBC, // to get unlimited TEXTSIZE
