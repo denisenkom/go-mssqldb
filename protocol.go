@@ -23,9 +23,18 @@ func (t tcpDialer) ParseBrowserData(data msdsn.BrowserData, p *msdsn.Config) err
 	// for the instance and discover its port.
 	ok := len(data) > 0
 	strport := ""
+	inst := ""
 	if ok {
 		p.Instance = strings.ToUpper(p.Instance)
-		strport, ok = data[p.Instance]["tcp"]
+		instanceName := stringForInstanceNameComparison(p.Instance)
+		for _, i := range data {
+			inst, ok = i["InstanceName"]
+			if ok && stringForInstanceNameComparison(inst) == instanceName {
+				strport, ok = i["tcp"]
+				break
+			}
+			ok = false
+		}
 	}
 	if !ok {
 		f := "no instance matching '%v' returned from host '%v'"
@@ -38,6 +47,16 @@ func (t tcpDialer) ParseBrowserData(data msdsn.BrowserData, p *msdsn.Config) err
 	}
 	p.Port = port
 	return nil
+}
+
+// SQL returns ASCII encoded instance names with \x## escaped UTF16 code points.
+// We use QuoteToASCII to normalize strings like TJUTVÅ
+// SQL returns 0xc5 as the byte value for Å while the UTF8 bytes in a Go string are [195 133]
+// QuoteToASCII returns "TJUTV\u00c5" for both
+func stringForInstanceNameComparison(inst string) (instanceName string) {
+	instanceName = strings.Replace(strconv.QuoteToASCII(inst), `\u00`, `\x`, -1)
+	instanceName = strings.Replace(instanceName, `\u`, `\x`, -1)
+	return
 }
 
 func (t tcpDialer) DialConnection(ctx context.Context, p *msdsn.Config) (conn net.Conn, err error) {
