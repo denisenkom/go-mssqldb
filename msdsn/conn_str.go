@@ -3,6 +3,7 @@ package msdsn
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -91,6 +92,19 @@ type Config struct {
 	BrowserMessage BrowserMsg
 }
 
+// GetPEMCertificate returns PEM formatted certificate
+func GetPEMCertificate(certificate string) ([]byte, error) {
+	cerData, ok := ioutil.ReadFile(certificate)
+	if ok != nil {
+		return nil, fmt.Errorf("cannot read certificate %q: %w", certificate, ok)
+	}
+	pemData := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: cerData,
+	})
+	return pemData, nil
+}
+
 // Build a tls.Config object from the supplied certificate.
 func SetupTLS(certificate string, insecureSkipVerify bool, hostInCertificate string, minTLSVersion string) (*tls.Config, error) {
 	config := tls.Config{
@@ -108,7 +122,7 @@ func SetupTLS(certificate string, insecureSkipVerify bool, hostInCertificate str
 	if len(certificate) == 0 {
 		return &config, nil
 	}
-	pem, err := ioutil.ReadFile(certificate)
+	pem, err := GetPEMCertificate(certificate)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read certificate %q: %w", certificate, err)
 	}
