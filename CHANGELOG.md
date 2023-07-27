@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.5.0
+
+### Features
+
+### Bug fixes
+
+* Handle extended character in SQL instance names for browser lookup (#122)
+
+## 1.4.0
+
+### Features
+
+* Adds UnmarshalJSON interface for UniqueIdentifier (#126)
+
+### Bug fixes
+
+* Fixes MarshalText prototype for UniqueIdentifier
+
 ## 1.2.0
 
 ### Features
