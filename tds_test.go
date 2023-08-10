@@ -35,7 +35,7 @@ func TestConstantsDefined(t *testing.T) {
 	// This test is just here to avoid complaints about unused code.
 	// These constants are part of the spec but not yet used.
 	for _, b := range []byte{
-		featExtSESSIONRECOVERY, featExtCOLUMNENCRYPTION, featExtGLOBALTRANSACTIONS,
+		featExtSESSIONRECOVERY, featExtGLOBALTRANSACTIONS,
 		featExtAZURESQLSUPPORT, featExtDATACLASSIFICATION, featExtUTF8SUPPORT,
 	} {
 		if b == 0 {
@@ -122,16 +122,18 @@ func TestSendLoginWithFeatureExt(t *testing.T) {
 		Database:       "database",
 		ClientLCID:     0x204,
 	}
-	login.FeatureExt.Add(&featureExtFedAuth{
+	_ = login.FeatureExt.Add(&featureExtFedAuth{
 		FedAuthLibrary: FedAuthLibrarySecurityToken,
 		FedAuthToken:   "fedauthtoken",
 	})
+	_ = login.FeatureExt.Add(&featureExtColumnEncryption{})
 	err := sendLogin(buf, &login)
 	if err != nil {
 		t.Error("sendLogin should succeed")
 	}
-	ref := []byte{
-		16, 1, 0, 223, 0, 0, 1, 0, 215, 0, 0, 0, 4, 0, 0, 116,
+	// featureext ordering is non-deterministic
+	ref1 := []byte{
+		16, 1, 0, 0xe5, 0, 0, 1, 0, 0xdd, 0, 0, 0, 4, 0, 0, 116,
 		0, 16, 0, 0, 0, 1, 6, 1, 100, 0, 0, 0, 0, 0, 0, 0,
 		224, 0, 0, 24, 16, 255, 255, 255, 4, 2, 0, 0, 94, 0, 7, 0,
 		108, 0, 0, 0, 108, 0, 0, 0, 108, 0, 7, 0, 122, 0, 10, 0,
@@ -144,11 +146,30 @@ func TestSendLoginWithFeatureExt(t *testing.T) {
 		114, 0, 121, 0, 101, 0, 110, 0, 100, 0, 97, 0, 116, 0, 97, 0,
 		98, 0, 97, 0, 115, 0, 101, 0, 180, 0, 0, 0, 2, 29, 0, 0,
 		0, 2, 24, 0, 0, 0, 102, 0, 101, 0, 100, 0, 97, 0, 117, 0,
+		116, 0, 104, 0, 116, 0, 111, 0, 107, 0, 101, 0, 110, 0, 4, 1,
+		0, 0, 0, 1, 255}
+	ref2 := []byte{
+		16, 1, 0, 0xe5, 0, 0, 1, 0, 0xdd, 0, 0, 0, 4, 0, 0, 116,
+		0, 16, 0, 0, 0, 1, 6, 1, 100, 0, 0, 0, 0, 0, 0, 0,
+		224, 0, 0, 24, 16, 255, 255, 255, 4, 2, 0, 0, 94, 0, 7, 0,
+		108, 0, 0, 0, 108, 0, 0, 0, 108, 0, 7, 0, 122, 0, 10, 0,
+		176, 0, 4, 0, 142, 0, 7, 0, 156, 0, 2, 0, 160, 0, 8, 0,
+		18, 52, 86, 120, 144, 171, 176, 0, 0, 0, 176, 0, 0, 0, 176, 0,
+		0, 0, 0, 0, 0, 0, 115, 0, 117, 0, 98, 0, 100, 0, 101, 0,
+		118, 0, 49, 0, 97, 0, 112, 0, 112, 0, 110, 0, 97, 0, 109, 0,
+		101, 0, 115, 0, 101, 0, 114, 0, 118, 0, 101, 0, 114, 0, 110, 0,
+		97, 0, 109, 0, 101, 0, 108, 0, 105, 0, 98, 0, 114, 0, 97, 0,
+		114, 0, 121, 0, 101, 0, 110, 0, 100, 0, 97, 0, 116, 0, 97, 0,
+		98, 0, 97, 0, 115, 0, 101, 0, 180, 0, 0, 0, 4, 1,
+		0, 0, 0, 1, 2, 29, 0, 0,
+		0, 2, 24, 0, 0, 0, 102, 0, 101, 0, 100, 0, 97, 0, 117, 0,
 		116, 0, 104, 0, 116, 0, 111, 0, 107, 0, 101, 0, 110, 0, 255}
 	out := memBuf.Bytes()
-	if !bytes.Equal(ref, out) {
+	if !bytes.Equal(ref1, out) && !bytes.Equal(ref2, out) {
 		t.Log("Expected:")
-		t.Log(hex.Dump(ref))
+		t.Log(hex.Dump(ref1))
+		t.Log("Or:")
+		t.Log(hex.Dump(ref2))
 		t.Log("Returned:")
 		t.Log(hex.Dump(out))
 		t.Fatal("input output don't match")
@@ -202,6 +223,59 @@ func TestSendSqlBatch(t *testing.T) {
 	}
 }
 
+func TestLoginWithColumnEncryption(t *testing.T) {
+	checkConnStr(t)
+	p, err := msdsn.Parse(makeConnStr(t).String())
+	if err != nil {
+		t.Error("parseConnectParams failed:", err.Error())
+		return
+	}
+	p.ColumnEncryption = true
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	conn, err := connect(context.Background(), &Connector{params: p}, optionalLogger{loggerAdapter{&tl}}, p)
+	if err != nil {
+		t.Error("Open connection failed:", err.Error())
+		return
+	}
+	defer conn.buf.transport.Close()
+
+	headers := []headerStruct{
+		{hdrtype: dataStmHdrTransDescr,
+			data: transDescrHdr{0, 1}.pack()},
+	}
+	err = sendSqlBatch72(conn.buf, "select (@@microsoftversion / 0x1000000) & 0xff AS [VersionMajor]", headers, true)
+	if err != nil {
+		t.Error("Sending sql batch failed", err.Error())
+		return
+	}
+
+	reader := startReading(conn, context.Background(), outputs{})
+
+	err = reader.iterateResponse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(reader.lastRow) == 0 {
+		t.Fatal("expected row but no row set")
+	}
+
+	switch value := reader.lastRow[0].(type) {
+	case int64:
+		if value > 12 {
+			if !conn.alwaysEncrypted {
+				t.Fatalf("SQL Version %d should have alwaysEncrypted == true", value)
+			}
+		} else if conn.alwaysEncrypted {
+			t.Fatalf("SQL Version %d should have alwaysEncrypted == false", value)
+		}
+
+	default:
+		t.Fatalf("Expected int64 return but got %v", value)
+	}
+}
+
 // returns parsed connection parameters derived from
 // environment variables
 func testConnParams(t testing.TB) msdsn.Config {
@@ -251,6 +325,9 @@ func GetConnParams() (*msdsn.Config, error) {
 		}
 		if os.Getenv("PIPE") != "" {
 			c.Parameters["pipe"] = os.Getenv("PIPE")
+		}
+		if os.Getenv("COLUMNENCRYPTION") != "" {
+			c.ColumnEncryption = true
 		}
 		return c, nil
 	}
@@ -912,19 +989,22 @@ func BenchmarkPacketSize(b *testing.B) {
 		b.Run(bm.name, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				p.PacketSize = bm.packetSize
-				runBatch(b, p)
+				runBatch(b, "", p)
 			}
 		})
 	}
 }
 
-func runBatch(t testing.TB, p msdsn.Config) {
+func runBatch(t testing.TB, batch string, p msdsn.Config) int32 {
+	if len(batch) == 0 {
+		batch = "select 1"
+	}
 	tl := testLogger{t: t}
 	defer tl.StopLogging()
 	conn, err := connect(context.Background(), &Connector{params: p}, optionalLogger{loggerAdapter{&tl}}, p)
 	if err != nil {
 		t.Error("Open connection failed:", err.Error())
-		return
+		return 0
 	}
 	defer conn.buf.transport.Close()
 
@@ -932,10 +1012,10 @@ func runBatch(t testing.TB, p msdsn.Config) {
 		{hdrtype: dataStmHdrTransDescr,
 			data: transDescrHdr{0, 1}.pack()},
 	}
-	err = sendSqlBatch72(conn.buf, "select 1", headers, true)
+	err = sendSqlBatch72(conn.buf, batch, headers, true)
 	if err != nil {
 		t.Error("Sending sql batch failed", err.Error())
-		return
+		return 0
 	}
 
 	reader := startReading(conn, context.Background(), outputs{})
@@ -951,11 +1031,11 @@ func runBatch(t testing.TB, p msdsn.Config) {
 
 	switch value := reader.lastRow[0].(type) {
 	case int32:
-		if value != 1 {
-			t.Error("Invalid value returned, should be 1", value)
-			return
-		}
+		return value
+	default:
+		t.Fatalf("expected an int32 return but got %v", value)
 	}
+	return 0
 }
 
 func TestGetDriverVersion(t *testing.T) {

@@ -8,7 +8,7 @@ variables:
 steps: 
 - task: GoTool@0
   inputs:
-    version: '1.16.5'
+    version: '1.19'
 - task: Go@0
   displayName: 'Go: get sources'
   inputs:
