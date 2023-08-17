@@ -90,6 +90,8 @@ type Config struct {
 	ProtocolParameters map[string]interface{}
 	// BrowserMsg is the message identifier to fetch instance data from SQL browser
 	BrowserMessage BrowserMsg
+	//ColumnEncryption is true if the application needs to decrypt or encrypt Always Encrypted values
+	ColumnEncryption bool
 }
 
 // GetPEMCertificate returns PEM formatted certificate
@@ -389,6 +391,19 @@ func Parse(dsn string) (Config, error) {
 		return p, err
 	}
 
+	if c, ok := params["columnencryption"]; ok {
+		columnEncryption, err := strconv.ParseBool(c)
+		if err != nil {
+			if strings.EqualFold(c, "Enabled") {
+				columnEncryption = true
+			} else if strings.EqualFold(c, "Disabled") {
+				columnEncryption = false
+			} else {
+				return p, fmt.Errorf("invalid columnencryption '%v' : %v", columnEncryption, err.Error())
+			}
+		}
+		p.ColumnEncryption = columnEncryption
+	}
 	return p, nil
 }
 
@@ -439,6 +454,9 @@ func (p Config) URL() *url.URL {
 		res.Path = p.Instance
 	}
 	q.Add("dial timeout", strconv.FormatFloat(float64(p.DialTimeout.Seconds()), 'f', 0, 64))
+	if p.ColumnEncryption {
+		q.Add("columnencryption", "true")
+	}
 	if len(q) > 0 {
 		res.RawQuery = q.Encode()
 	}
@@ -446,15 +464,17 @@ func (p Config) URL() *url.URL {
 	return &res
 }
 
+// ADO connection string keywords at https://github.com/dotnet/SqlClient/blob/main/src/Microsoft.Data.SqlClient/src/Microsoft/Data/Common/DbConnectionStringCommon.cs
 var adoSynonyms = map[string]string{
-	"application name": "app name",
-	"data source":      "server",
-	"address":          "server",
-	"network address":  "server",
-	"addr":             "server",
-	"user":             "user id",
-	"uid":              "user id",
-	"initial catalog":  "database",
+	"application name":          "app name",
+	"data source":               "server",
+	"address":                   "server",
+	"network address":           "server",
+	"addr":                      "server",
+	"user":                      "user id",
+	"uid":                       "user id",
+	"initial catalog":           "database",
+	"column encryption setting": "columnencryption",
 }
 
 func splitConnectionString(dsn string) (res map[string]string) {

@@ -15,6 +15,7 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
+	"github.com/microsoft/go-mssqldb/aecmk"
 	"github.com/microsoft/go-mssqldb/integratedauth"
 	"github.com/microsoft/go-mssqldb/msdsn"
 )
@@ -159,16 +160,23 @@ const (
 )
 
 type tdsSession struct {
-	buf          *tdsBuffer
-	loginAck     loginAckStruct
-	database     string
-	partner      string
-	columns      []columnStruct
-	tranid       uint64
-	logFlags     uint64
-	logger       ContextLogger
-	routedServer string
-	routedPort   uint16
+	buf             *tdsBuffer
+	loginAck        loginAckStruct
+	database        string
+	partner         string
+	columns         []columnStruct
+	tranid          uint64
+	logFlags        uint64
+	logger          ContextLogger
+	routedServer    string
+	routedPort      uint16
+	alwaysEncrypted bool
+	aeSettings      *alwaysEncryptedSettings
+}
+
+type alwaysEncryptedSettings struct {
+	enclaveType  string
+	keyProviders aecmk.ColumnEncryptionKeyProviderMap
 }
 
 const (
@@ -180,10 +188,26 @@ const (
 )
 
 type columnStruct struct {
-	UserType uint32
-	Flags    uint16
-	ColName  string
-	ti       typeInfo
+	UserType   uint32
+	Flags      uint16
+	ColName    string
+	ti         typeInfo
+	cryptoMeta *cryptoMetadata
+}
+
+func (c columnStruct) isEncrypted() bool {
+	return isEncryptedFlag(c.Flags)
+}
+
+func isEncryptedFlag(flags uint16) bool {
+	return colFlagEncrypted == (flags & colFlagEncrypted)
+}
+
+func (c columnStruct) originalTypeInfo() typeInfo {
+	if c.isEncrypted() {
+		return c.cryptoMeta.typeInfo
+	}
+	return c.ti
 }
 
 type keySlice []uint8
@@ -1057,6 +1081,9 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger Cont
 		CtlIntName:    "go-mssqldb",
 		ClientProgVer: getDriverVersion(driverVersion),
 	}
+	if p.ColumnEncryption {
+		_ = l.FeatureExt.Add(&featureExtColumnEncryption{})
+	}
 	switch {
 	case fe.FedAuthLibrary == FedAuthLibrarySecurityToken:
 		if uint64(p.LogFlags)&logDebug != 0 {
@@ -1071,14 +1098,14 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger Cont
 			return nil, err
 		}
 
-		l.FeatureExt.Add(fe)
+		_ = l.FeatureExt.Add(fe)
 
 	case fe.FedAuthLibrary == FedAuthLibraryADAL:
 		if uint64(p.LogFlags)&logDebug != 0 {
 			logger.Log(ctx, msdsn.LogDebug, "Starting federated authentication using ADAL")
 		}
 
-		l.FeatureExt.Add(fe)
+		_ = l.FeatureExt.Add(fe)
 
 	case auth != nil:
 		if uint64(p.LogFlags)&logDebug != 0 {
@@ -1176,11 +1203,15 @@ initiate_connection:
 		}
 	}
 	sess := tdsSession{
-		buf:      outbuf,
-		logger:   logger,
-		logFlags: uint64(p.LogFlags),
+		buf:        outbuf,
+		logger:     logger,
+		logFlags:   uint64(p.LogFlags),
+		aeSettings: &alwaysEncryptedSettings{keyProviders: aecmk.GetGlobalCekProviders()},
 	}
 
+	for i, p := range c.keyProviders {
+		sess.aeSettings.keyProviders[i] = p
+	}
 	fedAuth := &featureExtFedAuth{
 		FedAuthLibrary: FedAuthLibraryReserved,
 	}
@@ -1332,6 +1363,18 @@ initiate_connection:
 			case loginAckStruct:
 				sess.loginAck = token
 				loginAck = true
+			case featureExtAck:
+				for _, v := range token {
+					switch v := v.(type) {
+					case colAckStruct:
+						if v.Version <= 2 && v.Version > 0 {
+							sess.alwaysEncrypted = true
+							if len(v.EnclaveType) > 0 {
+								sess.aeSettings.enclaveType = string(v.EnclaveType)
+							}
+						}
+					}
+				}
 			case doneStruct:
 				if token.isError() {
 					tokenErr := token.getError()
@@ -1360,4 +1403,22 @@ initiate_connection:
 		goto initiate_connection
 	}
 	return &sess, nil
+}
+
+type featureExtColumnEncryption struct {
+}
+
+func (f *featureExtColumnEncryption) featureID() byte {
+	return featExtCOLUMNENCRYPTION
+}
+
+func (f *featureExtColumnEncryption) toBytes() []byte {
+	/*
+		1 = The client supports column encryption without enclave computations.
+		2 = The client SHOULD<25> support column encryption when encrypted data require enclave computations.
+		3 = The client SHOULD<26> support column encryption when encrypted data require enclave computations
+		with the additional ability to cache column encryption keys that are to be sent to the enclave
+		and the ability to retry queries when the keys sent by the client do not match what is needed for the query to run.
+	*/
+	return []byte{0x01}
 }

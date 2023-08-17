@@ -1,4 +1,4 @@
-# A pure Go MSSQL driver for Go's database/sql package
+# Microsoft's official Go MSSQL driver
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/microsoft/go-mssqldb.svg)](https://pkg.go.dev/github.com/microsoft/go-mssqldb)
 [![Build status](https://ci.appveyor.com/api/projects/status/jrln8cs62wj9i0a2?svg=true)](https://ci.appveyor.com/project/microsoft/go-mssqldb)
@@ -7,7 +7,7 @@
 
 ## Install
 
-Requires Go 1.10 or above.
+Requires Go 1.16 or above.
 
 Install with `go install github.com/microsoft/go-mssqldb@latest`.
 
@@ -63,6 +63,7 @@ Other supported formats are listed below.
 * `Workstation ID` - The workstation name (default is the host name)
 * `ApplicationIntent` - Can be given the value `ReadOnly` to initiate a read-only connection to an Availability Group listener. The `database` must be specified when connecting with `Application Intent` set to `ReadOnly`.
 * `protocol` - forces use of a protocol. Make sure the corresponding package is imported.
+* `columnencryption` or `column encryption setting` - a boolean value indicating whether Always Encrypted should be enabled on the connection.
 
 ### Connection parameters for namedpipe package
 * `pipe`  - If set, no Browser query is made and named pipe used will be `\\<host>\pipe\<pipe>`
@@ -377,7 +378,55 @@ db.QueryContext(ctx, `select * from t2 where user_name = @p1;`, mssql.VarChar(na
 // Note: Mismatched data types on table and parameter may cause long running queries
 ```
 
+## Using Always Encrypted
+
+The protocol and cryptography details for AE are [detailed elsewhere](https://learn.microsoft.com/sql/relational-databases/security/encryption/always-encrypted-database-engine?view=sql-server-ver16).
+
+### Enablement
+
+To enable AE on a connection, set the `ColumnEncryption` value to true on a config or pass `columnencryption=true` in the connection string.
+
+Decryption and encryption won't succeed, however, without also including a decryption key provider. To avoid code size impacts on non-AE applications, key providers are not included by default.
+
+Include the local certificate providers:
+
+```go
+ import (
+  "github.com/microsoft/go-mssqldb/aecmk/localcert"
+ )
+ ```
+
+You can also instantiate a key provider directly in code and hand it to a `Connector` instance.
+
+```go
+c := mssql.NewConnectorConfig(myconfig)
+c.RegisterCekProvider(providerName, MyProviderType{})
+```
+
+### Decryption
+
+If the correct key provider is included in your application, decryption of encrypted cells happens automatically with no extra server round trips.
+
+### Encryption
+
+Encryption of parameters passed to `Exec` and `Query` variants requires an extra round trip per query to fetch the encryption metadata. If the error returned by a query attempt indicates a type mismatch between the parameter and the destination table, most likely your input type is not a strict match for the SQL Server data type of the destination. You may be using a Go `string` when you need to use one of the driver-specific aliases like `VarChar` or `NVarCharMax`.
+
+*** NOTE *** - Currently `char` and `varchar` types do not include a collation parameter component so can't be used for inserting encrypted values. Also, using a nullable sql package type like `sql.NullableInt32` to pass a `NULL` value for an encrypted column will not work unless the encrypted column type is `nvarchar`. 
+https://github.com/microsoft/go-mssqldb/issues/129
+https://github.com/microsoft/go-mssqldb/issues/130
+
+
+### Local certificate AE key provider
+
+Key provider configuration is managed separately without any properties in the connection string.
+The `pfx` provider exposes its instance as the variable `PfxKeyProvider`. You can give it passwords for certificates using `SetCertificatePassword(pathToCertificate, path)`. Use an empty string or `"*"` as the path to use the same password for all certificates.
+
+The `MSSQL_CERTIFICATE_STORE` provider exposes its instance as the variable `WindowsCertificateStoreKeyProvider`.
+
+Both providers can be constrained to an allowed list of encryption key paths by appending paths to `provider.AllowedLocations`.
+
 ## Important Notes
+
 
 * [LastInsertId](https://golang.org/pkg/database/sql/#Result.LastInsertId) should
     not be used with this driver (or SQL Server) due to how the TDS protocol
@@ -409,7 +458,9 @@ db.QueryContext(ctx, `select * from t2 where user_name = @p1;`, mssql.VarChar(na
 * A `namedpipe` package to support connections using named pipes (np:) on Windows
 * A `sharedmemory` package to support connections using shared memory (lpc:) on Windows
 * Dedicated Administrator Connection (DAC) is supported using `admin` protocol
-
+* Always Encrypted
+  - `MSSQL_CERTIFICATE_STORE` provider on Windows
+  - `pfx` provider on Linux and Windows
 ## Tests
 
 `go test` is used for testing. A running instance of MSSQL server is required.
@@ -449,6 +500,7 @@ To fix SQL Server 2008 R2 issue, install SQL Server 2008 R2 Service Pack 2.
 To fix SQL Server 2008 issue, install Microsoft SQL Server 2008 Service Pack 3 and Cumulative update package 3 for SQL Server 2008 SP3.
 More information: <http://support.microsoft.com/kb/2653857>
 
+* Bulk copy does not yet support encrypting column values using Always Encrypted. Tracked in [#127](https://github.com/microsoft/go-mssqldb/issues/127)
 
 # Contributing
 This project is a fork of [https://github.com/denisenkom/go-mssqldb](https://github.com/denisenkom/go-mssqldb) and welcomes new and previous contributors. For more informaton on contributing to this project, please see [Contributing](./CONTRIBUTING.md).
