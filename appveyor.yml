@@ -49,6 +49,7 @@ install:
   - go get -u github.com/golang-sql/civil
   - go get -u github.com/golang-sql/sqlexp
   - go get -u golang.org/x/crypto/md4
+  - go get github.com/stretchr/testify/assert@v1.8.1
   - go get -u golang.org/x/text/encoding/unicode
 
 build_script:

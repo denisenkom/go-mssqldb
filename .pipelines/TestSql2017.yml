@@ -8,14 +8,7 @@ variables:
 steps: 
 - task: GoTool@0
   inputs:
-    version: '1.19'
-- task: Go@0
-  displayName: 'Go: get sources'
-  inputs:
-    command: 'get'
-    arguments: '-d'
-    workingDirectory: '$(Build.SourcesDirectory)'
-
+    version: '1.20'
 
 - task: Go@0
   displayName: 'Go: install gotest.tools/gotestsum'
