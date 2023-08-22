@@ -662,6 +662,50 @@ func TestSecureConnection(t *testing.T) {
 	}
 }
 
+func TestTDS8Connection(t *testing.T) {
+	checkConnStr(t)
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
+
+	dsn := makeConnStr(t)
+	if !strings.HasSuffix(strings.Split(dsn.Host, ":")[0], ".database.windows.net") {
+		t.Skip()
+	}
+	dsnParams := dsn.Query()
+	dsnParams.Set("encrypt", "strict")
+	dsnParams.Set("TrustServerCertificate", "false")
+	dsnParams.Set("tlsmin", "1.2")
+	dsn.RawQuery = dsnParams.Encode()
+
+	conn, err := sql.Open("mssql", dsn.String())
+	if err != nil {
+		t.Fatal("Open connection failed:", err.Error())
+	}
+	defer conn.Close()
+	stmt, err := conn.Prepare("SELECT protocol_type, CONVERT(varbinary(9),protocol_version),client_net_address from sys.dm_exec_connections where session_id=@@SPID")
+	if err != nil {
+		t.Fatal("Prepare failed:", err.Error())
+	}
+	defer stmt.Close()
+	row := stmt.QueryRow()
+	var protocolName string
+	var tdsver []byte
+	var clientAddress string
+	err = row.Scan(&protocolName, &tdsver, &clientAddress)
+	if err != nil {
+		t.Fatal("Scan failed:", err.Error())
+	}
+	assertEqual(t, "TSQL", protocolName)
+	assertEqual(t, "0x08000000", hex.EncodeToString(tdsver))
+}
+
+func assertEqual(t *testing.T, expected interface{}, actual interface{}) {
+	if expected != actual {
+		t.Fatalf("Expected %v, got %v", expected, actual)
+	}
+}
+
 func TestBadCredentials(t *testing.T) {
 	params := testConnParams(t)
 	params.Password = "padpwd"

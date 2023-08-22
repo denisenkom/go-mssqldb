@@ -1052,7 +1052,7 @@ func interpretPreloginResponse(p msdsn.Config, fe *featureExtFedAuth, fields map
 
 func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger ContextLogger, auth integratedauth.IntegratedAuthenticator, fe *featureExtFedAuth, packetSize uint32) (l *login, err error) {
 	var TDSVersion uint32
-	if(p.Encryption == msdsn.EncryptionStrict) {
+	if p.Encryption == msdsn.EncryptionStrict {
 		TDSVersion = verTDS80
 	} else {
 		TDSVersion = verTDS74
@@ -1129,6 +1129,27 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger Cont
 	return l, nil
 }
 
+func getTLSConn(conn *timeoutConn, p msdsn.Config) (tlsConn *tls.Conn, err error) {
+	var config *tls.Config
+	if pc := p.TLSConfig; pc != nil {
+		config = pc
+	}
+	if config == nil {
+		config, err = msdsn.SetupTLS("", false, p.Host, "")
+		if err != nil {
+			return nil, err
+		}
+	}
+	//Set ALPN Sequence
+	config.NextProtos = []string{"tds/8.0"}
+	tlsConn = tls.Client(conn.c, config)
+	err = tlsConn.Handshake()
+	if err != nil {
+		return nil, fmt.Errorf("TLS Handshake failed: %v", err)
+	}
+	return tlsConn, nil
+}
+
 func connect(ctx context.Context, c *Connector, logger ContextLogger, p msdsn.Config) (res *tdsSession, err error) {
 
 	// if instance is specified use instance resolution service
@@ -1173,33 +1194,9 @@ initiate_connection:
 	outbuf := newTdsBuffer(packetSize, toconn)
 
 	if p.Encryption == msdsn.EncryptionStrict {
-		var config *tls.Config
-		if pc := p.TLSConfig; pc != nil {
-			config = pc
-			if config.DynamicRecordSizingDisabled == false {
-				config = config.Clone()
-
-				// fix for https://github.com/microsoft/go-mssqldb/issues/166
-				// Go implementation of TLS payload size heuristic algorithm splits single TDS package to multiple TCP segments,
-				// while SQL Server seems to expect one TCP segment per encrypted TDS package.
-				// Setting DynamicRecordSizingDisabled to true disables that algorithm and uses 16384 bytes per TLS package
-				config.DynamicRecordSizingDisabled = true
-			}
-		}
-		if config == nil {
-			config, err = msdsn.SetupTLS("", false, p.Host, "")
-			if err != nil {
-				return nil, err
-			}
-		}
-		//Set ALPN Sequence
-		config.NextProtos = []string{"tds/8.0"}
-
-		tlsConn := tls.Client(toconn.c, config)
-		err = tlsConn.Handshake()
-		outbuf.transport = tlsConn
+		outbuf.transport, err = getTLSConn(toconn, p)
 		if err != nil {
-			return nil, fmt.Errorf("TLS Handshake failed: %v", err)
+			return nil, err
 		}
 	}
 	sess := tdsSession{
