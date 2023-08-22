@@ -21,7 +21,6 @@ jobs:
     - name: Run tests against Linux SQL
       run: |
         go version
-        go get -d
         export SQLCMDPASSWORD=$(date +%s|sha256sum|base64|head -c 32)
         export SQLCMDUSER=sa
         export SQLUSER=sa
@@ -30,4 +29,4 @@ jobs:
         docker run -m 2GB -e ACCEPT_EULA=1 -d --name sqlserver -p:1433:1433 -e SA_PASSWORD=$SQLCMDPASSWORD mcr.microsoft.com/mssql/server:${{ matrix.sqlImage }}
         sleep 10
         sqlcmd -Q "CREATE DATABASE test"
-        go test -race -cpu 4 ./...
+        go test -v ./...
