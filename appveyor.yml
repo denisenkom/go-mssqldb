@@ -11,15 +11,13 @@ environment:
   SQLUSER: sa
   SQLPASSWORD: Password12!
   DATABASE: test
-  GOVERSION: 116
+  GOVERSION: 117
   COLUMNENCRYPTION:
   APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
   RACE: -race -cpu 4
   TAGS:
   matrix:
     - SQLINSTANCE: SQL2017
-    - GOVERSION: 117
-      SQLINSTANCE: SQL2017
     - GOVERSION: 118
       SQLINSTANCE: SQL2017
     - GOVERSION: 120
@@ -46,11 +44,6 @@ install:
   - set PATH=%GOPATH%\bin;%GOROOT%\bin;%PATH%
   - go version
   - go env
-  - go get -u github.com/golang-sql/civil
-  - go get -u github.com/golang-sql/sqlexp
-  - go get -u golang.org/x/crypto/md4
-  - go get github.com/stretchr/testify/assert@v1.8.1
-  - go get -u golang.org/x/text/encoding/unicode
 
 build_script:
   - go build

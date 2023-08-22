@@ -21,11 +21,15 @@ type CEKV struct {
 	Key []byte
 }
 
-func (c *CEKV) Verify(cert *x509.Certificate) bool {
+func (c *CEKV) VerifySignature(key *rsa.PublicKey) bool {
 	sha256Sum := sha256.Sum256(c.DataToSign)
-	err := rsa.VerifyPKCS1v15(cert.PublicKey.(*rsa.PublicKey), crypto.SHA256, sha256Sum[:], c.SignedHash)
+	err := rsa.VerifyPKCS1v15(key, crypto.SHA256, sha256Sum[:], c.SignedHash)
 
 	return err == nil
+}
+
+func (c *CEKV) Verify(cert *x509.Certificate) bool {
+	return c.VerifySignature(cert.PublicKey.(*rsa.PublicKey))
 }
 
 func (c *CEKV) Decrypt(private *rsa.PrivateKey) ([]byte, error) {

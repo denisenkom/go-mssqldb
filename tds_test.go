@@ -305,6 +305,9 @@ func GetConnParams() (*msdsn.Config, error) {
 			return nil, err
 		}
 		params.LogFlags = logFlags
+		if os.Getenv("COLUMNENCRYPTION") != "" {
+			params.ColumnEncryption = true
+		}
 		return &params, nil
 	}
 	if len(os.Getenv("HOST")) > 0 && len(os.Getenv("DATABASE")) > 0 {
