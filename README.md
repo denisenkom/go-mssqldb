@@ -201,6 +201,8 @@ For further information on usage:
 Azure Active Directory authentication uses temporary authentication tokens to authenticate.
 The `mssql` package does not provide an implementation to obtain tokens: instead, import the `azuread` package and use driver name `azuresql`. This driver uses [azidentity](https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/azidentity#section-readme) to acquire tokens using a variety of credential types.
 
+A basic application that connects to Azure Sql Database under the context of the user's Azure Active Directory credentials may use `fedauth=ActiveDirectoryDefault` to authenticate by requiring the user to first run `az login` in that session. More complex scenarios are possible with the parameters below.
+
 The credential type is determined by the new `fedauth` connection string parameter.
 
 * `fedauth=ActiveDirectoryServicePrincipal` or `fedauth=ActiveDirectoryApplication` - authenticates using an Azure Active Directory application client ID and client secret or certificate. Implemented using [ClientSecretCredential or CertificateCredential](https://github.com/Azure/azure-sdk-for-go/tree/main/sdk/azidentity#authenticating-service-principals)
