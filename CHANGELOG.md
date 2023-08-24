@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.6.0
+
+### Changed
+
+* Go.mod updated to Go 1.17
+* Azure SDK for Go dependencies updated
+
+### Features
+
+* Always Encrypted encryption and decryption with 2 hour key cache (#116)
+* 'pfx', 'MSSQL_CERTIFICATE_STORE', and 'AZURE_KEY_VAULT' encryption key providers
+
 ## 1.5.0
 
 ### Features

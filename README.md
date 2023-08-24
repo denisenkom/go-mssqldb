@@ -7,7 +7,7 @@
 
 ## Install
 
-Requires Go 1.16 or above.
+Requires Go 1.17 or above.
 
 Install with `go install github.com/microsoft/go-mssqldb@latest`.
 
@@ -424,6 +424,13 @@ The `pfx` provider exposes its instance as the variable `PfxKeyProvider`. You ca
 The `MSSQL_CERTIFICATE_STORE` provider exposes its instance as the variable `WindowsCertificateStoreKeyProvider`.
 
 Both providers can be constrained to an allowed list of encryption key paths by appending paths to `provider.AllowedLocations`.
+
+
+### Azure Key Vault (AZURE_KEY_VAULT) key provider
+
+Import this provider using `github.com/microsoft/go-mssqldb/aecmk/akv`
+
+Constrain the provider to an allowed list of key vaults by appending vault host strings like "mykeyvault.vault.azure.net" to `akv.KeyProvider.AllowedLocations`.
 
 ## Important Notes
 
