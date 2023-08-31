@@ -1133,7 +1133,7 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger Cont
 	return l, nil
 }
 
-func getTLSConn(conn *timeoutConn, p msdsn.Config) (tlsConn *tls.Conn, err error) {
+func getTLSConn(conn *timeoutConn, p msdsn.Config, alpnSeq string) (tlsConn *tls.Conn, err error) {
 	var config *tls.Config
 	if pc := p.TLSConfig; pc != nil {
 		config = pc
@@ -1145,17 +1145,17 @@ func getTLSConn(conn *timeoutConn, p msdsn.Config) (tlsConn *tls.Conn, err error
 		}
 	}
 	//Set ALPN Sequence
-	config.NextProtos = []string{"tds/8.0"}
+	config.NextProtos = []string{alpnSeq}
 	tlsConn = tls.Client(conn.c, config)
 	err = tlsConn.Handshake()
 	if err != nil {
-		return nil, fmt.Errorf("TLS Handshake failed: %v", err)
+		return nil, fmt.Errorf("TLS Handshake failed: %w", err)
 	}
 	return tlsConn, nil
 }
 
 func connect(ctx context.Context, c *Connector, logger ContextLogger, p msdsn.Config) (res *tdsSession, err error) {
-
+	isTransportEncrypted := false
 	// if instance is specified use instance resolution service
 	if len(p.Instance) > 0 && p.Port != 0 && uint64(p.LogFlags)&logDebug != 0 {
 		// both instance name and port specified
@@ -1198,10 +1198,11 @@ initiate_connection:
 	outbuf := newTdsBuffer(packetSize, toconn)
 
 	if p.Encryption == msdsn.EncryptionStrict {
-		outbuf.transport, err = getTLSConn(toconn, p)
+		outbuf.transport, err = getTLSConn(toconn, p, "tds/8.0")
 		if err != nil {
 			return nil, err
 		}
+		isTransportEncrypted = true
 	}
 	sess := tdsSession{
 		buf:        outbuf,
@@ -1238,7 +1239,8 @@ initiate_connection:
 		return nil, err
 	}
 
-	if p.Encryption != msdsn.EncryptionStrict {
+	//We need not perform TLS handshake if the communication channel is already encrypted (encrypt=strict)
+	if isTransportEncrypted {
 		if encrypt != encryptNotSup {
 			var config *tls.Config
 			if pc := p.TLSConfig; pc != nil {
@@ -1278,7 +1280,7 @@ initiate_connection:
 			}
 		}
 
-	} //p.Encryption != msdsn.EncryptionStrict
+	}
 
 	auth, err := integratedauth.GetIntegratedAuthenticator(p)
 	if err != nil {

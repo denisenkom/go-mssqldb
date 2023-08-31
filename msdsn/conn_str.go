@@ -22,6 +22,12 @@ type (
 )
 
 const (
+	DsnTypeUrl  = 1
+	DsnTypeOdbc = 2
+	DsnTypeAdo  = 3
+)
+
+const (
 	EncryptionOff      = 0
 	EncryptionRequired = 1
 	EncryptionDisabled = 3
@@ -192,6 +198,9 @@ func parseTLS(params map[string]string, host string) (Encryption, *tls.Config, e
 	certificate := params[Certificate]
 	if encryption != EncryptionDisabled {
 		tlsMin := params[TLSMin]
+		if encrypt == "strict" {
+			trustServerCert = false
+		}
 		tlsConfig, err := SetupTLS(certificate, trustServerCert, host, tlsMin)
 		if err != nil {
 			return encryption, nil, fmt.Errorf("failed to setup TLS: %w", err)
@@ -203,6 +212,38 @@ func parseTLS(params map[string]string, host string) (Encryption, *tls.Config, e
 
 var skipSetup = errors.New("skip setting up TLS")
 
+func getDsnType(dsn string) int {
+	if strings.HasPrefix(dsn, "sqlserver://") {
+		return DsnTypeUrl
+	}
+	if strings.HasPrefix(dsn, "odbc:") {
+		return DsnTypeOdbc
+	}
+	return DsnTypeAdo
+}
+
+func getDsnParams(dsn string) (map[string]string, error) {
+
+	var params map[string]string
+	var err error
+
+	switch getDsnType(dsn) {
+	case DsnTypeOdbc:
+		params, err = splitConnectionStringOdbc(dsn[len("odbc:"):])
+		if err != nil {
+			return params, err
+		}
+	case DsnTypeUrl:
+		params, err = splitConnectionStringURL(dsn)
+		if err != nil {
+			return params, err
+		}
+	default:
+		params = splitConnectionString(dsn)
+	}
+	return params, nil
+}
+
 func Parse(dsn string) (Config, error) {
 	p := Config{
 		ProtocolParameters: map[string]interface{}{},
@@ -211,20 +252,11 @@ func Parse(dsn string) (Config, error) {
 
 	var params map[string]string
 	var err error
-	if strings.HasPrefix(dsn, "odbc:") {
-		params, err = splitConnectionStringOdbc(dsn[len("odbc:"):])
-		if err != nil {
-			return p, err
-		}
-	} else if strings.HasPrefix(dsn, "sqlserver://") {
-		params, err = splitConnectionStringURL(dsn)
-		if err != nil {
-			return p, err
-		}
-	} else {
-		params = splitConnectionString(dsn)
-	}
 
+	params, err = getDsnParams(dsn)
+	if err != nil {
+		return p, err
+	}
 	p.Parameters = params
 
 	strlog, ok := params[LogParam]

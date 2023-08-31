@@ -6,6 +6,7 @@ package azuread
 import (
 	"bufio"
 	"database/sql"
+	"encoding/hex"
 	"io"
 	"os"
 	"testing"
@@ -14,7 +15,7 @@ import (
 )
 
 func TestAzureSqlAuth(t *testing.T) {
-	mssqlConfig := testConnParams(t)
+	mssqlConfig := testConnParams(t, "")
 
 	conn, err := newConnectorConfig(mssqlConfig)
 	if err != nil {
@@ -35,9 +36,31 @@ func TestAzureSqlAuth(t *testing.T) {
 
 }
 
+func TestTDS8ConnWithAzureSqlAuth(t *testing.T) {
+	mssqlConfig := testConnParams(t, ";encrypt=strict;TrustServerCertificate=false;tlsmin=1.2")
+	conn, err := newConnectorConfig(mssqlConfig)
+	if err != nil {
+		t.Fatalf("Unable to get a connector: %v", err)
+	}
+	db := sql.OpenDB(conn)
+	row := db.QueryRow("SELECT protocol_type, CONVERT(varbinary(9),protocol_version),client_net_address from sys.dm_exec_connections where session_id=@@SPID")
+	if err != nil {
+		t.Fatal("Prepare failed:", err.Error())
+	}
+	var protocolName string
+	var tdsver []byte
+	var clientAddress string
+	err = row.Scan(&protocolName, &tdsver, &clientAddress)
+	if err != nil {
+		t.Fatal("Scan failed:", err.Error())
+	}
+	assertEqual(t, "TSQL", protocolName)
+	assertEqual(t, "0x08000000", hex.EncodeToString(tdsver))
+}
+
 // returns parsed connection parameters derived from
 // environment variables
-func testConnParams(t testing.TB) *azureFedAuthConfig {
+func testConnParams(t testing.TB, dsnParams string) *azureFedAuthConfig {
 	dsn := os.Getenv("AZURESERVER_DSN")
 	const logFlags = 127
 	if dsn == "" {
@@ -54,7 +77,7 @@ func testConnParams(t testing.TB) *azureFedAuthConfig {
 	if dsn == "" {
 		t.Skip("no azure database connection string. set AZURESERVER_DSN environment variable or create .azureconnstr file")
 	}
-	config, err := parse(dsn)
+	config, err := parse(dsn + dsnParams)
 	if err != nil {
 		t.Skip("error parsing connection string ")
 	}
@@ -63,4 +86,10 @@ func testConnParams(t testing.TB) *azureFedAuthConfig {
 	}
 	config.mssqlConfig.LogFlags = logFlags
 	return config
+}
+
+func assertEqual(t *testing.T, expected interface{}, actual interface{}) {
+	if expected != actual {
+		t.Fatalf("Expected %v, got %v", expected, actual)
+	}
 }
