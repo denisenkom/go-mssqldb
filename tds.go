@@ -1240,7 +1240,7 @@ initiate_connection:
 	}
 
 	//We need not perform TLS handshake if the communication channel is already encrypted (encrypt=strict)
-	if isTransportEncrypted {
+	if !isTransportEncrypted {
 		if encrypt != encryptNotSup {
 			var config *tls.Config
 			if pc := p.TLSConfig; pc != nil {
