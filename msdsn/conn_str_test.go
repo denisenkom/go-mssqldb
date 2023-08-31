@@ -75,6 +75,9 @@ func TestValidConnectionString(t *testing.T) {
 		{"encrypt=true;tlsmin=1.2", func(p Config) bool {
 			return p.Encryption == EncryptionRequired && p.TLSConfig.MinVersion == tls.VersionTLS12
 		}},
+		{"encrypt=true;tlsmin=1.3", func(p Config) bool {
+			return p.Encryption == EncryptionRequired && p.TLSConfig.MinVersion == tls.VersionTLS13
+		}},
 		{"encrypt=true;tlsmin=1.4", func(p Config) bool {
 			return p.Encryption == EncryptionRequired && p.TLSConfig.MinVersion == 0
 		}},

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	mssql "github.com/microsoft/go-mssqldb"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestAzureSqlAuth(t *testing.T) {
@@ -54,8 +55,8 @@ func TestTDS8ConnWithAzureSqlAuth(t *testing.T) {
 	if err != nil {
 		t.Fatal("Scan failed:", err.Error())
 	}
-	assertEqual(t, "TSQL", protocolName)
-	assertEqual(t, "0x08000000", hex.EncodeToString(tdsver))
+	assert.Equal(t, "TSQL", protocolName, "Protocol name does not match")
+	assert.Equal(t, "0x08000000", hex.EncodeToString(tdsver))
 }
 
 // returns parsed connection parameters derived from
@@ -86,10 +87,4 @@ func testConnParams(t testing.TB, dsnParams string) *azureFedAuthConfig {
 	}
 	config.mssqlConfig.LogFlags = logFlags
 	return config
-}
-
-func assertEqual(t *testing.T, expected interface{}, actual interface{}) {
-	if expected != actual {
-		t.Fatalf("Expected %v, got %v", expected, actual)
-	}
 }
