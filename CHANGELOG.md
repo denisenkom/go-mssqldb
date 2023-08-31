@@ -12,6 +12,7 @@
 * Added `ActiveDirectoryAzCli` and `ActiveDirectoryDeviceCode` authentication types to `azuread` package
 * Always Encrypted encryption and decryption with 2 hour key cache (#116)
 * 'pfx', 'MSSQL_CERTIFICATE_STORE', and 'AZURE_KEY_VAULT' encryption key providers
+* TDS8 can now be used for connections by setting encrypt="strict"
 
 ## 1.5.0
 

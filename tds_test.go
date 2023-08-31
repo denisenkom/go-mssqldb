@@ -665,6 +665,28 @@ func TestSecureConnection(t *testing.T) {
 	}
 }
 
+func TestTDS8ConnFailure(t *testing.T) {
+	checkConnStr(t)
+	tl := testLogger{t: t}
+	defer tl.StopLogging()
+	SetLogger(&tl)
+	config := testConnParams(t)
+	dsn := config.URL()
+	if !strings.HasSuffix(strings.Split(dsn.Host, ":")[0], ".database.windows.net") {
+		t.Skip()
+	}
+	dsnParams := dsn.Query()
+	dsnParams.Set(msdsn.TrustServerCertificate, "true")
+	dsnParams.Set(msdsn.Encrypt, "strict")
+	dsnParams.Set(msdsn.TLSMin, "1.2")
+	dsn.RawQuery = dsnParams.Encode()
+
+	_, err := sql.Open("mssql", dsn.String())
+	if err == nil {
+		t.Fatal("Connection did not fail for unknown CA certificate with encrypt=strict")
+	}
+}
+
 func TestBadCredentials(t *testing.T) {
 	params := testConnParams(t)
 	params.Password = "padpwd"

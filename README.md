@@ -25,9 +25,10 @@ Other supported formats are listed below.
 * `connection timeout` - in seconds (default is 0 for no timeout), set to 0 for no timeout. Recommended to set to 0 and use context to manage query and connection timeouts.
 * `dial timeout` - in seconds (default is 15 times the number of registered protocols), set to 0 for no timeout.
 * `encrypt`
+  * `strict` - Data sent between client and server is encrypted E2E using [TDS8](https://learn.microsoft.com/en-us/sql/relational-databases/security/networking/tds-8?view=sql-server-ver16).
   * `disable` - Data send between client and server is not encrypted.
-  * `false` - Data sent between client and server is not encrypted beyond the login packet. (Default)
-  * `true` - Data sent between client and server is encrypted.
+  * `false`/`optional`/`no`/`0`/`f` - Data sent between client and server is not encrypted beyond the login packet. (Default)
+  * `true`/`mandatory`/`yes`/`1`/`t` - Data sent between client and server is encrypted.
 * `app name` - The application name (default is go-mssqldb)
 * `authenticator` - Can be used to specify use of a registered authentication provider. (e.g. ntlm, winsspi (on windows) or krb5 (on linux))
 
@@ -56,7 +57,7 @@ Other supported formats are listed below.
 * `TrustServerCertificate`
   * false - Server certificate is checked. Default is false if encrypt is specified.
   * true - Server certificate is not checked. Default is true if encrypt is not specified. If trust server certificate is true, driver accepts any certificate presented by the server and any host name in that certificate. In this mode, TLS is susceptible to man-in-the-middle attacks. This should be used only for testing.
-* `certificate` - The file that contains the public key certificate of the CA that signed the SQL Server certificate. The specified certificate overrides the go platform specific CA certificates.
+* `certificate` - The file that contains the public key certificate of the CA that signed the SQL Server certificate. The specified certificate overrides the go platform specific CA certificates. Currently, certificates of PEM type are supported.
 * `hostNameInCertificate` - Specifies the Common Name (CN) in the server certificate. Default value is the server host.
 * `tlsmin` - Specifies the minimum TLS version for negotiating encryption with the server. Recognized values are `1.0`, `1.1`, `1.2`, `1.3`. If not set to a recognized value the default value for the `tls` package will be used. The default is currently `1.2`. 
 * `ServerSPN` - The kerberos SPN (Service Principal Name) for the server. Default is MSSQLSvc/host:port.
@@ -470,6 +471,7 @@ Constrain the provider to an allowed list of key vaults by appending vault host 
 * Always Encrypted
   - `MSSQL_CERTIFICATE_STORE` provider on Windows
   - `pfx` provider on Linux and Windows
+
 ## Tests
 
 `go test` is used for testing. A running instance of MSSQL server is required.

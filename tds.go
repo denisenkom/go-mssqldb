@@ -103,6 +103,7 @@ const (
 	verTDS73     = verTDS73A
 	verTDS73B    = 0x730B0003
 	verTDS74     = 0x74000004
+	verTDS80     = 0x08000000
 )
 
 // packet types
@@ -144,6 +145,7 @@ const (
 	encryptOn     = 1 // Encryption is available and on.
 	encryptNotSup = 2 // Encryption is not available.
 	encryptReq    = 3 // Encryption is required.
+	encryptStrict = 4
 )
 
 const (
@@ -1004,6 +1006,8 @@ func preparePreloginFields(p msdsn.Config, fe *featureExtFedAuth) map[uint8][]by
 		encrypt = encryptOn
 	case msdsn.EncryptionOff:
 		encrypt = encryptOff
+	case msdsn.EncryptionStrict:
+		encrypt = encryptStrict
 	}
 	v := getDriverVersion(driverVersion)
 	fields := map[uint8][]byte{
@@ -1050,6 +1054,12 @@ func interpretPreloginResponse(p msdsn.Config, fe *featureExtFedAuth, fields map
 }
 
 func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger ContextLogger, auth integratedauth.IntegratedAuthenticator, fe *featureExtFedAuth, packetSize uint32) (l *login, err error) {
+	var TDSVersion uint32
+	if p.Encryption == msdsn.EncryptionStrict {
+		TDSVersion = verTDS80
+	} else {
+		TDSVersion = verTDS74
+	}
 	var typeFlags uint8
 	if p.ReadOnlyIntent {
 		typeFlags |= fReadOnlyIntent
@@ -1062,7 +1072,7 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger Cont
 		serverName = p.Host
 	}
 	l = &login{
-		TDSVersion:     verTDS74,
+		TDSVersion:     TDSVersion,
 		PacketSize:     packetSize,
 		Database:       p.Database,
 		OptionFlags2:   fODBC, // to get unlimited TEXTSIZE
@@ -1123,8 +1133,29 @@ func prepareLogin(ctx context.Context, c *Connector, p msdsn.Config, logger Cont
 	return l, nil
 }
 
-func connect(ctx context.Context, c *Connector, logger ContextLogger, p msdsn.Config) (res *tdsSession, err error) {
+func getTLSConn(conn *timeoutConn, p msdsn.Config, alpnSeq string) (tlsConn *tls.Conn, err error) {
+	var config *tls.Config
+	if pc := p.TLSConfig; pc != nil {
+		config = pc
+	}
+	if config == nil {
+		config, err = msdsn.SetupTLS("", false, p.Host, "")
+		if err != nil {
+			return nil, err
+		}
+	}
+	//Set ALPN Sequence
+	config.NextProtos = []string{alpnSeq}
+	tlsConn = tls.Client(conn.c, config)
+	err = tlsConn.Handshake()
+	if err != nil {
+		return nil, fmt.Errorf("TLS Handshake failed: %w", err)
+	}
+	return tlsConn, nil
+}
 
+func connect(ctx context.Context, c *Connector, logger ContextLogger, p msdsn.Config) (res *tdsSession, err error) {
+	isTransportEncrypted := false
 	// if instance is specified use instance resolution service
 	if len(p.Instance) > 0 && p.Port != 0 && uint64(p.LogFlags)&logDebug != 0 {
 		// both instance name and port specified
@@ -1164,8 +1195,15 @@ initiate_connection:
 	}
 
 	toconn := newTimeoutConn(conn, p.ConnTimeout)
-
 	outbuf := newTdsBuffer(packetSize, toconn)
+
+	if p.Encryption == msdsn.EncryptionStrict {
+		outbuf.transport, err = getTLSConn(toconn, p, "tds/8.0")
+		if err != nil {
+			return nil, err
+		}
+		isTransportEncrypted = true
+	}
 	sess := tdsSession{
 		buf:        outbuf,
 		logger:     logger,
@@ -1201,42 +1239,47 @@ initiate_connection:
 		return nil, err
 	}
 
-	if encrypt != encryptNotSup {
-		var config *tls.Config
-		if pc := p.TLSConfig; pc != nil {
-			config = pc
-			if config.DynamicRecordSizingDisabled == false {
-				config = config.Clone()
+	//We need not perform TLS handshake if the communication channel is already encrypted (encrypt=strict)
+	if !isTransportEncrypted {
+		if encrypt != encryptNotSup {
+			var config *tls.Config
+			if pc := p.TLSConfig; pc != nil {
+				config = pc
+				if !config.DynamicRecordSizingDisabled {
+					config = config.Clone()
 
-				// fix for https://github.com/microsoft/go-mssqldb/issues/166
-				// Go implementation of TLS payload size heuristic algorithm splits single TDS package to multiple TCP segments,
-				// while SQL Server seems to expect one TCP segment per encrypted TDS package.
-				// Setting DynamicRecordSizingDisabled to true disables that algorithm and uses 16384 bytes per TLS package
-				config.DynamicRecordSizingDisabled = true
+					// fix for https://github.com/microsoft/go-mssqldb/issues/166
+					// Go implementation of TLS payload size heuristic algorithm splits single TDS package to multiple TCP segments,
+					// while SQL Server seems to expect one TCP segment per encrypted TDS package.
+					// Setting DynamicRecordSizingDisabled to true disables that algorithm and uses 16384 bytes per TLS package
+					config.DynamicRecordSizingDisabled = true
+				}
 			}
-		}
-		if config == nil {
-			config, err = msdsn.SetupTLS("", false, p.Host, "")
+			if config == nil {
+				config, err = msdsn.SetupTLS("", false, p.Host, "")
+				if err != nil {
+					return nil, err
+				}
+
+			}
+
+			// setting up connection handler which will allow wrapping of TLS handshake packets inside TDS stream
+			handshakeConn := tlsHandshakeConn{buf: outbuf}
+			passthrough := passthroughConn{c: &handshakeConn}
+			tlsConn := tls.Client(&passthrough, config)
+			err = tlsConn.Handshake()
+			passthrough.c = toconn
+			outbuf.transport = tlsConn
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("TLS Handshake failed: %v", err)
+			}
+			if encrypt == encryptOff {
+				outbuf.afterFirst = func() {
+					outbuf.transport = toconn
+				}
 			}
 		}
 
-		// setting up connection handler which will allow wrapping of TLS handshake packets inside TDS stream
-		handshakeConn := tlsHandshakeConn{buf: outbuf}
-		passthrough := passthroughConn{c: &handshakeConn}
-		tlsConn := tls.Client(&passthrough, config)
-		err = tlsConn.Handshake()
-		passthrough.c = toconn
-		outbuf.transport = tlsConn
-		if err != nil {
-			return nil, fmt.Errorf("TLS Handshake failed: %v", err)
-		}
-		if encrypt == encryptOff {
-			outbuf.afterFirst = func() {
-				outbuf.transport = toconn
-			}
-		}
 	}
 
 	auth, err := integratedauth.GetIntegratedAuthenticator(p)

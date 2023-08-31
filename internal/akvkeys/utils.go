@@ -41,9 +41,13 @@ func CreateRSAKey(client *azkeys.Client) (name string, err error) {
 		Kty:     &kt,
 		KeySize: &ks,
 	}
-	i, _ := rand.Int(rand.Reader, big.NewInt(1000))
+
+	i, _ := rand.Int(rand.Reader, big.NewInt(1000000))
 	name = fmt.Sprintf("go-mssqlkey%d", i)
 	_, err = client.CreateKey(context.TODO(), name, rsaKeyParams, nil)
+	if err != nil {
+		_, err = client.RecoverDeletedKey(context.TODO(), name, &azkeys.RecoverDeletedKeyOptions{})
+	}
 	return
 }
 
