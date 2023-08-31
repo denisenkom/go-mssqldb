@@ -56,7 +56,7 @@ func TestTDS8ConnWithAzureSqlAuth(t *testing.T) {
 		t.Fatal("Scan failed:", err.Error())
 	}
 	assert.Equal(t, "TSQL", protocolName, "Protocol name does not match")
-	assert.Equal(t, "0x08000000", hex.EncodeToString(tdsver))
+	assert.Equal(t, "08000000", hex.EncodeToString(tdsver))
 }
 
 // returns parsed connection parameters derived from
