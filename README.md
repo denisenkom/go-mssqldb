@@ -201,9 +201,9 @@ For further information on usage:
 Azure Active Directory authentication uses temporary authentication tokens to authenticate.
 The `mssql` package does not provide an implementation to obtain tokens: instead, import the `azuread` package and use driver name `azuresql`. This driver uses [azidentity](https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/azidentity#section-readme) to acquire tokens using a variety of credential types.
 
-To reduce friction in local development, `DefaultAzureCredential` can authenticate as the user signed into the Azure CLI.
+To reduce friction in local development, `ActiveDirectoryDefault` can authenticate as the user signed into the Azure CLI.
 
-Run the following command to sign into the Azure CLI before running your application using the `DefaultAzureCredential` parameter:
+Run the following command to sign into the Azure CLI before running your application using the `ActiveDirectoryDefault` connection string parameter:
 
 ```azurecli
 az login
