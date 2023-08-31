@@ -217,6 +217,8 @@ The credential type is determined by the new `fedauth` connection string paramet
   * `resource id=<resource id>` - optional resource id of user-assigned managed identity.  If empty, system-assigned managed identity or user id are used (if both user id and resource id are provided, resource id will be used)
 * `fedauth=ActiveDirectoryInteractive` - authenticates using credentials acquired from an external web browser. Only suitable for use with human interaction.
   * `applicationclientid=<application id>` - This guid identifies an Azure Active Directory enterprise application that the AAD admin has approved for accessing Azure SQL database resources in the tenant. This driver does not have an associated application id of its own.
+* `fedauth=ActiveDirectoryDeviceCode` - prints a message to stdout giving the user a URL and code to authenticate. Connection continues after user completes the login separately.
+* `fedauth=ActiveDirectoryAzCli` - reuses local authentication the user already performed using Azure CLI.
 
 ```go
 

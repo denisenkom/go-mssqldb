@@ -9,6 +9,7 @@
 
 ### Features
 
+* Added `ActiveDirectoryAzCli` and `ActiveDirectoryDeviceCode` authentication types to `azuread` package
 * Always Encrypted encryption and decryption with 2 hour key cache (#116)
 * 'pfx', 'MSSQL_CERTIFICATE_STORE', and 'AZURE_KEY_VAULT' encryption key providers
 
