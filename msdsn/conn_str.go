@@ -22,7 +22,7 @@ type (
 )
 
 const (
-	DsnTypeUrl  = 1
+	DsnTypeURL  = 1
 	DsnTypeOdbc = 2
 	DsnTypeAdo  = 3
 )
@@ -214,7 +214,7 @@ var skipSetup = errors.New("skip setting up TLS")
 
 func getDsnType(dsn string) int {
 	if strings.HasPrefix(dsn, "sqlserver://") {
-		return DsnTypeUrl
+		return DsnTypeURL
 	}
 	if strings.HasPrefix(dsn, "odbc:") {
 		return DsnTypeOdbc
@@ -233,7 +233,7 @@ func getDsnParams(dsn string) (map[string]string, error) {
 		if err != nil {
 			return params, err
 		}
-	case DsnTypeUrl:
+	case DsnTypeURL:
 		params, err = splitConnectionStringURL(dsn)
 		if err != nil {
 			return params, err
