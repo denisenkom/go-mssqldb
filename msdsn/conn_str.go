@@ -3,12 +3,13 @@ package msdsn
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -129,6 +130,37 @@ type Config struct {
 	ColumnEncryption bool
 }
 
+func readDERFile(filename string) ([]byte, error) {
+	derBytes, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	cert, err := x509.ParseCertificate(derBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	pemBytes := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: cert.Raw,
+	})
+	return pemBytes, nil
+}
+
+func readCertificate(certificate string) ([]byte, error) {
+	certType := strings.ToLower(filepath.Ext(certificate))
+
+	switch certType {
+	case ".pem":
+		return os.ReadFile(certificate)
+	case ".der":
+		return readDERFile(certificate)
+	default:
+		return nil, fmt.Errorf("certificate type %s is not supported", certType)
+	}
+}
+
 // Build a tls.Config object from the supplied certificate.
 func SetupTLS(certificate string, insecureSkipVerify bool, hostInCertificate string, minTLSVersion string) (*tls.Config, error) {
 	config := tls.Config{
@@ -146,7 +178,7 @@ func SetupTLS(certificate string, insecureSkipVerify bool, hostInCertificate str
 	if len(certificate) == 0 {
 		return &config, nil
 	}
-	pem, err := ioutil.ReadFile(certificate)
+	pem, err := readCertificate(certificate)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read certificate %q: %w", certificate, err)
 	}
