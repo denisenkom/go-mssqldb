@@ -307,16 +307,16 @@ func TestReadCertificate(t *testing.T) {
 	assert.NotNil(t, cert, "Expected certificate to be read, found nil")
 
 	pemCertificate := derCertificate[:len(derCertificate)-len(filepath.Ext(derCertificate))] + ".pem"
-	os.Rename(derCertificate, pemCertificate)
+	_ = os.Rename(derCertificate, pemCertificate)
 	cert, err = readCertificate(pemCertificate)
 	assert.Nil(t, err, "Expected no error while reading certificate, found %v", err)
 	assert.NotNil(t, cert, "Expected certificate to be read, found nil")
 
 	// Test with an invalid certificate
 	bakCertificate := derCertificate[:len(derCertificate)-len(filepath.Ext(derCertificate))] + ".bak"
-	os.Rename(pemCertificate, bakCertificate)
+	_ = os.Rename(pemCertificate, bakCertificate)
 	cert, err = readCertificate(bakCertificate)
 	assert.NotNil(t, err, "Expected error while reading certificate, found nil")
 	assert.Nil(t, cert, "Expected certificate to be nil, found %v", cert)
-	os.Remove(bakCertificate)
+	_ = os.Remove(bakCertificate)
 }
