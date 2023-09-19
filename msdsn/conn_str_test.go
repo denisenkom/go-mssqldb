@@ -3,8 +3,8 @@ package msdsn
 import (
 	"crypto/tls"
 	"encoding/hex"
+	"io"
 	"os"
-	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -295,28 +295,28 @@ func TestReadCertificate(t *testing.T) {
 
 	//Setup dummy certificate
 	hexCertificate := "3082031830820200a00302010202103608db21691eccba415f8624d34b66fe300d06092a864886f70d01010b050030143112301006035504030c096c6f63616c686f7374301e170d3233303830383133343233375a170d3234303830383134303233375a30143112301006035504030c096c6f63616c686f737430820122300d06092a864886f70d01010105000382010f003082010a0282010100e18cd4d2923c548ac6e4fd731de116716a09fd2447feb28213810a1b508c22c108928f61531d31439b7252808d6bc6a71d50e5bb00596bbc1633d65389b80bb36f22d1546cbff570881331285cb458b3a2ad1ad0fa83081bd000f2793d29460a6adc0128a2d979d34f5cd91d60d4fef5932f393e04fcb3730a33693f3c44b882384c529f7489e58e296b0c17ca391b02f2488c38f8fc3c3afa0c1be0d22329287f93cf57ee46836a12f74de82eb54b18a5ae0134266db52633c0e33177f8ac4532045f053ddc920f0659cafa84c54c2b3cc92f4010c8af93ae0fc92e461d47c0cf2da46421189b2ddcf2f6ae17cb5ef6f1eda94452af6f714d583dcb7bcd43e90203010001a3663064300e0603551d0f0101ff0404030205a0301d0603551d250416301406082b0601050507030206082b0601050507030130140603551d11040d300b82096c6f63616c686f7374301d0603551d0e0416041443e3d9f187e9474d73794c641d54ecb810342ec6300d06092a864886f70d01010b05000382010100a227e721ac80838e66ef75d8ba080185dd8f4a5c84d7373e8ed50534100a490b577e3c1af593597303bdad8bb900e32b5d6f69941c19cc87fd426f9e4a4134f34f2ade02748d64031bc4e9c7617206a45c1d9556bb0488994cd27126adb029216f7c57852c1663983b7be638f1bc5411ba2221ce3fde29bf4818e36bec8ac25e9a37bfc41c5a3812829a6358a66c467818448346be140639957077b924b22567b75c7dab4d9d6794b4d79596d17446641684cbd193ec20a6faa85fb6b72f5f30dc57e8cd662b22152429e5b43ccb450c6840ba006e1c8e38b002aa97d8dd07e100ef76eebd9c523d8710636f060865e6198da620fedbf1ae6ed75df997641621"
-	file, _ := os.CreateTemp("", "*.der")
-	derCertificate := file.Name()
+	derfile, _ := os.CreateTemp("", "*.der")
+	defer os.Remove(derfile.Name())
 	certInBytes, _ := hex.DecodeString(hexCertificate)
-	_, _ = file.Write(certInBytes)
-	file.Close()
+	_, _ = derfile.Write(certInBytes)
 
 	// Test with a valid certificate
-	cert, err := readCertificate(derCertificate)
+	cert, err := readCertificate(derfile.Name())
 	assert.Nil(t, err, "Expected no error while reading certificate, found %v", err)
 	assert.NotNil(t, cert, "Expected certificate to be read, found nil")
 
-	pemCertificate := derCertificate[:len(derCertificate)-len(filepath.Ext(derCertificate))] + ".pem"
-	_ = os.Rename(derCertificate, pemCertificate)
-	cert, err = readCertificate(pemCertificate)
+	pemfile, _ := os.CreateTemp("", "*.pem")
+	_, _ = io.Copy(derfile, pemfile)
+	defer os.Remove(pemfile.Name())
+	cert, err = readCertificate(pemfile.Name())
 	assert.Nil(t, err, "Expected no error while reading certificate, found %v", err)
 	assert.NotNil(t, cert, "Expected certificate to be read, found nil")
 
 	// Test with an invalid certificate
-	bakCertificate := derCertificate[:len(derCertificate)-len(filepath.Ext(derCertificate))] + ".bak"
-	_ = os.Rename(pemCertificate, bakCertificate)
-	cert, err = readCertificate(bakCertificate)
+	bakfile, _ := os.CreateTemp("", "*.bak")
+	_, _ = io.Copy(derfile, bakfile)
+	defer os.Remove(bakfile.Name())
+	cert, err = readCertificate(bakfile.Name())
 	assert.NotNil(t, err, "Expected error while reading certificate, found nil")
 	assert.Nil(t, cert, "Expected certificate to be nil, found %v", cert)
-	_ = os.Remove(bakCertificate)
 }
