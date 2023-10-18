@@ -1,6 +1,7 @@
 package mssql
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"fmt"
@@ -68,6 +69,8 @@ func TestAlwaysEncryptedE2E(t *testing.T) {
 		// {"int", "INT", ColumnEncryptionDeterministic, sql.NullInt32{Valid: false}},
 	}
 	for _, test := range providerTests {
+		// turn off key caching
+		aecmk.ColumnEncryptionKeyLifetime = 0
 		t.Run(test.Name(), func(t *testing.T) {
 			conn, _ := open(t)
 			defer conn.Close()
@@ -86,9 +89,10 @@ func TestAlwaysEncryptedE2E(t *testing.T) {
 			tableName := fmt.Sprintf("mssqlAe%d", r.Int64())
 			keyBytes := make([]byte, 32)
 			_, _ = rand.Read(keyBytes)
-			encryptedCek := test.GetProvider(t).EncryptColumnEncryptionKey(certPath, KeyEncryptionAlgorithm, keyBytes)
+			encryptedCek, err := test.GetProvider(t).EncryptColumnEncryptionKey(context.Background(), certPath, KeyEncryptionAlgorithm, keyBytes)
+			assert.NoError(t, err, "Encrypt")
 			createCek := fmt.Sprintf(createColumnEncryptionKey, cekName, certPath, encryptedCek)
-			_, err := conn.Exec(createCek)
+			_, err = conn.Exec(createCek)
 			assert.NoError(t, err, "Unable to create CEK")
 			defer func() {
 				_, err := conn.Exec(fmt.Sprintf(dropColumnEncryptionKey, cekName))
@@ -178,8 +182,41 @@ func TestAlwaysEncryptedE2E(t *testing.T) {
 			_ = rows.Next()
 			err = rows.Err()
 			assert.NoError(t, err, "rows.Err() has non-nil values")
+			testProviderErrorHandling(t, test.Name(), test.GetProvider(t), sel.String(), insert.String(), insertArgs)
 		})
 	}
+}
+
+func testProviderErrorHandling(t *testing.T, name string, provider aecmk.ColumnEncryptionKeyProvider, sel string, insert string, insertArgs []interface{}) {
+	t.Helper()
+	testProvider := &testKeyProvider{fallback: provider}
+	connector, _ := getTestConnector(t)
+	connector.RegisterCekProvider(name, testProvider)
+	conn := sql.OpenDB(connector)
+	defer conn.Close()
+	testProvider.decrypt = func(ctx context.Context, masterKeyPath string, encryptionAlgorithm string, cek []byte) ([]byte, error) {
+		return nil, context.DeadlineExceeded
+	}
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(1*time.Hour))
+	defer cancel()
+	rows, err := conn.QueryContext(ctx, sel)
+	defer rows.Close()
+
+	if assert.NoError(t, err, "Exec should return no error") {
+		if rows.Next() {
+			assert.Fail(t, "rows.Next should have failed")
+		}
+		assert.ErrorIs(t, rows.Err(), context.DeadlineExceeded)
+	}
+
+	var notAllowed error
+	testProvider.decrypt = func(ctx context.Context, masterKeyPath string, encryptionAlgorithm string, cek []byte) ([]byte, error) {
+		notAllowed = aecmk.KeyPathNotAllowed(masterKeyPath, aecmk.Decryption)
+		return nil, notAllowed
+	}
+	_, err = conn.Exec(insert, insertArgs...)
+	assert.ErrorIs(t, err, notAllowed, "Insert should fail with key path not allowed")
+
 }
 
 func comparisonValueFromObject(object interface{}) string {
@@ -221,3 +258,45 @@ const (
 				COLUMN_ENCRYPTION_KEY = [%s])
 		)`
 )
+
+// Parameterized implementation of a key provider
+type testKeyProvider struct {
+	encrypt  func(ctx context.Context, masterKeyPath string, encryptionAlgorithm string, cek []byte) ([]byte, error)
+	decrypt  func(ctx context.Context, masterKeyPath string, encryptionAlgorithm string, encryptedCek []byte) ([]byte, error)
+	lifetime *time.Duration
+	fallback aecmk.ColumnEncryptionKeyProvider
+}
+
+func (p *testKeyProvider) DecryptColumnEncryptionKey(ctx context.Context, masterKeyPath string, encryptionAlgorithm string, encryptedCek []byte) (decryptedKey []byte, err error) {
+	if p.decrypt != nil {
+		return p.decrypt(ctx, masterKeyPath, encryptionAlgorithm, encryptedCek)
+	}
+	return p.fallback.DecryptColumnEncryptionKey(ctx, masterKeyPath, encryptionAlgorithm, encryptedCek)
+}
+
+func (p *testKeyProvider) EncryptColumnEncryptionKey(ctx context.Context, masterKeyPath string, encryptionAlgorithm string, cek []byte) ([]byte, error) {
+	if p.encrypt != nil {
+		return p.encrypt(ctx, masterKeyPath, encryptionAlgorithm, cek)
+	}
+	return p.fallback.EncryptColumnEncryptionKey(ctx, masterKeyPath, encryptionAlgorithm, cek)
+}
+
+func (p *testKeyProvider) SignColumnMasterKeyMetadata(ctx context.Context, masterKeyPath string, allowEnclaveComputations bool) ([]byte, error) {
+	return nil, nil
+}
+
+// VerifyColumnMasterKeyMetadata verifies the specified signature is valid for the column master key
+// with the specified key path and the specified enclave behavior. Return nil if not supported.
+func (p *testKeyProvider) VerifyColumnMasterKeyMetadata(ctx context.Context, masterKeyPath string, allowEnclaveComputations bool) (*bool, error) {
+	return nil, nil
+}
+
+// KeyLifetime is an optional Duration. Keys fetched by this provider will be discarded after their lifetime expires.
+// If it returns nil, the keys will expire based on the value of ColumnEncryptionKeyLifetime.
+// If it returns zero, the keys will not be cached.
+func (p *testKeyProvider) KeyLifetime() *time.Duration {
+	if p.lifetime != nil {
+		return p.lifetime
+	}
+	return p.fallback.KeyLifetime()
+}

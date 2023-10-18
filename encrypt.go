@@ -80,7 +80,7 @@ func (s *Stmt) encryptArgs(ctx context.Context, args []namedValue) (encryptedArg
 	if len(cekInfo) == 0 {
 		return args, nil
 	}
-	err = s.decryptCek(cekInfo)
+	err = s.decryptCek(ctx, cekInfo)
 	if err != nil {
 		return
 	}
@@ -141,13 +141,13 @@ func (s *Stmt) buildParametersForColumnEncryption(args []namedValue) (parameters
 	return
 }
 
-func (s *Stmt) decryptCek(cekInfo []*cekData) error {
+func (s *Stmt) decryptCek(ctx context.Context, cekInfo []*cekData) error {
 	for _, info := range cekInfo {
 		kp, ok := s.c.sess.aeSettings.keyProviders[info.cmkStoreName]
 		if !ok {
 			return fmt.Errorf("No provider found for key store %s", info.cmkStoreName)
 		}
-		dk, err := kp.GetDecryptedKey(info.cmkPath, info.encryptedValue)
+		dk, err := kp.GetDecryptedKey(ctx, info.cmkPath, info.encryptedValue)
 		if err != nil {
 			return err
 		}
@@ -285,7 +285,7 @@ func processDescribeParameterEncryption(rows driver.Rows) (cekInfo []*cekData, p
 		if qerr != io.EOF {
 			err = qerr
 		} else {
-			err = fmt.Errorf("No parameter encryption rows were returned from sp_describe_parameter_encryption")
+			badStreamPanic(fmt.Errorf("No parameter encryption rows were returned from sp_describe_parameter_encryption"))
 		}
 	}
 	return

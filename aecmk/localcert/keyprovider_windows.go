@@ -23,12 +23,13 @@ func init() {
 	}
 }
 
-func (p *Provider) loadWindowsCertStoreCertificate(path string) (privateKey interface{}, cert *x509.Certificate) {
+func (p *Provider) loadWindowsCertStoreCertificate(path string) (privateKey interface{}, cert *x509.Certificate, err error) {
 	privateKey = nil
 	cert = nil
 	pathParts := strings.Split(path, `/`)
 	if len(pathParts) != 3 {
-		panic(invalidCertificatePath(path, fmt.Errorf("key store path requires 3 segments")))
+		err = invalidCertificatePath(path, fmt.Errorf("key store path requires 3 segments"))
+		return
 	}
 
 	var storeId uint32
@@ -38,18 +39,20 @@ func (p *Provider) loadWindowsCertStoreCertificate(path string) (privateKey inte
 	case "currentuser":
 		storeId = windows.CERT_SYSTEM_STORE_CURRENT_USER
 	default:
-		panic(invalidCertificatePath(path, fmt.Errorf("Unknown certificate store")))
+		err = invalidCertificatePath(path, fmt.Errorf("Unknown certificate store"))
+		return
 	}
 	system, err := windows.UTF16PtrFromString(pathParts[1])
 	if err != nil {
-		panic(err)
+		err = invalidCertificatePath(path, err)
+		return
 	}
 	h, err := windows.CertOpenStore(windows.CERT_STORE_PROV_SYSTEM,
 		windows.PKCS_7_ASN_ENCODING|windows.X509_ASN_ENCODING,
 		0,
 		storeId, uintptr(unsafe.Pointer(system)))
 	if err != nil {
-		panic(err)
+		return
 	}
 	defer windows.CertCloseStore(h, 0)
 	signature := thumbprintToByteArray(pathParts[2])

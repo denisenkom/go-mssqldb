@@ -4,6 +4,7 @@
 package akv
 
 import (
+	"context"
 	"crypto/rand"
 	"net/url"
 	"testing"
@@ -26,9 +27,13 @@ func TestEncryptDecryptRoundTrip(t *testing.T) {
 	plainKey := make([]byte, 32)
 	_, _ = rand.Read(plainKey)
 	t.Log("Plainkey:", plainKey)
-	encryptedKey := p.EncryptColumnEncryptionKey(keyPath, aecmk.KeyEncryptionAlgorithm, plainKey)
-	t.Log("Encryptedkey:", encryptedKey)
-	assert.NotEqualValues(t, plainKey, encryptedKey, "encryptedKey is the same as plainKey")
-	decryptedKey := p.DecryptColumnEncryptionKey(keyPath, aecmk.KeyEncryptionAlgorithm, encryptedKey)
-	assert.Equalf(t, plainKey, decryptedKey, "decryptedkey doesn't match plainKey. %v : %v", decryptedKey, plainKey)
+	encryptedKey, err := p.EncryptColumnEncryptionKey(context.Background(), keyPath, aecmk.KeyEncryptionAlgorithm, plainKey)
+	if assert.NoError(t, err, "EncryptColumnEncryptionKey") {
+		t.Log("Encryptedkey:", encryptedKey)
+		assert.NotEqualValues(t, plainKey, encryptedKey, "encryptedKey is the same as plainKey")
+		decryptedKey, err := p.DecryptColumnEncryptionKey(context.Background(), keyPath, aecmk.KeyEncryptionAlgorithm, encryptedKey)
+		if assert.NoError(t, err, "DecryptColumnEncryptionKey") {
+			assert.Equalf(t, plainKey, decryptedKey, "decryptedkey doesn't match plainKey. %v : %v", decryptedKey, plainKey)
+		}
+	}
 }

@@ -15,9 +15,8 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func FindCertBySignatureHash(storeHandle windows.Handle, hash []byte) (interface{}, *x509.Certificate) {
+func FindCertBySignatureHash(storeHandle windows.Handle, hash []byte) (pk interface{}, cert *x509.Certificate, err error) {
 	var certContext *windows.CertContext
-	var err error
 	cryptoAPIBlob := windows.CryptHashBlob{
 		Size: uint32(len(hash)),
 		Data: &hash[0],
@@ -32,15 +31,11 @@ func FindCertBySignatureHash(storeHandle windows.Handle, hash []byte) (interface
 		nil)
 
 	if err != nil {
-
-		panic(fmt.Errorf("Unable to find certificate by signature hash. %s", err.Error()))
+		err = fmt.Errorf("Unable to find certificate by signature hash. %w", err)
+		return
 	}
-	pk, cert, err := certContextToX509(certContext)
-	if err != nil {
-		panic(err)
-	}
-
-	return pk, cert
+	pk, cert, err = certContextToX509(certContext)
+	return
 }
 
 func certContextToX509(ctx *windows.CertContext) (pk interface{}, cert *x509.Certificate, err error) {

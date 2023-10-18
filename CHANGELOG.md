@@ -1,4 +1,17 @@
 # Changelog
+## 1.7.0
+
+### Changed
+
+* Changed always encrypted key provider error handling not to panic on failure
+
+### Features
+
+* Support DER certificates for server authentication (#152)
+
+### Bug fixes
+
+* Improved speed of CharsetToUTF8 (#154)
 
 ## 1.6.0
 

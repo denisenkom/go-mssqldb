@@ -8,7 +8,7 @@ import (
 	"fmt"
 )
 
-func (p *Provider) loadWindowsCertStoreCertificate(path string) (privateKey interface{}, cert *x509.Certificate) {
-	panic(fmt.Errorf("Windows cert store not supported on this OS"))
+func (p *Provider) loadWindowsCertStoreCertificate(path string) (privateKey interface{}, cert *x509.Certificate, err error) {
+	err = fmt.Errorf("Windows cert store not supported on this OS")
 	return
 }

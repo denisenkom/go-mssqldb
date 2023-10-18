@@ -4,12 +4,14 @@
 package localcert
 
 import (
+	"context"
 	"crypto/rsa"
 	"strings"
 	"testing"
 
 	"github.com/microsoft/go-mssqldb/aecmk"
 	"github.com/microsoft/go-mssqldb/internal/certs"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLoadWindowsCertStoreCertificate(t *testing.T) {
@@ -19,7 +21,8 @@ func TestLoadWindowsCertStoreCertificate(t *testing.T) {
 	}
 	defer certs.DeleteMasterKeyCert(thumbprint)
 	provider := aecmk.GetGlobalCekProviders()[aecmk.CertificateStoreKeyProvider].Provider.(*Provider)
-	pk, cert := provider.loadWindowsCertStoreCertificate("CurrentUser/My/" + thumbprint)
+	pk, cert, err := provider.loadWindowsCertStoreCertificate("CurrentUser/My/" + thumbprint)
+	assert.NoError(t, err, "loadWindowsCertStoreCertificate")
 	switch z := pk.(type) {
 	case *rsa.PrivateKey:
 
@@ -41,8 +44,10 @@ func TestEncryptDecryptEncryptionKeyRoundTrip(t *testing.T) {
 	bytesToEncrypt := []byte{1, 2, 3}
 	keyPath := "CurrentUser/My/" + thumbprint
 	provider := aecmk.GetGlobalCekProviders()[aecmk.CertificateStoreKeyProvider].Provider.(*Provider)
-	encryptedBytes := provider.EncryptColumnEncryptionKey(keyPath, "RSA_OAEP", bytesToEncrypt)
-	decryptedBytes := provider.DecryptColumnEncryptionKey(keyPath, "RSA_OAEP", encryptedBytes)
+	encryptedBytes, err := provider.EncryptColumnEncryptionKey(context.Background(), keyPath, "RSA_OAEP", bytesToEncrypt)
+	assert.NoError(t, err, "Encrypt")
+	decryptedBytes, err := provider.DecryptColumnEncryptionKey(context.Background(), keyPath, "RSA_OAEP", encryptedBytes)
+	assert.NoError(t, err, "Decrypt")
 	if len(decryptedBytes) != 3 || decryptedBytes[0] != 1 || decryptedBytes[1] != 2 || decryptedBytes[2] != 3 {
 		t.Fatalf("Encrypt/Decrypt did not roundtrip. encryptedBytes:%v, decryptedBytes: %v", encryptedBytes, decryptedBytes)
 	}
