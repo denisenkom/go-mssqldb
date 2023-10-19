@@ -124,10 +124,10 @@ The package supports authentication via 3 methods.
 ### Kerberos Parameters
 
 * `authenticator` - set this to `krb5` to enable kerberos authentication. If this is not present, the default provider would be `ntlm` for unix and `winsspi` for windows.
-* `krb5-configfile` (mandatory) - path to kerberos configuration file. 
-* `krb5-realm` (required with keytab and raw credentials) - Domain name for kerberos authentication. 
-* `krb5-keytabfile` - path to Keytab file.
-* `krb5-credcachefile` - path to Credential cache.
+* `krb5-configfile` (optional) - path to kerberos configuration file. Defaults to `/etc/krb5.conf`. Can also be set using `KRB5_CONFIG` environment variable.
+* `krb5-realm` (required with keytab and raw credentials) - Domain name for kerberos authentication. Omit this parameter if the realm is part of the user name like `username@REALM`.
+* `krb5-keytabfile` - path to Keytab file. Can also be set using environment variable `KRB5_KTNAME`. If no parameter or environment variable is set, the `DefaultClientKeytabName` value from the krb5 config file is used.
+* `krb5-credcachefile` - path to Credential cache. Can also be set using environment variable `KRBCCNAME`.
 * `krb5-dnslookupkdc` - Optional parameter in all contexts. Set to lookup KDCs in DNS. Boolean. Default is true. 
 * `krb5-udppreferencelimit` - Optional parameter in all contexts. 1 means to always use tcp. MIT krb5 has a default value of 1465, and it prevents user setting more than 32700. Integer. Default is 1.
   
