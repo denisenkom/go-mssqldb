@@ -78,6 +78,7 @@ const (
 	Protocol               = "protocol"
 	DialTimeout            = "dial timeout"
 	Pipe                   = "pipe"
+	MultiSubnetFailover    = "multisubnetfailover"
 )
 
 type Config struct {
@@ -128,6 +129,8 @@ type Config struct {
 	ChangePassword string
 	//ColumnEncryption is true if the application needs to decrypt or encrypt Always Encrypted values
 	ColumnEncryption bool
+	// Attempt to connect to all IPs in parallel when MultiSubnetFailover is true
+	MultiSubnetFailover bool
 }
 
 func readDERFile(filename string) ([]byte, error) {
@@ -482,6 +485,24 @@ func Parse(dsn string) (Config, error) {
 			}
 		}
 		p.ColumnEncryption = columnEncryption
+	}
+
+	msf, ok := params[MultiSubnetFailover]
+	if ok {
+		multiSubnetFailover, err := strconv.ParseBool(msf)
+		if err != nil {
+			if strings.EqualFold(msf, "Enabled") {
+				multiSubnetFailover = true
+			} else if strings.EqualFold(msf, "Disabled") {
+				multiSubnetFailover = false
+			} else {
+				return p, fmt.Errorf("invalid multiSubnetFailover value '%v': %v", multiSubnetFailover, err.Error())
+			}
+		}
+		p.MultiSubnetFailover = multiSubnetFailover
+	} else {
+		// Defaulting to true to prevent breaking change although other client libraries default to false
+		p.MultiSubnetFailover = true
 	}
 	return p, nil
 }

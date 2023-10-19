@@ -69,12 +69,14 @@ func (t tcpDialer) DialConnection(ctx context.Context, p *msdsn.Config) (conn ne
 func (t tcpDialer) DialSqlConnection(ctx context.Context, c *Connector, p *msdsn.Config) (conn net.Conn, err error) {
 	var ips []net.IP
 	ip := net.ParseIP(p.Host)
+	portStr := strconv.Itoa(int(resolveServerPort(p.Port)))
+
 	if ip == nil {
 		// if the custom dialer is a host dialer, the DNS is resolved within the network
 		// the dialer is sending the request to, rather than the one the driver is running on
 		d := c.getDialer(p)
 		if _, ok := d.(HostDialer); ok {
-			addr := net.JoinHostPort(p.Host, strconv.Itoa(int(resolveServerPort(p.Port))))
+			addr := net.JoinHostPort(p.Host, portStr)
 			return d.DialContext(ctx, "tcp", addr)
 		}
 
@@ -85,16 +87,22 @@ func (t tcpDialer) DialSqlConnection(ctx context.Context, c *Connector, p *msdsn
 	} else {
 		ips = []net.IP{ip}
 	}
-	if len(ips) == 1 {
-		d := c.getDialer(p)
-		addr := net.JoinHostPort(ips[0].String(), strconv.Itoa(int(resolveServerPort(p.Port))))
-		conn, err = d.DialContext(ctx, "tcp", addr)
 
+	if len(ips) == 1 || !p.MultiSubnetFailover {
+		// Try to connect to IPs sequentially until one is successful per MultiSubnetFailover false rules
+		for _, ipaddress := range ips {
+			d := c.getDialer(p)
+			addr := net.JoinHostPort(ipaddress.String(), portStr)
+			conn, err = d.DialContext(ctx, "tcp", addr)
+			if err == nil {
+				break
+			}
+		}
 	} else {
 		//Try Dials in parallel to avoid waiting for timeouts.
 		connChan := make(chan net.Conn, len(ips))
 		errChan := make(chan error, len(ips))
-		portStr := strconv.Itoa(int(resolveServerPort(p.Port)))
+
 		for _, ip := range ips {
 			go func(ip net.IP) {
 				d := c.getDialer(p)

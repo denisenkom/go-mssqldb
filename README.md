@@ -65,6 +65,9 @@ Other supported formats are listed below.
 * `ApplicationIntent` - Can be given the value `ReadOnly` to initiate a read-only connection to an Availability Group listener. The `database` must be specified when connecting with `Application Intent` set to `ReadOnly`.
 * `protocol` - forces use of a protocol. Make sure the corresponding package is imported.
 * `columnencryption` or `column encryption setting` - a boolean value indicating whether Always Encrypted should be enabled on the connection.
+* `multisubnetfailover`
+  * `true` (Default) Client attempt to connect to all IPs simultaneously. 
+  * `false` Client attempts to connect to IPs in serial.
 
 ### Connection parameters for namedpipe package
 * `pipe`  - If set, no Browser query is made and named pipe used will be `\\<host>\pipe\<pipe>`
