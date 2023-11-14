@@ -408,16 +408,24 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 		res.ti.Size = len(res.buffer)
 
 	case typeBit, typeBitN:
-		if reflect.TypeOf(val).Kind() != reflect.Bool {
-			err = fmt.Errorf("mssql: invalid type for bit column: %T %s", val, val)
-			return
+		var boolvalue bool
+		switch val := val.(type) {
+		case string:
+			boolvalue, _ = strconv.ParseBool(val)
+		case bool:
+			boolvalue = val
+		default:
+			if reflect.TypeOf(val).Kind() != reflect.Bool {
+				err = fmt.Errorf("mssql: invalid type for bit column: %T %s", val, val)
+				return
+			}
+		}
+		res.buffer = make([]byte, 1)
+		if boolvalue {
+			res.buffer[0] = 1
 		}
 		res.ti.TypeId = typeBitN
 		res.ti.Size = 1
-		res.buffer = make([]byte, 1)
-		if val.(bool) {
-			res.buffer[0] = 1
-		}
 	case typeDateTime2N:
 		switch val := val.(type) {
 		case time.Time:
