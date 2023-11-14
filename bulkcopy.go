@@ -335,6 +335,8 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 			intvalue = int64(val)
 		case float64:
 			intvalue = int64(val)
+		case string:
+			intvalue, _ = strconv.ParseInt(val, 10, 64)
 		default:
 			err = fmt.Errorf("mssql: invalid type for int column: %T", val)
 			return
@@ -362,6 +364,8 @@ func (b *Bulk) makeParam(val DataValue, col columnStruct) (res param, err error)
 			floatvalue = float64(val)
 		case int64:
 			floatvalue = float64(val)
+		case string:
+			floatvalue, _ = strconv.ParseFloat(val, 64)
 		default:
 			err = fmt.Errorf("mssql: invalid type for float column: %T %s", val, val)
 			return
