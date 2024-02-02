@@ -272,7 +272,7 @@ To pass specific types to the query parameters, say `varchar` or `date` types,
 you must convert the types to the type before passing in. The following types
 are supported:
 
-* string -> nvarchar
+* string -> nvarchar (can be changed to varchar using dns flag `strvarchar`)
 * mssql.VarChar -> varchar
 * time.Time -> datetimeoffset or datetime (TDS version dependent)
 * mssql.DateTime1 -> datetime

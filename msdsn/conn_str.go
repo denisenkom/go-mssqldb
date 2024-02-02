@@ -73,6 +73,8 @@ type Config struct {
 	ConnTimeout time.Duration // Use context for timeouts.
 	KeepAlive   time.Duration // Leave at default.
 	PacketSize  uint16
+
+	IsStringVarChar bool
 }
 
 func SetupTLS(certificate string, insecureSkipVerify bool, hostInCertificate string) (*tls.Config, error) {
@@ -321,6 +323,16 @@ func Parse(dsn string) (Config, map[string]string, error) {
 		}
 	} else {
 		p.DisableRetry = disableRetryDefault
+	}
+
+	isStringVarChar, ok := params["strvarchar"]
+	if ok {
+		var err error
+		p.IsStringVarChar, err = strconv.ParseBool(isStringVarChar)
+		if err != nil {
+			f := "invalid strvarchar '%s': %s"
+			return p, params, fmt.Errorf(f, isStringVarChar, err.Error())
+		}
 	}
 
 	return p, params, nil
