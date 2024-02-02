@@ -526,8 +526,8 @@ func (s *Stmt) sendQuery(ctx context.Context, args []namedValue) (err error) {
 			if err != nil {
 				return
 			}
-			params[0] = makeStrParam(s.query, s.c.connector.params.IsStringVarChar)
-			params[1] = makeStrParam(strings.Join(decls, ","), s.c.connector.params.IsStringVarChar)
+			params[0] = makeStrParam(s, s.query)
+			params[1] = makeStrParam(s, strings.Join(decls, ","))
 		}
 		if err = sendRpc(conn.sess.buf, headers, proc, 0, params, reset); err != nil {
 			if conn.sess.logFlags&logErrors != 0 {
@@ -893,8 +893,8 @@ func (r *Rows) ColumnTypeNullable(index int) (nullable, ok bool) {
 	return
 }
 
-func makeStrParam(val string, isStringVarChar bool) (res param) {
-	if isStringVarChar {
+func makeStrParam(s *Stmt, val string) (res param) {
+	if s != nil && s.c != nil && s.c.connector != nil && s.c.connector.params.IsStringVarChar {
 		res.ti.TypeId = typeVarChar
 		res.buffer = []byte(val)
 		res.ti.Size = len(res.buffer)
@@ -941,7 +941,7 @@ func (s *Stmt) makeParam(val driver.Value) (res param, err error) {
 		res.ti.Size = len(val)
 		res.buffer = val
 	case string:
-		res = makeStrParam(val, s.c.connector.params.IsStringVarChar)
+		res = makeStrParam(s, val)
 	case sql.NullString:
 		// only null values should be getting here
 		res.ti.TypeId = typeNVarChar
